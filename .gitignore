@@ -1,0 +1,12 @@
+*-firebase-adminsdk-*.json
+*.log
+.DS_Store
+.env
+.env.*.local
+.env.local
+.vercel
+.vite
+build
+dist
+node_modules
+serviceAccount*.json

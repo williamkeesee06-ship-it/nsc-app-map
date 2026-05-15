@@ -1,0 +1,26 @@
+// Firebase Admin singleton. Safe under serverless cold starts.
+import admin from "firebase-admin";
+import { getEnv } from "../config/env.js";
+
+let app: admin.app.App | null = null;
+
+function getApp(): admin.app.App {
+  if (app) return app;
+  if (admin.apps.length > 0) {
+    app = admin.apps[0]!;
+    return app;
+  }
+  const env = getEnv();
+  app = admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: env.FIREBASE_PROJECT_ID,
+      clientEmail: env.FIREBASE_CLIENT_EMAIL,
+      privateKey: env.FIREBASE_PRIVATE_KEY,
+    }),
+  });
+  return app;
+}
+
+export function db() {
+  return getApp().firestore();
+}
