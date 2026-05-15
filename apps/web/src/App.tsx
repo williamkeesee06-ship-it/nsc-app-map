@@ -3,7 +3,7 @@ import { APIProvider } from "@vis.gl/react-google-maps";
 import JobsMap from "./features/jobs-map/JobsMap.js";
 import JobWorkspace from "./features/workspace/JobWorkspace.js";
 import SyncAdmin from "./features/sync-admin/SyncAdmin.js";
-import { MapThemeProvider } from "./features/map/themeContext.js";
+import { MapThemeProvider, useMapTheme } from "./features/map/themeContext.js";
 import ThemeToggle from "./features/map/ThemeToggle.js";
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
@@ -12,9 +12,20 @@ export default function App() {
   return (
     <APIProvider apiKey={apiKey ?? ""} libraries={["geometry"]}>
       <MapThemeProvider>
-        <div className="shell">
+        <Shell />
+      </MapThemeProvider>
+    </APIProvider>
+  );
+}
+
+// Inner shell that can read the theme context to set the body-level class.
+function Shell() {
+  const { theme } = useMapTheme();
+  return (
+    <>
+        <div className={`shell theme-${theme}`}>
           <header className="topbar">
-            <img src="/northsky-logo.png" alt="North Sky" className="logo" />
+            <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
             <h1>APP MAP</h1>
             <nav>
               <NavLink to="/" end>Jobs Map</NavLink>
@@ -31,8 +42,7 @@ export default function App() {
           </Routes>
         </div>
         {!apiKey && <MissingKeyOverlay />}
-      </MapThemeProvider>
-    </APIProvider>
+    </>
   );
 }
 

@@ -41,7 +41,7 @@ a { color: var(--accent); }
 
 .shell {
   display: grid;
-  grid-template-rows: 48px 1fr;
+  grid-template-rows: 88px 1fr;
   height: 100vh;
 }
 
@@ -54,9 +54,17 @@ a { color: var(--accent); }
   gap: 14px;
 }
 .logo {
-  height: 26px;
+  height: 72px;
   width: auto;
   display: block;
+  /* The supplied JPG has a white background; in dark mode this would clash.
+     Use luminance/multiply-style blending so the dark logotype reads on dark
+     surfaces while keeping the blue accents punchy. Light mode is untouched. */
+}
+.theme-dark .logo {
+  /* Invert dark ink → light, preserve hue via hue-rotate compensation. */
+  filter: invert(1) hue-rotate(180deg) saturate(1.2) brightness(1.05);
+  mix-blend-mode: screen;
 }
 .topbar h1 {
   font-size: 12px;
