@@ -2,6 +2,7 @@ import { Routes, Route, NavLink, Navigate } from "react-router-dom";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import JobsMap from "./features/jobs-map/JobsMap.js";
 import JobWorkspace from "./features/workspace/JobWorkspace.js";
+import SyncAdmin from "./features/sync-admin/SyncAdmin.js";
 import { MapThemeProvider } from "./features/map/themeContext.js";
 import ThemeToggle from "./features/map/ThemeToggle.js";
 
@@ -17,6 +18,7 @@ export default function App() {
             <h1>APP MAP</h1>
             <nav>
               <NavLink to="/" end>Jobs Map</NavLink>
+              <NavLink to="/sync">Sync</NavLink>
               <NavLink to="/jobs/sample">Sample Job</NavLink>
             </nav>
             <ThemeToggle />
@@ -24,6 +26,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<JobsMap />} />
             <Route path="/jobs/:jobId" element={<JobWorkspace />} />
+            <Route path="/sync" element={<SyncAdmin />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

@@ -1,6 +1,6 @@
 // Same-origin API client. In dev, Vite proxies /api to localhost:3001.
 // In prod, vercel.json rewrites /api/* to the serverless function.
-import type { AsbuiltDoc } from "@nsc/types";
+import type { AsbuiltDoc, Job, SyncRun } from "@nsc/types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -19,10 +19,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<{ ok: boolean; time: string }>("/api/health"),
-  getAsbuilt: (jobId: string) => request<AsbuiltDoc>(`/api/asbuilt/${encodeURIComponent(jobId)}`),
+  getAsbuilt: (jobId: string) =>
+    request<AsbuiltDoc>(`/api/asbuilt/${encodeURIComponent(jobId)}`),
   putAsbuilt: (jobId: string, doc: AsbuiltDoc) =>
     request<AsbuiltDoc>(`/api/asbuilt/${encodeURIComponent(jobId)}`, {
       method: "PUT",
       body: JSON.stringify(doc),
     }),
+  listJobs: () => request<{ jobs: Job[]; count: number }>("/api/jobs"),
+  getJob: (jobId: string) =>
+    request<{ job: Job }>(`/api/jobs/${encodeURIComponent(jobId)}`),
+  triggerSync: () =>
+    request<SyncRun>(`/api/sync/jobs`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  syncStatus: () => request<{ lastRun: SyncRun | null }>(`/api/sync/status`),
 };
