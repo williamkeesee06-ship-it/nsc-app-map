@@ -5,6 +5,7 @@
 import type { DrawingObject, DrawingStyle, DrawingTool } from "@nsc/types";
 
 export type CommitFn = (obj: DrawingObject) => void;
+export type PendingObjectFn = (obj: DrawingObject, screenPos: { x: number; y: number }) => void;
 
 const FEET_PER_METER = 3.28084;
 
@@ -63,6 +64,8 @@ export class DrawingEngine {
   // Callback for "drawing started" / "drawing in progress" (for UI hints)
   onDrawProgress?: (vertexCount: number, distanceFeet?: number) => void;
   onDrawEnd?: () => void;
+  /** Phase 5.1: intercept completed objects — show details popup before committing */
+  onPendingObject?: PendingObjectFn;
 
   constructor(map: google.maps.Map, commit: CommitFn) {
     this.map = map;
@@ -113,6 +116,42 @@ export class DrawingEngine {
 
   cancel(): void {
     this.deactivate();
+  }
+
+  // ─── Screen position helper ───────────────────────────────────────────────
+
+  private latLngToScreenPoint(lat: number, lng: number): { x: number; y: number } {
+    try {
+      const projection = this.map.getProjection();
+      const bounds = this.map.getBounds();
+      const zoom = this.map.getZoom();
+      if (!projection || !bounds || zoom == null) return { x: 0, y: 0 };
+      const ne = bounds.getNorthEast();
+      const sw = bounds.getSouthWest();
+      const topRight = projection.fromLatLngToPoint(ne);
+      const bottomLeft = projection.fromLatLngToPoint(sw);
+      const worldPoint = projection.fromLatLngToPoint(new google.maps.LatLng(lat, lng));
+      if (!topRight || !bottomLeft || !worldPoint) return { x: 0, y: 0 };
+      const scale = Math.pow(2, zoom);
+      const mapDiv = this.map.getDiv();
+      const rect = mapDiv.getBoundingClientRect();
+      return {
+        x: rect.left + (worldPoint.x - bottomLeft.x) * scale,
+        y: rect.top + (worldPoint.y - topRight.y) * scale,
+      };
+    } catch {
+      return { x: 0, y: 0 };
+    }
+  }
+
+  /** Commit the object immediately OR hand off to popup handler if registered. */
+  private commitOrPend(obj: DrawingObject, centerLat: number, centerLng: number): void {
+    if (this.onPendingObject) {
+      const screenPos = this.latLngToScreenPoint(centerLat, centerLng);
+      this.onPendingObject(obj, screenPos);
+    } else {
+      this.commit(obj);
+    }
   }
 
   private cursorFor(tool: DrawingTool): string {
@@ -205,8 +244,10 @@ export class DrawingEngine {
       vertices: verts,
       style,
     };
+    // Compute midpoint for popup anchor
+    const midVert = verts[Math.floor(verts.length / 2)]!;
     this.deactivate();
-    this.commit(obj);
+    this.commitOrPend(obj, midVert.lat, midVert.lng);
   }
 
   // ─── Freehand ──────────────────────────────────────────────────────────────
@@ -257,6 +298,7 @@ export class DrawingEngine {
       this.deactivate();
       return;
     }
+    const midVert = verts[Math.floor(verts.length / 2)]!;
     const obj: DrawingObject = {
       id: genId(),
       tool: "freehand",
@@ -264,7 +306,7 @@ export class DrawingEngine {
       style,
     };
     this.deactivate();
-    this.commit(obj);
+    this.commitOrPend(obj, midVert.lat, midVert.lng);
   }
 
   // ─── Rectangle ─────────────────────────────────────────────────────────────
@@ -322,9 +364,11 @@ export class DrawingEngine {
         this.deactivate();
         return;
       }
+      const centerLat = (bounds.n + bounds.s) / 2;
+      const centerLng = (bounds.e + bounds.w) / 2;
       const obj: DrawingObject = { id: genId(), tool: "rectangle", bounds, style };
       this.deactivate();
-      this.commit(obj);
+      this.commitOrPend(obj, centerLat, centerLng);
     });
 
     this.listeners.push(mousedown, mousemove, mouseup);
@@ -386,7 +430,7 @@ export class DrawingEngine {
       };
       const obj: DrawingObject = { id: genId(), tool: "circle", bounds, style };
       this.deactivate();
-      this.commit(obj);
+      this.commitOrPend(obj, center.lat, center.lng);
     });
 
     this.listeners.push(mousedown, mousemove, mouseup);
@@ -407,7 +451,7 @@ export class DrawingEngine {
         position: pt,
         style,
       };
-      this.commit(obj);
+      this.commitOrPend(obj, pt.lat, pt.lng);
       // Point tools stay active for multi-place
     });
 
@@ -422,17 +466,18 @@ export class DrawingEngine {
     const click = this.map.addListener("click", (e: google.maps.MapMouseEvent) => {
       const pt = latLng(e);
       if (!pt) return;
-      const text = window.prompt("Enter text:");
-      if (!text || !text.trim()) return;
+      // Phase 5.1: use popup instead of window.prompt.
+      // Create a draft text object with placeholder text;
+      // the popup's title field will become the text content.
       const obj: DrawingObject = {
         id: genId(),
         tool: "text",
         position: pt,
-        text: text.trim(),
+        text: "\u200b", // zero-width space as placeholder; overlay replaces with label on save
         style,
       };
       this.deactivate();
-      this.commit(obj);
+      this.commitOrPend(obj, pt.lat, pt.lng);
     });
 
     this.listeners.push(click);

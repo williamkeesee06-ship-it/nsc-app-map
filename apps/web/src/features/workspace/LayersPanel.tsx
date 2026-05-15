@@ -3,6 +3,16 @@
 import { useState, useRef, useCallback } from "react";
 import type { DrawingObject } from "@nsc/types";
 import { useDrawing } from "../drawing/drawingContext.js";
+import ObjectDetailsPopup from "../drawing/ObjectDetailsPopup.js";
+
+const POINT_TOOLS_SET = new Set([
+  "mh_new", "mh_removed",
+  "hh_new", "hh_removed",
+  "ped_new", "ped_removed",
+  "pole_new", "pole_removed",
+  "cabinet_new", "cabinet_removed",
+  "anchor_new", "anchor_removed",
+]);
 
 const FEET_PER_METER = 3.28084;
 
@@ -168,6 +178,7 @@ function ObjectRow({ obj, displayIndex, onPanTo }: ObjectRowProps) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const label = obj.style.userLabel ?? defaultLabel(obj, displayIndex);
@@ -212,6 +223,7 @@ function ObjectRow({ obj, displayIndex, onPanTo }: ObjectRowProps) {
   return (
     <div
       className={`layers-row${isSelected ? " layers-row--selected" : ""}${hidden ? " layers-row--hidden" : ""}`}
+      title={obj.style.description ?? ""}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest(".layers-row__actions")) return;
         if (!editing) {
@@ -220,6 +232,23 @@ function ObjectRow({ obj, displayIndex, onPanTo }: ObjectRowProps) {
         }
       }}
     >
+      {/* Details popup (info button click) */}
+      {showInfo && (
+        <ObjectDetailsPopup
+          screenPos={{ x: window.innerWidth / 2, y: window.innerHeight / 2 }}
+          isPointTool={POINT_TOOLS_SET.has(obj.tool)}
+          initialLabel={obj.style.userLabel ?? ""}
+          initialDescription={obj.style.description ?? ""}
+          onSave={(lbl, desc) => {
+            patchObjectStyle(obj.id, {
+              userLabel: lbl || undefined,
+              description: desc || undefined,
+            });
+            setShowInfo(false);
+          }}
+          onCancel={() => setShowInfo(false)}
+        />
+      )}
       {/* Icon */}
       <span className="layers-row__icon">
         <ToolIcon tool={obj.tool} />
@@ -274,6 +303,16 @@ function ObjectRow({ obj, displayIndex, onPanTo }: ObjectRowProps) {
           onClick={(e) => { e.stopPropagation(); patchObjectStyle(obj.id, { locked: !locked }); }}
         >
           {locked ? "🔒" : "🔓"}
+        </button>
+
+        {/* Info / edit details */}
+        <button
+          type="button"
+          className="layers-row__icon-btn"
+          title="Edit details"
+          onClick={(e) => { e.stopPropagation(); setShowInfo(true); }}
+        >
+          ℹ
         </button>
 
         {/* Kebab menu */}

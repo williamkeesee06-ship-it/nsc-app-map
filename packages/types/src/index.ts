@@ -98,6 +98,8 @@ export interface DrawingStyle {
   locked?: boolean;
   /** Phase 5: user-assigned display label override. */
   userLabel?: string;
+  /** Phase 5.1: user-assigned description/notes. */
+  description?: string;
 }
 
 export type DrawingObject =

@@ -1,13 +1,15 @@
 // DrawingOverlay.tsx — React component that lives inside <Map>.
 // Phase 4: cable PLACED = solid neon green, REMOVED = neon red + X marks.
-// Point icons are black (overridden by user color) and support size multiplier.
+// Phase 5.1: click-through when non-select tool active; details popup for all objects;
+//            map-rendered userLabel next to point symbols + line midpoints + shape centers.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
 import type { DrawingObject } from "@nsc/types";
 import { useDrawing } from "./drawingContext.js";
 import { DrawingEngine } from "./DrawingEngine.js";
 import { iconForTool } from "./icons/telecomIcons.js";
+import ObjectDetailsPopup from "./ObjectDetailsPopup.js";
 
 const FEET_PER_METER = 3.28084;
 
@@ -99,6 +101,92 @@ function distanceFeet(vertices: Array<{ lat: number; lng: number }>): number {
   return d * FEET_PER_METER;
 }
 
+// ── Point tool detection ──────────────────────────────────────────────────────
+
+const POINT_TOOLS = new Set([
+  "mh_new", "mh_removed",
+  "hh_new", "hh_removed",
+  "ped_new", "ped_removed",
+  "pole_new", "pole_removed",
+  "cabinet_new", "cabinet_removed",
+  "anchor_new", "anchor_removed",
+]);
+
+function isPointTool(tool: string): boolean {
+  return POINT_TOOLS.has(tool);
+}
+
+// ── SVG label helpers ─────────────────────────────────────────────────────────
+
+function escSvg(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function makeLabelSvg(text: string): string {
+  const charW = 7;
+  const pad = 10;
+  const h = 18;
+  const w = Math.max(36, text.length * charW + pad * 2);
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
+    `<rect x="0.5" y="0.5" width="${w - 1}" height="${h - 1}" rx="4" ry="4" fill="white" stroke="#C8D0DA" stroke-width="1"/>` +
+    `<text x="${w / 2}" y="${h / 2 + 4}" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="10" font-weight="bold" fill="#1A2332">${escSvg(text)}</text>` +
+    `</svg>`
+  );
+}
+
+function makeLabelMarker(
+  position: google.maps.LatLngLiteral,
+  text: string,
+  map: google.maps.Map,
+  zIndex: number
+): google.maps.Marker {
+  const svg = makeLabelSvg(text);
+  const charW = 7;
+  const pad = 10;
+  const w = Math.max(36, text.length * charW + pad * 2);
+  return new google.maps.Marker({
+    position,
+    map,
+    icon: {
+      url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+      // Anchor at left-center so label starts 18px to the right of the symbol
+      anchor: new google.maps.Point(-18, 9),
+      size: new google.maps.Size(w, 18),
+    },
+    clickable: false,
+    zIndex: zIndex + 1,
+    optimized: false,
+  });
+}
+
+// ── Label position helpers ────────────────────────────────────────────────────
+
+function midpointOfVertices(vertices: Array<{ lat: number; lng: number }>): { lat: number; lng: number } {
+  const mid = vertices[Math.floor(vertices.length / 2)];
+  return mid ?? vertices[0]!;
+}
+
+function centerOfBounds(bounds: { n: number; s: number; e: number; w: number }): { lat: number; lng: number } {
+  return {
+    lat: (bounds.n + bounds.s) / 2,
+    lng: (bounds.e + bounds.w) / 2,
+  };
+}
+
+function labelPositionForObj(obj: DrawingObject): { lat: number; lng: number } | null {
+  if ("vertices" in obj) return midpointOfVertices(obj.vertices);
+  if ("bounds" in obj) return centerOfBounds(obj.bounds);
+  if ("position" in obj) return obj.position;
+  return null;
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function DrawingOverlay() {
   const map = useMap();
   const { state, addObject, updateObject, deleteSelected, select, clearSelection, undo, redo } =
@@ -106,6 +194,14 @@ export default function DrawingOverlay() {
   const engineRef = useRef<DrawingEngine | null>(null);
   const overlaysRef = useRef<globalThis.Map<string, OverlayRef>>(new globalThis.Map());
   const measureInfoRef = useRef<globalThis.Map<string, google.maps.InfoWindow>>(new globalThis.Map());
+  // Track last-rendered userLabel per object for incremental updates
+  const labelVersionRef = useRef<globalThis.Map<string, string | undefined>>(new globalThis.Map());
+
+  // Phase 5.1: pending object waiting for the details popup
+  const [pendingObject, setPendingObject] = useState<{
+    obj: DrawingObject;
+    screenPos: { x: number; y: number };
+  } | null>(null);
 
   // ─── Keyboard shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
@@ -118,6 +214,7 @@ export default function DrawingOverlay() {
         return;
       }
       if (e.key === "Escape") {
+        if (pendingObject) return; // let popup handle Esc
         engineRef.current?.cancel();
         return;
       }
@@ -138,7 +235,7 @@ export default function DrawingOverlay() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [deleteSelected, undo, redo]);
+  }, [deleteSelected, undo, redo, pendingObject]);
 
   // ─── Activate / deactivate drawing engine ────────────────────────────────
   useEffect(() => {
@@ -147,6 +244,12 @@ export default function DrawingOverlay() {
       engineRef.current = new DrawingEngine(map, addObject);
     }
     const engine = engineRef.current;
+
+    // Phase 5.1: wire the pending object callback
+    engine.onPendingObject = (obj, screenPos) => {
+      setPendingObject({ obj, screenPos });
+    };
+
     if (state.activeTool && state.activeTool !== "select") {
       engine.activate(state.activeTool, state.style);
     } else {
@@ -154,29 +257,49 @@ export default function DrawingOverlay() {
     }
   }, [map, state.activeTool, state.style, addObject]);
 
+  // ─── Phase 5.1: clickable state per active tool ───────────────────────────
+  useEffect(() => {
+    if (!map) return;
+    const isClickable = state.activeTool === "select" || state.activeTool === null;
+    overlaysRef.current.forEach((overlay, key) => {
+      // Don't toggle label markers (they're never clickable)
+      if (key.endsWith("_label")) return;
+      overlay.setOptions({ clickable: isClickable });
+    });
+  }, [map, state.activeTool]);
+
   // ─── Render objects ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!map) return;
 
+    const isClickable = state.activeTool === "select" || state.activeTool === null;
     const currentIds = new Set(state.objects.map((o) => o.id));
     const renderedIds = new Set(overlaysRef.current.keys());
 
-    // Remove deleted overlays
+    // Remove deleted overlays (including their label counterparts)
     renderedIds.forEach((id) => {
+      // Only check base IDs (not _label suffixes)
+      if (id.endsWith("_label")) return;
       if (!currentIds.has(id)) {
         overlaysRef.current.get(id)?.setMap(null);
         overlaysRef.current.delete(id);
+        // Remove label too
+        const lbl = overlaysRef.current.get(id + "_label");
+        if (lbl) { lbl.setMap(null); overlaysRef.current.delete(id + "_label"); }
         const iw = measureInfoRef.current.get(id);
         if (iw) { iw.close(); measureInfoRef.current.delete(id); }
+        labelVersionRef.current.delete(id);
       }
     });
 
     // Add/update overlays
     state.objects.forEach((obj) => {
-      // Phase 5: skip hidden objects — remove their overlay if previously rendered
+      // Phase 5: skip hidden objects
       if (obj.style.hidden) {
         const prev = overlaysRef.current.get(obj.id);
         if (prev) { prev.setMap(null); overlaysRef.current.delete(obj.id); }
+        const prevLbl = overlaysRef.current.get(obj.id + "_label");
+        if (prevLbl) { prevLbl.setMap(null); overlaysRef.current.delete(obj.id + "_label"); }
         return;
       }
       const isSelected = state.selectedIds.has(obj.id);
@@ -188,22 +311,57 @@ export default function DrawingOverlay() {
             existing.setOptions({
               strokeOpacity: isSelected ? 1 : obj.style.opacity,
               zIndex: isSelected ? 20 : 5,
+              clickable: isClickable,
             });
           } else if (existing instanceof google.maps.Rectangle || existing instanceof google.maps.Circle) {
             existing.setOptions({
               strokeOpacity: isSelected ? 1 : obj.style.opacity,
               zIndex: isSelected ? 20 : 5,
+              clickable: isClickable,
+            });
+          } else if (existing instanceof google.maps.Marker) {
+            existing.setOptions({
+              zIndex: isSelected ? 20 : 5,
+              clickable: isClickable,
             });
           }
+        }
+
+        // Update label marker if userLabel changed
+        const lastLabel = labelVersionRef.current.get(obj.id);
+        const currentLabel = obj.style.userLabel;
+        if (lastLabel !== currentLabel) {
+          // Remove old label marker
+          const oldLbl = overlaysRef.current.get(obj.id + "_label");
+          if (oldLbl) { oldLbl.setMap(null); overlaysRef.current.delete(obj.id + "_label"); }
+          // Create new label marker if label exists
+          if (currentLabel) {
+            const pos = labelPositionForObj(obj);
+            if (pos) {
+              const lblMarker = makeLabelMarker(pos, currentLabel, map, isSelected ? 20 : 5);
+              overlaysRef.current.set(obj.id + "_label", lblMarker);
+            }
+          }
+          labelVersionRef.current.set(obj.id, currentLabel);
         }
         return;
       }
 
       // Create new overlay
-      const overlay = createOverlay(obj, map, isSelected, (id, additive) => {
+      const overlay = createOverlay(obj, map, isSelected, isClickable, (id, additive) => {
         select([id], additive);
       });
       if (overlay) overlaysRef.current.set(obj.id, overlay);
+
+      // Create label marker if userLabel is set
+      if (obj.style.userLabel) {
+        const pos = labelPositionForObj(obj);
+        if (pos) {
+          const lblMarker = makeLabelMarker(pos, obj.style.userLabel, map, isSelected ? 20 : 5);
+          overlaysRef.current.set(obj.id + "_label", lblMarker);
+        }
+      }
+      labelVersionRef.current.set(obj.id, obj.style.userLabel);
 
       // Measure distance label
       if (obj.tool === "measure" && "vertices" in obj) {
@@ -226,6 +384,7 @@ export default function DrawingOverlay() {
       overlaysRef.current.clear();
       measureInfoRef.current.forEach((iw) => iw.close());
       measureInfoRef.current.clear();
+      labelVersionRef.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, state.objects, state.selectedIds]);
@@ -241,7 +400,62 @@ export default function DrawingOverlay() {
     return () => listener.remove();
   }, [map, state.activeTool, clearSelection]);
 
-  return null;
+  // ─── Details popup save/cancel ────────────────────────────────────────────
+
+  function handlePopupSave(label: string, description: string) {
+    if (!pendingObject) return;
+    const { obj } = pendingObject;
+
+    // For text objects, label becomes the displayed text content
+    let finalObj: DrawingObject;
+    if (obj.tool === "text") {
+      finalObj = {
+        ...obj,
+        text: label || "Text",
+        style: {
+          ...obj.style,
+          userLabel: label || undefined,
+          description: description || undefined,
+        },
+      };
+    } else {
+      finalObj = {
+        ...obj,
+        style: {
+          ...obj.style,
+          userLabel: label || undefined,
+          description: description || undefined,
+        },
+      };
+    }
+
+    addObject(finalObj);
+    setPendingObject(null);
+  }
+
+  function handlePopupCancel() {
+    setPendingObject(null);
+  }
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+
+  // Determine if the pending object is from a point tool (→ A-TAG placeholder)
+  const pendingIsPoint = pendingObject
+    ? isPointTool(pendingObject.obj.tool)
+    : false;
+
+  return (
+    <>
+      {pendingObject && (
+        <ObjectDetailsPopup
+          screenPos={pendingObject.screenPos}
+          isPointTool={pendingIsPoint}
+          onSave={handlePopupSave}
+          onCancel={handlePopupCancel}
+        />
+      )}
+    </>
+  );
 }
 
 // ─── Overlay factory ──────────────────────────────────────────────────────────
@@ -250,6 +464,7 @@ function createOverlay(
   obj: DrawingObject,
   map: google.maps.Map,
   isSelected: boolean,
+  isClickable: boolean,
   onSelect: (id: string, additive: boolean) => void
 ): OverlayRef | null {
   const z = isSelected ? 20 : 5;
@@ -272,6 +487,7 @@ function createOverlay(
         fillColor: fillColor(obj.style),
         fillOpacity: fillOpacity(obj.style),
         zIndex: z,
+        clickable: isClickable,
         map,
       });
       poly.addListener("click", clickHandler);
@@ -281,6 +497,7 @@ function createOverlay(
       path: obj.vertices.map((v) => new google.maps.LatLng(v.lat, v.lng)),
       ...opts,
       zIndex: z,
+      clickable: isClickable,
       map,
     });
     pl.addListener("click", clickHandler);
@@ -307,6 +524,7 @@ function createOverlay(
         fillColor: fillC,
         fillOpacity: fillO,
         zIndex: z,
+        clickable: isClickable,
         map,
       });
       rect.addListener("click", clickHandler);
@@ -326,6 +544,7 @@ function createOverlay(
         fillColor: fillC,
         fillOpacity: fillO,
         zIndex: z,
+        clickable: isClickable,
         map,
       });
       circle.addListener("click", clickHandler);
@@ -349,6 +568,7 @@ function createOverlay(
         scale: 0,
       },
       draggable: true,
+      clickable: isClickable,
       zIndex: z,
     });
     marker.addListener("click", clickHandler);
@@ -357,7 +577,6 @@ function createOverlay(
 
   if ("position" in obj && !("text" in obj)) {
     // Point (telecom) object — use black icon, override with user color if set
-    // and non-default. Phase 4: always black unless explicitly overridden.
     const pointSize = obj.style.pointSize;
     const icon = iconForTool(obj.tool, obj.style.strokeColor, pointSize ?? 1.0);
     const marker = new google.maps.Marker({
@@ -366,6 +585,7 @@ function createOverlay(
       icon,
       title: obj.label ?? obj.tool,
       draggable: true,
+      clickable: isClickable,
       zIndex: z,
     });
     marker.addListener("click", clickHandler);
