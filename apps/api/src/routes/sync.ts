@@ -5,8 +5,43 @@ import {
   buildColumnsById,
   rowToRecord,
 } from "../lib/smartsheet.js";
+import { runJobsSync } from "../services/jobsSync.js";
+import { db } from "../lib/firestore.js";
+import type { SyncRun } from "@nsc/types";
 
 const router = Router();
+
+// POST /api/sync/jobs — manual sync trigger.
+// NOTE: Vercel serverless functions have a default timeout; for 191 rows with
+// cached geocodes this completes in seconds. Cold-sync of all-new jobs may need
+// a longer timeout — see vercel.json (functions.api/index.ts.maxDuration).
+router.post("/sync/jobs", async (_req, res, next) => {
+  try {
+    const result = await runJobsSync();
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/sync/status — most recent sync run.
+router.get("/sync/status", async (_req, res, next) => {
+  try {
+    const snap = await db()
+      .collection("syncRuns")
+      .orderBy("startedAt", "desc")
+      .limit(1)
+      .get();
+    if (snap.empty) {
+      res.json({ lastRun: null });
+      return;
+    }
+    const lastRun = snap.docs[0]!.data() as SyncRun;
+    res.json({ lastRun });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/sync/inspect
 // Diagnostic: returns sheet name, totalRowCount, column list, and a sample of
