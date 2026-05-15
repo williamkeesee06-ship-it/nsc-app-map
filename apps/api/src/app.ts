@@ -2,6 +2,7 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import healthRouter from "./routes/health.js";
 import asbuiltRouter from "./routes/asbuilt.js";
+import syncRouter from "./routes/sync.js";
 
 export function createApp() {
   const app = express();
@@ -11,6 +12,7 @@ export function createApp() {
   // at the platform level, but we keep it explicit so local dev matches prod).
   app.use("/api", healthRouter);
   app.use("/api", asbuiltRouter);
+  app.use("/api", syncRouter);
 
   // Catch-all error handler — never let an uncaught error crash the function.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
