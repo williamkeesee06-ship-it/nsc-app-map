@@ -1,5 +1,7 @@
-// Left rail — Phase 4.1: 2-col grid, standard tools first, TELECOM divider, telecom below.
+// Left rail — Phase 4.2: resizable drag handle + adaptive 1/2-col grid + localStorage persistence
+// Phase 4.1: 2-col grid, standard tools first, TELECOM divider, telecom below.
 // Undo/Redo/Save moved to topbar. Screenshot/fit/recenter removed.
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Job } from "@nsc/types";
 import type { MutableRefObject } from "react";
 import FilterRail from "./FilterRail.js";
@@ -8,6 +10,12 @@ import { isJobCompleted } from "./markerStyle.js";
 import { useDrawing } from "../drawing/drawingContext.js";
 import type { DrawingTool } from "@nsc/types";
 import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
+
+const DEFAULT_WIDTH = 140;
+const MIN_WIDTH = 110;
+const MAX_WIDTH = 320;
+const COL_BREAK = 160;
+const LS_KEY = "nsc.leftRailWidth";
 
 interface Props {
   jobs: Job[];
@@ -18,10 +26,89 @@ interface Props {
 }
 
 export default function LeftRail({ jobs, filters, setFilters }: Props) {
+  const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
+  const draggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(DEFAULT_WIDTH);
+  const handleRef = useRef<HTMLDivElement>(null);
+
+  // Hydrate from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LS_KEY);
+      if (stored !== null) {
+        const parsed = parseInt(stored, 10);
+        if (!isNaN(parsed)) {
+          setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, parsed)));
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Drag handlers
+  const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    draggingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = width;
+    handleRef.current?.classList.add("dragging");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, [width]);
+
+  const onDoubleClick = useCallback(() => {
+    setWidth(DEFAULT_WIDTH);
+    try {
+      localStorage.setItem(LS_KEY, String(DEFAULT_WIDTH));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!draggingRef.current) return;
+      const delta = e.clientX - startXRef.current;
+      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidthRef.current + delta));
+      setWidth(next);
+    }
+
+    function onMouseUp() {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      handleRef.current?.classList.remove("dragging");
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      // Persist on drag end
+      setWidth((w) => {
+        try {
+          localStorage.setItem(LS_KEY, String(w));
+        } catch {
+          // ignore
+        }
+        return w;
+      });
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
+  const cols = width >= COL_BREAK ? 2 : 1;
+
   return (
-    <aside className="left-rail">
+    <aside
+      className="left-rail"
+      style={{ width, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH, position: "relative", flexShrink: 0 }}
+    >
       <div className="left-rail__scroll">
-        <ToolsSection />
+        <ToolsSection cols={cols} />
         <div className="rail-section__divider" />
         <FilterRail
           jobs={jobs}
@@ -29,6 +116,15 @@ export default function LeftRail({ jobs, filters, setFilters }: Props) {
           setFilters={setFilters}
         />
       </div>
+
+      {/* Resize handle */}
+      <div
+        ref={handleRef}
+        className="rail-resize-handle"
+        onMouseDown={onMouseDown}
+        onDoubleClick={onDoubleClick}
+        title="Drag to resize · Double-click to reset"
+      />
     </aside>
   );
 }
@@ -167,7 +263,7 @@ const TELECOM_TOOL_DEFS: ToolDef[] = [
 
 // ─── Tools Section ────────────────────────────────────────────────────────────
 
-function ToolsSection() {
+function ToolsSection({ cols }: { cols: number }) {
   const {
     state,
     setTool,
@@ -206,7 +302,10 @@ function ToolsSection() {
 
   return (
     <section className="rail-section rail-section--tools">
-      <div className="tool-grid">
+      <div
+        className="tool-grid"
+        style={{ "--cols": cols } as React.CSSProperties}
+      >
         {/* Standard drawing tools */}
         {STANDARD_TOOL_DEFS.map(renderTile)}
 

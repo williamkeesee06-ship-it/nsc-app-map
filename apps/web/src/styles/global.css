@@ -333,8 +333,8 @@ a { color: var(--accent); }
    ============================================================ */
 
 .jobs-map {
-  display: grid;
-  grid-template-columns: 260px 1fr;
+  display: flex;
+  flex-direction: row;
   height: 100%;
   min-height: 0;
 }
@@ -346,6 +346,8 @@ a { color: var(--accent); }
 
 /* ── Left Rail ──────────────────────────────────────────────── */
 .left-rail {
+  /* Width is driven by inline style (useState). Default ~140px via JS. */
+  flex-shrink: 0;
   background: var(--surface-glass);
   backdrop-filter: blur(18px) saturate(1.4);
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
@@ -356,6 +358,7 @@ a { color: var(--accent); }
   display: flex;
   flex-direction: column;
   font-size: 13px;
+  position: relative;
 }
 .left-rail__scroll {
   overflow-y: auto;
@@ -376,7 +379,8 @@ a { color: var(--accent); }
 /* ── Uniform Icon+Label tool buttons ────────────────────────── */
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  /* --cols is set via inline style from JS width threshold (1 or 2) */
+  grid-template-columns: repeat(var(--cols, 1), 1fr);
   gap: 6px;
   margin-bottom: 4px;
 }
@@ -545,13 +549,82 @@ a { color: var(--accent); }
 
 .status-pill--bottom { bottom: 14px; }
 
-/* Job popup */
+/* Job popup — full card anchors bottom-left */
 .job-popup-wrap {
   position: absolute;
   bottom: 56px;
   left: 14px;
   z-index: 20;
   max-width: 360px;
+}
+
+/* ── Resize handle on right edge of left rail ────────────────── */
+.rail-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  background: linear-gradient(to right, transparent, rgba(192,200,208,0.6), transparent);
+  z-index: 10;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+.rail-resize-handle:hover,
+.rail-resize-handle.dragging {
+  background: linear-gradient(to right, transparent, rgba(21,101,192,0.7), transparent);
+  box-shadow: 0 0 8px rgba(21,101,192,0.4);
+}
+
+/* ── Minimized job card pill ─────────────────────────────────── */
+.job-card-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 8px 0 12px;
+  border-radius: 999px;
+  background: var(--surface-glass);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border: 1.5px solid var(--border);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.13), inset 0 1px 2px rgba(255,255,255,0.8);
+  max-width: 220px;
+  min-width: 140px;
+  cursor: default;
+  /* Chrome ridge gradient matching the theme */
+  background: linear-gradient(160deg, var(--chrome-light) 0%, var(--surface) 55%, #E0E6EE 100%);
+}
+.job-card-pill__wo {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.job-card-pill__restore,
+.job-card-pill__close {
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.job-card-pill__restore:hover { color: var(--accent); background: transparent; }
+.job-card-pill__close:hover { color: var(--text); background: transparent; }
+
+/* ── Job card header actions group ──────────────────────────── */
+.job-card__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 /* ── Filter chip pills ──────────────────────────────────────── */

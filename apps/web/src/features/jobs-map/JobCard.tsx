@@ -3,6 +3,8 @@
 //   Construction Crew/Foreman, Schedule Date, Traffic Control,
 //   NSC Project Notes, Actual Completion Date.
 // Plus Job Status as a pill (used for marker color too).
+// Phase 4.2: minimizable — collapses to a slim bottom-right pill.
+import { useState } from "react";
 import type { Job } from "@nsc/types";
 import { Link } from "react-router-dom";
 
@@ -13,8 +15,37 @@ interface Props {
 }
 
 export default function JobCard({ job, onClose, variant = "popup" }: Props) {
+  const [minimized, setMinimized] = useState(false);
   const wo = job.workOrder;
   const status = job.jobStatus ?? "—";
+
+  // Minimized pill — always rendered in popup variant
+  if (minimized && variant === "popup") {
+    return (
+      <div className="job-card-pill" title={`${wo} · ${status}`}>
+        <span className="job-card-pill__wo">{wo}</span>
+        <button
+          className="job-card-pill__restore icon-btn"
+          onClick={() => setMinimized(false)}
+          aria-label="Restore job card"
+          title="Restore"
+        >
+          ⌃
+        </button>
+        {onClose && (
+          <button
+            className="job-card-pill__close icon-btn"
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+          >
+            ×
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={`job-card job-card--${variant}`}>
       <header className="job-card__head">
@@ -27,11 +58,23 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
             <span className="status-pill status-archived">Archived</span>
           )}
         </div>
-        {onClose && (
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
-            ×
-          </button>
-        )}
+        <div className="job-card__head-actions">
+          {variant === "popup" && (
+            <button
+              className="icon-btn"
+              onClick={() => setMinimized(true)}
+              aria-label="Minimize job card"
+              title="Minimize"
+            >
+              −
+            </button>
+          )}
+          {onClose && (
+            <button className="icon-btn" onClick={onClose} aria-label="Close">
+              ×
+            </button>
+          )}
+        </div>
       </header>
 
       <Row label="Address" value={job.address} />
