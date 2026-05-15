@@ -14,6 +14,7 @@ import { MARKER_COLORS, colorKeyForJob, neonPinDataUrl } from "./markerStyle.js"
 import { api } from "../../lib/api.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
+import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import type { MapTheme } from "../map/themeContext.js";
 
 const FOCUS_ZOOM = 17;
@@ -133,7 +134,8 @@ function JobsMapInner({
       />
 
       <div className="jobs-map__main">
-        <div className="map-host">
+        <ModifiersPanel />
+        <div className="map-host" style={{ position: "absolute", inset: 0, top: 0 }}>
           <Map
             defaultCenter={DEFAULT_CENTER}
             defaultZoom={DEFAULT_ZOOM}
@@ -182,9 +184,10 @@ function MapHandle({ mapRef }: { mapRef: React.MutableRefObject<google.maps.Map 
   return null;
 }
 
-// Renders neon-pin markers for each visible job and wires:
-//   - marker click → onSelect + zoom-in
-//   - search-driven focus requests → pan + zoom
+const WO_LABEL_MIN_ZOOM = 13;
+
+// Renders neon-pin markers + WO label markers above each pin.
+// WO labels hide when map zoom < 13 to avoid clutter.
 function JobMarkers({
   jobs,
   onSelect,
@@ -198,22 +201,28 @@ function JobMarkers({
   const { focus, clearFocus } = useSearchFocus();
   const fittedRef = useRef(false);
   const markersRef = useRef<globalThis.Map<string, google.maps.Marker> | null>(null);
+  const labelMarkersRef = useRef<google.maps.Marker[]>([]);
 
   useEffect(() => {
     if (!map) return;
     const created = new globalThis.Map<string, google.maps.Marker>();
+    const labelMarkers: google.maps.Marker[] = [];
+    const currentZoom = map.getZoom() ?? 0;
+    const labelsVisible = currentZoom >= WO_LABEL_MIN_ZOOM;
 
     jobs.forEach((job) => {
       const colorKey = colorKeyForJob(job);
       const color = MARKER_COLORS[colorKey];
+
+      // Pin marker
       const m = new google.maps.Marker({
         position: { lat: job.geocode!.lat, lng: job.geocode!.lng },
         map,
         title: `${job.workOrder} · ${job.secondaryJobStatus ?? job.jobStatus ?? ""}`,
         icon: {
           url: neonPinDataUrl(color, job.inTracker ? 1 : 0.55),
-          scaledSize: new google.maps.Size(40, 55),
-          anchor: new google.maps.Point(20, 50),
+          scaledSize: new google.maps.Size(26, 36),
+          anchor: new google.maps.Point(13, 33),
         },
       });
       m.addListener("click", () => {
@@ -221,8 +230,41 @@ function JobMarkers({
         focusMapOnLatLng(map, job.geocode!.lat, job.geocode!.lng);
       });
       created.set(job.jobId, m);
+
+      // WO label marker — positioned slightly above the pin
+      if (job.workOrder) {
+        const pinColor = color.core;
+        const woText = job.workOrder;
+        // Build a tiny SVG label pill
+        const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="22">
+  <rect x="0" y="0" width="80" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
+  <text x="40" y="15" text-anchor="middle" font-size="10" font-weight="700"
+    fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${woText}</text>
+</svg>`;
+        const labelUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(labelSvg)}`;
+        const lm = new google.maps.Marker({
+          position: { lat: job.geocode!.lat, lng: job.geocode!.lng },
+          map: labelsVisible ? map : null,
+          icon: {
+            url: labelUrl,
+            scaledSize: new google.maps.Size(80, 22),
+            anchor: new google.maps.Point(40, 48), // above pin tip
+          },
+          clickable: false,
+          zIndex: 1,
+        });
+        labelMarkers.push(lm);
+      }
     });
     markersRef.current = created;
+    labelMarkersRef.current = labelMarkers;
+
+    // Zoom listener to toggle label visibility
+    const zoomListener = map.addListener("zoom_changed", () => {
+      const zoom = map.getZoom() ?? 0;
+      const show = zoom >= WO_LABEL_MIN_ZOOM;
+      labelMarkersRef.current.forEach((lm) => lm.setMap(show ? map : null));
+    });
 
     if (!fittedRef.current && jobs.length > 0) {
       const bounds = new google.maps.LatLngBounds();
@@ -242,7 +284,10 @@ function JobMarkers({
 
     return () => {
       created.forEach((m) => m.setMap(null));
+      labelMarkers.forEach((lm) => lm.setMap(null));
+      labelMarkersRef.current = [];
       if (markersRef.current === created) markersRef.current = null;
+      google.maps.event.removeListener(zoomListener);
     };
   }, [map, jobs, onSelect]);
 

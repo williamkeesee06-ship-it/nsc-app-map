@@ -90,6 +90,8 @@ export interface DrawingStyle {
     | { kind: "solid"; color: string }
     | { kind: "hash"; pattern: "diagonal" | "cross" | "dots"; color: string; density: number };
   opacity: number; // 0..1
+  /** Phase 4: size multiplier for point symbols (0.5–2.0). Default 1.0. */
+  pointSize?: number;
 }
 
 export type DrawingObject =

@@ -1,15 +1,13 @@
-// Left rail for the Jobs Map — Phase 3.
-// Contains: drawing toolbar (telecom + basic tools), modifiers panel,
-// map utilities, and filter rail.
+// Left rail — Phase 4: uniform icon+label tool tiles, no category headers.
+// Undo/Redo/Save moved to topbar. Screenshot/fit/recenter removed.
 import type { Job } from "@nsc/types";
-import { useState, type MutableRefObject } from "react";
+import type { MutableRefObject } from "react";
 import FilterRail from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
 import { isJobCompleted } from "./markerStyle.js";
 import { useDrawing } from "../drawing/drawingContext.js";
-import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import type { DrawingTool } from "@nsc/types";
-import { downloadScreenshot } from "../drawing/screenshot.js";
+import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 
 interface Props {
   jobs: Job[];
@@ -19,11 +17,12 @@ interface Props {
   mapRef: MutableRefObject<google.maps.Map | null>;
 }
 
-export default function LeftRail({ jobs, filters, setFilters, onResync, mapRef }: Props) {
+export default function LeftRail({ jobs, filters, setFilters }: Props) {
   return (
     <aside className="left-rail">
       <div className="left-rail__scroll">
-        <ToolsSection onResync={onResync} jobs={jobs} mapRef={mapRef} />
+        <ToolsSection />
+        <div className="rail-section__divider" />
         <FilterRail
           jobs={jobs}
           filters={filters}
@@ -34,69 +33,147 @@ export default function LeftRail({ jobs, filters, setFilters, onResync, mapRef }
   );
 }
 
-// ─── TOOLS SECTION ───────────────────────────────────────────────────────────
+// ─── Tool definitions ─────────────────────────────────────────────────────────
 
-function ToolsSection({
-  onResync,
-  jobs,
-  mapRef,
-}: {
-  onResync: () => Promise<void> | void;
-  jobs: Job[];
-  mapRef: MutableRefObject<google.maps.Map | null>;
-}) {
-  const [resyncing, setResyncing] = useState(false);
+interface ToolDef {
+  tool: DrawingTool;
+  label: string;
+  // Returns inline SVG string for the icon
+  iconSvg: (active: boolean) => string;
+}
+
+const CABLE_PLACED_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+  <line x1="2" y1="13" x2="30" y2="13" stroke="#39ff7a" stroke-width="3" stroke-linecap="round"/>
+</svg>`;
+
+const CABLE_REMOVED_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+  <line x1="2" y1="13" x2="30" y2="13" stroke="#ff2d4a" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 3"/>
+  <text x="7" y="11" font-size="8" fill="#ff2d4a" font-family="monospace" font-weight="bold">×</text>
+  <text x="16" y="11" font-size="8" fill="#ff2d4a" font-family="monospace" font-weight="bold">×</text>
+  <text x="25" y="11" font-size="8" fill="#ff2d4a" font-family="monospace" font-weight="bold">×</text>
+</svg>`;
+
+function blackOrActive(active: boolean): string {
+  return active ? "#1565C0" : "#000000";
+}
+
+function basicSvg(path: string): (active: boolean) => string {
+  return (active) => {
+    const c = blackOrActive(active);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+  ${path.replace(/STROKE/g, c)}
+</svg>`;
+  };
+}
+
+const TOOL_DEFS: ToolDef[] = [
+  // ── Cable tools ──
+  {
+    tool: "placed_cable",
+    label: "PLACED",
+    iconSvg: () => CABLE_PLACED_SVG,
+  },
+  {
+    tool: "removed_cable",
+    label: "REMOVED",
+    iconSvg: () => CABLE_REMOVED_SVG,
+  },
+  // ── Telecom point tools ──
+  {
+    tool: "mh_new",
+    label: "MH",
+    iconSvg: (active) => railSvgForTool("mh", blackOrActive(active)),
+  },
+  {
+    tool: "hh_new",
+    label: "HH",
+    iconSvg: (active) => railSvgForTool("hh", blackOrActive(active)),
+  },
+  {
+    tool: "ped_new",
+    label: "PED",
+    iconSvg: (active) => railSvgForTool("ped", blackOrActive(active)),
+  },
+  {
+    tool: "pole_new",
+    label: "POLE",
+    iconSvg: (active) => railSvgForTool("pole", blackOrActive(active)),
+  },
+  {
+    tool: "cabinet_new",
+    label: "CABINET",
+    iconSvg: (active) => railSvgForTool("cabinet", blackOrActive(active)),
+  },
+  {
+    tool: "anchor_new",
+    label: "ANCHOR",
+    iconSvg: (active) => railSvgForTool("anchor", blackOrActive(active)),
+  },
+  // ── Basic drawing tools ──
+  {
+    tool: "text",
+    label: "TEXT",
+    iconSvg: basicSvg(`<text x="3" y="20" font-size="18" font-weight="bold" fill="STROKE" font-family="serif">T</text>
+      <line x1="3" y1="22" x2="16" y2="22" stroke="STROKE" stroke-width="1.5"/>`),
+  },
+  {
+    tool: "line",
+    label: "LINE",
+    iconSvg: basicSvg(`<line x1="4" y1="22" x2="28" y2="4" stroke="STROKE" stroke-width="2" stroke-linecap="round"/>`),
+  },
+  {
+    tool: "arrow",
+    label: "ARROW",
+    iconSvg: basicSvg(`<line x1="4" y1="22" x2="25" y2="5" stroke="STROKE" stroke-width="2" stroke-linecap="round"/>
+      <polygon points="25,5 20,10 28,10" fill="STROKE"/>`),
+  },
+  {
+    tool: "rectangle",
+    label: "RECT",
+    iconSvg: basicSvg(`<rect x="4" y="5" width="24" height="16" rx="2" stroke="STROKE" stroke-width="2" fill="none"/>`),
+  },
+  {
+    tool: "circle",
+    label: "CIRCLE",
+    iconSvg: basicSvg(`<ellipse cx="16" cy="13" rx="12" ry="9" stroke="STROKE" stroke-width="2" fill="none"/>`),
+  },
+  {
+    tool: "polygon",
+    label: "POLYGON",
+    iconSvg: basicSvg(`<polygon points="16,3 28,18 22,23 10,23 4,18" stroke="STROKE" stroke-width="2" fill="none"/>`),
+  },
+  {
+    tool: "freehand",
+    label: "FREEHAND",
+    iconSvg: basicSvg(`<path d="M4,22 Q8,8 14,14 Q20,20 28,4" stroke="STROKE" stroke-width="2" fill="none" stroke-linecap="round"/>`),
+  },
+  {
+    tool: "measure",
+    label: "MEASURE",
+    iconSvg: basicSvg(`<line x1="4" y1="18" x2="28" y2="18" stroke="STROKE" stroke-width="2"/>
+      <line x1="4" y1="14" x2="4" y2="22" stroke="STROKE" stroke-width="2"/>
+      <line x1="28" y1="14" x2="28" y2="22" stroke="STROKE" stroke-width="2"/>
+      <line x1="16" y1="12" x2="16" y2="18" stroke="STROKE" stroke-width="1.5" stroke-dasharray="2 2"/>`),
+  },
+  {
+    tool: "select",
+    label: "SELECT",
+    iconSvg: basicSvg(`<path d="M6,4 L6,22 L13,17 L16,24 L18,23 L15,16 L22,16 Z" stroke="STROKE" stroke-width="1.5" fill="none" stroke-linejoin="round"/>`),
+  },
+];
+
+// ─── Tools Section ────────────────────────────────────────────────────────────
+
+function ToolsSection() {
   const {
     state,
     setTool,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
     deleteSelected,
-    save,
   } = useDrawing();
 
-  const { activeTool, dirty, saving, saveError, targetJobId, targetWorkOrder } = state;
+  const { activeTool } = state;
   const hasSelection = state.selectedIds.size > 0;
-  const noTarget = !targetJobId;
-
-  function fitAll() {
-    const map = mapRef.current;
-    if (!map) return;
-    const mapped = jobs.filter(
-      (j) => j.geocode?.status === "OK" && j.geocode.lat !== 0
-    );
-    if (mapped.length === 0) return;
-    const bounds = new google.maps.LatLngBounds();
-    mapped.forEach((j) =>
-      bounds.extend({ lat: j.geocode!.lat, lng: j.geocode!.lng })
-    );
-    map.fitBounds(bounds, 60);
-  }
-
-  function recenter() {
-    const map = mapRef.current;
-    if (!map) return;
-    map.panTo({ lat: 47.5, lng: -122.1 });
-    map.setZoom(9);
-  }
-
-  async function doResync() {
-    if (resyncing) return;
-    setResyncing(true);
-    try {
-      await onResync();
-    } finally {
-      setResyncing(false);
-    }
-  }
-
-  async function doScreenshot() {
-    const map = mapRef.current;
-    if (!map) return;
-    await downloadScreenshot(map, state.objects);
-  }
+  const noTarget = !state.targetJobId;
 
   function toggleTool(tool: DrawingTool) {
     setTool(activeTool === tool ? null : tool);
@@ -104,124 +181,37 @@ function ToolsSection({
 
   return (
     <section className="rail-section rail-section--tools">
-
-      {/* ── Save target indicator ─────────────────────── */}
-      <div className="draw-target-bar">
-        {noTarget ? (
-          <span className="draw-target-bar__hint">Click a job marker to start drawing</span>
-        ) : (
-          <>
-            <span className="draw-target-bar__label">Saving to:</span>
-            <span className="draw-target-bar__wo">{targetWorkOrder ?? targetJobId}</span>
-          </>
-        )}
-      </div>
-
-      {/* ── Top utilities ─────────────────────────────── */}
-      <div className="tool-row tool-row--utilities">
-        <button
-          type="button"
-          className="tool-btn"
-          onClick={undo}
-          disabled={!canUndo}
-          title="Undo (Cmd+Z)"
-          aria-label="Undo"
-        >
-          ↶
-        </button>
-        <button
-          type="button"
-          className="tool-btn"
-          onClick={redo}
-          disabled={!canRedo}
-          title="Redo (Cmd+Shift+Z)"
-          aria-label="Redo"
-        >
-          ↷
-        </button>
-        <button
-          type="button"
-          className="tool-btn"
-          onClick={doScreenshot}
-          title="Screenshot"
-          aria-label="Screenshot"
-        >
-          ⎙
-        </button>
-        <button
-          type="button"
-          className={`tool-btn${dirty ? " tool-btn--dirty" : ""}`}
-          onClick={save}
-          disabled={!dirty || saving || noTarget}
-          title={noTarget ? "Select a job first" : dirty ? "Save drawings to Firestore" : "No unsaved changes"}
-          aria-label="Save"
-        >
-          {saving ? "…" : "💾"}
-        </button>
-        {dirty && !saving && (
-          <span className="unsaved-dot" title="Unsaved changes">● Unsaved</span>
-        )}
-        {saveError && (
-          <span className="save-error" title={saveError}>⚠ Save failed</span>
-        )}
-      </div>
-
-      {/* ── Map utilities ─────────────────────────────── */}
-      <h4 className="rail-h4">Map tools</h4>
-      <div className="tool-row">
-        <button type="button" className="tool-btn tool-btn--text" onClick={fitAll}>Fit all</button>
-        <button type="button" className="tool-btn tool-btn--text" onClick={recenter}>Recenter</button>
-        <button
-          type="button"
-          className="tool-btn tool-btn--text"
-          onClick={doResync}
-          disabled={resyncing}
-          title="Pull latest from Smartsheet"
-        >
-          {resyncing ? "Syncing…" : "Resync"}
-        </button>
-      </div>
-
-      {/* ── Telecom tools ─────────────────────────────── */}
-      <h4 className="rail-h4">Cable</h4>
-      <div className="tool-row">
-        <ToolBtn tool="placed_cable" label="Placed" active={activeTool} onToggle={toggleTool} disabled={noTarget} color="var(--neon-green)" />
-        <ToolBtn tool="removed_cable" label="Removed" active={activeTool} onToggle={toggleTool} disabled={noTarget} color="var(--neon-red)" />
-      </div>
-
-      <h4 className="rail-h4">Points · NEW</h4>
-      <div className="tool-row tool-row--wrap">
-        {(["mh_new", "hh_new", "ped_new", "pole_new", "cabinet_new", "anchor_new"] as DrawingTool[]).map((t) => (
-          <ToolBtn key={t} tool={t} label={t.split("_")[0]!.toUpperCase()} active={activeTool} onToggle={toggleTool} disabled={noTarget} color="var(--neon-green)" />
-        ))}
-      </div>
-
-      <h4 className="rail-h4">Points · REMOVED</h4>
-      <div className="tool-row tool-row--wrap">
-        {(["mh_removed", "hh_removed", "ped_removed", "pole_removed", "cabinet_removed", "anchor_removed"] as DrawingTool[]).map((t) => (
-          <ToolBtn key={t} tool={t} label={t.split("_")[0]!.toUpperCase()} active={activeTool} onToggle={toggleTool} disabled={noTarget} color="var(--neon-red)" />
-        ))}
-      </div>
-
-      <h4 className="rail-h4">Text &amp; Basic</h4>
-      <div className="tool-row tool-row--wrap">
-        <ToolBtn tool="text" label="Text" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
-        <ToolBtn tool="line" label="Line" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
-        <ToolBtn tool="arrow" label="Arrow" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
-        <ToolBtn tool="rectangle" label="Rect" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
-        <ToolBtn tool="circle" label="Circle" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
-        <ToolBtn tool="polygon" label="Poly" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
-        <ToolBtn tool="freehand" label="Free" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
-        <ToolBtn tool="measure" label="Measure" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
-        <ToolBtn tool="select" label="Select" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
+      <div className="tool-grid">
+        {TOOL_DEFS.map(({ tool, label, iconSvg }) => {
+          const isActive = activeTool === tool;
+          const isDisabled = noTarget && !isActive;
+          return (
+            <button
+              key={tool}
+              type="button"
+              className={`tool-tile${isActive ? " tool-tile--active" : ""}`}
+              onClick={() => toggleTool(tool)}
+              disabled={isDisabled}
+              title={isDisabled ? "Click a job marker to start drawing" : label}
+            >
+              <span
+                className="tool-tile__icon"
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }}
+              />
+              <span className="tool-tile__label">{label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Delete selected */}
       {hasSelection && (
-        <div className="tool-row">
+        <div style={{ marginTop: 6 }}>
           <button
             type="button"
             className="tool-btn tool-btn--danger"
+            style={{ width: "100%", fontSize: 11 }}
             onClick={deleteSelected}
             title="Delete selected objects (Del)"
           >
@@ -229,45 +219,7 @@ function ToolsSection({
           </button>
         </div>
       )}
-
-      {/* ── Modifiers ──────────────────────────────────── */}
-      <h4 className="rail-h4">Modifiers</h4>
-      <ModifiersPanel />
-
-      <div className="rail-section__divider" />
     </section>
-  );
-}
-
-// ─── ToolBtn helper ───────────────────────────────────────────────────────────
-
-function ToolBtn({
-  tool,
-  label,
-  active,
-  onToggle,
-  disabled,
-  color,
-}: {
-  tool: DrawingTool;
-  label: string;
-  active: DrawingTool | null;
-  onToggle: (t: DrawingTool) => void;
-  disabled?: boolean;
-  color?: string;
-}) {
-  const isActive = active === tool;
-  return (
-    <button
-      type="button"
-      className={`tool-btn tool-btn--draw${isActive ? " tool-btn--active" : ""}`}
-      onClick={() => onToggle(tool)}
-      disabled={disabled && !isActive}
-      title={disabled ? "Click a job marker to start drawing" : label}
-      style={isActive ? { borderColor: color ?? "var(--accent)", color: color ?? "var(--accent)" } : color ? { color } : undefined}
-    >
-      {label}
-    </button>
   );
 }
 

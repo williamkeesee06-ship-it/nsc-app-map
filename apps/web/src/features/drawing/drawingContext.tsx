@@ -21,9 +21,12 @@ export const COLORS = {
   neonRed: "#ff2d4a",
   cyan: "#3aa7ff",
   white: "#f4f8ff",
+  black: "#000000",
 } as const;
 
 function defaultStyleForTool(tool: DrawingTool): DrawingStyle {
+  // Phase 4: cable colors are hardcoded in DrawingOverlay, but we still set
+  // them here so the modifier strip can show the right color swatch.
   if (tool === "placed_cable") {
     return {
       strokeColor: COLORS.neonGreen,
@@ -37,41 +40,33 @@ function defaultStyleForTool(tool: DrawingTool): DrawingStyle {
     return {
       strokeColor: COLORS.neonRed,
       strokeWidth: 3,
-      strokeStyle: "dashed",
+      strokeStyle: "solid",
       fill: { kind: "none" },
       opacity: 1,
     };
   }
-  if (tool.endsWith("_new")) {
+  // Point tools (MH, HH, PED, POLE, CABINET, ANCHOR variants) — black
+  if (tool.endsWith("_new") || tool.endsWith("_removed")) {
     return {
-      strokeColor: COLORS.neonGreen,
+      strokeColor: COLORS.black,
       strokeWidth: 2,
       strokeStyle: "solid",
-      fill: { kind: "solid", color: COLORS.neonGreen },
-      opacity: 0.9,
-    };
-  }
-  if (tool.endsWith("_removed")) {
-    return {
-      strokeColor: COLORS.neonRed,
-      strokeWidth: 2,
-      strokeStyle: "solid",
-      fill: { kind: "solid", color: COLORS.neonRed },
-      opacity: 0.9,
+      fill: { kind: "none" },
+      opacity: 1,
     };
   }
   if (tool === "text") {
     return {
-      strokeColor: COLORS.white,
+      strokeColor: COLORS.black,
       strokeWidth: 1,
       strokeStyle: "solid",
-      fill: { kind: "solid", color: "rgba(11,15,19,0.7)" },
+      fill: { kind: "solid", color: "rgba(255,255,255,0.85)" },
       opacity: 1,
     };
   }
-  // Basic tools default to cyan
+  // Basic tools default to cobalt blue
   return {
-    strokeColor: COLORS.cyan,
+    strokeColor: "#1565C0",
     strokeWidth: 2,
     strokeStyle: "solid",
     fill: { kind: "none" },
@@ -231,7 +226,7 @@ interface DrawingContextValue {
   mapRef: MutableRefObject<google.maps.Map | null>;
 }
 
-const DrawingContext = createContext<DrawingContextValue | null>(null);
+export const DrawingContext = createContext<DrawingContextValue | null>(null);
 
 export function useDrawing(): DrawingContextValue {
   const ctx = useContext(DrawingContext);

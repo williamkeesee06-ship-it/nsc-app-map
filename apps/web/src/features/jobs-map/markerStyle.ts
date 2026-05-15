@@ -100,26 +100,17 @@ export function colorForSecondaryStatus(
   return MARKER_COLORS[colorKeyForSecondaryStatus(secondaryJobStatus)];
 }
 
-// Build a neon "map pin" SVG matching the user's reference screenshots.
-// Returns a data URL suitable for google.maps.Marker icon.url.
-//
-// Design:
-//  - Outline-only pin (no fill) with a thick stroke in `core` and a softer
-//    blurred halo in `glow`.
-//  - Concentric inner circles for that "neon ring" look.
-//  - Tiny ground-ellipse under the pin for the projected-glow feel.
-//
-// Size: 64×88 viewBox, anchored so the pin tip sits at the marker position.
+// Build a neon "map pin" SVG — Phase 4: smaller (40×55 → 26×36 rendered).
+// Design retained: outline-only neon pin with inner rings.
+// Size: 40×55 viewBox, rendered at ~26px wide (roughly 60% of old 40px).
 export function neonPinDataUrl(color: MarkerColor, opacity = 1): string {
   const { core, glow } = color;
-  // Use a tiny stable id so multiple defs don't collide if browsers ever
-  // batch-render these inline. Data URLs are isolated anyway, but harmless.
   const id = color.key;
   const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 88" width="64" height="88">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 55" width="40" height="55">
   <defs>
     <filter id="g-${id}" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feGaussianBlur stdDeviation="1.5" result="b"/>
       <feMerge>
         <feMergeNode in="b"/>
         <feMergeNode in="SourceGraphic"/>
@@ -127,38 +118,20 @@ export function neonPinDataUrl(color: MarkerColor, opacity = 1): string {
     </filter>
   </defs>
   <g opacity="${opacity}" filter="url(#g-${id})">
-    <!-- Soft outer halo (drawn first, underneath) -->
-    <path d="M32 6
-             C 17 6, 8 17, 8 30
-             C 8 44, 24 60, 32 74
-             C 40 60, 56 44, 56 30
-             C 56 17, 47 6, 32 6 Z"
-          fill="none"
-          stroke="${glow}"
-          stroke-opacity="0.55"
-          stroke-width="7"
-          stroke-linejoin="round"/>
+    <!-- Soft outer halo -->
+    <path d="M20 4 C10 4,4 11,4 19 C4 28,15 38,20 46 C25 38,36 28,36 19 C36 11,30 4,20 4 Z"
+          fill="none" stroke="${glow}" stroke-opacity="0.55" stroke-width="5" stroke-linejoin="round"/>
     <!-- Bright neon body -->
-    <path d="M32 6
-             C 17 6, 8 17, 8 30
-             C 8 44, 24 60, 32 74
-             C 40 60, 56 44, 56 30
-             C 56 17, 47 6, 32 6 Z"
-          fill="none"
-          stroke="${core}"
-          stroke-width="3"
-          stroke-linejoin="round"/>
+    <path d="M20 4 C10 4,4 11,4 19 C4 28,15 38,20 46 C25 38,36 28,36 19 C36 11,30 4,20 4 Z"
+          fill="none" stroke="${core}" stroke-width="2.5" stroke-linejoin="round"/>
     <!-- Outer ring -->
-    <circle cx="32" cy="30" r="10"
-            fill="none" stroke="${core}" stroke-width="2.5"/>
-    <!-- Inner ring -->
-    <circle cx="32" cy="30" r="5"
-            fill="none" stroke="${core}" stroke-width="2"/>
+    <circle cx="20" cy="19" r="6" fill="none" stroke="${core}" stroke-width="2"/>
+    <!-- Inner dot -->
+    <circle cx="20" cy="19" r="2.5" fill="${core}" stroke="none"/>
     <!-- Ground ellipse -->
-    <ellipse cx="32" cy="80" rx="12" ry="2.5"
-             fill="none" stroke="${core}" stroke-opacity="0.8" stroke-width="1.5"/>
+    <ellipse cx="20" cy="51" rx="7" ry="1.8"
+             fill="none" stroke="${core}" stroke-opacity="0.7" stroke-width="1.2"/>
   </g>
 </svg>`.trim();
-  // encodeURIComponent so '#' in colors is safe inside a data URL.
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

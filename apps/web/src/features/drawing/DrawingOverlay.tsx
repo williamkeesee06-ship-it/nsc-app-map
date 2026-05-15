@@ -1,10 +1,6 @@
 // DrawingOverlay.tsx — React component that lives inside <Map>.
-// Responsibilities:
-//   1. Activates/deactivates DrawingEngine when activeTool changes
-//   2. Renders all committed DrawingObjects as Google Maps overlays
-//   3. Handles selection (click on object), deletion (Delete key),
-//      keyboard shortcuts (Cmd+Z / Cmd+Shift+Z)
-//   4. Drag to reposition point/text objects
+// Phase 4: cable PLACED = solid neon green, REMOVED = neon red + X marks.
+// Point icons are black (overridden by user color) and support size multiplier.
 
 import { useEffect, useRef } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
@@ -15,7 +11,47 @@ import { iconForTool } from "./icons/telecomIcons.js";
 
 const FEET_PER_METER = 3.28084;
 
-function styleToPolylineOpts(style: DrawingObject["style"]): Partial<google.maps.PolylineOptions> {
+// ── Cable line rendering ──────────────────────────────────────────────────────
+
+const PLACED_COLOR  = "#39ff7a"; // neon green — hardcoded, not user-overridable
+const REMOVED_COLOR = "#ff2d4a"; // neon red  — hardcoded, not user-overridable
+
+function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partial<google.maps.PolylineOptions> {
+  const tool = obj.tool as string;
+  const style = obj.style;
+
+  // PLACED cable: solid neon green
+  if (tool === "placed_cable") {
+    return {
+      strokeColor: PLACED_COLOR,
+      strokeWeight: style.strokeWidth,
+      strokeOpacity: style.opacity,
+    };
+  }
+
+  // REMOVED cable: neon red with repeating X marks
+  if (tool === "removed_cable") {
+    const xSymbol: google.maps.Symbol = {
+      path: "M -1,-1 1,1 M -1,1 1,-1",
+      strokeColor: REMOVED_COLOR,
+      strokeWeight: Math.max(2, style.strokeWidth - 1),
+      scale: Math.max(3, style.strokeWidth + 1),
+    };
+    return {
+      strokeColor: REMOVED_COLOR,
+      strokeWeight: style.strokeWidth,
+      strokeOpacity: style.opacity,
+      icons: [
+        {
+          icon: xSymbol,
+          offset: "0",
+          repeat: "60px",
+        },
+      ],
+    };
+  }
+
+  // All other polyline tools (line, arrow, polygon, freehand, measure)
   return {
     strokeColor: style.strokeColor,
     strokeWeight: style.strokeWidth,
@@ -71,10 +107,9 @@ export default function DrawingOverlay() {
   const overlaysRef = useRef<globalThis.Map<string, OverlayRef>>(new globalThis.Map());
   const measureInfoRef = useRef<globalThis.Map<string, google.maps.InfoWindow>>(new globalThis.Map());
 
-  // ─── Keyboard shortcuts ────────────────────────────────────────────────────
+  // ─── Keyboard shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      // Delete / Backspace — delete selected objects
       if (e.key === "Delete" || e.key === "Backspace") {
         const target = e.target as HTMLElement;
         if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
@@ -82,24 +117,20 @@ export default function DrawingOverlay() {
         deleteSelected();
         return;
       }
-      // Esc — cancel in-progress draw
       if (e.key === "Escape") {
         engineRef.current?.cancel();
         return;
       }
-      // Undo: Cmd+Z / Ctrl+Z
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "z") {
         e.preventDefault();
         undo();
         return;
       }
-      // Redo: Cmd+Shift+Z / Ctrl+Shift+Z
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "z") {
         e.preventDefault();
         redo();
         return;
       }
-      // Also Ctrl+Y for redo
       if ((e.metaKey || e.ctrlKey) && e.key === "y") {
         e.preventDefault();
         redo();
@@ -109,16 +140,13 @@ export default function DrawingOverlay() {
     return () => window.removeEventListener("keydown", onKey);
   }, [deleteSelected, undo, redo]);
 
-  // ─── Activate / deactivate drawing engine ─────────────────────────────────
+  // ─── Activate / deactivate drawing engine ────────────────────────────────
   useEffect(() => {
     if (!map) return;
-
     if (!engineRef.current) {
       engineRef.current = new DrawingEngine(map, addObject);
     }
-
     const engine = engineRef.current;
-
     if (state.activeTool && state.activeTool !== "select") {
       engine.activate(state.activeTool, state.style);
     } else {
@@ -126,7 +154,7 @@ export default function DrawingOverlay() {
     }
   }, [map, state.activeTool, state.style, addObject]);
 
-  // ─── Render objects ────────────────────────────────────────────────────────
+  // ─── Render objects ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!map) return;
 
@@ -149,7 +177,6 @@ export default function DrawingOverlay() {
       const existing = overlaysRef.current.get(obj.id);
 
       if (existing) {
-        // Update selection highlight
         if ("setOptions" in existing) {
           if (existing instanceof google.maps.Polyline || existing instanceof google.maps.Polygon) {
             existing.setOptions({
@@ -178,7 +205,7 @@ export default function DrawingOverlay() {
         const mid = obj.vertices[Math.floor(obj.vertices.length / 2)];
         if (mid) {
           const iw = new google.maps.InfoWindow({
-            content: `<div style="color:#fff;background:#1a212a;padding:4px 8px;border-radius:4px;font-size:12px;font-family:monospace;">${ft.toFixed(0)} ft</div>`,
+            content: `<div style="color:#1A2332;background:#fff;padding:4px 8px;border-radius:4px;font-size:12px;font-family:monospace;border:1px solid #C8D0DA;">${ft.toFixed(0)} ft</div>`,
             position: new google.maps.LatLng(mid.lat, mid.lng),
             disableAutoPan: true,
           });
@@ -194,11 +221,10 @@ export default function DrawingOverlay() {
       measureInfoRef.current.forEach((iw) => iw.close());
       measureInfoRef.current.clear();
     };
-  // Re-run when objects array reference or selection changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, state.objects, state.selectedIds]);
 
-  // Click on map background → clear selection (when select tool is active)
+  // Click on map background → clear selection
   useEffect(() => {
     if (!map) return;
     const listener = map.addListener("click", () => {
@@ -212,7 +238,7 @@ export default function DrawingOverlay() {
   return null;
 }
 
-// ─── Factory: create the right overlay for each DrawingObject ───────────────
+// ─── Overlay factory ──────────────────────────────────────────────────────────
 
 function createOverlay(
   obj: DrawingObject,
@@ -223,14 +249,14 @@ function createOverlay(
   const z = isSelected ? 20 : 5;
 
   const clickHandler = (e: google.maps.MapMouseEvent | google.maps.IconMouseEvent | Event) => {
-    // Detect shift key for additive selection
     const native = (e as google.maps.MapMouseEvent).domEvent as MouseEvent | undefined;
     onSelect(obj.id, native?.shiftKey ?? false);
     (e as google.maps.MapMouseEvent).stop?.();
   };
 
   if ("vertices" in obj) {
-    const opts = styleToPolylineOpts(obj.style);
+    // Use dedicated cable options which hardcode colors
+    const opts = styleToPolylineOpts(obj as typeof obj & { vertices: unknown });
     if (obj.tool === "polygon") {
       const poly = new google.maps.Polygon({
         paths: obj.vertices.map((v) => new google.maps.LatLng(v.lat, v.lng)),
@@ -250,7 +276,6 @@ function createOverlay(
       map,
     });
     pl.addListener("click", clickHandler);
-    // Draw arrowhead for arrow tool
     if (obj.tool === "arrow" && obj.vertices.length >= 2) {
       addArrowhead(pl, obj.vertices, obj.style, map);
     }
@@ -301,7 +326,6 @@ function createOverlay(
   }
 
   if ("position" in obj && "text" in obj) {
-    // Text object — use a Marker with a label
     const marker = new google.maps.Marker({
       position: new google.maps.LatLng(obj.position.lat, obj.position.lng),
       map,
@@ -324,8 +348,10 @@ function createOverlay(
   }
 
   if ("position" in obj && !("text" in obj)) {
-    // Point (telecom) object
-    const icon = iconForTool(obj.tool);
+    // Point (telecom) object — use black icon, override with user color if set
+    // and non-default. Phase 4: always black unless explicitly overridden.
+    const pointSize = obj.style.pointSize;
+    const icon = iconForTool(obj.tool, obj.style.strokeColor, pointSize ?? 1.0);
     const marker = new google.maps.Marker({
       position: new google.maps.LatLng(obj.position.lat, obj.position.lng),
       map,
@@ -341,7 +367,7 @@ function createOverlay(
   return null;
 }
 
-// ─── Arrow head ───────────────────────────────────────────────────────────────
+// ─── Arrowhead ────────────────────────────────────────────────────────────────
 
 function addArrowhead(
   _pl: google.maps.Polyline,
