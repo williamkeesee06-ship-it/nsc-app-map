@@ -1,34 +1,15 @@
-// Left rail for the Jobs Map. Always visible, scrollable.
-// Layout (top → bottom):
-//
-//   ┌─ Tools (top, sticky inside the rail) ──────────┐
-//   │  [Undo] [Redo] [Screenshot]                   │  ← global utilities
-//   │                                                │
-//   │  Map tools                                     │
-//   │   [Recenter] [Fit all] [Resync]                │  ← always-active
-//   │                                                │
-//   │  Drawing tools                  Phase 3       │
-//   │   [Cable] [MH] [HH] [Pole] [Photo] [A-tag]    │  ← disabled placeholders
-//   │                                                │
-//   │  Modifiers                                     │  ← disabled placeholders
-//   │   Stroke • Color • Opacity                     │
-//   └────────────────────────────────────────────────┘
-//   ┌─ Filters (scrolls) ────────────────────────────┐
-//   │  View (on-tracker / hide unmapped)            │
-//   │  Secondary Job Status (color-coded)            │
-//   │  Completed Jobs (separate, silver pin group)   │
-//   │  Work Type tags                                │
-//   └────────────────────────────────────────────────┘
-//
-// The drawing tools and modifiers are intentionally rendered as disabled
-// placeholders right now — they get fully wired in Phase 3 once we lock the
-// per-tool spec. This keeps the rail layout stable so we don't rebuild it.
+// Left rail for the Jobs Map — Phase 3.
+// Contains: drawing toolbar (telecom + basic tools), modifiers panel,
+// map utilities, and filter rail.
 import type { Job } from "@nsc/types";
-import { useState } from "react";
-import type { MutableRefObject } from "react";
+import { useState, type MutableRefObject } from "react";
 import FilterRail from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
 import { isJobCompleted } from "./markerStyle.js";
+import { useDrawing } from "../drawing/drawingContext.js";
+import ModifiersPanel from "../drawing/ModifiersPanel.js";
+import type { DrawingTool } from "@nsc/types";
+import { downloadScreenshot } from "../drawing/screenshot.js";
 
 interface Props {
   jobs: Job[];
@@ -53,6 +34,8 @@ export default function LeftRail({ jobs, filters, setFilters, onResync, mapRef }
   );
 }
 
+// ─── TOOLS SECTION ───────────────────────────────────────────────────────────
+
 function ToolsSection({
   onResync,
   jobs,
@@ -63,6 +46,20 @@ function ToolsSection({
   mapRef: MutableRefObject<google.maps.Map | null>;
 }) {
   const [resyncing, setResyncing] = useState(false);
+  const {
+    state,
+    setTool,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    deleteSelected,
+    save,
+  } = useDrawing();
+
+  const { activeTool, dirty, saving, saveError, targetJobId, targetWorkOrder } = state;
+  const hasSelection = state.selectedIds.size > 0;
+  const noTarget = !targetJobId;
 
   function fitAll() {
     const map = mapRef.current;
@@ -81,19 +78,8 @@ function ToolsSection({
   function recenter() {
     const map = mapRef.current;
     if (!map) return;
-    // Western WA default center
     map.panTo({ lat: 47.5, lng: -122.1 });
     map.setZoom(9);
-  }
-
-  async function screenshot() {
-    // The Google Maps tile canvas is cross-origin, so a true canvas capture
-    // would taint. The cleanest cross-browser approach: ask the user to use
-    // their OS screenshot for the map area. Long term we'll render the SVG
-    // overlays to a separate canvas we own and compose them. Stub for now.
-    alert(
-      "Map screenshot: due to Google Maps cross-origin tiles, use your OS screenshot tool (⌘⇧4 on Mac, Win+Shift+S on Windows). Full in-app screenshots will arrive with the drawing tools in Phase 3."
-    );
   }
 
   async function doResync() {
@@ -106,15 +92,39 @@ function ToolsSection({
     }
   }
 
+  async function doScreenshot() {
+    const map = mapRef.current;
+    if (!map) return;
+    await downloadScreenshot(map, state.objects);
+  }
+
+  function toggleTool(tool: DrawingTool) {
+    setTool(activeTool === tool ? null : tool);
+  }
+
   return (
     <section className="rail-section rail-section--tools">
-      {/* Top utilities — Undo, Redo, Screenshot */}
+
+      {/* ── Save target indicator ─────────────────────── */}
+      <div className="draw-target-bar">
+        {noTarget ? (
+          <span className="draw-target-bar__hint">Click a job marker to start drawing</span>
+        ) : (
+          <>
+            <span className="draw-target-bar__label">Saving to:</span>
+            <span className="draw-target-bar__wo">{targetWorkOrder ?? targetJobId}</span>
+          </>
+        )}
+      </div>
+
+      {/* ── Top utilities ─────────────────────────────── */}
       <div className="tool-row tool-row--utilities">
         <button
           type="button"
           className="tool-btn"
-          disabled
-          title="Undo (available with drawing tools in Phase 3)"
+          onClick={undo}
+          disabled={!canUndo}
+          title="Undo (Cmd+Z)"
           aria-label="Undo"
         >
           ↶
@@ -122,8 +132,9 @@ function ToolsSection({
         <button
           type="button"
           className="tool-btn"
-          disabled
-          title="Redo (available with drawing tools in Phase 3)"
+          onClick={redo}
+          disabled={!canRedo}
+          title="Redo (Cmd+Shift+Z)"
           aria-label="Redo"
         >
           ↷
@@ -131,22 +142,35 @@ function ToolsSection({
         <button
           type="button"
           className="tool-btn"
-          onClick={screenshot}
+          onClick={doScreenshot}
           title="Screenshot"
           aria-label="Screenshot"
         >
           ⎙
         </button>
+        <button
+          type="button"
+          className={`tool-btn${dirty ? " tool-btn--dirty" : ""}`}
+          onClick={save}
+          disabled={!dirty || saving || noTarget}
+          title={noTarget ? "Select a job first" : dirty ? "Save drawings to Firestore" : "No unsaved changes"}
+          aria-label="Save"
+        >
+          {saving ? "…" : "💾"}
+        </button>
+        {dirty && !saving && (
+          <span className="unsaved-dot" title="Unsaved changes">● Unsaved</span>
+        )}
+        {saveError && (
+          <span className="save-error" title={saveError}>⚠ Save failed</span>
+        )}
       </div>
 
+      {/* ── Map utilities ─────────────────────────────── */}
       <h4 className="rail-h4">Map tools</h4>
       <div className="tool-row">
-        <button type="button" className="tool-btn tool-btn--text" onClick={fitAll}>
-          Fit all
-        </button>
-        <button type="button" className="tool-btn tool-btn--text" onClick={recenter}>
-          Recenter
-        </button>
+        <button type="button" className="tool-btn tool-btn--text" onClick={fitAll}>Fit all</button>
+        <button type="button" className="tool-btn tool-btn--text" onClick={recenter}>Recenter</button>
         <button
           type="button"
           className="tool-btn tool-btn--text"
@@ -158,55 +182,94 @@ function ToolsSection({
         </button>
       </div>
 
-      <h4 className="rail-h4 rail-h4--muted">
-        Drawing <span className="rail-phase">Phase 3</span>
-      </h4>
-      <div className="tool-row tool-row--draw" aria-disabled="true">
-        {[
-          { k: "cable", label: "Cable" },
-          { k: "removed", label: "Removed" },
-          { k: "mh", label: "MH" },
-          { k: "hh", label: "HH" },
-          { k: "pole", label: "Pole" },
-          { k: "vault", label: "Vault" },
-          { k: "closure", label: "Closure" },
-          { k: "atag", label: "A-tag" },
-          { k: "photo", label: "Photo" },
-        ].map((t) => (
-          <button
-            key={t.k}
-            type="button"
-            className="tool-btn tool-btn--draw"
-            disabled
-            title={`${t.label} (Phase 3)`}
-          >
-            {t.label}
-          </button>
+      {/* ── Telecom tools ─────────────────────────────── */}
+      <h4 className="rail-h4">Cable</h4>
+      <div className="tool-row">
+        <ToolBtn tool="placed_cable" label="Placed" active={activeTool} onToggle={toggleTool} disabled={noTarget} color="var(--neon-green)" />
+        <ToolBtn tool="removed_cable" label="Removed" active={activeTool} onToggle={toggleTool} disabled={noTarget} color="var(--neon-red)" />
+      </div>
+
+      <h4 className="rail-h4">Points · NEW</h4>
+      <div className="tool-row tool-row--wrap">
+        {(["mh_new", "hh_new", "ped_new", "pole_new", "cabinet_new", "anchor_new"] as DrawingTool[]).map((t) => (
+          <ToolBtn key={t} tool={t} label={t.split("_")[0]!.toUpperCase()} active={activeTool} onToggle={toggleTool} disabled={noTarget} color="var(--neon-green)" />
         ))}
       </div>
 
-      <h4 className="rail-h4 rail-h4--muted">
-        Modifiers <span className="rail-phase">Phase 3</span>
-      </h4>
-      <div className="modifier-block" aria-disabled="true">
-        <label className="modifier">
-          <span>Stroke</span>
-          <input type="range" min={1} max={10} defaultValue={3} disabled />
-        </label>
-        <label className="modifier">
-          <span>Opacity</span>
-          <input type="range" min={10} max={100} defaultValue={100} disabled />
-        </label>
-        <label className="modifier">
-          <span>Color</span>
-          <input type="color" defaultValue="#39ff7a" disabled />
-        </label>
+      <h4 className="rail-h4">Points · REMOVED</h4>
+      <div className="tool-row tool-row--wrap">
+        {(["mh_removed", "hh_removed", "ped_removed", "pole_removed", "cabinet_removed", "anchor_removed"] as DrawingTool[]).map((t) => (
+          <ToolBtn key={t} tool={t} label={t.split("_")[0]!.toUpperCase()} active={activeTool} onToggle={toggleTool} disabled={noTarget} color="var(--neon-red)" />
+        ))}
       </div>
+
+      <h4 className="rail-h4">Text &amp; Basic</h4>
+      <div className="tool-row tool-row--wrap">
+        <ToolBtn tool="text" label="Text" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
+        <ToolBtn tool="line" label="Line" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
+        <ToolBtn tool="arrow" label="Arrow" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
+        <ToolBtn tool="rectangle" label="Rect" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
+        <ToolBtn tool="circle" label="Circle" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
+        <ToolBtn tool="polygon" label="Poly" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
+        <ToolBtn tool="freehand" label="Free" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
+        <ToolBtn tool="measure" label="Measure" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
+        <ToolBtn tool="select" label="Select" active={activeTool} onToggle={toggleTool} disabled={noTarget} />
+      </div>
+
+      {/* Delete selected */}
+      {hasSelection && (
+        <div className="tool-row">
+          <button
+            type="button"
+            className="tool-btn tool-btn--danger"
+            onClick={deleteSelected}
+            title="Delete selected objects (Del)"
+          >
+            🗑 Delete ({state.selectedIds.size})
+          </button>
+        </div>
+      )}
+
+      {/* ── Modifiers ──────────────────────────────────── */}
+      <h4 className="rail-h4">Modifiers</h4>
+      <ModifiersPanel />
 
       <div className="rail-section__divider" />
     </section>
   );
 }
 
-// Convenience export: re-exposed so callers can identify the completed bucket.
+// ─── ToolBtn helper ───────────────────────────────────────────────────────────
+
+function ToolBtn({
+  tool,
+  label,
+  active,
+  onToggle,
+  disabled,
+  color,
+}: {
+  tool: DrawingTool;
+  label: string;
+  active: DrawingTool | null;
+  onToggle: (t: DrawingTool) => void;
+  disabled?: boolean;
+  color?: string;
+}) {
+  const isActive = active === tool;
+  return (
+    <button
+      type="button"
+      className={`tool-btn tool-btn--draw${isActive ? " tool-btn--active" : ""}`}
+      onClick={() => onToggle(tool)}
+      disabled={disabled && !isActive}
+      title={disabled ? "Click a job marker to start drawing" : label}
+      style={isActive ? { borderColor: color ?? "var(--accent)", color: color ?? "var(--accent)" } : color ? { color } : undefined}
+    >
+      {label}
+    </button>
+  );
+}
+
+// Convenience export
 export { isJobCompleted };

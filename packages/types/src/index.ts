@@ -54,6 +54,91 @@ export const emptyAsbuilt = (jobId: string): AsbuiltDoc => ({
   schemaVersion: 1,
 });
 
+// ---- Phase 3: Drawing system types ----
+
+export type DrawingTool =
+  | "placed_cable"
+  | "removed_cable"
+  | "mh_new"
+  | "mh_removed"
+  | "hh_new"
+  | "hh_removed"
+  | "ped_new"
+  | "ped_removed"
+  | "pole_new"
+  | "pole_removed"
+  | "cabinet_new"
+  | "cabinet_removed"
+  | "anchor_new"
+  | "anchor_removed"
+  | "text"
+  | "line"
+  | "arrow"
+  | "rectangle"
+  | "circle"
+  | "polygon"
+  | "freehand"
+  | "measure"
+  | "select";
+
+export interface DrawingStyle {
+  strokeColor: string;
+  strokeWidth: number;
+  strokeStyle: "solid" | "dashed";
+  fill:
+    | { kind: "none" }
+    | { kind: "solid"; color: string }
+    | { kind: "hash"; pattern: "diagonal" | "cross" | "dots"; color: string; density: number };
+  opacity: number; // 0..1
+}
+
+export type DrawingObject =
+  | {
+      id: string;
+      tool: "placed_cable" | "removed_cable" | "line" | "arrow" | "polygon" | "freehand" | "measure";
+      vertices: Array<{ lat: number; lng: number }>;
+      style: DrawingStyle;
+    }
+  | {
+      id: string;
+      tool: "rectangle" | "circle";
+      bounds: { n: number; s: number; e: number; w: number };
+      style: DrawingStyle;
+    }
+  | {
+      id: string;
+      tool: "text";
+      position: { lat: number; lng: number };
+      text: string;
+      style: DrawingStyle;
+    }
+  | {
+      id: string;
+      tool:
+        | "mh_new"
+        | "mh_removed"
+        | "hh_new"
+        | "hh_removed"
+        | "ped_new"
+        | "ped_removed"
+        | "pole_new"
+        | "pole_removed"
+        | "cabinet_new"
+        | "cabinet_removed"
+        | "anchor_new"
+        | "anchor_removed";
+      position: { lat: number; lng: number };
+      label?: string;
+      style: DrawingStyle;
+    };
+
+export interface AsBuiltDocument {
+  jobId: string;
+  objects: DrawingObject[];
+  updatedAt: number;
+  updatedBy?: string;
+}
+
 // ---- Phase 2: Smartsheet-backed job records ----
 
 // Geocode cache result stored alongside the job so we don't re-bill Google

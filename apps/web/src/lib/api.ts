@@ -1,6 +1,6 @@
 // Same-origin API client. In dev, Vite proxies /api to localhost:3001.
 // In prod, vercel.json rewrites /api/* to the serverless function.
-import type { AsbuiltDoc, Job, SyncRun } from "@nsc/types";
+import type { AsbuiltDoc, AsBuiltDocument, Job, SyncRun } from "@nsc/types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -19,6 +19,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<{ ok: boolean; time: string }>("/api/health"),
+
+  // Legacy Phase 1/2 asbuilt (schemaVersion:1)
   getAsbuilt: (jobId: string) =>
     request<AsbuiltDoc>(`/api/asbuilt/${encodeURIComponent(jobId)}`),
   putAsbuilt: (jobId: string, doc: AsbuiltDoc) =>
@@ -26,6 +28,16 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(doc),
     }),
+
+  // Phase 3 drawing objects (schemaVersion:2)
+  getDrawing: (jobId: string) =>
+    request<AsBuiltDocument | AsbuiltDoc>(`/api/asbuilt/${encodeURIComponent(jobId)}`),
+  putDrawing: (jobId: string, doc: AsBuiltDocument) =>
+    request<AsBuiltDocument>(`/api/asbuilt/${encodeURIComponent(jobId)}`, {
+      method: "PUT",
+      body: JSON.stringify(doc),
+    }),
+
   listJobs: () => request<{ jobs: Job[]; count: number }>("/api/jobs"),
   getJob: (jobId: string) =>
     request<{ job: Job }>(`/api/jobs/${encodeURIComponent(jobId)}`),
