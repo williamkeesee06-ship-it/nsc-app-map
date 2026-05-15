@@ -11,10 +11,9 @@ import { useDrawing } from "../drawing/drawingContext.js";
 import type { DrawingTool } from "@nsc/types";
 import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 
-const DEFAULT_WIDTH = 140;
-const MIN_WIDTH = 110;
+const DEFAULT_WIDTH = 130;
+const MIN_WIDTH = 95;
 const MAX_WIDTH = 320;
-const COL_BREAK = 160;
 const LS_KEY = "nsc.leftRailWidth";
 
 interface Props {
@@ -102,7 +101,7 @@ export default function LeftRail({ jobs, filters, setFilters, hideFilters }: Pro
     };
   }, []);
 
-  const cols = width >= COL_BREAK ? 2 : 1;
+  // Always 2 columns — tiles shrink to fit
 
   return (
     <aside
@@ -110,7 +109,7 @@ export default function LeftRail({ jobs, filters, setFilters, hideFilters }: Pro
       style={{ width, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH, position: "relative", flexShrink: 0 }}
     >
       <div className="left-rail__scroll">
-        <ToolsSection cols={cols} />
+        <ToolsSection />
         {!hideFilters && (
           <>
             <div className="rail-section__divider" />
@@ -269,7 +268,7 @@ const TELECOM_TOOL_DEFS: ToolDef[] = [
 
 // ─── Tools Section ────────────────────────────────────────────────────────────
 
-function ToolsSection({ cols }: { cols: number }) {
+function ToolsSection() {
   const {
     state,
     setTool,
@@ -310,7 +309,6 @@ function ToolsSection({ cols }: { cols: number }) {
     <section className="rail-section rail-section--tools">
       <div
         className="tool-grid"
-        style={{ "--cols": cols } as React.CSSProperties}
       >
         {/* Standard drawing tools */}
         {STANDARD_TOOL_DEFS.map(renderTile)}
