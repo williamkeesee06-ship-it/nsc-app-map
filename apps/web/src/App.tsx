@@ -22,23 +22,32 @@ export default function App() {
 function Shell() {
   return (
     <>
-      <div className="shell">
-        <header className="topbar">
-          <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
-          <h1>APP MAP</h1>
-          <SearchBar />
-          <nav>
-            <NavLink to="/" end>Jobs Map</NavLink>
-            <NavLink to="/sync">Sync</NavLink>
-          </nav>
-          <TopbarActions />
-        </header>
-        <Routes>
-          <Route path="/" element={<JobsMap />} />
-          <Route path="/jobs/:jobId" element={<JobWorkspace />} />
-          <Route path="/sync" element={<SyncAdmin />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+      <div className="app-frame">
+        {/* Industrial rivets at inner corners */}
+        <div className="rivet rivet-tl" />
+        <div className="rivet rivet-tr" />
+        <div className="rivet rivet-bl" />
+        <div className="rivet rivet-br" />
+        <div className="app-shell">
+          <div className="shell">
+            <header className="topbar">
+              <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
+              <h1>APP MAP</h1>
+              <SearchBar />
+              <nav>
+                <NavLink to="/" end>Jobs Map</NavLink>
+                <NavLink to="/sync">Sync</NavLink>
+              </nav>
+              <TopbarActions />
+            </header>
+            <Routes>
+              <Route path="/" element={<JobsMap />} />
+              <Route path="/jobs/:jobId" element={<JobWorkspace />} />
+              <Route path="/sync" element={<SyncAdmin />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
+        </div>
       </div>
       {!apiKey && <MissingKeyOverlay />}
     </>

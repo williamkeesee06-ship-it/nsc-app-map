@@ -1,4 +1,4 @@
-// Left rail — Phase 4: uniform icon+label tool tiles, no category headers.
+// Left rail — Phase 4.1: 2-col grid, standard tools first, TELECOM divider, telecom below.
 // Undo/Redo/Save moved to topbar. Screenshot/fit/recenter removed.
 import type { Job } from "@nsc/types";
 import type { MutableRefObject } from "react";
@@ -66,50 +66,8 @@ function basicSvg(path: string): (active: boolean) => string {
   };
 }
 
-const TOOL_DEFS: ToolDef[] = [
-  // ── Cable tools ──
-  {
-    tool: "placed_cable",
-    label: "PLACED",
-    iconSvg: () => CABLE_PLACED_SVG,
-  },
-  {
-    tool: "removed_cable",
-    label: "REMOVED",
-    iconSvg: () => CABLE_REMOVED_SVG,
-  },
-  // ── Telecom point tools ──
-  {
-    tool: "mh_new",
-    label: "MH",
-    iconSvg: (active) => railSvgForTool("mh", blackOrActive(active)),
-  },
-  {
-    tool: "hh_new",
-    label: "HH",
-    iconSvg: (active) => railSvgForTool("hh", blackOrActive(active)),
-  },
-  {
-    tool: "ped_new",
-    label: "PED",
-    iconSvg: (active) => railSvgForTool("ped", blackOrActive(active)),
-  },
-  {
-    tool: "pole_new",
-    label: "POLE",
-    iconSvg: (active) => railSvgForTool("pole", blackOrActive(active)),
-  },
-  {
-    tool: "cabinet_new",
-    label: "CABINET",
-    iconSvg: (active) => railSvgForTool("cabinet", blackOrActive(active)),
-  },
-  {
-    tool: "anchor_new",
-    label: "ANCHOR",
-    iconSvg: (active) => railSvgForTool("anchor", blackOrActive(active)),
-  },
-  // ── Basic drawing tools ──
+// ── Standard drawing tools (shown first) ──
+const STANDARD_TOOL_DEFS: ToolDef[] = [
   {
     tool: "text",
     label: "TEXT",
@@ -122,10 +80,11 @@ const TOOL_DEFS: ToolDef[] = [
     iconSvg: basicSvg(`<line x1="4" y1="22" x2="28" y2="4" stroke="STROKE" stroke-width="2" stroke-linecap="round"/>`),
   },
   {
+    // Arrow drawing tool — horizontal line with arrowhead at right (→)
     tool: "arrow",
     label: "ARROW",
-    iconSvg: basicSvg(`<line x1="4" y1="22" x2="25" y2="5" stroke="STROKE" stroke-width="2" stroke-linecap="round"/>
-      <polygon points="25,5 20,10 28,10" fill="STROKE"/>`),
+    iconSvg: basicSvg(`<line x1="3" y1="13" x2="24" y2="13" stroke="STROKE" stroke-width="2" stroke-linecap="round"/>
+      <polygon points="29,13 21,9 21,17" fill="STROKE"/>`),
   },
   {
     tool: "rectangle",
@@ -162,6 +121,50 @@ const TOOL_DEFS: ToolDef[] = [
   },
 ];
 
+// ── Telecom tools (shown after TELECOM divider) ──
+const TELECOM_TOOL_DEFS: ToolDef[] = [
+  {
+    tool: "placed_cable",
+    label: "PLACED",
+    iconSvg: () => CABLE_PLACED_SVG,
+  },
+  {
+    tool: "removed_cable",
+    label: "REMOVED",
+    iconSvg: () => CABLE_REMOVED_SVG,
+  },
+  {
+    tool: "mh_new",
+    label: "MH",
+    iconSvg: (active) => railSvgForTool("mh", blackOrActive(active)),
+  },
+  {
+    tool: "hh_new",
+    label: "HH",
+    iconSvg: (active) => railSvgForTool("hh", blackOrActive(active)),
+  },
+  {
+    tool: "ped_new",
+    label: "PED",
+    iconSvg: (active) => railSvgForTool("ped", blackOrActive(active)),
+  },
+  {
+    tool: "pole_new",
+    label: "POLE",
+    iconSvg: (active) => railSvgForTool("pole", blackOrActive(active)),
+  },
+  {
+    tool: "cabinet_new",
+    label: "CABINET",
+    iconSvg: (active) => railSvgForTool("cabinet", blackOrActive(active)),
+  },
+  {
+    tool: "anchor_new",
+    label: "ANCHOR",
+    iconSvg: (active) => railSvgForTool("anchor", blackOrActive(active)),
+  },
+];
+
 // ─── Tools Section ────────────────────────────────────────────────────────────
 
 function ToolsSection() {
@@ -179,30 +182,39 @@ function ToolsSection() {
     setTool(activeTool === tool ? null : tool);
   }
 
+  function renderTile({ tool, label, iconSvg }: ToolDef) {
+    const isActive = activeTool === tool;
+    const isDisabled = noTarget && !isActive;
+    return (
+      <button
+        key={tool}
+        type="button"
+        className={`tool-tile${isActive ? " tool-tile--active" : ""}`}
+        onClick={() => toggleTool(tool)}
+        disabled={isDisabled}
+        title={isDisabled ? "Click a job marker to start drawing" : label}
+      >
+        <span
+          className="tool-tile__icon"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }}
+        />
+        <span className="tool-tile__label">{label}</span>
+      </button>
+    );
+  }
+
   return (
     <section className="rail-section rail-section--tools">
       <div className="tool-grid">
-        {TOOL_DEFS.map(({ tool, label, iconSvg }) => {
-          const isActive = activeTool === tool;
-          const isDisabled = noTarget && !isActive;
-          return (
-            <button
-              key={tool}
-              type="button"
-              className={`tool-tile${isActive ? " tool-tile--active" : ""}`}
-              onClick={() => toggleTool(tool)}
-              disabled={isDisabled}
-              title={isDisabled ? "Click a job marker to start drawing" : label}
-            >
-              <span
-                className="tool-tile__icon"
-                // eslint-disable-next-line react/no-danger
-                dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }}
-              />
-              <span className="tool-tile__label">{label}</span>
-            </button>
-          );
-        })}
+        {/* Standard drawing tools */}
+        {STANDARD_TOOL_DEFS.map(renderTile)}
+
+        {/* TELECOM category divider */}
+        <div className="telecom-divider">TELECOM</div>
+
+        {/* Telecom tools */}
+        {TELECOM_TOOL_DEFS.map(renderTile)}
       </div>
 
       {/* Delete selected */}

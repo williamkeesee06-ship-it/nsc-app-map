@@ -33,10 +33,87 @@
 html, body, #root {
   margin: 0;
   height: 100%;
-  background: var(--bg);
+  background: #b0bac4;
   color: var(--text);
   overflow: hidden;
 }
+
+/* ============================================================
+   CHROME BEZEL FRAME — thick brushed-steel border wrapping app
+   ============================================================ */
+.app-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  /* Brushed steel gradient */
+  background: linear-gradient(135deg,
+    #d8dde4 0%,
+    #f4f6f8 20%,
+    #e0e5ea 35%,
+    #c8cfd6 50%,
+    #e8ecf0 65%,
+    #f4f6f8 80%,
+    #d0d6de 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.7),
+    inset 0 0 0 2px rgba(150,160,170,0.45),
+    inset 0 2px 6px rgba(255,255,255,0.4),
+    inset 0 -2px 6px rgba(0,0,0,0.15),
+    0 8px 32px rgba(0,0,0,0.22),
+    0 2px 8px rgba(0,0,0,0.15);
+  border-radius: 18px;
+  box-sizing: border-box;
+}
+
+/* Edge highlight line at very top of frame */
+.app-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.55) 0%,
+    rgba(255,255,255,0.0) 8%,
+    rgba(0,0,0,0.0) 92%,
+    rgba(0,0,0,0.12) 100%);
+  z-index: 0;
+}
+
+.app-shell {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(240,244,248,0.98);
+  height: 100%;
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,0.12),
+    inset 0 1px 3px rgba(0,0,0,0.08);
+  z-index: 1;
+}
+
+/* Industrial rivets at inner corners */
+.rivet {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%,
+    #f8f9fb 0%,
+    #d0d8e0 40%,
+    #9aa3b0 70%,
+    #7a8490 100%);
+  box-shadow:
+    inset 0 1px 2px rgba(255,255,255,0.7),
+    inset 0 -1px 2px rgba(0,0,0,0.25),
+    0 1px 2px rgba(0,0,0,0.3);
+  z-index: 10;
+}
+.rivet-tl { top: 14px; left: 14px; }
+.rivet-tr { top: 14px; right: 14px; }
+.rivet-bl { bottom: 14px; left: 14px; }
+.rivet-br { bottom: 14px; right: 14px; }
 
 /* ── Chrome bezel mixin (applied to major panels) ───────────── */
 .chrome-bezel {
@@ -78,7 +155,7 @@ a { color: var(--accent); }
 .shell {
   display: grid;
   grid-template-rows: 72px 1fr;
-  height: 100vh;
+  height: 100%;
 }
 
 /* ── Topbar ────────────────────────────────────────────────── */
@@ -299,9 +376,30 @@ a { color: var(--accent); }
 /* ── Uniform Icon+Label tool buttons ────────────────────────── */
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
   margin-bottom: 4px;
+}
+
+/* Telecom category divider in tool grid */
+.telecom-divider {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.telecom-divider::before,
+.telecom-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--chrome-dark), transparent);
 }
 
 .tool-tile {
@@ -611,12 +709,16 @@ a { color: var(--accent); }
   left: 0;
   right: 0;
   z-index: 30;
-  /* Glass panel */
-  background: var(--surface-glass);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
-  border-bottom: 1.5px solid var(--border);
-  box-shadow: 0 2px 12px rgba(0,0,0,0.09);
+  /* Chrome-bordered glass bar */
+  background: rgba(248,250,252,0.88);
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  border-bottom: 1.5px solid rgba(192,200,208,0.9);
+  border-top: 1px solid rgba(255,255,255,0.8);
+  box-shadow:
+    0 2px 12px rgba(0,0,0,0.10),
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    inset 0 -1px 0 rgba(0,0,0,0.06);
   height: 52px;
   display: flex;
   align-items: center;
@@ -627,6 +729,38 @@ a { color: var(--accent); }
 
 .modifier-strip--hidden {
   display: none;
+}
+
+/* ── Collapsible status filters ─────────────────────────────── */
+.filter-collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1.5px solid var(--border);
+  margin-bottom: 10px;
+  user-select: none;
+}
+.filter-collapsible > summary::-webkit-details-marker { display: none; }
+.filter-collapsible > summary .chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 200ms ease;
+  display: inline-block;
+}
+.filter-collapsible[open] > summary .chevron {
+  transform: rotate(180deg);
+}
+.filter-collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-collapsible-header strong {
+  font-size: 13px;
+  color: var(--text);
 }
 
 .mod-strip-item {
