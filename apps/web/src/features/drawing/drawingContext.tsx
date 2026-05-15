@@ -7,6 +7,7 @@ import {
   useContext,
   useReducer,
   useRef,
+  useState,
   type MutableRefObject,
   type ReactNode,
 } from "react";
@@ -102,7 +103,8 @@ type Action =
   | { type: "CLEAR_SELECTION" }
   | { type: "UNDO" }
   | { type: "REDO" }
-  | { type: "SET_OBJECTS"; objects: DrawingObject[] }
+  | { type: "SET_OBJECTS"; objects: DrawingObject[]; markDirty?: boolean }
+  | { type: "LOAD_OBJECTS"; objects: DrawingObject[] }
   | { type: "MARK_SAVED" }
   | { type: "SET_SAVING"; saving: boolean }
   | { type: "SET_SAVE_ERROR"; error: string | null }
@@ -169,7 +171,21 @@ function reducer(state: DrawingState, action: Action): DrawingState {
       return state;
 
     case "SET_OBJECTS":
-      return { ...state, objects: action.objects, dirty: true };
+      return {
+        ...state,
+        objects: action.objects,
+        dirty: action.markDirty !== false,
+      };
+
+    case "LOAD_OBJECTS":
+      // Loading from server: drop selection, clear dirty/save state.
+      return {
+        ...state,
+        objects: action.objects,
+        selectedIds: new Set(),
+        dirty: false,
+        saveError: null,
+      };
 
     case "MARK_SAVED":
       return { ...state, dirty: false, saveError: null };
@@ -206,6 +222,11 @@ interface DrawingContextValue {
   canUndo: boolean;
   canRedo: boolean;
   setTarget: (jobId: string | null, workOrder: string | null) => void;
+  /**
+   * Replace the current overlay with objects loaded from the server.
+   * Clears selection, resets dirty flag, and pushes onto undo history.
+   */
+  loadObjects: (objects: DrawingObject[]) => void;
   save: () => Promise<void>;
   mapRef: MutableRefObject<google.maps.Map | null>;
 }
@@ -231,8 +252,10 @@ export function DrawingProvider({ children, mapRef }: Props) {
   // Undo/redo managed outside React state to avoid cascading renders
   const undoStack = useRef<HistoryEntry[]>([]);
   const redoStack = useRef<HistoryEntry[]>([]);
-  const canUndoRef = useRef(false);
-  const canRedoRef = useRef(false);
+  // historyVersion bumps whenever the undo/redo stacks change so consumers
+  // (toolbar buttons) re-render with fresh canUndo/canRedo flags.
+  const [historyVersion, setHistoryVersion] = useState(0);
+  const bumpHistory = useCallback(() => setHistoryVersion((v) => v + 1), []);
 
   // We need a stable ref to current objects for undo/redo
   const objectsRef = useRef<DrawingObject[]>([]);
@@ -242,9 +265,8 @@ export function DrawingProvider({ children, mapRef }: Props) {
     undoStack.current.push({ objects: [...objectsRef.current] });
     if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
-    canUndoRef.current = undoStack.current.length > 0;
-    canRedoRef.current = false;
-  }, []);
+    bumpHistory();
+  }, [bumpHistory]);
 
   const addObject = useCallback(
     (obj: DrawingObject) => {
@@ -272,19 +294,17 @@ export function DrawingProvider({ children, mapRef }: Props) {
     const prev = undoStack.current.pop();
     if (!prev) return;
     redoStack.current.push({ objects: [...objectsRef.current] });
-    canUndoRef.current = undoStack.current.length > 0;
-    canRedoRef.current = true;
+    bumpHistory();
     dispatch({ type: "SET_OBJECTS", objects: prev.objects });
-  }, []);
+  }, [bumpHistory]);
 
   const redo = useCallback(() => {
     const next = redoStack.current.pop();
     if (!next) return;
     undoStack.current.push({ objects: [...objectsRef.current] });
-    canUndoRef.current = true;
-    canRedoRef.current = redoStack.current.length > 0;
+    bumpHistory();
     dispatch({ type: "SET_OBJECTS", objects: next.objects });
-  }, []);
+  }, [bumpHistory]);
 
   const setTool = useCallback((tool: DrawingTool | null) => {
     dispatch({ type: "SET_TOOL", tool });
@@ -305,6 +325,15 @@ export function DrawingProvider({ children, mapRef }: Props) {
   const setTarget = useCallback((jobId: string | null, workOrder: string | null) => {
     dispatch({ type: "SET_TARGET", jobId, workOrder });
   }, []);
+
+  const loadObjects = useCallback((objects: DrawingObject[]) => {
+    // Loading from server is a hard reset — clear undo history so the user
+    // can't "undo" the server state away.
+    undoStack.current = [];
+    redoStack.current = [];
+    bumpHistory();
+    dispatch({ type: "LOAD_OBJECTS", objects });
+  }, [bumpHistory]);
 
   const save = useCallback(async () => {
     const { targetJobId, objects } = state;
@@ -340,9 +369,13 @@ export function DrawingProvider({ children, mapRef }: Props) {
     clearSelection,
     undo,
     redo,
-    canUndo: canUndoRef.current,
-    canRedo: canRedoRef.current,
+    // canUndo/canRedo are read fresh each render. The historyVersion state
+    // bump triggers the re-render so these stay in sync with the ref-backed
+    // undo/redo stacks. The void-cast keeps TS happy about the unused value.
+    canUndo: (void historyVersion, undoStack.current.length > 0),
+    canRedo: redoStack.current.length > 0,
     setTarget,
+    loadObjects,
     save,
     mapRef,
   };

@@ -87,7 +87,7 @@ function JobsMapInner({
   mapRef: React.MutableRefObject<google.maps.Map | null>;
   theme: MapTheme;
 }) {
-  const { setTarget } = useDrawing();
+  const { setTarget, loadObjects } = useDrawing();
 
   // When selected job changes, update the drawing target
   useEffect(() => {
@@ -101,19 +101,25 @@ function JobsMapInner({
   const handleSelect = useCallback(
     async (job: Job) => {
       setSelected(job);
-      // Load existing drawings for this job
+      // Load existing drawings for this job into the overlay.
+      // Legacy v1 docs (points/lines) are ignored — they won't be present for
+      // newly drawn jobs anyway; if you have legacy data, the backend can
+      // translate. For now, only Phase 3 v2 documents are loaded.
       try {
         const doc = await api.getDrawing(job.jobId);
-        // If it's a Phase 3 document, dispatch objects
-        if ("objects" in doc && Array.isArray(doc.objects)) {
-          // Will be handled by the drawing context in a future enhancement
-          // For now the drawing state starts fresh per session
+        if (doc && "objects" in doc && Array.isArray(doc.objects)) {
+          loadObjects(doc.objects);
+        } else {
+          // Older schema or empty — clear the canvas so we don't show stale
+          // drawings from the previous job.
+          loadObjects([]);
         }
       } catch {
-        // Non-fatal
+        // Non-fatal — if the GET fails, just clear the canvas.
+        loadObjects([]);
       }
     },
-    [setSelected]
+    [setSelected, loadObjects]
   );
 
   return (
