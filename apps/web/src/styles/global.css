@@ -52,6 +52,10 @@ a { color: var(--accent); }
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   gap: 14px;
+  /* Always visible: the grid row already pins it, but keep it above any map
+     overlays/popups just in case. */
+  position: relative;
+  z-index: 50;
 }
 .logo {
   height: 72px;
@@ -75,7 +79,7 @@ a { color: var(--accent); }
   border-left: 1px solid var(--border);
   padding-left: 12px;
 }
-.topbar nav { margin-left: auto; display: flex; gap: 8px; }
+.topbar nav { display: flex; gap: 8px; }
 .topbar nav a {
   color: var(--text-muted);
   text-decoration: none;
@@ -350,3 +354,280 @@ a { color: var(--accent); }
 .kv-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .kv-table td:first-child { color: var(--text-muted); width: 40%; }
 .muted { color: var(--text-muted); }
+
+/* ===========================
+   Phase 2.1 — Left rail, search bar, neon swatches
+   =========================== */
+
+/* The jobs-map grid was 280px sidebar + 1fr. Make the sidebar a tad wider
+   to fit Tools + Filters comfortably. */
+.jobs-map { grid-template-columns: 300px 1fr; }
+
+/* Left rail wrapper. Replaces the old .filter-rail outer element.
+   Stays at full height of the route area; inner div scrolls. */
+.left-rail {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+.left-rail__scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Section wrappers within the rail */
+.rail-section { margin-bottom: 12px; }
+.rail-section__divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 0 4px;
+}
+.rail-h4 {
+  font-size: 10px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--text);
+  margin: 12px 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rail-h4--muted { color: var(--text-muted); }
+.rail-phase {
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  text-transform: none;
+  letter-spacing: 0.3px;
+}
+
+/* Tool buttons */
+.tool-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.tool-row--utilities { margin-bottom: 10px; }
+.tool-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 9px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.1;
+  cursor: pointer;
+  min-width: 32px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tool-btn:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.tool-btn--text { font-size: 12px; padding: 6px 10px; }
+.tool-btn--draw { font-size: 11px; padding: 5px 8px; min-width: 0; }
+
+/* Modifier inputs (sliders, color picker) */
+.modifier-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  opacity: 0.55;
+}
+.modifier {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  gap: 8px;
+}
+.modifier input[type="range"] { width: 100%; }
+.modifier input[type="color"] {
+  width: 36px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: 4px;
+}
+
+/* Filters layout inside left rail — the section no longer needs its own
+   border/overflow since the parent .left-rail__scroll handles that. */
+.rail-section--filters .filter-rail__header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  margin: 8px 0 12px;
+}
+
+/* Neon color swatch in front of each Secondary-Job-Status filter row */
+.check--swatch { gap: 10px; }
+.check .check__label { flex: 1; }
+.check .check__count {
+  font-size: 10px; color: var(--text-muted);
+  background: var(--surface-2); padding: 1px 6px; border-radius: 999px;
+}
+.status-swatch {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-swatch--silver {
+  /* Slight contrast ring so silver reads on light theme too */
+  border: 1px solid rgba(0,0,0,0.18);
+}
+.filter-section__hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+/* ---- Search bar in topbar ---- */
+.search-wrap {
+  position: relative;
+  margin-left: 18px;
+  flex: 1 1 360px;
+  max-width: 520px;
+}
+.search-form {
+  display: flex;
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 6px 4px 10px;
+  height: 40px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.search-form:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(32, 128, 141, 0.18);
+}
+.search-form__icon {
+  font-size: 16px;
+  color: var(--text-muted);
+  margin-right: 8px;
+}
+.search-form__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  height: 100%;
+  font-family: inherit;
+}
+.search-form__input::placeholder { color: var(--text-muted); }
+.search-form__clear {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 6px;
+  cursor: pointer;
+}
+.search-form__clear:hover { color: var(--text); }
+.search-form__submit {
+  background: var(--accent);
+  color: #0b0f13;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  height: 30px;
+  margin-left: 4px;
+  cursor: pointer;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.search-form__submit:hover:not(:disabled) { background: #2a96a5; }
+.search-form__submit:disabled { opacity: 0.6; cursor: progress; }
+
+/* Suggestions dropdown */
+.search-suggest {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+  max-height: 360px;
+  overflow-y: auto;
+  z-index: 100;
+}
+.search-suggest__error,
+.search-suggest__hint {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.search-suggest__error { color: var(--danger); }
+.search-suggest kbd {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.search-suggest__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+}
+.search-suggest__row {
+  display: grid;
+  grid-template-columns: 100px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+.search-suggest__row:hover { background: var(--surface-2); }
+.search-suggest__wo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 12px;
+}
+.search-suggest__addr { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-suggest__status {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 999px;
+}

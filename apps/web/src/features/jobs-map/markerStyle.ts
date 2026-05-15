@@ -12,6 +12,7 @@ export type MarkerColorKey =
   | "blue"
   | "purple"
   | "orange"
+  | "silver"   // Completed jobs
   | "gray";
 
 export interface MarkerColor {
@@ -30,6 +31,7 @@ export const MARKER_COLORS: Record<MarkerColorKey, MarkerColor> = {
   blue:   { key: "blue",   label: "Routed to Sub",      core: "#3aa7ff", glow: "#1f7ad6" },
   purple: { key: "purple", label: "Pending Splicing",   core: "#c44dff", glow: "#9b2bd1" },
   orange: { key: "orange", label: "Needs Fielding",     core: "#ff8a1f", glow: "#e06a00" },
+  silver: { key: "silver", label: "Completed",          core: "#f4f8ff", glow: "#aab8c8" },
   gray:   { key: "gray",   label: "Other / Unset",      core: "#9aa3ad", glow: "#5a6168" },
 };
 
@@ -67,6 +69,29 @@ export function colorKeyForSecondaryStatus(
     if (rule.test(s)) return rule.key;
   }
   return "gray";
+}
+
+// Completion detector — a job is "Completed" when EITHER:
+//   - jobStatus = "Complete" (the Smartsheet primary column), OR
+//   - secondaryJobStatus starts with "complete" (covers "Complete",
+//     "Complete/Pending Prod", and any future variants).
+export function isJobCompleted(job: {
+  jobStatus?: string | null;
+  secondaryJobStatus?: string | null;
+}): boolean {
+  const p = (job.jobStatus || "").trim().toLowerCase();
+  if (p === "complete" || p === "completed") return true;
+  const s = (job.secondaryJobStatus || "").trim().toLowerCase();
+  return s.startsWith("complete");
+}
+
+// Resolve the marker color for a job, honoring the Completed override.
+export function colorKeyForJob(job: {
+  jobStatus?: string | null;
+  secondaryJobStatus?: string | null;
+}): MarkerColorKey {
+  if (isJobCompleted(job)) return "silver";
+  return colorKeyForSecondaryStatus(job.secondaryJobStatus);
 }
 
 export function colorForSecondaryStatus(

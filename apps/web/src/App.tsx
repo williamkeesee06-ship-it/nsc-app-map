@@ -5,6 +5,8 @@ import JobWorkspace from "./features/workspace/JobWorkspace.js";
 import SyncAdmin from "./features/sync-admin/SyncAdmin.js";
 import { MapThemeProvider, useMapTheme } from "./features/map/themeContext.js";
 import ThemeToggle from "./features/map/ThemeToggle.js";
+import { SearchFocusProvider } from "./features/search/searchContext.js";
+import SearchBar from "./features/search/SearchBar.js";
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -12,7 +14,9 @@ export default function App() {
   return (
     <APIProvider apiKey={apiKey ?? ""} libraries={["geometry"]}>
       <MapThemeProvider>
-        <Shell />
+        <SearchFocusProvider>
+          <Shell />
+        </SearchFocusProvider>
       </MapThemeProvider>
     </APIProvider>
   );
@@ -27,10 +31,10 @@ function Shell() {
           <header className="topbar">
             <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
             <h1>APP MAP</h1>
+            <SearchBar />
             <nav>
               <NavLink to="/" end>Jobs Map</NavLink>
               <NavLink to="/sync">Sync</NavLink>
-              <NavLink to="/jobs/sample">Sample Job</NavLink>
             </nav>
             <ThemeToggle />
           </header>
