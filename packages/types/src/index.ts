@@ -92,6 +92,12 @@ export interface DrawingStyle {
   opacity: number; // 0..1
   /** Phase 4: size multiplier for point symbols (0.5–2.0). Default 1.0. */
   pointSize?: number;
+  /** Phase 5: hide object from map overlay (still in list). */
+  hidden?: boolean;
+  /** Phase 5: lock object — prevents selection/editing. */
+  locked?: boolean;
+  /** Phase 5: user-assigned display label override. */
+  userLabel?: string;
 }
 
 export type DrawingObject =

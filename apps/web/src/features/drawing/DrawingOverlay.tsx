@@ -173,6 +173,12 @@ export default function DrawingOverlay() {
 
     // Add/update overlays
     state.objects.forEach((obj) => {
+      // Phase 5: skip hidden objects — remove their overlay if previously rendered
+      if (obj.style.hidden) {
+        const prev = overlaysRef.current.get(obj.id);
+        if (prev) { prev.setMap(null); overlaysRef.current.delete(obj.id); }
+        return;
+      }
       const isSelected = state.selectedIds.has(obj.id);
       const existing = overlaysRef.current.get(obj.id);
 
@@ -249,6 +255,8 @@ function createOverlay(
   const z = isSelected ? 20 : 5;
 
   const clickHandler = (e: google.maps.MapMouseEvent | google.maps.IconMouseEvent | Event) => {
+    // Phase 5: locked objects are not selectable
+    if (obj.style.locked) return;
     const native = (e as google.maps.MapMouseEvent).domEvent as MouseEvent | undefined;
     onSelect(obj.id, native?.shiftKey ?? false);
     (e as google.maps.MapMouseEvent).stop?.();

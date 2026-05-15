@@ -23,9 +23,11 @@ interface Props {
   setFilters: (f: Filters) => void;
   onResync: () => Promise<void> | void;
   mapRef: MutableRefObject<google.maps.Map | null>;
+  /** Phase 5: when true, hide the FilterRail section (workspace mode) */
+  hideFilters?: boolean;
 }
 
-export default function LeftRail({ jobs, filters, setFilters }: Props) {
+export default function LeftRail({ jobs, filters, setFilters, hideFilters }: Props) {
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
@@ -109,12 +111,16 @@ export default function LeftRail({ jobs, filters, setFilters }: Props) {
     >
       <div className="left-rail__scroll">
         <ToolsSection cols={cols} />
-        <div className="rail-section__divider" />
-        <FilterRail
-          jobs={jobs}
-          filters={filters}
-          setFilters={setFilters}
-        />
+        {!hideFilters && (
+          <>
+            <div className="rail-section__divider" />
+            <FilterRail
+              jobs={jobs}
+              filters={filters}
+              setFilters={setFilters}
+            />
+          </>
+        )}
       </div>
 
       {/* Resize handle */}

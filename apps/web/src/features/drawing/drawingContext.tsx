@@ -1,10 +1,11 @@
-// Drawing context — central store for the Phase 3 drawing toolbar.
+// Drawing context — central store for the Phase 3/5 drawing toolbar.
 // Manages: active tool, style modifiers, undo/redo stack, selected objects,
-// dirty flag, target job, and persistence to Firestore via the API.
+// dirty flag, target job, persistence, and Phase 5 auto-save.
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useReducer,
   useRef,
   useState,
@@ -86,6 +87,8 @@ export interface DrawingState {
   saveError: string | null;
   targetJobId: string | null;
   targetWorkOrder: string | null;
+  /** Phase 5: workspace mode auto-save countdown (seconds until save), null if idle */
+  autoSaveCountdown: number | null;
 }
 
 type Action =
@@ -103,7 +106,8 @@ type Action =
   | { type: "MARK_SAVED" }
   | { type: "SET_SAVING"; saving: boolean }
   | { type: "SET_SAVE_ERROR"; error: string | null }
-  | { type: "SET_TARGET"; jobId: string | null; workOrder: string | null };
+  | { type: "SET_TARGET"; jobId: string | null; workOrder: string | null }
+  | { type: "SET_AUTO_SAVE_COUNTDOWN"; countdown: number | null };
 
 // ─── Undo/redo stack (outside reducer so it doesn't re-render) ────────────
 
@@ -126,6 +130,7 @@ function initState(): DrawingState {
     saveError: null,
     targetJobId: null,
     targetWorkOrder: null,
+    autoSaveCountdown: null,
   };
 }
 
@@ -194,6 +199,9 @@ function reducer(state: DrawingState, action: Action): DrawingState {
     case "SET_TARGET":
       return { ...state, targetJobId: action.jobId, targetWorkOrder: action.workOrder };
 
+    case "SET_AUTO_SAVE_COUNTDOWN":
+      return { ...state, autoSaveCountdown: action.countdown };
+
     default:
       return state;
   }
@@ -209,6 +217,8 @@ interface DrawingContextValue {
   setStyle: (patch: Partial<DrawingStyle>) => void;
   addObject: (obj: DrawingObject) => void;
   updateObject: (obj: DrawingObject) => void;
+  /** Phase 5: update a single object's style fields without full replace */
+  patchObjectStyle: (id: string, stylePartial: Partial<DrawingStyle>) => void;
   deleteSelected: () => void;
   select: (ids: string[], additive?: boolean) => void;
   clearSelection: () => void;
@@ -224,6 +234,9 @@ interface DrawingContextValue {
   loadObjects: (objects: DrawingObject[]) => void;
   save: () => Promise<void>;
   mapRef: MutableRefObject<google.maps.Map | null>;
+  /** Phase 5: workspace mode — when set, enables auto-save (10s debounce) */
+  workspaceJobId: string | null;
+  setWorkspaceJobId: (id: string | null) => void;
 }
 
 export const DrawingContext = createContext<DrawingContextValue | null>(null);
@@ -252,9 +265,14 @@ export function DrawingProvider({ children, mapRef }: Props) {
   const [historyVersion, setHistoryVersion] = useState(0);
   const bumpHistory = useCallback(() => setHistoryVersion((v) => v + 1), []);
 
+  // Phase 5: workspace job id for auto-save
+  const [workspaceJobId, setWorkspaceJobId] = useState<string | null>(null);
+
   // We need a stable ref to current objects for undo/redo
   const objectsRef = useRef<DrawingObject[]>([]);
   objectsRef.current = state.objects;
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const pushHistory = useCallback(() => {
     undoStack.current.push({ objects: [...objectsRef.current] });
@@ -330,11 +348,18 @@ export function DrawingProvider({ children, mapRef }: Props) {
     dispatch({ type: "LOAD_OBJECTS", objects });
   }, [bumpHistory]);
 
+  const patchObjectStyle = useCallback((id: string, stylePartial: Partial<DrawingStyle>) => {
+    const obj = objectsRef.current.find((o) => o.id === id);
+    if (!obj) return;
+    dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, style: { ...obj.style, ...stylePartial } } });
+  }, []);
+
   const save = useCallback(async () => {
-    const { targetJobId, objects } = state;
+    const { targetJobId, objects } = stateRef.current;
     if (!targetJobId) return;
     dispatch({ type: "SET_SAVING", saving: true });
     dispatch({ type: "SET_SAVE_ERROR", error: null });
+    dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: null });
     try {
       const payload = {
         jobId: targetJobId,
@@ -350,7 +375,53 @@ export function DrawingProvider({ children, mapRef }: Props) {
     } finally {
       dispatch({ type: "SET_SAVING", saving: false });
     }
-  }, [state]);
+  }, []);
+
+  // Phase 5: auto-save — 10-second debounce when workspace mode is active
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const AUTO_SAVE_DELAY = 10; // seconds
+
+  const clearAutoSaveTimers = useCallback(() => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  }, []);
+
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  useEffect(() => {
+    // Only run auto-save in workspace mode when there are unsaved changes
+    if (!workspaceJobId || !state.dirty || state.saving) return;
+
+    clearAutoSaveTimers();
+
+    let remaining = AUTO_SAVE_DELAY;
+    dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: remaining });
+
+    countdownTimerRef.current = setInterval(() => {
+      remaining -= 1;
+      if (remaining > 0) {
+        dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: remaining });
+      } else {
+        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+      }
+    }, 1000);
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      clearAutoSaveTimers();
+      void saveRef.current();
+    }, AUTO_SAVE_DELAY * 1000);
+
+    return clearAutoSaveTimers;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceJobId, state.dirty, state.objects]);
 
   const value: DrawingContextValue = {
     state,
@@ -359,6 +430,7 @@ export function DrawingProvider({ children, mapRef }: Props) {
     setStyle,
     addObject,
     updateObject,
+    patchObjectStyle,
     deleteSelected,
     select,
     clearSelection,
@@ -373,6 +445,8 @@ export function DrawingProvider({ children, mapRef }: Props) {
     loadObjects,
     save,
     mapRef,
+    workspaceJobId,
+    setWorkspaceJobId,
   };
 
   return <DrawingContext.Provider value={value}>{children}</DrawingContext.Provider>;
