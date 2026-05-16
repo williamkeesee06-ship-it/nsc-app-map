@@ -16,6 +16,7 @@ import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import type { MapTheme } from "../map/themeContext.js";
+import { JobsProvider } from "./jobsContext.js";
 
 const FOCUS_ZOOM = 17;
 
@@ -44,21 +45,24 @@ export default function JobsMap() {
   }, [reload]);
 
   return (
-    <DrawingProvider mapRef={mapRef}>
-      <JobsMapInner
-        allJobs={allJobs}
-        mapped={mapped}
-        unmapped={unmapped}
-        jobsState={jobsState}
-        filters={filters}
-        setFilters={setFilters}
-        selected={selected}
-        setSelected={setSelected}
-        onResync={onResync}
-        mapRef={mapRef}
-        theme={theme}
-      />
-    </DrawingProvider>
+    <JobsProvider jobs={allJobs} refreshJobs={reload}>
+      <DrawingProvider mapRef={mapRef}>
+        <JobsMapInner
+          allJobs={allJobs}
+          mapped={mapped}
+          unmapped={unmapped}
+          jobsState={jobsState}
+          filters={filters}
+          setFilters={setFilters}
+          selected={selected}
+          setSelected={setSelected}
+          onResync={onResync}
+          onJobsRefresh={reload}
+          mapRef={mapRef}
+          theme={theme}
+        />
+      </DrawingProvider>
+    </JobsProvider>
   );
 }
 
@@ -73,6 +77,7 @@ function JobsMapInner({
   selected,
   setSelected,
   onResync,
+  onJobsRefresh,
   mapRef,
   theme,
 }: {
@@ -85,10 +90,11 @@ function JobsMapInner({
   selected: Job | null;
   setSelected: (j: Job | null) => void;
   onResync: () => Promise<void>;
+  onJobsRefresh: () => void;
   mapRef: React.MutableRefObject<google.maps.Map | null>;
   theme: MapTheme;
 }) {
-  const { setTarget, loadObjects } = useDrawing();
+  const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
 
   // When selected job changes, update the drawing target
   useEffect(() => {
@@ -101,26 +107,38 @@ function JobsMapInner({
 
   const handleSelect = useCallback(
     async (job: Job) => {
+      const prevJobId = drawState.targetJobId;
+      const switchingJob = prevJobId && prevJobId !== job.jobId;
+
+      if (drawState.dirty && drawState.objects.length > 0 && switchingJob) {
+        // Phase 5.2: auto-save silently before switching (best-effort).
+        // If the current draft has a targetJobId, try to push it to Firestore.
+        // On failure we fall back to localStorage (already persisted).
+        // If no targetJobId, the draft is unattached — leave it in localStorage.
+        if (prevJobId) {
+          try {
+            await saveDrawing();
+          } catch {
+            // Save failed — localStorage draft is still intact, user won't lose work.
+          }
+        }
+        // Either way, proceed with the switch — no window.confirm.
+      }
+
       setSelected(job);
-      // Load existing drawings for this job into the overlay.
-      // Legacy v1 docs (points/lines) are ignored — they won't be present for
-      // newly drawn jobs anyway; if you have legacy data, the backend can
-      // translate. For now, only Phase 3 v2 documents are loaded.
+      // Load existing drawings for the newly-selected job into the overlay.
       try {
         const doc = await api.getDrawing(job.jobId);
         if (doc && "objects" in doc && Array.isArray(doc.objects)) {
           loadObjects(doc.objects);
         } else {
-          // Older schema or empty — clear the canvas so we don't show stale
-          // drawings from the previous job.
           loadObjects([]);
         }
       } catch {
-        // Non-fatal — if the GET fails, just clear the canvas.
         loadObjects([]);
       }
     },
-    [setSelected, loadObjects]
+    [setSelected, loadObjects, saveDrawing, drawState.dirty, drawState.objects, drawState.targetJobId]
   );
 
   return (

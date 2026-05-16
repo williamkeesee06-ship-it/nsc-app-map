@@ -1,6 +1,6 @@
 // Drawing context — central store for the Phase 3/5 drawing toolbar.
 // Manages: active tool, style modifiers, undo/redo stack, selected objects,
-// dirty flag, target job, persistence, and Phase 5 auto-save.
+// dirty flag, target job, persistence, Phase 5 auto-save, and Phase 5.2 localStorage draft.
 import {
   createContext,
   useCallback,
@@ -14,6 +14,68 @@ import {
 } from "react";
 import type { AsBuiltDocument, DrawingObject, DrawingStyle, DrawingTool } from "@nsc/types";
 import { api } from "../../lib/api.js";
+
+// ─── localStorage draft helpers ──────────────────────────────────────────────
+const LS_OBJECTS_KEY = "nsc.draft.objects";
+const LS_JOB_KEY = "nsc.draft.targetJobId";
+const LS_WO_KEY = "nsc.draft.targetWorkOrder";
+
+function lsSaveDraft(
+  objects: DrawingObject[],
+  targetJobId: string | null,
+  targetWorkOrder: string | null
+) {
+  try {
+    localStorage.setItem(LS_OBJECTS_KEY, JSON.stringify(objects));
+    if (targetJobId) {
+      localStorage.setItem(LS_JOB_KEY, targetJobId);
+    } else {
+      localStorage.removeItem(LS_JOB_KEY);
+    }
+    if (targetWorkOrder) {
+      localStorage.setItem(LS_WO_KEY, targetWorkOrder);
+    } else {
+      localStorage.removeItem(LS_WO_KEY);
+    }
+  } catch {
+    // localStorage full or unavailable — silently ignore
+  }
+}
+
+function lsClearDraft(targetJobId?: string | null) {
+  try {
+    const storedJobId = localStorage.getItem(LS_JOB_KEY);
+    // Only clear if the stored draft belongs to the same job (or no job)
+    if (targetJobId === undefined || storedJobId === targetJobId) {
+      localStorage.removeItem(LS_OBJECTS_KEY);
+      localStorage.removeItem(LS_JOB_KEY);
+      localStorage.removeItem(LS_WO_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+interface LsDraft {
+  objects: import("@nsc/types").DrawingObject[];
+  targetJobId: string | null;
+  targetWorkOrder: string | null;
+}
+
+function lsReadDraft(): LsDraft | null {
+  try {
+    const raw = localStorage.getItem(LS_OBJECTS_KEY);
+    if (!raw) return null;
+    const objects = JSON.parse(raw) as import("@nsc/types").DrawingObject[];
+    if (!Array.isArray(objects) || objects.length === 0) return null;
+    const targetJobId = localStorage.getItem(LS_JOB_KEY);
+    const targetWorkOrder = localStorage.getItem(LS_WO_KEY);
+    return { objects, targetJobId, targetWorkOrder };
+  } catch {
+    return null;
+  }
+}
+
 
 // ─── Default styles per tool category ───────────────────────────────────────
 
@@ -233,6 +295,8 @@ interface DrawingContextValue {
    */
   loadObjects: (objects: DrawingObject[]) => void;
   save: () => Promise<void>;
+  /** Phase 5.2: clear the localStorage draft for the current target (or any draft) */
+  clearDraft: () => void;
   mapRef: MutableRefObject<google.maps.Map | null>;
   /** Phase 5: workspace mode — when set, enables auto-save (10s debounce) */
   workspaceJobId: string | null;
@@ -356,7 +420,13 @@ export function DrawingProvider({ children, mapRef }: Props) {
 
   const save = useCallback(async () => {
     const { targetJobId, objects } = stateRef.current;
-    if (!targetJobId) return;
+    if (!targetJobId) {
+      dispatch({
+        type: "SET_SAVE_ERROR",
+        error: "No job selected. Click a pin on the map first, then save.",
+      });
+      return;
+    }
     dispatch({ type: "SET_SAVING", saving: true });
     dispatch({ type: "SET_SAVE_ERROR", error: null });
     dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: null });
@@ -369,12 +439,18 @@ export function DrawingProvider({ children, mapRef }: Props) {
       };
       await api.putDrawing(targetJobId, payload as unknown as AsBuiltDocument);
       dispatch({ type: "MARK_SAVED" });
+      // Phase 5.2: clear localStorage draft after successful server save
+      lsClearDraft(targetJobId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       dispatch({ type: "SET_SAVE_ERROR", error: msg });
     } finally {
       dispatch({ type: "SET_SAVING", saving: false });
     }
+  }, []);
+
+  const clearDraft = useCallback(() => {
+    lsClearDraft(stateRef.current.targetJobId);
   }, []);
 
   // Phase 5: auto-save — 10-second debounce when workspace mode is active
@@ -397,8 +473,8 @@ export function DrawingProvider({ children, mapRef }: Props) {
   saveRef.current = save;
 
   useEffect(() => {
-    // Only run auto-save in workspace mode when there are unsaved changes
-    if (!workspaceJobId || !state.dirty || state.saving) return;
+    // Auto-save when a target job is set (workspace or main map) and there are unsaved changes
+    if (!state.targetJobId || !state.dirty || state.saving) return;
 
     clearAutoSaveTimers();
 
@@ -421,7 +497,52 @@ export function DrawingProvider({ children, mapRef }: Props) {
 
     return clearAutoSaveTimers;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceJobId, state.dirty, state.objects]);
+  }, [state.targetJobId, state.dirty, state.objects]);
+
+  // Phase 5.2: persist to localStorage on every objects change (debounced 500ms)
+  const lsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (lsDebounceRef.current) clearTimeout(lsDebounceRef.current);
+    lsDebounceRef.current = setTimeout(() => {
+      lsSaveDraft(state.objects, state.targetJobId, state.targetWorkOrder);
+    }, 500);
+    return () => {
+      if (lsDebounceRef.current) clearTimeout(lsDebounceRef.current);
+    };
+  // We intentionally run this for every objects/target change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.objects, state.targetJobId, state.targetWorkOrder]);
+
+  // Phase 5.2: hydrate from localStorage on mount (only when in-memory state is empty)
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    // Only restore if we have no objects in memory yet
+    if (state.objects.length > 0) return;
+    const draft = lsReadDraft();
+    if (!draft) return;
+    // Restore the draft objects and target into the drawing state
+    dispatch({ type: "SET_OBJECTS", objects: draft.objects, markDirty: true });
+    if (draft.targetJobId) {
+      dispatch({ type: "SET_TARGET", jobId: draft.targetJobId, workOrder: draft.targetWorkOrder });
+    }
+  // Run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Warn before tab close/navigation when there are unsaved drawings
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (state.dirty && state.objects.length > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+        return "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [state.dirty, state.objects.length]);
 
   const value: DrawingContextValue = {
     state,
@@ -444,6 +565,7 @@ export function DrawingProvider({ children, mapRef }: Props) {
     setTarget,
     loadObjects,
     save,
+    clearDraft,
     mapRef,
     workspaceJobId,
     setWorkspaceJobId,

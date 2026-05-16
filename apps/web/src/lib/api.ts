@@ -41,6 +41,11 @@ export const api = {
   listJobs: () => request<{ jobs: Job[]; count: number }>("/api/jobs"),
   getJob: (jobId: string) =>
     request<{ job: Job }>(`/api/jobs/${encodeURIComponent(jobId)}`),
+  createJob: (body: { workOrder: string; jobName: string; address?: string; lat?: number; lng?: number }) =>
+    request<{ jobId: string; workOrder: string; jobName: string; lat?: number; lng?: number }>("/api/jobs", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   triggerSync: () =>
     request<SyncRun>(`/api/sync/jobs`, {
       method: "POST",
