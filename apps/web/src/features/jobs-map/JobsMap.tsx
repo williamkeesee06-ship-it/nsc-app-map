@@ -11,7 +11,7 @@ import LeftRail from "./LeftRail.js";
 import JobCard from "./JobCard.js";
 import type { Job } from "@nsc/types";
 import { useSearchFocus } from "../search/searchContext.js";
-import { MARKER_COLORS, colorKeyForJob, neonPinDataUrl } from "./markerStyle.js";
+import { MARKER_COLORS, colorKeyForJob, isJobCompleted, neonPinDataUrl } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
@@ -238,7 +238,7 @@ function JobMarkers({
         map,
         title: `${job.workOrder} · ${job.secondaryJobStatus ?? job.jobStatus ?? ""}`,
         icon: {
-          url: neonPinDataUrl(color, job.inTracker ? 1 : 0.55),
+          url: neonPinDataUrl(color, (job.inTracker ? 1 : 0.55) * (isJobCompleted(job) ? 0.75 : 1)),
           scaledSize: new google.maps.Size(26, 36),
           anchor: new google.maps.Point(13, 33),
         },

@@ -26,12 +26,12 @@ export interface MarkerColor {
 
 export const MARKER_COLORS: Record<MarkerColorKey, MarkerColor> = {
   red:    { key: "red",    label: "On Hold / Pending Permit / Pending Engineering", core: "#ff2d4a", glow: "#ff3355" },
-  green:  { key: "green",  label: "Scheduled",          core: "#39ff7a", glow: "#22cc55" },
+  green:  { key: "green",  label: "Scheduled",          core: "#00C853", glow: "#00A040" },
   yellow: { key: "yellow", label: "Fielded RTS / RTS",  core: "#ffe338", glow: "#e0c022" },
   blue:   { key: "blue",   label: "Routed to Sub",      core: "#3aa7ff", glow: "#1f7ad6" },
   purple: { key: "purple", label: "Pending Splicing",   core: "#c44dff", glow: "#9b2bd1" },
   orange: { key: "orange", label: "Needs Fielding",     core: "#ff8a1f", glow: "#e06a00" },
-  silver: { key: "silver", label: "Completed",          core: "#f4f8ff", glow: "#aab8c8" },
+  silver: { key: "silver", label: "Completed",          core: "#A7F3A0", glow: "#86EFAC" },
   gray:   { key: "gray",   label: "Other / Unset",      core: "#9aa3ad", glow: "#5a6168" },
 };
 
