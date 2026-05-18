@@ -21,7 +21,7 @@ export function defaultFilters(): Filters {
   return {
     inTrackerOnly: false,
     hideUnmapped: false,
-    hideCompleted: false,
+    hideCompleted: true, // Phase 5.3: hide completed by default
     statuses: new Set(),
     secondaryStatuses: new Set(),
     workTypeTags: new Set(),

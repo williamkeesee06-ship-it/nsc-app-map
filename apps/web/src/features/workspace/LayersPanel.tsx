@@ -3,16 +3,8 @@
 import { useState, useRef, useCallback } from "react";
 import type { DrawingObject } from "@nsc/types";
 import { useDrawing } from "../drawing/drawingContext.js";
-import ObjectDetailsPopup from "../drawing/ObjectDetailsPopup.js";
+import ObjectDetailsCard from "../drawing/ObjectDetailsCard.js";
 
-const POINT_TOOLS_SET = new Set([
-  "mh_new", "mh_removed",
-  "hh_new", "hh_removed",
-  "ped_new", "ped_removed",
-  "pole_new", "pole_removed",
-  "cabinet_new", "cabinet_removed",
-  "anchor_new", "anchor_removed",
-]);
 
 const FEET_PER_METER = 3.28084;
 
@@ -179,6 +171,7 @@ function ObjectRow({ obj, displayIndex, onPanTo }: ObjectRowProps) {
   const [editValue, setEditValue] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [infoAnchor, setInfoAnchor] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const label = obj.style.userLabel ?? defaultLabel(obj, displayIndex);
@@ -232,21 +225,12 @@ function ObjectRow({ obj, displayIndex, onPanTo }: ObjectRowProps) {
         }
       }}
     >
-      {/* Details popup (info button click) */}
+      {/* Details card (info button click) — live edit, no save/cancel */}
       {showInfo && (
-        <ObjectDetailsPopup
-          screenPos={{ x: window.innerWidth / 2, y: window.innerHeight / 2 }}
-          isPointTool={POINT_TOOLS_SET.has(obj.tool)}
-          initialLabel={obj.style.userLabel ?? ""}
-          initialDescription={obj.style.description ?? ""}
-          onSave={(lbl, desc) => {
-            patchObjectStyle(obj.id, {
-              userLabel: lbl || undefined,
-              description: desc || undefined,
-            });
-            setShowInfo(false);
-          }}
-          onCancel={() => setShowInfo(false)}
+        <ObjectDetailsCard
+          obj={obj}
+          anchorPos={infoAnchor}
+          onClose={() => setShowInfo(false)}
         />
       )}
       {/* Icon */}
@@ -310,7 +294,11 @@ function ObjectRow({ obj, displayIndex, onPanTo }: ObjectRowProps) {
           type="button"
           className="layers-row__icon-btn"
           title="Edit details"
-          onClick={(e) => { e.stopPropagation(); setShowInfo(true); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setInfoAnchor({ x: e.clientX, y: e.clientY });
+            setShowInfo(true);
+          }}
         >
           ℹ
         </button>

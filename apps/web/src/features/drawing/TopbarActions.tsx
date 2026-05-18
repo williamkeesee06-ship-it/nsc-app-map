@@ -1,9 +1,10 @@
 // TopbarActions — Undo / Redo / Screenshot / Save "polished metal coin" buttons in the topbar.
 // Phase 5: workspace mode shows auto-save status pill instead of the manual save coin.
 // Phase 5.2: when noTarget && dirty, Save opens SaveDrawingDialog instead of calling save().
+// Phase 5.3: Save/Undo/Redo always enabled; Cmd+Z / Cmd+Shift+Z shortcuts.
 // Lives outside the DrawingProvider on routes like /sync, so it must gracefully
 // handle the case where DrawingContext is absent.
-import { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { DrawingContext } from "./drawingContext.js";
 import { downloadScreenshot } from "./screenshot.js";
@@ -19,6 +20,9 @@ export default function TopbarActions() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [screenshotting, setScreenshotting] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  // Phase 5.3: "nothing to undo" flash
+  const [undoFlash, setUndoFlash] = useState(false);
+  const [redoFlash, setRedoFlash] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -30,18 +34,45 @@ export default function TopbarActions() {
   const prevDirty = ctx?.state.dirty;
   const saving = ctx?.state.saving ?? false;
 
+  // Stable refs for shortcuts
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
+  const showSaveDialogRef = useRef(setShowSaveDialog);
+  showSaveDialogRef.current = setShowSaveDialog;
+
   // Cmd/Ctrl+S shortcut — always active when context is available
+  // Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z shortcuts — Phase 5.3
   useEffect(() => {
     if (!ctx) return;
     function onKey(e: KeyboardEvent) {
+      const tag = (document.activeElement as HTMLElement | null)?.tagName ?? "";
+      const inInput = tag === "INPUT" || tag === "TEXTAREA";
+
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "s") {
         e.preventDefault();
-        const { targetJobId, dirty, objects } = ctx!.state;
-        if (!targetJobId && dirty && objects.length > 0) {
-          setShowSaveDialog(true);
+        const { targetJobId, objects } = ctxRef.current!.state;
+        if (!targetJobId && objects.length > 0) {
+          showSaveDialogRef.current(true);
         } else {
-          void ctx!.save();
+          void ctxRef.current!.save();
         }
+        return;
+      }
+
+      // Undo / Redo shortcuts — don't fire inside text inputs
+      if (!inInput && (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "z") {
+        e.preventDefault();
+        ctxRef.current!.undo();
+        return;
+      }
+      if (!inInput && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "z") {
+        e.preventDefault();
+        ctxRef.current!.redo();
+        return;
+      }
+      if (!inInput && (e.metaKey || e.ctrlKey) && e.key === "y") {
+        e.preventDefault();
+        ctxRef.current!.redo();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -96,12 +127,47 @@ export default function TopbarActions() {
   const { dirty, saving: isSaving, saveError, targetJobId, targetWorkOrder, autoSaveCountdown } = state;
   const noTarget = !targetJobId;
   // Phase 5.2: "Save as new job" mode — no target but objects exist
-  const canSaveNew = noTarget && dirty && state.objects.length > 0;
+  const canSaveNew = noTarget && state.objects.length > 0;
+
+  function handleUndo() {
+    if (!canUndo) {
+      // Flash "nothing to undo"
+      setUndoFlash(true);
+      setTimeout(() => setUndoFlash(false), 1200);
+      return;
+    }
+    undo();
+  }
+
+  function handleRedo() {
+    if (!canRedo) {
+      setRedoFlash(true);
+      setTimeout(() => setRedoFlash(false), 1200);
+      return;
+    }
+    redo();
+  }
+
+  function handleSave() {
+    if (canSaveNew) {
+      setShowSaveDialog(true);
+    } else {
+      // Always save — even if not dirty (force re-sync to Firestore)
+      void save();
+    }
+  }
 
   function saveLabel() {
     if (isSaving) return "⏳";
     if (savedFlash) return "✓";
     return "💾";
+  }
+
+  function saveBtnTitle() {
+    if (canSaveNew) return "Save as new job or attach to existing";
+    if (noTarget) return "Save drawing";
+    if (dirty) return "Save drawings";
+    return "Re-sync to Firestore";
   }
 
   return (
@@ -112,8 +178,17 @@ export default function TopbarActions() {
           <CoinBtn onClick={() => navigate("/")} title="Back to Jobs Map" variant="back">←</CoinBtn>
         )}
 
-        <CoinBtn onClick={undo} disabled={!canUndo} title="Undo (Cmd+Z)">↶</CoinBtn>
-        <CoinBtn onClick={redo} disabled={!canRedo} title="Redo (Cmd+Shift+Z)">↷</CoinBtn>
+        {/* Phase 5.3: always enabled; flash if nothing to undo */}
+        <CoinBtn
+          onClick={handleUndo}
+          title={undoFlash ? "Nothing to undo" : "Undo (Cmd+Z)"}
+          extraClass={undoFlash ? "coin-btn--flash" : undefined}
+        >↶</CoinBtn>
+        <CoinBtn
+          onClick={handleRedo}
+          title={redoFlash ? "Nothing to redo" : "Redo (Cmd+Shift+Z)"}
+          extraClass={redoFlash ? "coin-btn--flash" : undefined}
+        >↷</CoinBtn>
 
         {/* Screenshot button */}
         <CoinBtn
@@ -158,24 +233,11 @@ export default function TopbarActions() {
               )}
             </div>
 
+            {/* Phase 5.3: always enabled save button */}
             <CoinBtn
-              onClick={() => {
-                if (canSaveNew) {
-                  setShowSaveDialog(true);
-                } else {
-                  void save();
-                }
-              }}
-              disabled={(!dirty && !canSaveNew) || isSaving}
-              title={
-                canSaveNew
-                  ? "Save as new job or attach to existing"
-                  : noTarget
-                    ? "Select a job first"
-                    : dirty
-                      ? "Save drawings"
-                      : "No unsaved changes"
-              }
+              onClick={handleSave}
+              disabled={isSaving}
+              title={saveBtnTitle()}
               variant="save"
               extraClass={isSaving ? "saving" : savedFlash ? "saved" : undefined}
             >

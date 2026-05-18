@@ -281,6 +281,10 @@ interface DrawingContextValue {
   updateObject: (obj: DrawingObject) => void;
   /** Phase 5: update a single object's style fields without full replace */
   patchObjectStyle: (id: string, stylePartial: Partial<DrawingStyle>) => void;
+  /** Phase 5.3: update an object's geometry (vertices / bounds) after drag edit */
+  updateObjectGeometry: (id: string, vertices: Array<{ lat: number; lng: number }>) => void;
+  /** Phase 5.3: update a point object's position after marker drag */
+  updateObjectPosition: (id: string, position: { lat: number; lng: number }) => void;
   deleteSelected: () => void;
   select: (ids: string[], additive?: boolean) => void;
   clearSelection: () => void;
@@ -418,6 +422,19 @@ export function DrawingProvider({ children, mapRef }: Props) {
     dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, style: { ...obj.style, ...stylePartial } } });
   }, []);
 
+  const updateObjectGeometry = useCallback((id: string, vertices: Array<{ lat: number; lng: number }>) => {
+    const obj = objectsRef.current.find((o) => o.id === id);
+    if (!obj || !("vertices" in obj)) return;
+    // No pushHistory — geometry drags are continuous; caller handles undo granularity
+    dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, vertices } });
+  }, []);
+
+  const updateObjectPosition = useCallback((id: string, position: { lat: number; lng: number }) => {
+    const obj = objectsRef.current.find((o) => o.id === id);
+    if (!obj || !("position" in obj)) return;
+    dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, position } as DrawingObject });
+  }, []);
+
   const save = useCallback(async () => {
     const { targetJobId, objects } = stateRef.current;
     if (!targetJobId) {
@@ -552,6 +569,8 @@ export function DrawingProvider({ children, mapRef }: Props) {
     addObject,
     updateObject,
     patchObjectStyle,
+    updateObjectGeometry,
+    updateObjectPosition,
     deleteSelected,
     select,
     clearSelection,

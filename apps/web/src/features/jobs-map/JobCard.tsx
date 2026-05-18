@@ -4,9 +4,11 @@
 //   NSC Project Notes, Actual Completion Date.
 // Plus Job Status as a pill (used for marker color too).
 // Phase 4.2: minimizable — collapses to a slim bottom-right pill.
+// Phase 5.3: secondary-status pill moved to header row alongside WO number.
 import { useState } from "react";
 import type { Job } from "@nsc/types";
 import { Link } from "react-router-dom";
+import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
 
 interface Props {
   job: Job;
@@ -49,15 +51,18 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
   return (
     <div className={`job-card job-card--${variant}`}>
       <header className="job-card__head">
-        <div>
-          <div className="job-card__wo">{wo}</div>
-          <span className={`status-pill status-${slugify(status)}`}>
-            {status}
-          </span>
+        {/* Left: WO number + secondary status pill on same row */}
+        <div className="job-card__head-left">
+          <span className="job-card__wo">{wo}</span>
+          {job.secondaryJobStatus && (
+            <SecondaryStatusPill status={job.secondaryJobStatus} />
+          )}
           {!job.inTracker && (
             <span className="status-pill status-archived">Archived</span>
           )}
         </div>
+
+        {/* Right: minimize + close buttons */}
         <div className="job-card__head-actions">
           {variant === "popup" && (
             <button
@@ -77,9 +82,15 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
         </div>
       </header>
 
+      {/* Primary job status row */}
+      <div style={{ paddingLeft: 12, paddingBottom: 4, marginTop: -2 }}>
+        <span className={`status-pill status-${slugify(status)}`} style={{ fontSize: 9 }}>
+          {status}
+        </span>
+      </div>
+
       <Row label="Address" value={job.address} />
       <Row label="City" value={job.city} />
-      <Row label="Secondary Status" value={job.secondaryJobStatus} />
       <Row label="Crew / Foreman" value={job.constructionCrewForeman} />
       <Row label="Schedule Date" value={fmtDate(job.scheduleDate)} />
       <Row
@@ -113,6 +124,46 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
   );
 }
 
+// Colored chip matching the neon pin color for this secondary status
+function SecondaryStatusPill({ status }: { status: string }) {
+  const key = colorKeyForSecondaryStatus(status);
+  const color = MARKER_COLORS[key];
+  return (
+    <span
+      className="job-card__secondary-pill"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "1px 7px",
+        borderRadius: 10,
+        fontSize: 9,
+        fontWeight: 700,
+        letterSpacing: "0.05em",
+        background: `${color.core}22`,
+        border: `1px solid ${color.core}88`,
+        color: color.core,
+        whiteSpace: "nowrap",
+        verticalAlign: "middle",
+        marginLeft: 6,
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: color.core,
+          boxShadow: `0 0 4px ${color.glow}`,
+          display: "inline-block",
+          flexShrink: 0,
+        }}
+      />
+      {status}
+    </span>
+  );
+}
+
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
   return (
@@ -125,7 +176,6 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 
 function fmtDate(d: string | null | undefined): string | null {
   if (!d) return null;
-  // Smartsheet returns "YYYY-MM-DD" for DATE columns. Render as-is.
   return d;
 }
 

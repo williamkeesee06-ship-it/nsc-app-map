@@ -1,6 +1,7 @@
 // JobWorkspace — Phase 5: Focused single-job editor.
 // Reuses the same drawing engine, left rail, and modifier strip as the Jobs Map,
 // but filters to one job, hides non-active markers, and enables auto-save.
+// Phase 5.3: auto-center on job geocode at zoom 19 on workspace entry.
 import { useCallback, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Map, useMap } from "@vis.gl/react-google-maps";
@@ -15,6 +16,8 @@ import { api } from "../../lib/api.js";
 import JobContextStrip from "./JobContextStrip.js";
 import LayersPanel from "./LayersPanel.js";
 import { useJob } from "./useJob.js";
+
+const WORKSPACE_ZOOM = 19; // street-level, ready for placing physical infrastructure
 
 export default function JobWorkspace() {
   const { jobId = "" } = useParams<{ jobId: string }>();
@@ -70,15 +73,18 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
-  // Compute fallback center from job geocode
+  // Compute initial center (used as Map defaultCenter before the auto-fit runs)
   const jobCenter =
     jobState.state === "ready" &&
     jobState.job.geocode?.status === "OK" &&
     jobState.job.geocode.lat !== 0
       ? { lat: jobState.job.geocode.lat, lng: jobState.job.geocode.lng }
       : null;
-  const center = jobCenter ?? DEFAULT_CENTER;
-  const fallbackZoom = jobCenter ? 17 : DEFAULT_ZOOM;
+  const initialCenter = jobCenter ?? DEFAULT_CENTER;
+  const initialZoom = jobCenter ? WORKSPACE_ZOOM : DEFAULT_ZOOM;
+
+  // Resolved job for the fit component (null while loading)
+  const job = jobState.state === "ready" ? jobState.job : null;
 
   return (
     <div className="workspace-layout">
@@ -94,14 +100,14 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
           <ModifiersPanel />
           <div className="map-host" style={{ position: "absolute", inset: 0, top: 0 }}>
             <Map
-              defaultCenter={center}
-              defaultZoom={fallbackZoom}
+              defaultCenter={initialCenter}
+              defaultZoom={initialZoom}
               styles={stylesFor(theme)}
               gestureHandling="greedy"
               disableDefaultUI={false}
             >
               <MapHandle mapRef={mapRef} />
-              <FitToJobGeometry jobId={jobId} fallback={center} fallbackZoom={fallbackZoom} />
+              <FitToJobGeometry job={job} jobId={jobId} />
               <DrawingOverlay />
             </Map>
           </div>
@@ -118,8 +124,6 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
 
 function WorkspaceLeftRail() {
   const mapRef = useRef<google.maps.Map | null>(null);
-  // LeftRail needs a mapRef but we don't use filter callbacks in workspace mode.
-  // We pass stub filter props so TypeScript is happy.
   const noopFilters = defaultFilters();
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   const noop = useCallback(() => {}, []);
@@ -149,57 +153,100 @@ function MapHandle({ mapRef }: { mapRef: React.MutableRefObject<google.maps.Map 
   return null;
 }
 
-// ── Fit map to drawing geometry ───────────────────────────────────────────────
+// ── Fit map to drawing geometry or job geocode (runs once per workspace entry) ──
 
-function FitToJobGeometry({
-  jobId,
-  fallback,
-  fallbackZoom,
-}: {
+interface FitProps {
+  job: { geocode?: { lat: number; lng: number; status: string } | null; address?: string | null } | null;
   jobId: string;
-  fallback: { lat: number; lng: number };
-  fallbackZoom: number;
-}) {
+}
+
+function FitToJobGeometry({ job, jobId }: FitProps) {
   const map = useMap();
   const { state } = useDrawing();
-  const fittedRef = useRef(false);
+  // One-shot fit per jobId — reset when jobId changes
+  const didFitRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!map || fittedRef.current) return;
-    // Wait until objects are loaded (if drawings exist, length > 0)
-    if (state.objects.length === 0) {
-      // No drawings: fit to geocode
-      map.setCenter(fallback);
-      map.setZoom(fallbackZoom);
-      fittedRef.current = true;
+    if (!map) return;
+    // Already fit for this jobId
+    if (didFitRef.current === jobId) return;
+
+    const objects = state.objects;
+
+    // ── Case 1: existing drawings → fit to their bounds ──────────────────
+    if (objects.length > 0) {
+      const bounds = new google.maps.LatLngBounds();
+      let hasPoints = false;
+      for (const obj of objects) {
+        if ("vertices" in obj) {
+          obj.vertices.forEach((v) => { bounds.extend(v); hasPoints = true; });
+        } else if ("bounds" in obj) {
+          const b = obj.bounds;
+          bounds.extend({ lat: b.n, lng: b.e });
+          bounds.extend({ lat: b.s, lng: b.w });
+          hasPoints = true;
+        } else if ("position" in obj) {
+          bounds.extend(obj.position);
+          hasPoints = true;
+        }
+      }
+      if (hasPoints && !bounds.isEmpty()) {
+        map.fitBounds(bounds, 60);
+        if (import.meta.env.DEV) {
+          const c = bounds.getCenter();
+          console.log("[workspace] fit to drawing bounds, center", c.lat(), c.lng());
+        }
+        didFitRef.current = jobId;
+        return;
+      }
+    }
+
+    // ── Case 2: job not loaded yet — wait ────────────────────────────────
+    if (!job) return;
+
+    // ── Case 3: job has geocode → center + zoom 19 ───────────────────────
+    if (job.geocode?.status === "OK" && job.geocode.lat !== 0) {
+      const { lat, lng } = job.geocode;
+      map.setCenter({ lat, lng });
+      map.setZoom(WORKSPACE_ZOOM);
+      if (import.meta.env.DEV) {
+        console.log("[workspace] centering on", lat, lng, "zoom", WORKSPACE_ZOOM);
+      }
+      didFitRef.current = jobId;
       return;
     }
 
-    // Fit to drawing geometry bounds
-    const bounds = new google.maps.LatLngBounds();
-    let hasPoints = false;
-    for (const obj of state.objects) {
-      if ("vertices" in obj) {
-        obj.vertices.forEach((v) => { bounds.extend(v); hasPoints = true; });
-      } else if ("bounds" in obj) {
-        const b = obj.bounds;
-        bounds.extend({ lat: b.n, lng: b.e });
-        bounds.extend({ lat: b.s, lng: b.w });
-        hasPoints = true;
-      } else if ("position" in obj) {
-        bounds.extend(obj.position);
-        hasPoints = true;
-      }
+    // ── Case 4: job has address but no geocode → client-side geocode ─────
+    if (job.address) {
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ address: job.address }, (results, status) => {
+        if (status === "OK" && results?.[0]) {
+          const loc = results[0].geometry.location;
+          map.setCenter(loc);
+          map.setZoom(WORKSPACE_ZOOM);
+          if (import.meta.env.DEV) {
+            console.log("[workspace] geocoded address, centering on", loc.lat(), loc.lng(), "zoom", WORKSPACE_ZOOM);
+          }
+        } else {
+          if (import.meta.env.DEV) {
+            console.warn("[workspace] geocode failed for address:", job.address, status);
+          }
+        }
+      });
+      didFitRef.current = jobId;
+      return;
     }
-    if (hasPoints) {
-      map.fitBounds(bounds, 80);
-    } else {
-      map.setCenter(fallback);
-      map.setZoom(fallbackZoom);
+
+    // ── Case 5: no location data — mark done to stop retrying ────────────
+    if (import.meta.env.DEV) {
+      console.warn("[workspace] job has no geocode and no address — cannot auto-center");
     }
-    fittedRef.current = true;
+    didFitRef.current = jobId;
+
+  // Re-run when map, job, or jobId changes — but the didFitRef guard prevents
+  // re-fitting after the initial fit, even as drawing objects accumulate.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, jobId, state.objects.length > 0]);
+  }, [map, job, jobId, state.objects.length > 0]);
 
   return null;
 }

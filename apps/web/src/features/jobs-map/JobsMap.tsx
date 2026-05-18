@@ -4,8 +4,9 @@ import { Map, useMap } from "@vis.gl/react-google-maps";
 import { stylesFor, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
 import { useMapTheme } from "../map/themeContext.js";
 import { useJobs } from "./useJobs.js";
-import { defaultFilters, applyFilters } from "./FilterRail.js";
+import { applyFilters } from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
+import { useFilters } from "./useFilters.js";
 import LeftRail from "./LeftRail.js";
 import JobCard from "./JobCard.js";
 import type { Job } from "@nsc/types";
@@ -24,11 +25,10 @@ export default function JobsMap() {
   const jobsState = useJobs();
   const reload = jobsState.reload;
   const { theme } = useMapTheme();
-  const [filters, setFilters] = useState<Filters>(() => defaultFilters());
+  const allJobs = jobsState.state === "ready" ? jobsState.jobs : [];
+  const [filters, setFilters] = useFilters(allJobs);
   const [selected, setSelected] = useState<Job | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
-
-  const allJobs = jobsState.state === "ready" ? jobsState.jobs : [];
   const filtered = useMemo(() => applyFilters(allJobs, filters), [allJobs, filters]);
   const mapped = filtered.filter(
     (j) => j.geocode?.status === "OK" && j.geocode.lat !== 0
