@@ -119,6 +119,9 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
         <Link to={`/jobs/${job.jobId}`} className="btn btn--primary">
           Open workspace →
         </Link>
+        <Link to={`/asbuilt?jobId=${encodeURIComponent(job.workOrder ?? job.jobId)}`} className="btn btn--primary">
+          Enter As-Built →
+        </Link>
       </footer>
     </div>
   );

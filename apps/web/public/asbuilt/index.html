@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NSC As-Built Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       HEADER BAR
+  ============================================================ -->
+  <header id="app-header">
+    <div class="header-left">
+      <img src="assets/logo.jpg" alt="North Sky Communications" id="header-logo" />
+    </div>
+
+    <div class="header-center">
+      <div class="header-row">
+        <label class="field-label">JOB #</label>
+        <input type="text" id="meta-job" class="meta-input" placeholder="e.g. 23017359" />
+        <button id="btn-job-lookup" class="hdr-btn" title="Look up job in Smartsheet" style="padding:4px 10px;font-size:10px;">&#128269; LOOKUP</button>
+        <span id="job-lookup-status" style="font-size:10px;font-weight:700;color:#16a34a;display:none;"></span>
+        <label class="field-label">DATE</label>
+        <input type="text" id="meta-date" class="meta-input" placeholder="MM/DD/YYYY" />
+        <label class="field-label">FOREMAN</label>
+        <input type="text" id="meta-foreman" class="meta-input" placeholder="Name" />
+      </div>
+      <div class="header-row">
+        <label class="field-label">ADDRESS</label>
+        <input type="text" id="meta-address" class="meta-input wide" placeholder="Street Address" />
+        <label class="field-label">CITY</label>
+        <input type="text" id="meta-city" class="meta-input" placeholder="City" />
+        <label class="field-label">SUPERVISOR</label>
+        <input type="text" id="meta-supervisor" class="meta-input" placeholder="—" readonly style="background:#f0f4ff;" />
+        <label id="tc-label" class="tc-checkbox-label" title="Check if Traffic Control was used — biller will reconcile vendor invoice">
+          <input type="checkbox" id="chk-traffic-control" />
+          <span class="tc-text">TRAFFIC CONTROL</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="zoom-controls">
+        <button id="btn-zoom-out" class="hdr-btn zoom-btn" title="Zoom Out">&#8722;</button>
+        <span id="zoom-level" class="zoom-label">100%</span>
+        <button id="btn-zoom-in" class="hdr-btn zoom-btn" title="Zoom In">&#43;</button>
+        <button id="btn-zoom-reset" class="hdr-btn zoom-btn" title="Reset Zoom">&#8635;</button>
+      </div>
+      <button id="btn-undo" class="hdr-btn" title="Undo (Ctrl+Z)">UNDO</button>
+      <button id="btn-map" class="hdr-btn hdr-btn-map" title="Open Map">MAP</button>
+      <button id="btn-photo" class="hdr-btn" title="Import Photo">PHOTO</button>
+      <button id="btn-save" class="hdr-btn" title="Save JSON">SAVE</button>
+      <button id="btn-load" class="hdr-btn" title="Load JSON">LOAD</button>
+      <button id="btn-export-pdf" class="hdr-btn hdr-btn-primary" title="Export PDF">EXPORT PDF</button>
+      <input type="file" id="file-load-input" accept=".json" style="display:none" />
+      <input type="file" id="file-photo-input" accept="image/*" style="display:none" />
+    </div>
+  </header>
+
+  <!-- ============================================================
+       NOTES BAR (Change 1)
+  ============================================================ -->
+  <div id="notes-bar">
+    <label class="notes-label">NOTES</label>
+    <textarea id="meta-notes" placeholder="Describe work performed today..."></textarea>
+  </div>
+
+  <!-- ============================================================
+       LEFT SIDEBAR TOOLBOX
+  ============================================================ -->
+  <aside id="toolbox">
+
+    <!-- Vertical tab strip -->
+    <div id="tab-strip">
+      <button class="tab-btn active" data-tab="tools">
+        <span>TOOLS</span>
+      </button>
+      <button class="tab-btn" data-tab="aerial">
+        <span>AERIAL</span>
+      </button>
+      <button class="tab-btn" data-tab="underground">
+        <span>UNDERGROUND</span>
+      </button>
+      <button class="tab-btn" data-tab="cable">
+        <span>CABLE</span>
+      </button>
+      <button class="tab-btn" data-tab="splicing">
+        <span>SPLICING</span>
+      </button>
+    </div>
+
+    <!-- Slide-out panel -->
+    <div id="tool-panel" class="panel-open">
+
+      <!-- TOOLS TAB -->
+      <div class="tab-content active" id="tab-tools">
+        <div class="panel-section-title">DRAWING TOOLS</div>
+
+        <div class="tool-grid">
+          <button class="tool-btn active" data-tool="SELECT">SELECT</button>
+          <button class="tool-btn" data-tool="LINE">LINE</button>
+          <button class="tool-btn" data-tool="RECT">RECT</button>
+          <button class="tool-btn" data-tool="CIRCLE">CIRCLE</button>
+          <button class="tool-btn" data-tool="ARROW">ARROW</button>
+          <button class="tool-btn" data-tool="DIMENSION">DIMENSION</button>
+          <button class="tool-btn" data-tool="CALLOUT">CALLOUT</button>
+          <button class="tool-btn" data-tool="TEXT">TEXT</button>
+          <button class="tool-btn" data-tool="FREEHAND">FREEHAND</button>
+
+        </div>
+
+        <button id="btn-clear-all" class="danger-btn" style="margin-top:16px;width:100%">CLEAR ALL</button>
+      </div>
+
+      <!-- AERIAL TAB -->
+      <div class="tab-content" id="tab-aerial">
+        <div class="panel-section-title">AERIAL TOOLS</div>
+        <div class="tool-grid">
+          <button class="tool-btn tele-btn" data-category="aerial" data-key="POLE" data-type="POINT">POLE</button>
+          <button class="tool-btn tele-btn" id="btn-xfers-tool" data-tool="XFERS">XFERS</button>
+          <button class="tool-btn tele-btn" data-category="aerial" data-key="STRAND_10M" data-type="LINE">STRAND 10M</button>
+          <button class="tool-btn tele-btn" data-category="aerial" data-key="DE_RE" data-type="LINE">DE/RELASH</button>
+          <button class="tool-btn tele-btn" data-category="aerial" data-key="RE_TENSION" data-type="ARROW">RE-TENSION</button>
+          <button class="tool-btn tele-btn" data-category="aerial" data-key="DOWN_GUY" data-type="ARROW">DOWN GUY</button>
+          <button class="tool-btn tele-btn" data-category="aerial" data-key="ANCHOR" data-type="ANCHOR">ANCHOR</button>
+        </div>
+      </div>
+
+      <!-- UNDERGROUND TAB -->
+      <div class="tab-content" id="tab-underground">
+        <div class="panel-section-title">UNDERGROUND TOOLS</div>
+        <div class="tool-grid">
+          <button class="tool-btn tele-btn" data-category="underground" data-key="BORE" data-type="LINE">BORE</button>
+          <button class="tool-btn tele-btn" data-category="underground" data-key="TRENCH" data-type="LINE">TRENCH</button>
+          <button class="tool-btn tele-btn" data-category="underground" data-key="HH" data-type="POINT">HANDHOLE</button>
+          <button class="tool-btn tele-btn" data-category="underground" data-key="SPLICE_PIT" data-type="POINT">SPLICE PIT</button>
+          <button class="tool-btn tele-btn" data-category="underground" data-key="RMV_BURIED_FAC" data-type="RECT">RMV BURIED FAC</button>
+          <button class="tool-btn tele-btn" data-category="underground" data-key="PEDESTAL" data-type="POINT">PEDESTAL</button>
+          <button class="tool-btn tele-btn" data-category="underground" data-key="POTHOLE" data-type="POINT">POTHOLE</button>
+        </div>
+      </div>
+
+      <!-- CABLE TAB -->
+      <div class="tab-content" id="tab-cable">
+        <div class="panel-section-title">PLACING</div>
+        <div class="tool-grid">
+          <button class="tool-btn tele-btn" data-category="cable" data-key="FIBER_CABLE" data-type="LINE">FIBER</button>
+          <button class="tool-btn tele-btn" data-category="cable" data-key="COPPER_CABLE" data-type="LINE">COPPER</button>
+          <button class="tool-btn tele-btn" data-category="cable" data-key="ASW" data-type="LINE">ASW</button>
+          <button class="tool-btn tele-btn" data-category="cable" data-key="BSW" data-type="LINE">BSW</button>
+        </div>
+        <div class="panel-section-title" style="margin-top:10px">WRECKOUT / REMOVALS</div>
+        <div class="tool-grid">
+          <button class="tool-btn tele-btn" data-category="cable" data-key="RMV_FIBER" data-type="LINE">RMV FIBER</button>
+          <button class="tool-btn tele-btn" data-category="cable" data-key="RMV_COPPER" data-type="LINE">RMV COPPER</button>
+          <button class="tool-btn tele-btn" data-category="cable" data-key="RMV_ASW" data-type="LINE">RMV ASW</button>
+          <button class="tool-btn tele-btn" data-category="cable" data-key="RMV_BSW" data-type="LINE">RMV BSW</button>
+        </div>
+      </div>
+
+      <!-- SPLICING TAB -->
+      <div class="tab-content" id="tab-splicing">
+        <div class="panel-section-title">SPLICING TOOLS</div>
+        <div class="tool-grid">
+          <button class="tool-btn tele-btn" data-category="splicing" data-key="SPLICE_CASE" data-type="POINT">SPLICE CASE</button>
+          <button class="tool-btn tele-btn" data-category="splicing" data-key="TERMINAL" data-type="POINT">TERMINAL</button>
+          <button class="tool-btn tele-btn" data-category="splicing" data-key="MPOP" data-type="POINT">MPOP</button>
+          <button class="tool-btn tele-btn" data-category="splicing" data-key="RISER" data-type="POINT">RISER</button>
+          <button class="tool-btn tele-btn" data-category="splicing" data-key="GROUND_ROD" data-type="POINT">GROUND ROD</button>
+          <button class="tool-btn tele-btn" data-category="splicing" data-key="SNOWSHOE" data-type="POINT">SNOWSHOE</button>
+          <button class="tool-btn tele-btn" data-category="splicing" data-key="BURIED_SPLICE" data-type="CALLOUT">BURIED SPLICE</button>
+        </div>
+      </div>
+
+      <!-- X-FERS TAB -->
+      </div>
+
+    </div><!-- /#tool-panel -->
+  </aside>
+
+  <!-- ============================================================
+       BILLABLE UNITS DASHBOARD
+  ============================================================ -->
+  <div id="units-dashboard">
+    <div class="units-header" id="units-drag-handle">
+      <span class="units-drag-icon">⠿</span>
+      <span class="units-title">BILLABLE UNITS</span>
+      <div class="units-header-btns">
+        <button id="units-minimize" title="Minimize">─</button>
+        <button id="units-toggle" title="Collapse">▼</button>
+      </div>
+    </div>
+    <div id="units-body">
+      <div id="units-list">
+        <div class="units-empty">No items placed yet.</div>
+      </div>
+    </div>
+    <div id="units-resize-grip" title="Drag to resize">⠿</div>
+  </div>
+
+  <!-- ============================================================
+       CANVAS AREA
+  ============================================================ -->
+  <!-- ============================================================
+       STYLE STRIP — between notes bar and canvas
+  ============================================================ -->
+  <div id="style-strip">
+    <!-- Drawing tool style -->
+    <div class="ss-group">
+      <span class="ss-label">COLOR</span>
+      <input type="color" id="tool-color" value="#000000" class="ss-color" title="Stroke / Fill Color" />
+    </div>
+    <div class="ss-divider"></div>
+    <div class="ss-group">
+      <span class="ss-label">STROKE</span>
+      <input type="range" id="tool-stroke" min="1" max="20" value="2" class="ss-range" />
+      <span id="tool-stroke-val" class="ss-val">2</span>
+    </div>
+    <div class="ss-divider"></div>
+    <div class="ss-group">
+      <span class="ss-label">STYLE</span>
+      <select id="tool-linestyle" class="ss-select">
+        <option value="solid">Solid</option>
+        <option value="dashed">Dashed</option>
+      </select>
+    </div>
+    <div class="ss-divider"></div>
+    <!-- Selection / object properties (shown when object selected) -->
+    <div class="ss-group" id="ss-prop-group" style="display:none">
+      <span class="ss-label">OBJ COLOR</span>
+      <input type="color" id="prop-color" value="#000000" class="ss-color" title="Selected Object Color" />
+      <span class="ss-label" style="margin-left:10px">OBJ STROKE</span>
+      <input type="range" id="prop-stroke" min="1" max="20" value="2" class="ss-range" />
+      <span id="prop-stroke-val" class="ss-val">2</span>
+      <span id="prop-font-row" class="ss-group" style="display:none; margin-left:10px">
+        <span class="ss-label">FONT SZ</span>
+        <input type="number" id="prop-fontsize" min="6" max="120" value="14" class="ss-fontsize" />
+      </span>
+    </div>
+    <div class="ss-divider" id="ss-prop-divider" style="display:none"></div>
+    <!-- Group / Ungroup -->
+    <div class="ss-group" id="ss-group-btns">
+      <button id="btn-group" class="ss-btn" style="display:none">GROUP</button>
+      <button id="btn-ungroup" class="ss-btn" style="display:none">UNGROUP</button>
+    </div>
+  </div>
+
+  <!-- hidden props-panel stub so existing JS refs don't break -->
+  <div id="props-panel" style="display:none"></div>
+
+  <main id="canvas-area">
+    <canvas id="main-canvas"></canvas>
+  </main>
+
+  <!-- ============================================================
+       SMART MODAL
+  ============================================================ -->
+  <div id="smart-modal" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-header-icon">⬡</div>
+        <div class="modal-title" id="modal-title">ATTRIBUTES</div>
+        <button class="modal-close-btn" id="modal-discard-x">✕</button>
+      </div>
+      <div class="modal-divider"></div>
+      <div id="modal-fields" class="modal-fields-body"></div>
+      <div class="modal-actions">
+        <button id="modal-discard" class="modal-btn modal-btn-cancel">DISCARD</button>
+        <button id="modal-confirm" class="modal-btn modal-btn-primary">CONFIRM</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       MAP MODAL
+  ============================================================ -->
+  <div id="map-modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center;">
+    <div style="background:#1a1a2e; border:1px solid #334; border-radius:8px; width:820px; max-width:96vw; height:600px; max-height:92vh; display:flex; flex-direction:column; overflow:hidden;">
+      <!-- Header -->
+      <div style="display:flex; align-items:center; gap:8px; padding:10px 14px; background:#12122a; border-bottom:1px solid #334; flex-shrink:0;">
+        <span style="color:#fff; font-weight:700; font-size:13px; letter-spacing:1px;">MAP — SET BACKGROUND</span>
+        <div style="flex:1; display:flex; gap:6px; margin-left:12px;">
+          <input id="map-address-input" type="text" placeholder="Enter job site address..." style="flex:1; padding:6px 10px; border-radius:4px; border:1px solid #446; background:#0d0d1f; color:#fff; font-size:13px;"/>
+          <button id="map-search-btn" style="padding:6px 14px; background:#1565c0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:700;">SEARCH</button>
+        </div>
+        <!-- View toggle -->
+        <div style="display:flex; gap:4px; margin-left:8px;">
+          <button id="map-view-satellite" class="map-view-btn active-view" style="padding:5px 10px; background:#1565c0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:11px; font-weight:700;">SATELLITE</button>
+          <button id="map-view-roadmap" class="map-view-btn" style="padding:5px 10px; background:#333; color:#aaa; border:none; border-radius:4px; cursor:pointer; font-size:11px; font-weight:700;">STREET</button>
+        </div>
+        <button id="map-locate-btn" style="padding:5px 10px; background:#333; color:#fff; border:1px solid #0ea5e9; border-radius:4px; cursor:pointer; font-size:11px; font-weight:700; white-space:nowrap;">&#9737; MY LOCATION</button>
+        <button id="map-close-btn" style="margin-left:8px; background:none; border:none; color:#aaa; font-size:20px; cursor:pointer; line-height:1;">&times;</button>
+      </div>
+      <!-- Map container -->
+      <div id="map-container" style="flex:1; position:relative;">
+        <div id="google-map" style="width:100%; height:100%;"></div>
+      </div>
+      <!-- Footer -->
+      <div style="padding:10px 14px; background:#12122a; border-top:1px solid #334; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+        <span style="color:#888; font-size:11px;">Zoom and pan to frame the exact job area, then capture.</span>
+        <div style="flex:1;"></div>
+        <button id="map-capture-btn" style="padding:8px 22px; background:#2e7d32; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:0.5px;">USE AS BACKGROUND</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCRIPTS
+  ============================================================ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- Google Maps init MUST be in a plain script (not a module) so it is on window before the API callback fires -->
+  <script>
+    window._googleMapReady = false;
+    window.googleMap       = null;
+    window.mapGeocoder     = null;
+
+    window.initGoogleMap = function () {
+      // Default center — will be overridden by geolocation if available
+      const defaultCenter = { lat: 39.5, lng: -98.35 };
+      window.googleMap = new google.maps.Map(document.getElementById('google-map'), {
+        center:    defaultCenter,
+        zoom:      15,
+        mapTypeId: 'satellite',
+        tilt:      0,
+        mapTypeControl:    false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
+      });
+      window.mapGeocoder     = new google.maps.Geocoder();
+      window._googleMapReady = true;
+
+      // Center on user location immediately on load
+      window.goToUserLocation = function(onDone) {
+        if (!navigator.geolocation) { if (onDone) onDone(false); return; }
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            const latlng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            window.googleMap.setCenter(latlng);
+            window.googleMap.setZoom(18);
+            // Drop a blue dot at user location
+            if (window._userMarker) window._userMarker.setMap(null);
+            window._userMarker = new google.maps.Marker({
+              position: latlng,
+              map: window.googleMap,
+              title: 'Your Location',
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 8,
+                fillColor: '#0ea5e9',
+                fillOpacity: 1,
+                strokeColor: '#ffffff',
+                strokeWeight: 2,
+              }
+            });
+            if (onDone) onDone(true);
+          },
+          () => { if (onDone) onDone(false); },
+          { enableHighAccuracy: true, timeout: 8000 }
+        );
+      };
+      window.goToUserLocation(); // auto-center on load
+
+      // Signal app.js that the map is ready
+      document.dispatchEvent(new CustomEvent('googleMapReady'));
+    };
+  </script>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBRrs_7R-edB7ffraBtksAWmdSa3OT0XuA&libraries=places&callback=initGoogleMap" async defer></script>
+  <script type="module" src="js/app.js"></script>
+
+  <!-- ============================================================
+       PHASE 6 BOOTSTRAP: auto-fill JOB # from ?jobId= and trigger lookup.
+       Preserves lookupJob in app.js verbatim — just dispatches a click.
+  ============================================================ -->
+  <script>
+    (function () {
+      function getJobIdFromUrl() {
+        try {
+          const p = new URLSearchParams(window.location.search);
+          return p.get('jobId') || p.get('wo') || '';
+        } catch (_e) { return ''; }
+      }
+      function tryAutoLookup() {
+        const jobId = getJobIdFromUrl();
+        if (!jobId) return;
+        const jobInput = document.getElementById('meta-job');
+        const lookupBtn = document.getElementById('btn-job-lookup');
+        if (!jobInput || !lookupBtn) return;
+        jobInput.value = jobId;
+        // app.js is a module (deferred) — binds its handler after this script
+        // runs. setTimeout 0 schedules the click after app.js has bound.
+        setTimeout(function () { lookupBtn.click(); }, 0);
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', tryAutoLookup);
+      } else {
+        tryAutoLookup();
+      }
+    })();
+  </script>
+
+<!-- RIGHT-CLICK CONTEXT MENU -->
+<div id="canvas-context-menu" style="display:none;">
+  <div class="ctx-item" id="ctx-copy"><span class="ctx-icon">⧉</span> Copy</div>
+  <div class="ctx-item" id="ctx-paste"><span class="ctx-icon">⎘</span> Paste</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctx-send-back"><span class="ctx-icon">↓</span> Send to Back</div>
+  <div class="ctx-item" id="ctx-bring-front"><span class="ctx-icon">↑</span> Bring to Front</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item ctx-danger" id="ctx-delete"><span class="ctx-icon">✕</span> Delete</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item ctx-flatten" id="ctx-flatten"><span class="ctx-icon">⬛</span> Flatten to Background</div>
+  <div class="ctx-item ctx-unflatten" id="ctx-unflatten" style="display:none"><span class="ctx-icon">⬜</span> Unflatten (Re-enable Resize)</div>
+</div>
+
+</body>
+</html>
