@@ -1,8 +1,0 @@
-name = "nsc-smartapp"
-main = "ss-worker.js"
-compatibility_date = "2024-01-01"
-account_id = "b2e2c220053726a340e3f488109c80ef"
-
-[vars]
-SS_TOKEN = "2RrwMyQPbc3MzzBE0jl05SFUgTndzBvctSsfO"
-SS_SHEET = "1833739362822020"

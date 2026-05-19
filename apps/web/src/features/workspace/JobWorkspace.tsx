@@ -1,9 +1,6 @@
-// JobWorkspace — Phase 5: Focused single-job editor.
-// Reuses the same drawing engine, left rail, and modifier strip as the Jobs Map,
-// but filters to one job, hides non-active markers, and enables auto-save.
-// Phase 5.3: auto-center on job geocode at zoom 19 on workspace entry.
-// Phase 7: AttachmentsPanel + EngineeringPrintOverlay surfaced in workspace.
-import { useCallback, useEffect, useRef, useState } from "react";
+// JobWorkspace — Phase 8: Native single-job editor on the same Google Map.
+// Centers + zooms to job on entry, hides other markers, full toolset active.
+import { useCallback, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Map, useMap } from "@vis.gl/react-google-maps";
 import { stylesFor, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
@@ -16,9 +13,6 @@ import { defaultFilters } from "../jobs-map/FilterRail.js";
 import { api } from "../../lib/api.js";
 import JobContextStrip from "./JobContextStrip.js";
 import LayersPanel from "./LayersPanel.js";
-import AttachmentsPanel from "./AttachmentsPanel.js";
-import EngineeringPrintOverlay from "../asbuilt/EngineeringPrintOverlay.js";
-import type { EngineeringPrint } from "@nsc/types";
 import { useJob } from "./useJob.js";
 
 const WORKSPACE_ZOOM = 19; // street-level, ready for placing physical infrastructure
@@ -100,16 +94,6 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
   // Resolved job for the fit component (null while loading)
   const job = jobState.state === "ready" ? jobState.job : null;
 
-  // Phase 7: Active engineering print (mirror of AttachmentsPanel state)
-  const [activePrint, setActivePrint] = useState<EngineeringPrint | null>(null);
-  const [alignmentEditing, setAlignmentEditing] = useState(false);
-
-  const handleCornersChange = useCallback((corners: EngineeringPrint["corners"]) => {
-    if (!activePrint) return;
-    setActivePrint({ ...activePrint, corners });
-    void api.patchPrint(jobId, activePrint.printId, { corners }).catch(() => {});
-  }, [activePrint, jobId]);
-
   return (
     <div className="workspace-layout">
       {/* Job context strip below topbar */}
@@ -122,14 +106,6 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
         {/* Map area */}
         <div className="workspace-layout__map">
           <ModifiersPanel />
-          {jobId && (
-            <AttachmentsPanel
-              jobId={jobId}
-              onActivePrintChange={setActivePrint}
-              alignmentEditing={alignmentEditing}
-              onSetAlignmentEditing={setAlignmentEditing}
-            />
-          )}
           <div className="map-host" style={{ position: "absolute", inset: 0, top: 0 }}>
             <Map
               defaultCenter={initialCenter}
@@ -141,13 +117,6 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
               <MapHandle mapRef={mapRef} />
               <FitToJobGeometry job={job} jobId={jobId} />
               <DrawingOverlay />
-              {activePrint && (
-                <EngineeringPrintOverlay
-                  print={activePrint}
-                  editing={alignmentEditing}
-                  onCornersChange={handleCornersChange}
-                />
-              )}
             </Map>
           </div>
         </div>

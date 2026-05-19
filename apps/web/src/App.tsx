@@ -3,7 +3,6 @@ import { APIProvider } from "@vis.gl/react-google-maps";
 import JobsMap from "./features/jobs-map/JobsMap.js";
 import JobWorkspace from "./features/workspace/JobWorkspace.js";
 import SyncAdmin from "./features/sync-admin/SyncAdmin.js";
-import AsbuiltWorkspace from "./features/asbuilt/AsbuiltWorkspace.js";
 import { SearchFocusProvider } from "./features/search/searchContext.js";
 import SearchBar from "./features/search/SearchBar.js";
 import TopbarActions from "./features/drawing/TopbarActions.js";
@@ -44,7 +43,6 @@ function Shell() {
             <Routes>
               <Route path="/" element={<JobsMap />} />
               <Route path="/jobs/:jobId" element={<JobWorkspace />} />
-              <Route path="/asbuilt" element={<AsbuiltWorkspace />} />
               <Route path="/sync" element={<SyncAdmin />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
