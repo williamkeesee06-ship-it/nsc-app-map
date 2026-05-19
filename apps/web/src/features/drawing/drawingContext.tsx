@@ -12,8 +12,51 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from "react";
-import type { AsBuiltDocument, DrawingObject, DrawingStyle, DrawingTool } from "@nsc/types";
+import type { AsBuiltDocument, AsBuiltLayer, DrawingObject, DrawingStyle, DrawingTool } from "@nsc/types";
 import { api } from "../../lib/api.js";
+
+// ─── Phase 7: layer helpers ─────────────────────────────────────────────────
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function layerKey(jobId: string, createdBy: string, workDate: string): string {
+  return `${jobId}::${createdBy}::${workDate}`;
+}
+
+function makeLayerId(jobId: string, createdBy: string, workDate: string): string {
+  return `layer-${jobId}-${createdBy.replace(/[^a-z0-9]+/gi, "_")}-${workDate}`;
+}
+
+/** Reconcile layers from a fresh objects array: ensure every (createdBy,workDate) combo has a layer entry. */
+function reconcileLayers(
+  jobId: string,
+  objects: DrawingObject[],
+  existingLayers: AsBuiltLayer[]
+): AsBuiltLayer[] {
+  const byKey = new Map<string, AsBuiltLayer>();
+  for (const l of existingLayers) {
+    byKey.set(layerKey(jobId, l.createdBy, l.workDate), l);
+  }
+  for (const obj of objects) {
+    const createdBy = obj.style.createdBy;
+    const workDate = obj.style.workDate;
+    if (!createdBy || !workDate) continue;
+    const k = layerKey(jobId, createdBy, workDate);
+    if (!byKey.has(k)) {
+      byKey.set(k, {
+        layerId: obj.style.layerId ?? makeLayerId(jobId, createdBy, workDate),
+        createdBy,
+        workDate,
+        locked: false,
+        hidden: false,
+        createdAt: Date.now(),
+      });
+    }
+  }
+  return Array.from(byKey.values()).sort((a, b) => b.workDate.localeCompare(a.workDate));
+}
 
 // ─── localStorage draft helpers ──────────────────────────────────────────────
 const LS_OBJECTS_KEY = "nsc.draft.objects";
@@ -151,6 +194,14 @@ export interface DrawingState {
   targetWorkOrder: string | null;
   /** Phase 5: workspace mode auto-save countdown (seconds until save), null if idle */
   autoSaveCountdown: number | null;
+  /** Phase 7: persisted layer metadata (one per foreman+date). */
+  layers: AsBuiltLayer[];
+  /** Phase 7: the layer new objects will be stamped onto. */
+  activeLayerId: string | null;
+  /** Phase 7: foreman name to use for new layers (null = unknown). */
+  activeForeman: string | null;
+  /** Phase 7: ISO date for new layers (default today). */
+  activeWorkDate: string;
 }
 
 type Action =
@@ -164,12 +215,17 @@ type Action =
   | { type: "UNDO" }
   | { type: "REDO" }
   | { type: "SET_OBJECTS"; objects: DrawingObject[]; markDirty?: boolean }
-  | { type: "LOAD_OBJECTS"; objects: DrawingObject[] }
+  | { type: "LOAD_OBJECTS"; objects: DrawingObject[]; layers?: AsBuiltLayer[]; activeLayerId?: string | null }
   | { type: "MARK_SAVED" }
   | { type: "SET_SAVING"; saving: boolean }
   | { type: "SET_SAVE_ERROR"; error: string | null }
   | { type: "SET_TARGET"; jobId: string | null; workOrder: string | null }
-  | { type: "SET_AUTO_SAVE_COUNTDOWN"; countdown: number | null };
+  | { type: "SET_AUTO_SAVE_COUNTDOWN"; countdown: number | null }
+  | { type: "SET_LAYERS"; layers: AsBuiltLayer[] }
+  | { type: "UPSERT_LAYER"; layer: AsBuiltLayer }
+  | { type: "SET_ACTIVE_LAYER"; layerId: string | null }
+  | { type: "SET_ACTIVE_FOREMAN"; foreman: string | null }
+  | { type: "SET_ACTIVE_WORKDATE"; workDate: string };
 
 // ─── Undo/redo stack (outside reducer so it doesn't re-render) ────────────
 
@@ -193,6 +249,10 @@ function initState(): DrawingState {
     targetJobId: null,
     targetWorkOrder: null,
     autoSaveCountdown: null,
+    layers: [],
+    activeLayerId: null,
+    activeForeman: null,
+    activeWorkDate: todayIso(),
   };
 }
 
@@ -207,16 +267,60 @@ function reducer(state: DrawingState, action: Action): DrawingState {
     case "SET_STYLE":
       return { ...state, style: { ...state.style, ...action.patch } };
 
-    case "ADD_OBJECT":
-      return { ...state, objects: [...state.objects, action.obj], dirty: true };
+    case "ADD_OBJECT": {
+      // Phase 7: stamp every new object with the active layer's metadata so
+      // it lands in the current foreman/date layer. Editors should set an
+      // active layer before drawing (workspace mode does this on mount).
+      const active = state.layers.find((l) => l.layerId === state.activeLayerId);
+      const layerStamp = active
+        ? { layerId: active.layerId, createdBy: active.createdBy, workDate: active.workDate }
+        : state.activeForeman
+          ? {
+              layerId: makeLayerId(state.targetJobId ?? "unknown", state.activeForeman, state.activeWorkDate),
+              createdBy: state.activeForeman,
+              workDate: state.activeWorkDate,
+            }
+          : {};
+      const stamped: DrawingObject = {
+        ...action.obj,
+        style: { ...action.obj.style, ...layerStamp },
+      } as DrawingObject;
+      let layers = state.layers;
+      let activeLayerId = state.activeLayerId;
+      if (layerStamp.layerId && !layers.some((l) => l.layerId === layerStamp.layerId)) {
+        const newLayer: AsBuiltLayer = {
+          layerId: layerStamp.layerId,
+          createdBy: layerStamp.createdBy!,
+          workDate: layerStamp.workDate!,
+          locked: false,
+          hidden: false,
+          createdAt: Date.now(),
+        };
+        layers = [newLayer, ...layers].sort((a, b) => b.workDate.localeCompare(a.workDate));
+        activeLayerId = layerStamp.layerId;
+      }
+      return { ...state, objects: [...state.objects, stamped], layers, activeLayerId, dirty: true };
+    }
 
     case "UPDATE_OBJECT": {
+      // Phase 7: refuse to modify objects on a locked layer
+      const current = state.objects.find((o) => o.id === action.obj.id);
+      if (current?.style.layerId) {
+        const layer = state.layers.find((l) => l.layerId === current.style.layerId);
+        if (layer?.locked) return state;
+      }
       const objects = state.objects.map((o) => (o.id === action.obj.id ? action.obj : o));
       return { ...state, objects, dirty: true };
     }
     case "DELETE_SELECTED": {
       if (state.selectedIds.size === 0) return state;
-      const objects = state.objects.filter((o) => !state.selectedIds.has(o.id));
+      // Phase 7: skip selected objects on locked layers
+      const lockedLayerIds = new Set(state.layers.filter((l) => l.locked).map((l) => l.layerId));
+      const objects = state.objects.filter((o) => {
+        if (!state.selectedIds.has(o.id)) return true;
+        if (o.style.layerId && lockedLayerIds.has(o.style.layerId)) return true; // keep locked
+        return false;
+      });
       return { ...state, objects, selectedIds: new Set(), dirty: true };
     }
     case "SELECT": {
@@ -239,15 +343,48 @@ function reducer(state: DrawingState, action: Action): DrawingState {
         dirty: action.markDirty !== false,
       };
 
-    case "LOAD_OBJECTS":
+    case "LOAD_OBJECTS": {
       // Loading from server: drop selection, clear dirty/save state.
+      // Phase 7: also reconcile/restore layers and the active layer.
+      const layers = action.layers && action.layers.length > 0
+        ? action.layers
+        : reconcileLayers(state.targetJobId ?? "", action.objects, []);
+      const activeLayerId =
+        action.activeLayerId !== undefined ? action.activeLayerId : (layers[0]?.layerId ?? null);
       return {
         ...state,
         objects: action.objects,
+        layers,
+        activeLayerId,
         selectedIds: new Set(),
         dirty: false,
         saveError: null,
       };
+    }
+
+    case "SET_LAYERS":
+      return { ...state, layers: action.layers };
+
+    case "UPSERT_LAYER": {
+      const idx = state.layers.findIndex((l) => l.layerId === action.layer.layerId);
+      const layers = idx >= 0
+        ? state.layers.map((l) => (l.layerId === action.layer.layerId ? action.layer : l))
+        : [action.layer, ...state.layers];
+      return {
+        ...state,
+        layers: layers.sort((a, b) => b.workDate.localeCompare(a.workDate)),
+        dirty: true,
+      };
+    }
+
+    case "SET_ACTIVE_LAYER":
+      return { ...state, activeLayerId: action.layerId };
+
+    case "SET_ACTIVE_FOREMAN":
+      return { ...state, activeForeman: action.foreman };
+
+    case "SET_ACTIVE_WORKDATE":
+      return { ...state, activeWorkDate: action.workDate };
 
     case "MARK_SAVED":
       return { ...state, dirty: false, saveError: null };
@@ -297,7 +434,7 @@ interface DrawingContextValue {
    * Replace the current overlay with objects loaded from the server.
    * Clears selection, resets dirty flag, and pushes onto undo history.
    */
-  loadObjects: (objects: DrawingObject[]) => void;
+  loadObjects: (objects: DrawingObject[], layers?: AsBuiltLayer[], activeLayerId?: string | null) => void;
   save: () => Promise<void>;
   /** Phase 5.2: clear the localStorage draft for the current target (or any draft) */
   clearDraft: () => void;
@@ -305,6 +442,15 @@ interface DrawingContextValue {
   /** Phase 5: workspace mode — when set, enables auto-save (10s debounce) */
   workspaceJobId: string | null;
   setWorkspaceJobId: (id: string | null) => void;
+  // Phase 7: layer helpers
+  setActiveForeman: (foreman: string | null) => void;
+  setActiveWorkDate: (workDate: string) => void;
+  setActiveLayer: (layerId: string | null) => void;
+  toggleLayerLocked: (layerId: string) => void;
+  toggleLayerHidden: (layerId: string) => void;
+  renameLayerDate: (layerId: string, newDate: string) => void;
+  /** Promote (createdBy, workDate) to active — creating a layer entry if missing. */
+  activateLayerForToday: (createdBy: string, workDate?: string) => void;
 }
 
 export const DrawingContext = createContext<DrawingContextValue | null>(null);
@@ -407,13 +553,17 @@ export function DrawingProvider({ children, mapRef }: Props) {
     dispatch({ type: "SET_TARGET", jobId, workOrder });
   }, []);
 
-  const loadObjects = useCallback((objects: DrawingObject[]) => {
+  const loadObjects = useCallback((
+    objects: DrawingObject[],
+    layers?: AsBuiltLayer[],
+    activeLayerId?: string | null,
+  ) => {
     // Loading from server is a hard reset — clear undo history so the user
     // can't "undo" the server state away.
     undoStack.current = [];
     redoStack.current = [];
     bumpHistory();
-    dispatch({ type: "LOAD_OBJECTS", objects });
+    dispatch({ type: "LOAD_OBJECTS", objects, layers, activeLayerId });
   }, [bumpHistory]);
 
   const patchObjectStyle = useCallback((id: string, stylePartial: Partial<DrawingStyle>) => {
@@ -436,7 +586,7 @@ export function DrawingProvider({ children, mapRef }: Props) {
   }, []);
 
   const save = useCallback(async () => {
-    const { targetJobId, objects } = stateRef.current;
+    const { targetJobId, objects, layers, activeLayerId } = stateRef.current;
     if (!targetJobId) {
       dispatch({
         type: "SET_SAVE_ERROR",
@@ -451,10 +601,18 @@ export function DrawingProvider({ children, mapRef }: Props) {
       const payload = {
         jobId: targetJobId,
         objects,
+        layers,
+        activeLayerId,
         updatedAt: Date.now(),
         schemaVersion: 2 as const,
       };
       await api.putDrawing(targetJobId, payload as unknown as AsBuiltDocument);
+      // Phase 7: mark quick-reference gist out-of-date so the job-card sync icon flips red
+      try {
+        await api.markGistOutOfDate(targetJobId);
+      } catch {
+        // non-fatal
+      }
       dispatch({ type: "MARK_SAVED" });
       // Phase 5.2: clear localStorage draft after successful server save
       lsClearDraft(targetJobId);
@@ -561,6 +719,56 @@ export function DrawingProvider({ children, mapRef }: Props) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [state.dirty, state.objects.length]);
 
+  // ── Phase 7: layer action helpers ───────────────────────────────────────────
+  const setActiveForeman = useCallback((foreman: string | null) => {
+    dispatch({ type: "SET_ACTIVE_FOREMAN", foreman });
+  }, []);
+
+  const setActiveWorkDate = useCallback((workDate: string) => {
+    dispatch({ type: "SET_ACTIVE_WORKDATE", workDate });
+  }, []);
+
+  const setActiveLayer = useCallback((layerId: string | null) => {
+    dispatch({ type: "SET_ACTIVE_LAYER", layerId });
+  }, []);
+
+  const toggleLayerLocked = useCallback((layerId: string) => {
+    const layer = stateRef.current.layers.find((l) => l.layerId === layerId);
+    if (!layer) return;
+    dispatch({ type: "UPSERT_LAYER", layer: { ...layer, locked: !layer.locked } });
+  }, []);
+
+  const toggleLayerHidden = useCallback((layerId: string) => {
+    const layer = stateRef.current.layers.find((l) => l.layerId === layerId);
+    if (!layer) return;
+    dispatch({ type: "UPSERT_LAYER", layer: { ...layer, hidden: !layer.hidden } });
+  }, []);
+
+  const renameLayerDate = useCallback((layerId: string, newDate: string) => {
+    const layer = stateRef.current.layers.find((l) => l.layerId === layerId);
+    if (!layer) return;
+    dispatch({ type: "UPSERT_LAYER", layer: { ...layer, workDate: newDate } });
+  }, []);
+
+  const activateLayerForToday = useCallback((createdBy: string, workDate?: string) => {
+    const date = workDate ?? todayIso();
+    const jobId = stateRef.current.targetJobId ?? "unknown";
+    const layerId = makeLayerId(jobId, createdBy, date);
+    const existing = stateRef.current.layers.find((l) => l.layerId === layerId);
+    const layer: AsBuiltLayer = existing ?? {
+      layerId,
+      createdBy,
+      workDate: date,
+      locked: false,
+      hidden: false,
+      createdAt: Date.now(),
+    };
+    if (!existing) dispatch({ type: "UPSERT_LAYER", layer });
+    dispatch({ type: "SET_ACTIVE_FOREMAN", foreman: createdBy });
+    dispatch({ type: "SET_ACTIVE_WORKDATE", workDate: date });
+    dispatch({ type: "SET_ACTIVE_LAYER", layerId });
+  }, []);
+
   const value: DrawingContextValue = {
     state,
     dispatch,
@@ -588,6 +796,13 @@ export function DrawingProvider({ children, mapRef }: Props) {
     mapRef,
     workspaceJobId,
     setWorkspaceJobId,
+    setActiveForeman,
+    setActiveWorkDate,
+    setActiveLayer,
+    toggleLayerLocked,
+    toggleLayerHidden,
+    renameLayerDate,
+    activateLayerForToday,
   };
 
   return <DrawingContext.Provider value={value}>{children}</DrawingContext.Provider>;

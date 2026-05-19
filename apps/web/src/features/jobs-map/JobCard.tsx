@@ -5,10 +5,12 @@
 // Plus Job Status as a pill (used for marker color too).
 // Phase 4.2: minimizable — collapses to a slim bottom-right pill.
 // Phase 5.3: secondary-status pill moved to header row alongside WO number.
-import { useState } from "react";
-import type { Job } from "@nsc/types";
+import { useEffect, useState } from "react";
+import type { EngineeringPrint, Job, QuickReferenceGist } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
+import { api } from "../../lib/api.js";
+import QuickModeDialog from "./QuickModeDialog.js";
 
 interface Props {
   job: Job;
@@ -18,8 +20,38 @@ interface Props {
 
 export default function JobCard({ job, onClose, variant = "popup" }: Props) {
   const [minimized, setMinimized] = useState(false);
+  const [gist, setGist] = useState<QuickReferenceGist | null>(null);
+  const [hasActivePrint, setHasActivePrint] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [quickModeOpen, setQuickModeOpen] = useState(false);
   const wo = job.workOrder;
   const status = job.jobStatus ?? "—";
+
+  // Phase 7: load gist + prints metadata to display badges + sync icon
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      api.getGist(job.jobId).catch(() => ({ gist: null as QuickReferenceGist | null })),
+      api.listPrints(job.jobId).catch(() => ({ prints: [] as EngineeringPrint[], count: 0 })),
+    ]).then(([g, p]) => {
+      if (cancelled) return;
+      setGist(g.gist);
+      setHasActivePrint(p.prints.some((x) => x.active));
+    });
+    return () => { cancelled = true; };
+  }, [job.jobId]);
+
+  async function handleSyncGist() {
+    setSyncing(true);
+    try {
+      const { gist: g } = await api.syncGist(job.jobId);
+      setGist(g);
+    } catch {
+      // ignore — surfaced in workspace if needed
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   // Minimized pill — always rendered in popup variant
   if (minimized && variant === "popup") {
@@ -88,6 +120,90 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
           {status}
         </span>
       </div>
+
+      {/* Phase 7: Engineering Print + Quick Reference indicators */}
+      <div
+        style={{
+          padding: "0 12px 6px",
+          display: "flex",
+          gap: 6,
+          alignItems: "center",
+          flexWrap: "wrap",
+          fontSize: 9,
+        }}
+      >
+        {hasActivePrint && (
+          <span
+            title="Engineering print attached for this job"
+            style={{
+              padding: "1px 6px",
+              borderRadius: 4,
+              background: "#3aa7ff22",
+              border: "1px solid #3aa7ff",
+              color: "#3aa7ff",
+              fontWeight: 600,
+            }}
+          >
+            📄 Engineering Print Attached
+          </span>
+        )}
+        <span
+          title={gist ? (gist.outOfDate ? "Reference layer out of date" : "Reference layer synced") : "No reference layer yet"}
+          style={{
+            padding: "1px 6px",
+            borderRadius: 4,
+            background: gist ? (gist.outOfDate ? "#ff2d4a22" : "#39ff7a22") : "var(--surface-2)",
+            border: `1px solid ${gist ? (gist.outOfDate ? "#ff2d4a" : "#39ff7a") : "var(--border)"}`,
+            color: gist ? (gist.outOfDate ? "#ff2d4a" : "#39ff7a") : "var(--text-muted)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          {gist ? (gist.outOfDate ? "● Ref outdated" : "✓ Ref synced") : "○ No ref"}
+          <button
+            type="button"
+            onClick={handleSyncGist}
+            disabled={syncing}
+            title="Sync Reference Layer"
+            style={{
+              border: 0,
+              background: "transparent",
+              cursor: "pointer",
+              padding: 0,
+              fontSize: 10,
+              color: "inherit",
+              opacity: syncing ? 0.5 : 1,
+            }}
+          >
+            ⟳
+          </button>
+        </span>
+        <button
+          type="button"
+          onClick={() => setQuickModeOpen(true)}
+          style={{
+            padding: "1px 6px",
+            borderRadius: 4,
+            border: "1px solid var(--border)",
+            background: "var(--surface-2)",
+            color: "var(--text)",
+            cursor: "pointer",
+            fontSize: 9,
+          }}
+          title="Add a lightweight backfill entry for this job"
+        >
+          ⚡ Quick Mode
+        </button>
+      </div>
+
+      {quickModeOpen && (
+        <QuickModeDialog
+          jobId={job.jobId}
+          onClose={() => setQuickModeOpen(false)}
+          onSaved={(g) => { setGist(g); setQuickModeOpen(false); }}
+        />
+      )}
 
       <Row label="Address" value={job.address} />
       <Row label="City" value={job.city} />

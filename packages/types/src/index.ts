@@ -100,6 +100,89 @@ export interface DrawingStyle {
   userLabel?: string;
   /** Phase 5.1: user-assigned description/notes. */
   description?: string;
+  /** Phase 7: stable layer id (one per jobId+createdBy+workDate). */
+  layerId?: string;
+  /** Phase 7: foreman who owns the layer this object belongs to. */
+  createdBy?: string;
+  /** Phase 7: ISO date (YYYY-MM-DD) of the layer this object belongs to. */
+  workDate?: string;
+}
+
+// ---- Phase 7: Layer + attachment + engineering print types ----
+
+/**
+ * Layer metadata. One layer per (jobId, createdBy, workDate) tuple.
+ * Objects carry the layerId via their style; layers themselves persist
+ * inside the AsBuiltDocument so we can record locked / hidden state.
+ */
+export interface AsBuiltLayer {
+  layerId: string;
+  createdBy: string;
+  workDate: string; // ISO YYYY-MM-DD
+  /** When true, layer is read-only and cannot accept new objects. */
+  locked: boolean;
+  /** When true, layer is hidden on the map. */
+  hidden: boolean;
+  createdAt: number;
+}
+
+/** Engineering print overlay (one or more per job; at most one "active"). */
+export interface EngineeringPrint {
+  printId: string;
+  jobId: string;
+  /** Source kind: an uploaded image (data URL) or PDF rendered page. */
+  source: { kind: "image"; dataUrl: string } | { kind: "pdf"; dataUrl: string; page: number };
+  /** Four-corner geographic anchors (NW, NE, SE, SW) for the rendered overlay. */
+  corners: { nw: LatLng; ne: LatLng; se: LatLng; sw: LatLng };
+  /** 0..1 — overlay opacity on the map. */
+  opacity: number;
+  /** When true, this is the active "Engineering Print" badge for the job. */
+  active: boolean;
+  /** When true, overlay is rendered on the map. */
+  visible: boolean;
+  createdAt: number;
+}
+
+/** Per-job attachment list entry. Body is stored as a base64 data URL. */
+export interface JobAttachment {
+  attachmentId: string;
+  jobId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  dataUrl: string;
+  /** Kind classification — PDFs can be promoted to engineering prints. */
+  kind: "pdf" | "image" | "other";
+  /** Optional Smartsheet attachment id if synced upstream. */
+  smartsheetAttachmentId?: number;
+  uploadedAt: number;
+}
+
+/** Quick Reference Layer gist — simplified rendering used on the JobsMap. */
+export interface QuickReferenceGist {
+  jobId: string;
+  /** Simplified cable polylines — NEW / REMOVED, aerial / underground. */
+  lines: Array<{
+    id: string;
+    path: LatLng[];
+    status: "NEW" | "REMOVED";
+    medium: "AERIAL" | "UNDERGROUND";
+    family?: "FIBER" | "COPPER" | "ASW" | "BSW";
+    label?: string;
+  }>;
+  /** Key point landmarks (poles, MH, HH, PED, cabinet, anchor). */
+  points: Array<{
+    id: string;
+    position: LatLng;
+    pointType: "MH" | "HH" | "PED" | "POLE" | "CABINET" | "ANCHOR";
+    status: "NEW" | "REMOVED";
+    label?: string;
+  }>;
+  generatedAt: number;
+  /** When true, the gist is older than the latest as-built save. */
+  outOfDate: boolean;
+  /** Source of the gist: full as-built vs. lightweight Quick Mode entries. */
+  source: "asbuilt" | "quick";
 }
 
 export type DrawingObject =
@@ -147,6 +230,10 @@ export interface AsBuiltDocument {
   objects: DrawingObject[];
   updatedAt: number;
   updatedBy?: string;
+  /** Phase 7: layer metadata (one per foreman+date). */
+  layers?: AsBuiltLayer[];
+  /** Phase 7: id of the currently active layer (where new objects land). */
+  activeLayerId?: string | null;
 }
 
 // ---- Phase 2: Smartsheet-backed job records ----
