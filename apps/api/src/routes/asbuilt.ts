@@ -50,6 +50,24 @@ const DrawingStyleSchema = z.object({
     }),
   ]),
   opacity: z.number().min(0).max(1),
+  pointSize: z.number().optional(),
+  hidden: z.boolean().optional(),
+  locked: z.boolean().optional(),
+  userLabel: z.string().optional(),
+  description: z.string().optional(),
+  // Phase 7 layer metadata
+  layerId: z.string().optional(),
+  createdBy: z.string().optional(),
+  workDate: z.string().optional(),
+}).passthrough();
+
+const AsBuiltLayerSchema = z.object({
+  layerId: z.string(),
+  createdBy: z.string(),
+  workDate: z.string(),
+  locked: z.boolean(),
+  hidden: z.boolean(),
+  createdAt: z.number(),
 });
 
 const VertexSchema = z.object({ lat: z.number(), lng: z.number() });
@@ -97,6 +115,8 @@ const AsBuiltDocumentSchema = z.object({
   updatedAt: z.number(),
   updatedBy: z.string().optional(),
   schemaVersion: z.literal(2),
+  layers: z.array(AsBuiltLayerSchema).optional(),
+  activeLayerId: z.string().nullable().optional(),
 });
 
 function docRef(jobId: string) {
@@ -139,8 +159,10 @@ router.put("/asbuilt/:jobId", async (req, res, next) => {
         res.status(400).json({ error: "Invalid asbuilt payload (v2)", issues: parsed.error.issues });
         return;
       }
-      await docRef(jobId).set(parsed.data, { merge: false });
-      res.json(parsed.data);
+      // Strip undefined recursively — Firestore rejects undefined values.
+      const sanitized = JSON.parse(JSON.stringify(parsed.data));
+      await docRef(jobId).set(sanitized, { merge: false });
+      res.json(sanitized);
     } else {
       // Phase 1/2 legacy schema — keep backward compat
       const incoming = { ...body, jobId, updatedAt: Date.now(), schemaVersion: 1 };

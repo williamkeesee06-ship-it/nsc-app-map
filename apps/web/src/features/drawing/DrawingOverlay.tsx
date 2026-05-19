@@ -611,9 +611,15 @@ export default function DrawingOverlay() {
 
     const zoom = map.getZoom() ?? ZOOM_REF;
 
+    // Phase 7: any object on a hidden layer is treated as hidden.
+    const hiddenLayerIds = new Set(
+      state.layers.filter((l) => l.hidden).map((l) => l.layerId)
+    );
+
     // Add/update overlays
     state.objects.forEach((obj) => {
-      if (obj.style.hidden) {
+      const layerHidden = !!obj.style.layerId && hiddenLayerIds.has(obj.style.layerId);
+      if (obj.style.hidden || layerHidden) {
         const prev = overlaysRef.current.get(obj.id);
         if (prev) { prev.setMap(null); overlaysRef.current.delete(obj.id); }
         const prevLbl = overlaysRef.current.get(obj.id + "_label");

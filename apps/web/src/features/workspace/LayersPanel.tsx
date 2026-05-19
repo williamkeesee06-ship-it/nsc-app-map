@@ -1,7 +1,8 @@
 // LayersPanel — Phase 5: Right-side collapsible panel showing drawing objects.
 // Grouped object list with visibility/lock toggles, inline rename, and totals.
+// Phase 7: Layer list section (group by foreman+date) + active-layer banner.
 import { useState, useRef, useCallback } from "react";
-import type { DrawingObject } from "@nsc/types";
+import type { AsBuiltLayer, DrawingObject } from "@nsc/types";
 import { useDrawing } from "../drawing/drawingContext.js";
 import ObjectDetailsCard from "../drawing/ObjectDetailsCard.js";
 
@@ -373,6 +374,239 @@ function GroupSection({ category, label, objects, onPanTo }: GroupSectionProps) 
   );
 }
 
+// ── Phase 7: Layers section ──────────────────────────────────────────────────
+
+interface LayerSubgroups {
+  cable: DrawingObject[];
+  removedCable: DrawingObject[];
+  poles: DrawingObject[];
+  mh: DrawingObject[];
+  hh: DrawingObject[];
+  ped: DrawingObject[];
+  notes: DrawingObject[];
+}
+
+function subgroupForLayer(objects: DrawingObject[], layerId: string): LayerSubgroups {
+  const out: LayerSubgroups = {
+    cable: [], removedCable: [], poles: [], mh: [], hh: [], ped: [], notes: [],
+  };
+  for (const o of objects) {
+    if (o.style.layerId !== layerId) continue;
+    if (o.tool === "placed_cable") out.cable.push(o);
+    else if (o.tool === "removed_cable") out.removedCable.push(o);
+    else if (o.tool === "pole_new" || o.tool === "pole_removed") out.poles.push(o);
+    else if (o.tool === "mh_new" || o.tool === "mh_removed") out.mh.push(o);
+    else if (o.tool === "hh_new" || o.tool === "hh_removed") out.hh.push(o);
+    else if (o.tool === "ped_new" || o.tool === "ped_removed") out.ped.push(o);
+    else out.notes.push(o);
+  }
+  return out;
+}
+
+function cableFootage(objects: DrawingObject[]): number {
+  let ft = 0;
+  for (const o of objects) if ("vertices" in o) ft += polylineLengthFt(o.vertices);
+  return ft;
+}
+
+function LayerRow({
+  layer,
+  isActive,
+  objects,
+}: {
+  layer: AsBuiltLayer;
+  isActive: boolean;
+  objects: DrawingObject[];
+}) {
+  const { setActiveLayer, toggleLayerHidden, toggleLayerLocked, renameLayerDate } = useDrawing();
+  const [expanded, setExpanded] = useState(isActive);
+  const [editingDate, setEditingDate] = useState(false);
+  const [dateValue, setDateValue] = useState(layer.workDate);
+
+  const sub = subgroupForLayer(objects, layer.layerId);
+  const totalCount =
+    sub.cable.length + sub.removedCable.length + sub.poles.length +
+    sub.mh.length + sub.hh.length + sub.ped.length + sub.notes.length;
+
+  return (
+    <div
+      className={`phase7-layer-row${isActive ? " phase7-layer-row--active" : ""}${layer.hidden ? " phase7-layer-row--hidden" : ""}`}
+      style={{
+        borderTop: "1px solid var(--border)",
+        padding: "6px 8px",
+        opacity: layer.hidden ? 0.5 : 1,
+        background: isActive ? "rgba(57,255,122,0.06)" : "transparent",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="icon-btn"
+          title={expanded ? "Collapse" : "Expand"}
+          style={{ fontSize: 10 }}
+        >
+          {expanded ? "▼" : "▶"}
+        </button>
+        <span style={{ fontWeight: 600, fontSize: 11 }}>{layer.createdBy}</span>
+        {editingDate ? (
+          <input
+            type="date"
+            value={dateValue}
+            onChange={(e) => setDateValue(e.target.value)}
+            onBlur={() => {
+              if (dateValue !== layer.workDate) renameLayerDate(layer.layerId, dateValue);
+              setEditingDate(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                if (dateValue !== layer.workDate) renameLayerDate(layer.layerId, dateValue);
+                setEditingDate(false);
+              }
+              if (e.key === "Escape") {
+                setDateValue(layer.workDate);
+                setEditingDate(false);
+              }
+            }}
+            autoFocus
+            style={{ fontSize: 10 }}
+          />
+        ) : (
+          <span
+            style={{ fontSize: 10, color: "var(--text-muted)", cursor: "pointer" }}
+            onDoubleClick={() => setEditingDate(true)}
+            title="Double-click to edit date"
+          >
+            {layer.workDate}
+          </span>
+        )}
+        <span style={{ fontSize: 9, color: "var(--text-muted)" }}>· {totalCount} obj</span>
+        <span style={{ marginLeft: "auto", display: "inline-flex", gap: 4 }}>
+          <button
+            type="button"
+            className="icon-btn"
+            title={layer.hidden ? "Show" : "Hide"}
+            onClick={() => toggleLayerHidden(layer.layerId)}
+          >
+            {layer.hidden ? "🙈" : "👁"}
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            title={layer.locked ? "Unlock for editing" : "Lock"}
+            onClick={() => toggleLayerLocked(layer.layerId)}
+          >
+            {layer.locked ? "🔒" : "🔓"}
+          </button>
+          {!isActive && (
+            <button
+              type="button"
+              className="icon-btn"
+              title="Make active (new objects land here)"
+              onClick={() => setActiveLayer(layer.layerId)}
+              style={{ fontWeight: 700, color: "#39ff7a" }}
+            >
+              ★
+            </button>
+          )}
+        </span>
+      </div>
+
+      {expanded && (
+        <div style={{ paddingLeft: 22, marginTop: 4, fontSize: 10, lineHeight: 1.7 }}>
+          {sub.cable.length > 0 && (
+            <div>Cable <strong>{sub.cable.length}</strong> · {fmtFt(cableFootage(sub.cable))}</div>
+          )}
+          {sub.removedCable.length > 0 && (
+            <div>Removed Cable <strong>{sub.removedCable.length}</strong> · {fmtFt(cableFootage(sub.removedCable))}</div>
+          )}
+          {sub.poles.length > 0 && <div>Poles <strong>{sub.poles.length}</strong></div>}
+          {sub.mh.length > 0 && <div>MH <strong>{sub.mh.length}</strong></div>}
+          {sub.hh.length > 0 && <div>HH <strong>{sub.hh.length}</strong></div>}
+          {sub.ped.length > 0 && <div>PED <strong>{sub.ped.length}</strong></div>}
+          {sub.notes.length > 0 && <div>Notes <strong>{sub.notes.length}</strong></div>}
+          {totalCount === 0 && (
+            <div style={{ color: "var(--text-muted)" }}>Empty layer</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LayersSection() {
+  const { state } = useDrawing();
+  const { layers, activeLayerId, objects } = state;
+  const [collapsed, setCollapsed] = useState(false);
+  if (layers.length === 0) return null;
+
+  return (
+    <div className="phase7-layers-section" style={{ borderTop: "1px solid var(--border)" }}>
+      <div
+        onClick={() => setCollapsed((v) => !v)}
+        style={{
+          padding: "6px 8px",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: "var(--surface-2)",
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+          color: "var(--text-muted)",
+        }}
+      >
+        <span>{collapsed ? "▶" : "▼"}</span>
+        <span>Daily Layers</span>
+        <span style={{ marginLeft: "auto" }}>{layers.length}</span>
+      </div>
+      {!collapsed && (
+        <div>
+          {layers.map((l) => (
+            <LayerRow
+              key={l.layerId}
+              layer={l}
+              isActive={l.layerId === activeLayerId}
+              objects={objects}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActiveLayerBanner() {
+  const { state } = useDrawing();
+  const { layers, activeLayerId, activeForeman, activeWorkDate } = state;
+  const active = layers.find((l) => l.layerId === activeLayerId);
+  if (!active && !activeForeman) return null;
+  const createdBy = active?.createdBy ?? activeForeman ?? "—";
+  const workDate = active?.workDate ?? activeWorkDate;
+  return (
+    <div
+      style={{
+        padding: "4px 10px",
+        background: "linear-gradient(90deg, rgba(57,255,122,0.18), rgba(57,255,122,0.04))",
+        borderBottom: "1px solid var(--border)",
+        fontSize: 10,
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        color: "var(--text)",
+      }}
+      title="New drawings land on this layer"
+    >
+      <span style={{ color: "#39ff7a", fontWeight: 700 }}>● ACTIVE</span>
+      <span style={{ fontWeight: 600 }}>{createdBy}</span>
+      <span style={{ color: "var(--text-muted)" }}>· {workDate}</span>
+      {active?.locked && <span style={{ marginLeft: "auto", color: "#ff2d4a" }}>READ-ONLY</span>}
+    </div>
+  );
+}
+
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 export default function LayersPanel() {
@@ -445,6 +679,12 @@ export default function LayersPanel() {
         <span className="layers-panel__title">LAYERS</span>
         <span className="layers-panel__obj-count">{objects.length} objects</span>
       </div>
+
+      {/* Phase 7: active-layer banner */}
+      <ActiveLayerBanner />
+
+      {/* Phase 7: daily layer list */}
+      <LayersSection />
 
       {/* Totals strip */}
       <div className="layers-totals">
