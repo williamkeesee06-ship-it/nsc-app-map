@@ -18,6 +18,8 @@ import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import type { MapTheme } from "../map/themeContext.js";
 import { JobsProvider } from "./jobsContext.js";
+import QuickRefLayer from "./QuickRefLayer.js";
+import type { QuickReferenceGist } from "@nsc/types";
 
 const FOCUS_ZOOM = 17;
 
@@ -45,7 +47,7 @@ export default function JobsMap() {
   }, [reload]);
 
   return (
-    <JobsProvider jobs={allJobs} refreshJobs={reload}>
+    <JobsProvider jobs={allJobs} refreshJobs={reload} mapRef={mapRef}>
       <DrawingProvider mapRef={mapRef}>
         <JobsMapInner
           allJobs={allJobs}
@@ -96,6 +98,9 @@ function JobsMapInner({
 }) {
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
 
+  // Phase 7: load Quick Reference Layer gist for the selected job
+  const [gist, setGist] = useState<QuickReferenceGist | null>(null);
+
   // When selected job changes, update the drawing target
   useEffect(() => {
     if (selected) {
@@ -104,6 +109,16 @@ function JobsMapInner({
       setTarget(null, null);
     }
   }, [selected, setTarget]);
+
+  // Load gist when a job is selected
+  useEffect(() => {
+    if (!selected) { setGist(null); return; }
+    let cancelled = false;
+    api.getGist(selected.jobId).then(({ gist: g }) => {
+      if (!cancelled) setGist(g);
+    }).catch(() => { if (!cancelled) setGist(null); });
+    return () => { cancelled = true; };
+  }, [selected]);
 
   const handleSelect = useCallback(
     async (job: Job) => {
@@ -168,6 +183,7 @@ function JobsMapInner({
               allJobs={allJobs}
             />
             <DrawingOverlay />
+            <QuickRefLayer gist={gist} />
           </Map>
         </div>
 

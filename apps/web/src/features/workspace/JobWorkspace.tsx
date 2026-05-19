@@ -2,7 +2,8 @@
 // Reuses the same drawing engine, left rail, and modifier strip as the Jobs Map,
 // but filters to one job, hides non-active markers, and enables auto-save.
 // Phase 5.3: auto-center on job geocode at zoom 19 on workspace entry.
-import { useCallback, useEffect, useRef } from "react";
+// Phase 7: AttachmentsPanel + EngineeringPrintOverlay surfaced in workspace.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Map, useMap } from "@vis.gl/react-google-maps";
 import { stylesFor, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
@@ -15,6 +16,9 @@ import { defaultFilters } from "../jobs-map/FilterRail.js";
 import { api } from "../../lib/api.js";
 import JobContextStrip from "./JobContextStrip.js";
 import LayersPanel from "./LayersPanel.js";
+import AttachmentsPanel from "./AttachmentsPanel.js";
+import EngineeringPrintOverlay from "../asbuilt/EngineeringPrintOverlay.js";
+import type { EngineeringPrint } from "@nsc/types";
 import { useJob } from "./useJob.js";
 
 const WORKSPACE_ZOOM = 19; // street-level, ready for placing physical infrastructure
@@ -40,7 +44,7 @@ interface InnerProps {
 }
 
 function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
-  const { setTarget, loadObjects, setWorkspaceJobId } = useDrawing();
+  const { setTarget, loadObjects, setWorkspaceJobId, activateLayerForToday } = useDrawing();
   const jobState = useJob(jobId);
 
   // Set drawing target + workspace mode on mount
@@ -62,7 +66,8 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
     api.getDrawing(jobId)
       .then((doc) => {
         if (doc && "objects" in doc && Array.isArray(doc.objects)) {
-          loadObjects(doc.objects);
+          const d = doc as unknown as { layers?: import("@nsc/types").AsBuiltLayer[]; activeLayerId?: string | null };
+          loadObjects(doc.objects, d.layers, d.activeLayerId ?? undefined);
         } else {
           loadObjects([]);
         }
@@ -72,6 +77,15 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
+
+  // Phase 7: bootstrap active foreman+layer from the job's crew foreman
+  useEffect(() => {
+    if (jobState.state !== "ready") return;
+    const foreman = jobState.job.constructionCrewForeman?.trim();
+    if (!foreman) return;
+    activateLayerForToday(foreman);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobState.state]);
 
   // Compute initial center (used as Map defaultCenter before the auto-fit runs)
   const jobCenter =
@@ -86,6 +100,16 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
   // Resolved job for the fit component (null while loading)
   const job = jobState.state === "ready" ? jobState.job : null;
 
+  // Phase 7: Active engineering print (mirror of AttachmentsPanel state)
+  const [activePrint, setActivePrint] = useState<EngineeringPrint | null>(null);
+  const [alignmentEditing, setAlignmentEditing] = useState(false);
+
+  const handleCornersChange = useCallback((corners: EngineeringPrint["corners"]) => {
+    if (!activePrint) return;
+    setActivePrint({ ...activePrint, corners });
+    void api.patchPrint(jobId, activePrint.printId, { corners }).catch(() => {});
+  }, [activePrint, jobId]);
+
   return (
     <div className="workspace-layout">
       {/* Job context strip below topbar */}
@@ -98,6 +122,14 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
         {/* Map area */}
         <div className="workspace-layout__map">
           <ModifiersPanel />
+          {jobId && (
+            <AttachmentsPanel
+              jobId={jobId}
+              onActivePrintChange={setActivePrint}
+              alignmentEditing={alignmentEditing}
+              onSetAlignmentEditing={setAlignmentEditing}
+            />
+          )}
           <div className="map-host" style={{ position: "absolute", inset: 0, top: 0 }}>
             <Map
               defaultCenter={initialCenter}
@@ -109,6 +141,13 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
               <MapHandle mapRef={mapRef} />
               <FitToJobGeometry job={job} jobId={jobId} />
               <DrawingOverlay />
+              {activePrint && (
+                <EngineeringPrintOverlay
+                  print={activePrint}
+                  editing={alignmentEditing}
+                  onCornersChange={handleCornersChange}
+                />
+              )}
             </Map>
           </div>
         </div>
