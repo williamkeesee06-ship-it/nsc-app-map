@@ -1,0 +1,3787 @@
+```
+NSC AS-BUILT TOOL — SOURCE DUMP — PART 3 OF 4
+======================================================================
+Contains: js/units.js, js/sketcher.js, markdown files, extracted state
+
+======================================================================
+===== FILE: js/units.js =====
+======================================================================
+/**
+ * units.js — NSC Smart Unit Dictionary
+ * North Sky Communications As-Built Tool
+ * Full rebuild per spec + 7 upgrades.
+ */
+
+// ============================================================
+// THEME / COLOR CONSTANTS
+// ============================================================
+export const ASBUILT_THEME = {
+  NEW:      '#FF0000',   // red
+  EXISTING: '#000000',   // black
+  REMOVE:   '#00AA00',   // green
+  XFER:     '#0000FF',   // blue
+  DE_RELASH:'#A020F0',   // purple
+  TRENCH:   '#8B4513',   // brown
+  BORE:     '#8B4513',   // brown
+};
+
+// ============================================================
+// SMART UNIT DICTIONARY
+// ============================================================
+export const SMART_UNIT_DICTIONARY = {
+
+  // ──────────────────────────────────────────────────────────
+  // TAB: aerial
+  // ──────────────────────────────────────────────────────────
+  aerial: {
+    label: 'Aerial',
+    symbols: [
+      { key: 'POLE',       icon: '⊗',  label: 'Pole',       type: 'POINT', shape: 'POLE_X' },
+      { key: 'STRAND_10M', icon: '---', label: 'Strand 10M', type: 'LINE'  },
+      { key: 'DE_RE',      icon: '~',   label: 'De/Relash',  type: 'LINE'  },
+      { key: 'RE_TENSION', icon: '➔',  label: 'Re-Tension', type: 'ARROW' },
+      { key: 'DOWN_GUY',   icon: '↘',  label: 'Down Guy',   type: 'ARROW' },
+      { key: 'ANCHOR',     icon: '◆',  label: 'Anchor',     type: 'POINT', shape: 'DIAMOND_FILL' },
+    ],
+    logic: {
+      POLE: {
+        attributes: [
+          { key: 'Status',  label: 'Status',          type: 'toggle-group', options: ['NEW', 'EXISTING', 'REMOVE'], _default: 'EXISTING' },
+          { key: 'ATAG',    label: 'A-Tag #',          type: 'text',         placeholder: 'e.g. 12345' },
+          { key: 'Height',  label: 'Pole Height (ft)', type: 'select',       options: ['30', '35', '40', '45', '50'], showWhen: { key: 'Status', values: ['NEW'] } },
+          { key: 'Class',   label: 'Pole Class',       type: 'select',       options: ['2', '3', '4', '5', '6'],    showWhen: { key: 'Status', values: ['NEW'] } },
+          { key: 'HandSet', label: 'Hand Set',         type: 'checkbox',     defaultChecked: false,                  showWhen: { key: 'Status', values: ['NEW'] } },
+          { key: 'GPS',     label: 'GPS Coordinates',  type: 'text',         placeholder: 'e.g. 47.12345, -122.12345', showWhen: { key: 'Status', values: ['NEW'] } },
+          { key: 'Owner',   label: 'Owner',            type: 'select',       options: ['CTL Owned', 'Foreign'],      showWhen: { key: 'Status', values: ['REMOVE'] } },
+        ],
+        mapping: (input) => {
+          const status = input.Status || 'EXISTING';
+          const height = parseInt(input.Height) || 35;
+          const cls    = input.Class  || '5';
+          // Always prefix A-tag with "A" if not already
+          const rawTag = (input.ATAG || '').toString().trim();
+          const atag   = rawTag ? (rawTag.toUpperCase().startsWith('A') ? rawTag : `A-${rawTag}`) : '';
+
+          if (status === 'EXISTING') {
+            // Existing: show A-tag only, no height or class
+            return { color: '#000000', label: atag || 'EXIST', units: [] };
+          }
+
+          if (status === 'NEW') {
+            const handSet = input.HandSet === true || input.HandSet === 'true';
+            const gps     = (input.GPS || '').trim();
+            let laborCode;
+            if (handSet) {
+              laborCode = 'POLE WOOD <= 40ft HAND SET';
+            } else {
+              laborCode = height <= 40 ? 'POLE WOOD <= 40ft' : 'POLE WOOD > 40-55ft';
+            }
+            const materialCode = `POLE ${height}-${cls} DF`;
+            const units = [
+              { code: laborCode,    type: 'LABOR',    qty: 1, unit: 'EA' },
+              { code: materialCode, type: 'MATERIAL', qty: 1, unit: 'EA' },
+            ];
+            if (gps) {
+              units.push({ code: 'GPS COORDINATES', type: 'LABOR', qty: 1, unit: 'EA' });
+            }
+            return {
+              color: '#FF0000',
+              label: atag ? `${atag} ${height}'` : `${height}'`,
+              units,
+            };
+          }
+
+          if (status === 'REMOVE') {
+            const owner  = input.Owner || 'CTL Owned';
+            const rmvCode = owner === 'Foreign'
+              ? 'RMV POLE - FOREIGN'
+              : 'RMV POLE - CTL OWNED';
+            return {
+              color: '#00AA00',
+              label: atag || 'RMV',
+              units: [
+                { code: rmvCode,                     type: 'LABOR',    qty: 1,   unit: 'EA' },
+                { code: 'SELECT BACKFILL 3/4in MINUS ABC', type: 'MATERIAL', qty: 0.5, unit: 'CY' },
+              ],
+            };
+          }
+
+          return { color: '#000000', units: [] };
+        },
+      },
+
+      STRAND_10M: {
+        attributes: [
+          { key: 'Status',  label: 'Status',  type: 'toggle-group', options: ['NEW', 'REMOVE'] },
+          { key: 'Footage', label: 'Footage', type: 'number', placeholder: 'ft' },
+        ],
+        mapping: (input) => {
+          const status  = input.Status  || 'NEW';
+          const footage = parseFloat(input.Footage) || 0;
+
+          if (status === 'REMOVE') {
+            return {
+              color: '#00AA00',
+              removeXMarks: true,
+              units: [{ code: 'RMV STRAND - BARE', type: 'LABOR', qty: footage, unit: 'FT' }],
+            };
+          }
+          // NEW — always black per spec
+          return {
+            color: '#000000',
+            dashArray: [12, 6],
+            units: [{ code: 'STRAND 10M', type: 'LABOR', qty: footage, unit: 'FT' }],
+          };
+        },
+      },
+
+      DE_RE: {
+        attributes: [
+          { key: 'Footage', label: 'Footage', type: 'number', placeholder: 'ft' },
+        ],
+        mapping: (input) => {
+          const footage = parseFloat(input.Footage) || 0;
+          return {
+            color: '#A020F0',
+            units: [{ code: 'AERIAL DELASH - RELASH', type: 'LABOR', qty: footage, unit: 'FT' }],
+          };
+        },
+      },
+
+      RE_TENSION: {
+        attributes: [
+          { key: 'Qty', label: 'Qty', type: 'number', placeholder: '1' },
+        ],
+        mapping: (input) => {
+          const qty = parseFloat(input.Qty) || 1;
+          return {
+            color: '#FF0000',
+            units: [{ code: 'AERIAL SPAN RE-TENSION', type: 'LABOR', qty, unit: 'EA' }],
+          };
+        },
+      },
+
+      DOWN_GUY: {
+        attributes: [
+          { key: 'Status', label: 'Status', type: 'toggle-group', options: ['NEW', 'REMOVE'] },
+          { key: 'Size',   label: 'Size',   type: 'select', options: ['10M', '16M'] },
+          { key: 'Qty',    label: 'Qty',    type: 'number', placeholder: '1' },
+        ],
+        mapping: (input) => {
+          const status = input.Status || 'NEW';
+          const size   = input.Size   || '10M';
+          const qty    = parseFloat(input.Qty) || 1;
+
+          if (status === 'REMOVE') {
+            return {
+              color: '#00AA00',
+              units: [{ code: 'RMV POLE ANCHOR ROD', type: 'LABOR', qty, unit: 'EA' }],
+            };
+          }
+          return {
+            color: '#FF0000',
+            units: [
+              { code: 'DOWN GUY',             type: 'LABOR',    qty, unit: 'EA' },
+              { code: `DOWN GUY ${size}`,      type: 'MATERIAL', qty, unit: 'EA' },
+              { code: 'DOWN GUY GUARD',        type: 'MATERIAL', qty, unit: 'EA' },
+            ],
+          };
+        },
+      },
+
+      ANCHOR: {
+        attributes: [
+          { key: 'Status', label: 'Status', type: 'toggle-group', options: ['NEW', 'REMOVE'] },
+          { key: 'Type',   label: 'Type',   type: 'select', options: ['Screw', 'Bust/Expansion'] },
+          { key: 'Size',   label: 'Size',   type: 'select', options: ['10M', '16M'] },
+        ],
+        mapping: (input) => {
+          const status = input.Status || 'NEW';
+          const type   = input.Type   || 'Screw';
+          const size   = input.Size   || '10M';
+
+          if (status === 'REMOVE') {
+            return {
+              color: '#00AA00',
+              units: [{ code: 'RMV POLE ANCHOR ROD', type: 'LABOR', qty: 1, unit: 'EA' }],
+            };
+          }
+          const matCode = type === 'Screw'
+            ? `ANCHOR SCREW ${size}`
+            : `ANCHOR EXPANSION / BUST ${size}`;
+          return {
+            color: '#FF0000',
+            units: [{ code: matCode, type: 'MATERIAL', qty: 1, unit: 'EA' }],
+          };
+        },
+      },
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────
+  // TAB: underground
+  // ──────────────────────────────────────────────────────────
+  underground: {
+    label: 'Underground',
+    symbols: [
+      { key: 'HH',          icon: 'HH',  label: 'Handhole',      type: 'POINT', shape: 'HH_RECT' },
+      { key: 'MH',          icon: 'MH',  label: 'Manhole',       type: 'POINT', shape: 'MH_CIRCLE' },
+      { key: 'PEDESTAL',    icon: 'PED', label: 'Pedestal',      type: 'POINT', shape: 'PED_SQUARE_X' },
+      { key: 'TRENCH',      icon: '━━━', label: 'Trench',        type: 'LINE'  },
+      { key: 'BORE',        icon: '╌╌╌', label: 'Bore',          type: 'LINE'  },
+      { key: 'SPLICE_PIT',  icon: '▦',  label: 'Splice Pit',    type: 'POINT', shape: 'SPLICE_PIT' },
+      { key: 'MH_GRADE_ADJ',icon: '↗',  label: 'MH Grade Adj',  type: 'POINT', shape: 'CALLOUT_ARROW' },
+      { key: 'POTHOLE',      icon: 'Ⓟ',  label: 'Potholing',     type: 'POINT', shape: 'POTHOLE_CIRCLE' },
+    ],
+    logic: {
+      HH: {
+        attributes: [
+          { key: 'Status',      label: 'Status', type: 'toggle-group', options: ['NEW', 'EXISTING', 'REMOVE'] },
+          { key: 'Size',        label: 'Size',   type: 'select', options: ['17x30x24', '30x48x36', '24x36x24', '48x48x48'] },
+          { key: 'StructLabel', label: 'HH Label (optional)', type: 'text', placeholder: 'e.g. HH-7' },
+        ],
+        mapping: (input) => {
+          const status = input.Status || 'EXISTING';
+          const size   = input.Size   || '17x30x24';
+
+          if (status === 'EXISTING') {
+            return { color: '#000000', label: 'HH', units: [] };
+          }
+          if (status === 'NEW') {
+            return {
+              color: '#FF0000',
+              label: 'HH',
+              units: [{ code: `HH ${size}`, type: 'LABOR', qty: 1, unit: 'EA' }],
+            };
+          }
+          // REMOVE
+          return {
+            color: '#00AA00',
+            label: 'RMV HH',
+            units: [{ code: 'RMV HH', type: 'LABOR', qty: 1, unit: 'EA' }],
+          };
+        },
+      },
+
+      MH: {
+        attributes: [
+          { key: 'Status',      label: 'Status', type: 'toggle-group', options: ['NEW', 'EXISTING', 'REMOVE'] },
+          { key: 'Size',        label: 'Size',   type: 'select', options: ['48x72x84', '72x72x72', '72x144x84'] },
+          { key: 'CrewEntered', label: 'Crew entered MH', type: 'checkbox', defaultChecked: false },
+          { key: 'Dewatering',  label: 'Dewatering required', type: 'checkbox', defaultChecked: false },
+          { key: 'StructLabel', label: 'MH Label (optional)', type: 'text', placeholder: 'e.g. MH-35' },
+        ],
+        mapping: (input) => {
+          const status      = input.Status      || 'EXISTING';
+          const size        = input.Size        || '48x72x84';
+          const crewEntered = input.CrewEntered === true || input.CrewEntered === 'true' || input.CrewEntered === '1';
+          const dewatering  = input.Dewatering  === true || input.Dewatering  === 'true' || input.Dewatering  === '1';
+
+          const extras = [];
+          if (crewEntered) extras.push({ code: 'VAULT - TEST PURGE & VENTILATE', type: 'LABOR', qty: 1, unit: 'EA' });
+          if (dewatering)  extras.push({ code: 'DEWATERING BASIC',               type: 'LABOR', qty: 1, unit: 'EA' });
+
+          if (status === 'EXISTING') {
+            return { color: '#000000', label: 'MH', units: extras };
+          }
+          if (status === 'NEW') {
+            return {
+              color: '#FF0000',
+              label: `MH ${size}`,
+              units: [
+                { code: `MH ${size}in`, type: 'LABOR', qty: 1, unit: 'EA' },
+                ...extras,
+              ],
+            };
+          }
+          // REMOVE
+          return {
+            color: '#00AA00',
+            label: 'RMV MH',
+            units: [{ code: 'RMV MH', type: 'LABOR', qty: 1, unit: 'EA' }],
+          };
+        },
+      },
+
+      PEDESTAL: {
+        attributes: [
+          { key: 'Status',      label: 'Status', type: 'toggle-group', options: ['NEW', 'EXISTING', 'REMOVE'] },
+          { key: 'Type',        label: 'Type',   type: 'select', options: ['Copper', 'Fiber'] },
+          { key: 'Size',        label: 'Size',   type: 'select', options: ['6in', '8in', '10in', '12in', '14in'] },
+          { key: 'Mount',       label: 'Mount',  type: 'select', options: ['Stake Mount', 'Integral Stake', 'Pole Mount'] },
+          { key: 'StructLabel', label: 'Ped Label (optional)', type: 'text', placeholder: 'e.g. BD5' },
+        ],
+        mapping: (input) => {
+          const status = input.Status || 'EXISTING';
+          const type   = input.Type   || 'Copper';
+          const size   = input.Size   || '10in';
+          const mount  = (input.Mount || 'Stake Mount').toUpperCase();
+
+          if (status === 'EXISTING') {
+            return { color: '#000000', label: 'PED', units: [] };
+          }
+          if (status === 'NEW') {
+            const code = type === 'Fiber'
+              ? `PED FIB ${size} ${mount}`
+              : `PED ${size} ${mount}`;
+            return {
+              color: '#FF0000',
+              label: code,
+              units: [{ code, type: 'LABOR', qty: 1, unit: 'EA' }],
+            };
+          }
+          return {
+            color: '#00AA00',
+            label: 'RMV PEDESTAL',
+            units: [{ code: 'RMV PEDESTAL', type: 'LABOR', qty: 1, unit: 'EA' }],
+          };
+        },
+      },
+
+      // TRENCH — Change 6: updated modal fields
+      TRENCH: {
+        attributes: [
+          { key: 'Status',     label: 'Status',          type: 'toggle-group', options: ['NEW', 'EXISTING', 'REMOVE'] },
+          { key: 'Length',     label: "Length (ft)",     type: 'text', placeholder: "e.g. 35'" },
+          { key: 'Width',      label: "Width (ft)",      type: 'text', placeholder: "e.g. 2'" },
+          { key: 'Depth',      label: "Depth (ft)",      type: 'text', placeholder: "e.g. 3'" },
+          { key: 'Backfill',   label: 'Backfill (yds)',  type: 'text', placeholder: 'optional' },
+          { key: 'Spoils',     label: 'Spoils (yds)',    type: 'text', placeholder: 'optional' },
+          { key: 'ColdMix',    label: 'Cold Mix (yds)',  type: 'text', placeholder: 'optional' },
+          { key: 'MatNotes',   label: 'Other Materials', type: 'text', placeholder: 'optional' },
+          { key: 'CoverDepth',  label: 'Cover Depth',    type: 'select',   options: ['30in', '36in', '48in'] },
+          { key: 'HasConduit',  label: 'Conduit placed?', type: 'checkbox', defaultChecked: false },
+          { key: 'ConduitSize', label: 'Conduit Size',   type: 'select',   options: ['1in', '2in', '2.5in', '3in', '4in'] },
+          { key: 'ConduitSched',label: 'Conduit Schedule', type: 'select', options: ['SCH40', 'SCH80', 'Type-C', 'HDPE'] },
+          { key: 'ConduitFt',   label: 'Conduit Footage', type: 'number',  placeholder: 'ft' },
+          { key: 'NumConduits', label: 'Number of Conduits', type: 'number', placeholder: '1' },
+          { key: 'Sweeps90',    label: 'Sweeps 90°',     type: 'number',   placeholder: '0' },
+          { key: 'Sweeps45',    label: 'Sweeps 45°',     type: 'number',   placeholder: '0' },
+          { key: 'Sweeps22',    label: 'Sweeps 22.5°',   type: 'number',   placeholder: '0' },
+        ],
+        mapping: (input) => {
+          const lengthFt   = parseFloat(input.Length)    || 0;
+          const depth      = input.CoverDepth            || '30in';
+          const hasConduit = input.HasConduit === true || input.HasConduit === 'true' || input.HasConduit === '1';
+          const condSz     = input.ConduitSize           || '2in';
+          const condSched  = input.ConduitSched          || 'SCH40';
+          const condFt     = parseFloat(input.ConduitFt) || 0;
+          const numCond    = parseInt(input.NumConduits) || 1;
+          const sw90       = parseInt(input.Sweeps90)    || 0;
+          const sw45       = parseInt(input.Sweeps45)    || 0;
+          const sw22       = parseInt(input.Sweeps22)    || 0;
+
+          // Conduit size bracket
+          const bracket = ['1in','2in','2.5in'].includes(condSz) ? '<= 2.5in' : '3-6in';
+
+          const units = [];
+
+          if (!hasConduit) {
+            units.push({ code: `TRENCH ${depth} CVR <= 2.5in`, type: 'LABOR', qty: lengthFt, unit: 'FT' });
+          } else {
+            // First conduit run
+            units.push({ code: `TRENCH ${depth} CVR STICK ${bracket}`, type: 'LABOR', qty: lengthFt, unit: 'FT' });
+            // Additional conduits
+            if (numCond > 1) {
+              units.push({ code: `TRENCH ${depth} CVR STICK ${bracket} ADDL`, type: 'LABOR', qty: lengthFt * (numCond - 1), unit: 'FT' });
+            }
+            // Conduit material: sold in 20ft sticks
+            const sticks = Math.ceil(condFt / 20);
+            units.push({ code: `CONDUIT ${condSz} ${condSched} 20ft GRY`, type: 'MATERIAL', qty: sticks, unit: 'EA' });
+            // Sweeps
+            if (sw90 > 0) units.push({ code: `SWEEP ${condSz} 90x36 PLASTIC BELL`,        type: 'MATERIAL', qty: sw90, unit: 'EA' });
+            if (sw45 > 0) units.push({ code: `SWEEP ${condSz} 45x36 PLASTIC BELL`,        type: 'MATERIAL', qty: sw45, unit: 'EA' });
+            if (sw22 > 0) units.push({ code: `SWEEP ${condSz} 22.5x60 C PLASTIC BELL`,    type: 'MATERIAL', qty: sw22, unit: 'EA' });
+          }
+
+          return {
+            color: '#8B4513',
+            label: `TRENCH ${lengthFt}ft`,
+            trenchDetail: {
+              Length:   input.Length   || '',
+              Width:    input.Width    || '',
+              Depth:    input.Depth    || '',
+              Backfill: input.Backfill || '',
+              Spoils:   input.Spoils   || '',
+              ColdMix:  input.ColdMix  || '',
+              MatNotes: input.MatNotes || '',
+            },
+            units,
+          };
+        },
+      },
+
+      BORE: {
+        attributes: [
+          { key: 'Footage',  label: 'Footage',  type: 'number', placeholder: 'ft' },
+          { key: 'Diameter', label: 'Diameter', type: 'select', options: ['1.25in', '2in', '4in'] },
+        ],
+        mapping: (input) => {
+          const footage  = parseFloat(input.Footage)  || 0;
+          const diameter = input.Diameter || '2in';
+          return {
+            color: '#8B4513',
+            dashArray: [4, 4],
+            label: `BORE ${footage}ft`,
+            units: [{ code: 'SPECIAL QUOTE - BORE - LE', type: 'LABOR', qty: footage, unit: 'FT' }],
+          };
+        },
+      },
+
+      POTHOLE: {
+        attributes: [
+          { key: 'SurfaceType',    label: 'Surface Type',     type: 'toggle-group', options: ['Hard Surface', 'Soft Surface'] },
+          { key: 'SelectBackfill', label: 'Select Backfill',  type: 'checkbox', defaultChecked: false },
+          { key: 'BackfillQty',    label: 'Backfill Qty (EA)', type: 'number', placeholder: 'qty',
+            showWhen: { key: 'SelectBackfill', values: [true] } },
+          { key: 'ColdMix',        label: 'Cold Mix Patch',   type: 'checkbox', defaultChecked: false,
+            showWhen: { key: 'SurfaceType', values: ['Hard Surface'] } },
+          { key: 'ColdMixSqft',    label: 'Cold Mix Sq Ft',   type: 'number', placeholder: 'sqft',
+            showWhen: { key: 'ColdMix', values: [true] } },
+        ],
+        mapping: (input) => {
+          const surface     = input.SurfaceType || 'Hard Surface';
+          const hasBackfill = input.SelectBackfill === true || input.SelectBackfill === 'true';
+          const backfillQty = parseFloat(input.BackfillQty) || 1;
+          const hasColdMix  = (input.ColdMix === true || input.ColdMix === 'true') && surface === 'Hard Surface';
+          const coldMixSqft = parseFloat(input.ColdMixSqft) || 0;
+
+          const units = [];
+          if (surface === 'Hard Surface') {
+            units.push({ code: 'POTHOLE HARD SURFACE', type: 'LABOR', qty: 1, unit: 'EA' });
+          } else {
+            units.push({ code: 'POTHOLE SOFT SURFACE', type: 'LABOR', qty: 1, unit: 'EA' });
+          }
+          if (hasBackfill) {
+            units.push({ code: 'SELECT BACKFILL', type: 'MATERIAL', qty: backfillQty, unit: 'EA' });
+          }
+          if (hasColdMix && coldMixSqft > 0) {
+            units.push({ code: 'ASPHALT TEMPORARY COLD PATCH', type: 'MATERIAL', qty: coldMixSqft, unit: 'SQFT' });
+          }
+          return {
+            color: '#8B4513',
+            label: `PTH`,
+            units,
+          };
+        },
+      },
+
+      SPLICE_PIT: {
+        attributes: [
+          { key: 'Size', label: 'Size', type: 'select', options: ['Small', 'Medium', 'Large'] },
+        ],
+        mapping: (input) => {
+          const size = input.Size || 'Small';
+          const codes = {
+            Small:  'PIT SMALL 6x4x5ft',
+            Medium: 'PIT MEDIUM 12x6x5ft',
+            Large:  'PIT LARGE 12x12x6ft',
+          };
+          const code = codes[size] || 'PIT SMALL 6x4x5ft';
+          return {
+            color: '#FF0000',
+            label: code,
+            units: [{ code, type: 'LABOR', qty: 1, unit: 'EA' }],
+          };
+        },
+      },
+
+      MH_GRADE_ADJ: {
+        attributes: [
+          { key: 'Qty', label: 'Qty', type: 'number', placeholder: '1' },
+        ],
+        mapping: (input) => {
+          const qty = parseFloat(input.Qty) || 1;
+          return {
+            color: '#FF0000',
+            calloutText: `MH GRADE ADJUSTMENT x${qty}`,
+            units: [{ code: 'HH GRADE ADJUSTMENT', type: 'LABOR', qty, unit: 'EA' }],
+          };
+        },
+      },
+
+      GRUBBING: {
+        attributes: [
+          { key: 'LF', label: 'Linear Footage (LF)', type: 'number', placeholder: '0' },
+        ],
+        mapping: (input) => {
+          const lf = parseFloat(input.LF) || 0;
+          return {
+            color: '#008000',
+            label: `${lf} LF`,
+            units: [{ code: 'GRUBBING', type: 'LABOR', qty: lf, unit: 'LF' }],
+          };
+        },
+      },
+
+      ROD_PROOF: {
+        attributes: [
+          { key: 'Footage', label: 'Footage (LF)', type: 'number', placeholder: '0' },
+          { key: 'ISP',     label: 'ISP (Inside Plant)', type: 'checkbox', defaultChecked: false },
+        ],
+        mapping: (input) => {
+          const footage = parseFloat(input.Footage) || 0;
+          const isISP   = input.ISP === true || input.ISP === 'true';
+          const code    = isISP ? 'ROD & PROOF EXISTING CONDUIT ISP' : 'ROD & PROOF EXISTING CONDUIT UG';
+          return {
+            color: '#0000CC',
+            label: 'R&P',
+            units: [{ code, type: 'LABOR', qty: footage, unit: 'LF' }],
+          };
+        },
+      },
+
+      LOC_SONDE: {
+        attributes: [
+          { key: 'Footage', label: 'Footage (LF)', type: 'number', placeholder: '0' },
+        ],
+        mapping: (input) => {
+          const footage = parseFloat(input.Footage) || 0;
+          return {
+            color: '#0000CC',
+            label: 'LOC',
+            units: [{ code: 'LOCATE CONDUIT USING A SONDE', type: 'LABOR', qty: footage, unit: 'LF' }],
+          };
+        },
+      },
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────
+  // TAB: cable
+  // ──────────────────────────────────────────────────────────
+  cable: {
+    label: 'Cable',
+    symbols: [
+      { key: 'COPPER_CABLE', icon: '-C-',   label: 'Copper Cable',   type: 'LINE' },
+      { key: 'FIBER_CABLE',  icon: '-F-',   label: 'Fiber Cable',    type: 'LINE' },
+      { key: 'ASW',          icon: '-ASW-', label: 'ASW',            type: 'LINE' },
+      { key: 'BSW',          icon: '-BSW-', label: 'BSW',            type: 'LINE' },
+      { key: 'RMV_FIBER',   icon: 'X-F-X', label: 'Rmv Fiber',      type: 'LINE' },
+      { key: 'RMV_COPPER',  icon: 'X-C-X', label: 'Rmv Copper',     type: 'LINE' },
+      { key: 'RMV_ASW',     icon: 'X-A-X', label: 'Rmv ASW',        type: 'LINE' },
+      { key: 'RMV_BSW',     icon: 'X-B-X', label: 'Rmv BSW',        type: 'LINE' },
+    ],
+    logic: {
+      COPPER_CABLE: {
+        attributes: [
+          { key: 'Method',          label: 'Method',              type: 'toggle-group', options: ['Aerial', 'Underground'] },
+          { key: 'Condition',       label: 'Condition',           type: 'toggle-group', options: ['New', 'Existing', 'Remove'] },
+          { key: 'Size',            label: 'Size (pairs)',         type: 'select',       options: ['6','25','50','100','200','300','400','600','900','1200'], showWhen: { key: 'Condition', values: ['New','Remove'] } },
+          { key: 'Footage',         label: 'Footage (ft)',         type: 'number',       placeholder: 'ft', showWhen: { key: 'Condition', values: ['New','Remove'] } },
+          { key: 'LaborMethod',     label: 'Labor Method',        type: 'select',       options: ['LASH', 'OVERLASH'], showWhen: { key: 'Condition', values: ['New'] } },
+          { key: 'OccupiedConduit', label: 'Occupied Conduit',    type: 'checkbox',     defaultChecked: false, showWhen: { key: 'Condition', values: ['New'] } },
+          { key: 'ReelNum',         label: 'Reel #',              type: 'text',         placeholder: '730-XXXX-XXX' },
+          { key: 'WallSeq',         label: 'Wall (start)',         type: 'text',         placeholder: 'e.g. 5024' },
+          { key: 'TailSeq',         label: 'Tail (end)',           type: 'text',         placeholder: 'e.g. 5390' },
+          { key: 'PoleSeqs',        label: 'Sequentials (one per line)', type: 'textarea', placeholder: 'A-001 = 5024\nA-002 = 5150\n...' },
+          { key: 'FootageLabel',    label: 'Mid-Line Label (optional)', type: 'text',   placeholder: "e.g. 24C — 266'" },
+        ],
+        mapping: (input) => {
+          const method   = input.Method        || 'Aerial';
+          const cond     = input.Condition     || 'Existing';
+          const size     = parseInt(input.Size) || 100;
+          const lMethod  = input.LaborMethod   || 'LASH';
+          const footage  = parseFloat(input.Footage)   || 0;
+          const occupied = input.OccupiedConduit === true || input.OccupiedConduit === 'true';
+          const occFt    = occupied ? footage : 0;
+          const isUG     = method === 'Underground';
+
+          if (cond === 'Existing') return { color: '#000000', units: [] };
+
+          if (cond === 'Remove') {
+            let rmvCode;
+            if (isUG) {
+              rmvCode = size <= 400 ? 'RMV UG COPPER <= 400pr' : 'RMV UG COPPER > 400pr';
+            } else {
+              rmvCode = size <= 400 ? 'RMV AERIAL COPPER <= 400pr' : 'RMV AERIAL COPPER > 400pr';
+            }
+            return { color: '#00AA00', removeXMarks: true, units: [{ code: rmvCode, type: 'LABOR', qty: footage, unit: 'FT' }] };
+          }
+
+          // New
+          const matCode = `COP CABLE ${size} ANMW`;
+          let laborCode;
+          if (isUG) {
+            laborCode = size <= 400 ? 'COPPER CABLE IN CONDUIT <= 400pr' : 'COPPER CABLE IN CONDUIT > 400pr';
+          } else if (lMethod === 'OVERLASH') {
+            laborCode = size <= 400 ? 'OVERLASH COPPER <= 400pr' : 'OVERLASH COPPER > 400pr';
+          } else {
+            laborCode = size <= 400 ? 'LASH COPPER <= 400pr' : 'LASH COPPER > 400pr';
+          }
+          const units = [
+            { code: matCode,   type: 'MATERIAL', qty: footage, unit: 'FT' },
+            { code: laborCode, type: 'LABOR',    qty: footage, unit: 'FT' },
+          ];
+          if (occupied && occFt > 0) {
+            units.push({ code: 'OCCUPIED CONDUIT ADDER', type: 'LABOR', qty: occFt, unit: 'FT' });
+          }
+          return { color: '#FF0000', units };
+        },
+      },
+
+      FIBER_CABLE: {
+        attributes: [
+          { key: 'Method',          label: 'Method',              type: 'toggle-group', options: ['Aerial', 'Underground'] },
+          { key: 'Condition',       label: 'Condition',           type: 'toggle-group', options: ['New', 'Existing', 'Remove'] },
+          { key: 'Size',            label: 'Size (fiber count)',   type: 'select',       options: ['12','24','48','72','96','144','216','288','432','864'], showWhen: { key: 'Condition', values: ['New','Remove'] } },
+          { key: 'Footage',         label: 'Footage (ft)',         type: 'number',       placeholder: 'ft', showWhen: { key: 'Condition', values: ['New','Remove'] } },
+          { key: 'LaborMethod',     label: 'Labor Method',        type: 'select',       options: ['LASH', 'OVERLASH', 'ADSS'], showWhen: { key: 'Method', values: ['Aerial'], } },
+          { key: 'OccupiedConduit', label: 'Occupied Conduit',    type: 'checkbox',     defaultChecked: false, showWhen: { key: 'Condition', values: ['New'] } },
+          { key: 'ReelNum',         label: 'Reel #',              type: 'text',         placeholder: '730-XXXX-XXX' },
+          { key: 'WallSeq',         label: 'Wall (start)',         type: 'text',         placeholder: 'e.g. 5024' },
+          { key: 'TailSeq',         label: 'Tail (end)',           type: 'text',         placeholder: 'e.g. 5390' },
+          { key: 'PoleSeqs',        label: 'Sequentials (one per line)', type: 'textarea', placeholder: 'A-001 = 5024\nA-002 = 5150\n...' },
+          { key: 'FootageLabel',    label: 'Mid-Line Label (optional)', type: 'text',   placeholder: "e.g. 48F — 350'" },
+        ],
+        mapping: (input) => {
+          const method  = input.Method    || 'Aerial';
+          const cond    = input.Condition || 'Existing';
+          const size    = input.Size      || '48';
+          const lMethod = input.LaborMethod || 'LASH';
+          const footage = parseFloat(input.Footage) || 0;
+          const occupied = input.OccupiedConduit === true || input.OccupiedConduit === 'true';
+          const occFt   = occupied ? footage : 0;
+          const isUG    = method === 'Underground';
+
+          if (cond === 'Existing') return { color: '#000000', units: [] };
+
+          if (cond === 'Remove') {
+            const rmvCode = isUG ? 'RMV FIBER FROM CONDUIT' : 'RMV AERIAL FIBER';
+            return { color: '#00AA00', removeXMarks: true, units: [{ code: rmvCode, type: 'LABOR', qty: footage, unit: 'FT' }] };
+          }
+
+          // New
+          const matCode = `FIB ${size} 1JKT 1ARMOR LT`;
+          let laborCode;
+          if (isUG) {
+            laborCode = 'FIBER PL IN CONDUIT';
+          } else if (lMethod === 'OVERLASH') {
+            laborCode = 'OVERLASH FIBER';
+          } else if (lMethod === 'ADSS') {
+            laborCode = 'LASH FIBER'; // ADSS billed same as lash per contract
+          } else {
+            laborCode = 'LASH FIBER';
+          }
+          const units = [
+            { code: matCode,   type: 'MATERIAL', qty: footage, unit: 'FT' },
+            { code: laborCode, type: 'LABOR',    qty: footage, unit: 'FT' },
+          ];
+          if (occupied && occFt > 0) {
+            units.push({ code: 'OCCUPIED CONDUIT ADDER', type: 'LABOR', qty: occFt, unit: 'FT' });
+          }
+          return { color: '#FF0000', units };
+        },
+      },
+
+      // ── ASW — Aerial Service Wire ──
+      ASW: {
+        attributes: [
+          { key: 'Condition',    label: 'Condition',        type: 'toggle-group', options: ['New', 'Existing'] },
+          { key: 'Size',         label: 'Wire Size',        type: 'select', options: ['2pr-22g SJSS','3pr-22g SHD SS','6pr-22g RND SJSS','6pr-22g SHD SS'], showWhen: { key: 'Condition', values: ['New'] } },
+          { key: 'Footage',      label: 'Footage (ft)',     type: 'number', placeholder: 'ft', showWhen: { key: 'Condition', values: ['New'] } },
+          { key: 'ReelNum',      label: 'Reel #',           type: 'text',   placeholder: '730-XXXX-XXX' },
+          { key: 'WallSeq',      label: 'Wall (start)',      type: 'text',   placeholder: 'e.g. 5024' },
+          { key: 'TailSeq',      label: 'Tail (end)',        type: 'text',   placeholder: 'e.g. 5390' },
+          { key: 'FootageLabel', label: 'Mid-Line Label (optional)', type: 'text', placeholder: "e.g. ASW — 125'" },
+        ],
+        mapping: (input) => {
+          const cond    = input.Condition || 'Existing';
+          const size    = input.Size      || '2pr-22g SJSS';
+          const footage = parseFloat(input.Footage) || 0;
+          if (cond === 'Existing') return { color: '#000000', units: [] };
+          return {
+            color: '#FF0000',
+            units: [
+              { code: `SVC DROP AER COP ${size}`, type: 'MATERIAL', qty: footage, unit: 'FT' },
+              { code: 'AERIAL SVC DROP',           type: 'LABOR',    qty: footage, unit: 'FT' },
+            ],
+          };
+        },
+      },
+
+      // ── BSW — Buried Service Wire ──
+      BSW: {
+        attributes: [
+          { key: 'Condition',    label: 'Condition',        type: 'toggle-group', options: ['New', 'Existing'] },
+          { key: 'Placement',    label: 'Placement',        type: 'toggle-group', options: ['Direct Buried', 'In Conduit'], showWhen: { key: 'Condition', values: ['New'] } },
+          { key: 'Size',         label: 'Wire Size',        type: 'select', options: ['2pr-22g SJSS','3pr-22g SHD SS','6pr-22g RND SJSS','6pr-22g SHD SS'], showWhen: { key: 'Condition', values: ['New'] } },
+          { key: 'Footage',      label: 'Footage (ft)',     type: 'number', placeholder: 'ft', showWhen: { key: 'Condition', values: ['New'] } },
+          { key: 'ReelNum',      label: 'Reel #',           type: 'text',   placeholder: '730-XXXX-XXX' },
+          { key: 'WallSeq',      label: 'Wall (start)',      type: 'text',   placeholder: 'e.g. 5024' },
+          { key: 'TailSeq',      label: 'Tail (end)',        type: 'text',   placeholder: 'e.g. 5390' },
+          { key: 'FootageLabel', label: 'Mid-Line Label (optional)', type: 'text', placeholder: "e.g. BSW — 80'" },
+        ],
+        mapping: (input) => {
+          const cond      = input.Condition || 'Existing';
+          const placement = input.Placement || 'Direct Buried';
+          const size      = input.Size      || '2pr-22g SJSS';
+          const footage   = parseFloat(input.Footage)    || 0;
+          const inConduit = placement === 'In Conduit';
+          const occFt     = inConduit ? footage : 0;
+          if (cond === 'Existing') return { color: '#000000', units: [] };
+          const units = [
+            { code: `SVC DROP AER COP ${size}`, type: 'MATERIAL', qty: footage, unit: 'FT' },
+            { code: 'GROUND LAY SVC DROP',      type: 'LABOR',    qty: footage, unit: 'FT' },
+          ];
+          if (inConduit && occFt > 0) {
+            units.push({ code: 'OCCUPIED CONDUIT ADDER', type: 'LABOR', qty: occFt, unit: 'FT' });
+          }
+          return { color: '#FF0000', units };
+        },
+      },
+
+      // ── RMV_FIBER — Remove Fiber (Aerial or UG) ──
+      RMV_FIBER: {
+        attributes: [
+          { key: 'Environment', label: 'Environment', type: 'toggle-group', options: ['Aerial', 'Underground'] },
+          { key: 'Footage',     label: 'Footage (ft)', type: 'number', placeholder: 'ft' },
+        ],
+        mapping: (input) => {
+          const env     = input.Environment || 'Aerial';
+          const footage = parseFloat(input.Footage) || 0;
+          const code    = env === 'Underground' ? 'RMV FIBER FROM CONDUIT' : 'RMV AERIAL FIBER';
+          return { color: '#00AA00', removeXMarks: true, units: [{ code, type: 'LABOR', qty: footage, unit: 'FT' }] };
+        },
+      },
+
+      // ── RMV_COPPER — Remove Copper (Aerial or UG) ──
+      RMV_COPPER: {
+        attributes: [
+          { key: 'Environment', label: 'Environment', type: 'toggle-group', options: ['Aerial', 'Underground'] },
+          { key: 'Size',        label: 'Size (pairs)', type: 'select', options: ['6','25','50','100','200','300','400','600','900','1200'] },
+          { key: 'Footage',     label: 'Footage (ft)', type: 'number', placeholder: 'ft' },
+        ],
+        mapping: (input) => {
+          const env     = input.Environment || 'Aerial';
+          const size    = parseInt(input.Size) || 100;
+          const footage = parseFloat(input.Footage) || 0;
+          let code;
+          if (env === 'Underground') {
+            code = size <= 400 ? 'RMV UG COPPER <= 400pr' : 'RMV UG COPPER > 400pr';
+          } else {
+            code = size <= 400 ? 'RMV AERIAL COPPER <= 400pr' : 'RMV AERIAL COPPER > 400pr';
+          }
+          return { color: '#00AA00', removeXMarks: true, units: [{ code, type: 'LABOR', qty: footage, unit: 'FT' }] };
+        },
+      },
+
+      // ── RMV_ASW — Remove Aerial Service Wire ──
+      RMV_ASW: {
+        attributes: [
+          { key: 'Footage', label: 'Footage (ft)', type: 'number', placeholder: 'ft' },
+        ],
+        mapping: (input) => {
+          const footage = parseFloat(input.Footage) || 0;
+          return { color: '#00AA00', removeXMarks: true, units: [{ code: 'RMV AERIAL SVC DROP', type: 'LABOR', qty: footage, unit: 'FT' }] };
+        },
+      },
+
+      // ── RMV_BSW — Remove Buried Service Wire ──
+      RMV_BSW: {
+        attributes: [
+          { key: 'Placement', label: 'Placement', type: 'toggle-group', options: ['Direct Buried', 'In Conduit'] },
+          { key: 'Footage',   label: 'Footage (ft)', type: 'number', placeholder: 'ft' },
+        ],
+        mapping: (input) => {
+          const placement = input.Placement || 'Direct Buried';
+          const footage   = parseFloat(input.Footage) || 0;
+          const code      = placement === 'In Conduit' ? 'RMV SVC DROP FROM CONDUIT' : 'RMV GROUND LAY SVC DROP';
+          return { color: '#00AA00', removeXMarks: true, units: [{ code, type: 'LABOR', qty: footage, unit: 'FT' }] };
+        },
+      },
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────
+  // TAB: splicing
+  // ──────────────────────────────────────────────────────────
+  splicing: {
+    label: 'Splicing',
+    symbols: [
+      { key: 'SPLICE_WIZARD', icon: '◇',  label: 'Splice Wizard', type: 'POINT', shape: 'DIAMOND' },
+      { key: 'RISER',         icon: '⊣',  label: 'Riser',         type: 'POINT', shape: 'RISER'   },
+      { key: 'GROUND_ROD',    icon: '⏚',  label: 'Ground Rod',    type: 'POINT', shape: 'GND_ROD' },
+      { key: 'SNOWSHOE',      icon: '⊡',  label: 'Snowshoe',      type: 'POINT', shape: 'SNOWSHOE'},
+      { key: 'TERMINAL',      icon: 'T',  label: 'Terminal',      type: 'POINT', shape: 'TERMINAL'},
+      { key: 'BURIED_SPLICE',  icon: 'BS', label: 'Buried Splice',  type: 'CALLOUT' },
+    ],
+    logic: {
+      SPLICE_WIZARD: {
+        attributes: [
+          { key: 'Location',  label: 'Location',   type: 'select', options: ['Aerial', 'Handhole', 'Pedestal-Cabinet', 'Vault-MH', 'Building'] },
+          { key: 'CableType', label: 'Cable Type', type: 'select', options: ['Fiber', 'Copper'] },
+          { key: 'FiberCount',label: 'Fiber Count (if Fiber)', type: 'number', placeholder: '0' },
+          { key: 'PairCount', label: 'Pair Count (if Copper)', type: 'number', placeholder: '0' },
+          { key: 'CaseCode',  label: 'Case Code', type: 'text', placeholder: 'e.g. CASE AER FIB D 11.5x30' },
+        ],
+        mapping: (input) => {
+          const loc      = input.Location  || 'Aerial';
+          const ctype    = input.CableType || 'Fiber';
+          const fiber    = parseInt(input.FiberCount) || 0;
+          const pair     = parseInt(input.PairCount)  || 0;
+          const caseCode = input.CaseCode || '';
+
+          const units = [];
+
+          // 1. Setup/Teardown
+          const setupKey = `${loc}+${ctype}`;
+          const setupMap = {
+            'Aerial+Fiber':            'SPL SETUP-TEARDOWN AERIAL-FIB',
+            'Aerial+Copper':           'SPL SETUP-TEARDOWN AERIAL-COP',
+            'Handhole+Fiber':          'SPL SETUP-TEARDOWN HH-FIB',
+            'Handhole+Copper':         'SPL SETUP-TEARDOWN HH-COP',
+            'Pedestal-Cabinet+Fiber':  'SPL SETUP-TEARDOWN PED/CABINET-FIB',
+            'Pedestal-Cabinet+Copper': 'SPL SETUP-TEARDOWN PED/CABINET-COP',
+            'Vault-MH+Fiber':          'SPL SETUP-TEARDOWN VAULT-MH-FIB',
+            'Vault-MH+Copper':         'SPL SETUP-TEARDOWN VAULT-MH-COP',
+            'Building+Fiber':          'SPL SETUP-TEARDOWN BUILDING-FIB',
+            'Building+Copper':         'SPL SETUP-TEARDOWN BUILDING-COP',
+          };
+          const setupCode = setupMap[setupKey] || `SPL SETUP-TEARDOWN ${loc.toUpperCase()}-${ctype.slice(0,3).toUpperCase()}`;
+          units.push({ code: setupCode, type: 'LABOR', qty: 1, unit: 'EA' });
+
+          // 2. Splice count code
+          if (ctype === 'Fiber' && fiber > 0) {
+            let fiberCode;
+            if      (fiber <= 4)   fiberCode = 'SPLICE FIBER FUSION 1-4';
+            else if (fiber <= 12)  fiberCode = 'SPLICE FIBER FUSION 5-12';
+            else if (fiber <= 24)  fiberCode = 'SPLICE FIBER FUSION 13-24';
+            else if (fiber <= 48)  fiberCode = 'SPLICE FIBER FUSION 25-48';
+            else if (fiber <= 144) fiberCode = 'SPLICE FIBER FUSION 49-144';
+            else if (fiber <= 288) fiberCode = 'SPLICE FIBER FUSION 145-288';
+            else if (fiber <= 432) fiberCode = 'SPLICE FIBER FUSION 289-432';
+            else                   fiberCode = 'SPLICE FIBER FUSION 433-864';
+            units.push({ code: fiberCode, type: 'LABOR', qty: 1, unit: 'EA' });
+          }
+
+          if (ctype === 'Copper' && pair > 0) {
+            let copCode;
+            if      (pair <= 25)  copCode = 'SPLICE COPPER MECHANICAL 1-25pr';
+            else if (pair <= 100) copCode = 'SPLICE COPPER MECHANICAL 26-100pr';
+            else                  copCode = 'SPLICE COPPER MODULE <= 300pr';
+            units.push({ code: copCode, type: 'LABOR', qty: 1, unit: 'EA' });
+          }
+
+          // 3. Prep code
+          const prepCode = ctype === 'Fiber'
+            ? 'PREP FIBER CABLE IN HOUSING'
+            : 'PREP COPPER CABLE IN HOUSING';
+          units.push({ code: prepCode, type: 'LABOR', qty: 1, unit: 'EA' });
+
+          // 4. Case material
+          if (caseCode) {
+            units.push({ code: caseCode, type: 'MATERIAL', qty: 1, unit: 'EA' });
+          }
+
+          return {
+            color: '#FF0000',
+            label: `SPLICE\n${loc}`,
+            units,
+          };
+        },
+      },
+
+      RISER: {
+        attributes: [
+          { key: 'Status',   label: 'Status',       type: 'toggle-group', options: ['NEW', 'REMOVE', 'TRANSFER'] },
+          { key: 'Material', label: 'Pipe Material', type: 'select', options: ['Plastic', 'Steel'] },
+          { key: 'Size',     label: 'Pipe Size',     type: 'select', options: ['2in', '3in', '4in'] },
+          { key: 'UGuard',   label: 'U-Guard',       type: 'select', options: ['None', '2in Plastic', '3in Plastic', '4in Plastic', '1in Steel', '2in Steel', '4in Steel'] },
+          { key: 'Qty',      label: 'Qty',           type: 'number', placeholder: '1' },
+        ],
+        mapping: (input) => {
+          const status   = input.Status   || 'NEW';
+          const material = input.Material || 'Plastic';
+          const size     = input.Size     || '2in';
+          const uguard   = input.UGuard   || 'None';
+          const qty      = parseFloat(input.Qty) || 1;
+
+          // REMOVE — single flat unit, no material/size needed
+          if (status === 'REMOVE') {
+            return {
+              color: '#00AA00',
+              units: [{ code: 'RMV POLE RISER OR U-GUARD', type: 'LABOR', qty, unit: 'EA' }],
+            };
+          }
+
+          // TRANSFER — single flat unit
+          if (status === 'TRANSFER') {
+            return {
+              color: '#0000FF',
+              units: [{ code: 'REARRANGE XFER POLE RISER', type: 'LABOR', qty, unit: 'EA' }],
+            };
+          }
+
+          // NEW — pipe material + labor standoff + optional U-Guard
+          const pipeCode = `RISER PIPE POLE ${size} ${material.toUpperCase()}`;
+          const units = [
+            { code: pipeCode,               type: 'MATERIAL', qty, unit: 'EA' },
+            { code: 'POLE RISER - STANDOFF', type: 'LABOR',    qty, unit: 'EA' },
+          ];
+
+          const uguardMap = {
+            '2in Plastic': 'RISER U-GUARD 2 in PLASTIC',
+            '3in Plastic': 'RISER U-GUARD 3 in PLASTIC',
+            '4in Plastic': 'RISER U-GUARD 4in PLASTIC',
+            '1in Steel':   'RISER U-GUARD 1in STEEL',
+            '2in Steel':   'RISER U-GUARD 2in STEEL',
+            '4in Steel':   'RISER U-GUARD 4in STEEL',
+          };
+          if (uguardMap[uguard]) {
+            units.push({ code: uguardMap[uguard], type: 'MATERIAL', qty, unit: 'EA' });
+          }
+
+          return { color: '#FF0000', units };
+        },
+      },
+
+      GROUND_ROD: {
+        attributes: [
+          { key: 'Type', label: 'Type', type: 'select', options: ['5/8in-8ft', '5/8in-20ft', '1/2in-5ft'] },
+          { key: 'Qty',  label: 'Qty',  type: 'number', placeholder: '1' },
+        ],
+        mapping: (input) => {
+          const type = input.Type || '5/8in-8ft';
+          const qty  = parseFloat(input.Qty) || 1;
+          return {
+            color: '#FF0000',
+            units: [{ code: `GROUND ROD ${type}`, type: 'MATERIAL', qty, unit: 'EA' }],
+          };
+        },
+      },
+
+      SNOWSHOE: {
+        attributes: [
+          { key: 'Qty', label: 'Qty', type: 'number', placeholder: '1' },
+        ],
+        mapping: (input) => {
+          const qty = parseFloat(input.Qty) || 1;
+          return {
+            color: '#FF0000',
+            units: [{ code: 'AERIAL FIBER SNOWSHOE', type: 'MATERIAL', qty, unit: 'EA' }],
+          };
+        },
+      },
+
+      TERMINAL: {
+        attributes: [
+          { key: 'Status', label: 'Status', type: 'toggle-group', options: ['NEW', 'EXISTING'] },
+          { key: 'Type',   label: 'Type',   type: 'select', options: ['PMT', 'SMT'] },
+          { key: 'ATAG',   label: 'A-Tag',  type: 'text',   placeholder: 'A-Tag #' },
+        ],
+        mapping: (input) => {
+          const status = input.Status || 'EXISTING';
+          const color  = status === 'NEW' ? '#FF0000' : '#000000';
+          const atag   = input.ATAG || '';
+          const type   = input.Type || 'PMT';
+          // Canvas reference only — no billing
+          return { color, label: `${type}${atag ? ' ' + atag : ''}`, units: [] };
+        },
+      },
+
+      BURIED_SPLICE: {
+        attributes: [
+          { key: 'CaseKit',    label: 'Case Kit (Material)',         type: 'select',
+            options: ['3.5x12 KIT 200pr', '3x12 KIT 100pr', '4.25x20 KIT 400pr', '4.9x17.5 KIT 50pr', '5.25x20 KIT 600pr', '12x36 KIT 600pr'] },
+          { key: 'SetupLoc',  label: 'Setup / Teardown Location',   type: 'select',
+            options: ['PED/CABINET', 'HH', 'AERIAL', 'VAULT-MH', 'BUILDING'] },
+          { key: 'SpliceSize', label: 'Splice Module Size',         type: 'select',
+            options: ['<= 300pr', '301-900pr', '901-1800pr', '> 1800pr'] },
+          { key: 'PairCount', label: 'Pairs Spliced',               type: 'number', placeholder: '200' },
+        ],
+        mapping: (input) => {
+          const caseKit    = input.CaseKit    || '3.5x12 KIT 200pr';
+          const setupLoc   = input.SetupLoc   || 'PED/CABINET';
+          const spliceSize = input.SpliceSize || '<= 300pr';
+          const pairs      = parseFloat(input.PairCount) || 0;
+
+          const caseMaterial = `CASE BUR COP SOFT ${caseKit}`;
+
+          const spliceCodeMap = {
+            '<= 300pr':   'SPLICE COPPER MODULE <= 300pr',
+            '301-900pr':  'SPLICE COPPER MODULE 301-900pr',
+            '901-1800pr': 'SPLICE COPPER MODULE 901-1800pr',
+            '> 1800pr':   'SPLICE COPPER MODULE > 1800pr',
+          };
+          const spliceCode = spliceCodeMap[spliceSize] || 'SPLICE COPPER MODULE <= 300pr';
+
+          const setupCodeMap = {
+            'PED/CABINET': 'SPL SETUP-TEARDOWN PED/CABINET-COP',
+            'HH':          'SPL SETUP-TEARDOWN HH-COP',
+            'AERIAL':      'SPL SETUP-TEARDOWN AERIAL-COP',
+            'VAULT-MH':    'SPL SETUP-TEARDOWN VAULT-MH-COP',
+            'BUILDING':    'SPL SETUP-TEARDOWN BUILDING-COP',
+          };
+          const setupCode = setupCodeMap[setupLoc] || 'SPL SETUP-TEARDOWN PED/CABINET-COP';
+
+          return {
+            color: '#000000',
+            calloutLines: [
+              'BURIED SPLICE',
+              caseMaterial,
+              `${pairs} PR`,
+            ],
+            units: [
+              { code: caseMaterial,              type: 'MATERIAL', qty: 1,     unit: 'EA' },
+              { code: 'CASE COPPER BURIED SOFT', type: 'LABOR',    qty: 1,     unit: 'EA' },
+              { code: 'LOCATE MARKER BALL',      type: 'LABOR',    qty: 1,     unit: 'EA' },
+              { code: spliceCode,                type: 'LABOR',    qty: pairs, unit: 'PR' },
+              { code: setupCode,                 type: 'LABOR',    qty: 1,     unit: 'EA' },
+            ],
+          };
+        },
+      },
+
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────
+  // TAB: xfers (Transfers)
+  // All render in BLUE #0000FF
+  // Arrow + bordered callout box
+  // ──────────────────────────────────────────────────────────
+  xfers: {
+    label: 'X-Fers',
+    symbols: [
+      { key: 'XFER_POLE_ATTACH',      icon: '→□', label: 'Xfer Pole Attach',      type: 'ARROW_CALLOUT' },
+      { key: 'XFER_POLE_ATTACH_ADDL', icon: '→□', label: 'Xfer Pole Attach Addl', type: 'ARROW_CALLOUT' },
+      { key: 'XFER_SVC_DROP',         icon: '→□', label: 'Xfer Svc Drop',         type: 'ARROW_CALLOUT' },
+      { key: 'XFER_SMALL_FAC',        icon: '→□', label: 'Xfer Small Fac',        type: 'ARROW_CALLOUT' },
+      { key: 'XFER_LARGE_FAC',        icon: '→□', label: 'Xfer Large Fac',        type: 'ARROW_CALLOUT' },
+      { key: 'XFER_POLE_TAG',         icon: '→□', label: 'Xfer Pole Tag',         type: 'ARROW_CALLOUT' },
+    ],
+    logic: {
+      XFER_POLE_ATTACH: {
+        attributes: [
+          { key: 'ATAG', label: 'A-Tag', type: 'text',   placeholder: 'A-Tag' },
+          { key: 'Qty',  label: 'Qty',   type: 'number', placeholder: '1'    },
+        ],
+        mapping: (input) => {
+          const qty  = parseFloat(input.Qty)  || 1;
+          const atag = input.ATAG || '';
+          return {
+            color: '#0000FF',
+            calloutText: `XFER POLE ATTACH x${qty} — ${atag}`,
+            units: [{ code: 'REARRANGE XFER POLE ATTACHMENT', type: 'LABOR', qty, unit: 'EA' }],
+          };
+        },
+      },
+
+      XFER_POLE_ATTACH_ADDL: {
+        attributes: [
+          { key: 'ATAG', label: 'A-Tag', type: 'text',   placeholder: 'A-Tag' },
+          { key: 'Qty',  label: 'Qty',   type: 'number', placeholder: '1'    },
+        ],
+        mapping: (input) => {
+          const qty  = parseFloat(input.Qty)  || 1;
+          const atag = input.ATAG || '';
+          return {
+            color: '#0000FF',
+            calloutText: `XFER POLE ATTACH ADDL x${qty} — ${atag}`,
+            units: [{ code: 'REARRANGE XFER POLE ATTACHMENT ADDL', type: 'LABOR', qty, unit: 'EA' }],
+          };
+        },
+      },
+
+      XFER_SVC_DROP: {
+        attributes: [
+          { key: 'ATAG', label: 'A-Tag', type: 'text',   placeholder: 'A-Tag' },
+          { key: 'Qty',  label: 'Qty',   type: 'number', placeholder: '1'    },
+        ],
+        mapping: (input) => {
+          const qty  = parseFloat(input.Qty)  || 1;
+          const atag = input.ATAG || '';
+          return {
+            color: '#0000FF',
+            calloutText: `XFER SVC DROP x${qty} — ${atag}`,
+            units: [{ code: 'REARRANGE XFER AERIAL SVC DROP ADDL', type: 'LABOR', qty, unit: 'EA' }],
+          };
+        },
+      },
+
+      XFER_SMALL_FAC: {
+        attributes: [
+          { key: 'ATAG', label: 'A-Tag', type: 'text',   placeholder: 'A-Tag' },
+          { key: 'Qty',  label: 'Qty',   type: 'number', placeholder: '1'    },
+        ],
+        mapping: (input) => {
+          const qty  = parseFloat(input.Qty)  || 1;
+          const atag = input.ATAG || '';
+          return {
+            color: '#0000FF',
+            calloutText: `XFER SMALL FAC x${qty} — ${atag}`,
+            units: [{ code: 'REARRANGE XFER POLE MOUNT SMALL FAC', type: 'LABOR', qty, unit: 'EA' }],
+          };
+        },
+      },
+
+      XFER_LARGE_FAC: {
+        attributes: [
+          { key: 'ATAG', label: 'A-Tag', type: 'text',   placeholder: 'A-Tag' },
+          { key: 'Qty',  label: 'Qty',   type: 'number', placeholder: '1'    },
+        ],
+        mapping: (input) => {
+          const qty  = parseFloat(input.Qty)  || 1;
+          const atag = input.ATAG || '';
+          return {
+            color: '#0000FF',
+            calloutText: `XFER LARGE FAC x${qty} — ${atag}`,
+            units: [{ code: 'REARRANGE XFER POLE MOUNT LARGE FAC', type: 'LABOR', qty, unit: 'EA' }],
+          };
+        },
+      },
+
+      XFER_POLE_TAG: {
+        attributes: [
+          { key: 'ATAG',      label: 'A-Tag',      type: 'text',   placeholder: 'A-Tag'  },
+          { key: 'CableType', label: 'Cable Type', type: 'select', options: ['Copper', 'Fiber'] },
+          { key: 'Qty',       label: 'Qty',        type: 'number', placeholder: '1'      },
+        ],
+        mapping: (input) => {
+          const atag  = input.ATAG || '';
+          const ctype = input.CableType || 'Copper';
+          const qty   = parseFloat(input.Qty)  || 1;
+          const code  = ctype === 'Fiber' ? 'TAG AER FIB CABLE' : 'TAG AER COP CABLE';
+          return {
+            color: '#0000FF',
+            calloutText: `POLE TAG x${qty} — ${atag}`,
+            units: [{ code, type: 'LABOR', qty, unit: 'EA' }],
+          };
+        },
+      },
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────
+  // TAB: removals
+  // ──────────────────────────────────────────────────────────
+  removals: {
+    label: 'Removals',
+    symbols: [
+      { key: 'RMV_AER_COPPER',   icon: 'X-AC-X', label: 'Rmv Aer Copper',   type: 'LINE' },
+      { key: 'RMV_UG_COPPER',    icon: 'X-UC-X', label: 'Rmv UG Copper',    type: 'LINE' },
+      { key: 'RMV_AER_FIBER',    icon: 'X-AF-X', label: 'Rmv Aer Fiber',    type: 'LINE' },
+      { key: 'RMV_UG_FIBER',     icon: 'X-UF-X', label: 'Rmv UG Fiber',     type: 'LINE' },
+      { key: 'RMV_BURIED_FAC',   icon: '▣✕',    label: 'Rmv Buried Fac',   type: 'RECT' },
+    ],
+    logic: {
+      RMV_AER_COPPER: {
+        attributes: [
+          { key: 'Size',    label: 'Pair Count', type: 'select', options: ['6','25','50','100','200','300','400','600','900','1200'] },
+          { key: 'Footage', label: 'Footage',    type: 'number', placeholder: 'ft' },
+        ],
+        mapping: (input) => {
+          const size    = parseInt(input.Size)    || 100;
+          const footage = parseFloat(input.Footage) || 0;
+          const code    = size <= 400 ? 'RMV AERIAL COPPER <= 400pr' : 'RMV AERIAL COPPER > 400pr';
+          return {
+            color: '#00AA00',
+            removeXMarks: true,
+            units: [{ code, type: 'LABOR', qty: footage, unit: 'FT' }],
+          };
+        },
+      },
+
+      RMV_UG_COPPER: {
+        attributes: [
+          { key: 'Size',    label: 'Pair Count', type: 'select', options: ['6','25','50','100','200','300','400','600','900','1200'] },
+          { key: 'Footage', label: 'Footage',    type: 'number', placeholder: 'ft' },
+        ],
+        mapping: (input) => {
+          const size    = parseInt(input.Size)    || 100;
+          const footage = parseFloat(input.Footage) || 0;
+          const code    = size <= 400 ? 'RMV COPPER FROM CONDUIT <= 400pr' : 'RMV COPPER FROM CONDUIT > 400pr';
+          return {
+            color: '#00AA00',
+            removeXMarks: true,
+            units: [{ code, type: 'LABOR', qty: footage, unit: 'FT' }],
+          };
+        },
+      },
+
+      RMV_AER_FIBER: {
+        attributes: [
+          { key: 'Footage', label: 'Footage', type: 'number', placeholder: 'ft' },
+        ],
+        mapping: (input) => {
+          const footage = parseFloat(input.Footage) || 0;
+          return {
+            color: '#00AA00',
+            removeXMarks: true,
+            units: [{ code: 'RMV AERIAL FIBER', type: 'LABOR', qty: footage, unit: 'FT' }],
+          };
+        },
+      },
+
+      RMV_UG_FIBER: {
+        attributes: [
+          { key: 'Footage', label: 'Footage', type: 'number', placeholder: 'ft' },
+        ],
+        mapping: (input) => {
+          const footage = parseFloat(input.Footage) || 0;
+          return {
+            color: '#00AA00',
+            removeXMarks: true,
+            units: [{ code: 'RMV FIBER FROM CONDUIT', type: 'LABOR', qty: footage, unit: 'FT' }],
+          };
+        },
+      },
+
+      RMV_BURIED_FAC: {
+        attributes: [
+          { key: 'LF',          label: 'Linear Footage (LF)',                  type: 'number',   placeholder: '0' },
+          { key: 'AddlCover',   label: 'Exceeds 48in cover?',                  type: 'checkbox' },
+          { key: 'CoverAddl',   label: 'Additional 12in increments of cover',  type: 'number',   placeholder: '0', showWhen: { key: 'AddlCover', values: [true, 'true', '1', 1] } },
+          { key: 'AddlFac',     label: 'Additional facility in same trench?',  type: 'checkbox' },
+        ],
+        mapping: (input) => {
+          const lf         = parseFloat(input.LF)        || 0;
+          const addlCover  = input.AddlCover === true || input.AddlCover === 'true';
+          const coverQty   = parseInt(input.CoverAddl)   || 0;
+          const addlFac    = input.AddlFac   === true || input.AddlFac   === 'true';
+          const units = [
+            { code: 'RMV BURIED FACILITY <= 48in', type: 'LABOR', qty: lf, unit: 'FT' },
+          ];
+          if (addlCover && coverQty > 0) {
+            units.push({ code: 'RMV BURIED FACILITY ADDL 12in CVR', type: 'LABOR', qty: lf * coverQty, unit: 'FT' });
+          }
+          if (addlFac) {
+            units.push({ code: 'RMV BURIED FACILITY <=48in ADDL FAC', type: 'LABOR', qty: lf, unit: 'FT' });
+          }
+          const lines = ['RMV BURIED FACILITY', `${lf} LF`];
+          if (addlCover && coverQty > 0) lines.push(`+${coverQty}x 12in cover`);
+          if (addlFac) lines.push('+ ADDL FACILITY');
+          return {
+            color: '#FF0000',
+            calloutLines: lines,
+            units,
+          };
+        },
+      },
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────
+  // TAB: misc (NEW)
+  // ──────────────────────────────────────────────────────────
+  misc: {
+    label: 'Misc',
+    symbols: [
+      { key: 'TNE',                icon: 'T&E',  label: 'T&E',                type: 'MODAL_ONLY' },
+      { key: 'DOWNTIME',             icon: 'DT',   label: 'Downtime',           type: 'MODAL_ONLY' },
+      { key: 'SPLICER_FIBER',        icon: 'S-F',  label: 'Splicer Fiber',      type: 'MODAL_ONLY' },
+      { key: 'SPLICER_COPPER',       icon: 'S-C',  label: 'Splicer Copper',     type: 'MODAL_ONLY' },
+      { key: 'EMERGENCY_TRAVEL',     icon: 'EMG',  label: 'Emg Travel Time',    type: 'MODAL_ONLY' },
+      { key: 'VAC_TRUCK',             icon: 'VAC',  label: 'Vac Truck',           type: 'MODAL_ONLY' },
+    ],
+    logic: {
+      TNE: {
+        attributes: [
+          {
+            key: 'Crew', label: 'Crew', type: 'select',
+            options: [
+              'T& E 1 MAN ($98/hr)',
+              'T&E 2 MAN AERIAL CREW',
+              'T&E 2 MAN EXCAVATION CREW',
+              'T&E 2 MAN SVC DROP CREW',
+              'T&E 3 MAN AERIAL CREW ($320/hr)',
+              'T&E 3 MAN EXCAVATION CREW ($275/hr)',
+              'T&E 3 MAN UNDERGROUND CREW ($275/hr)',
+              'T&E 4 MAN AERIAL CREW ($420/hr)',
+              'T&E 4 MAN EXCAVATION CREW',
+            ],
+          },
+          { key: 'Hours',       label: 'Hours',       type: 'number',   placeholder: '0' },
+          { key: 'Description', label: 'Description (required justification)', type: 'textarea', placeholder: 'Justification...' },
+        ],
+        mapping: (input) => {
+          const crew  = input.Crew        || 'T&E 2 MAN AERIAL CREW';
+          const hours = parseFloat(input.Hours) || 0;
+          const desc  = input.Description || '';
+          const rate  = _extractRate(crew);
+          const amount = rate ? (hours * rate) : null;
+          const unitCode = crew.replace(/\s*\(\$[\d/hr]+\)/g, '').trim();
+          return {
+            color: '#000000',
+            calloutLines: [
+              unitCode,
+              `${hours} hrs${amount !== null ? ' — $' + amount.toFixed(2) : ''}`,
+              desc,
+            ],
+            billDashCode: unitCode,
+            billDashHours: hours,
+            units: [{ code: unitCode, type: 'LABOR', qty: hours, unit: 'HRS' }],
+          };
+        },
+      },
+
+      SPLICER_FIBER: {
+        attributes: [
+          { key: 'Hours',       label: 'Qty (hours)',  type: 'number',   placeholder: '0' },
+          { key: 'Description', label: 'Description',  type: 'textarea', placeholder: 'Reason for billing...' },
+        ],
+        mapping: (input) => {
+          const hours = parseFloat(input.Hours) || 0;
+          const desc  = input.Description || '';
+          return {
+            color: '#000000',
+            calloutLines: [
+              'SPLICER - FIBER',
+              `${hours} hrs`,
+              desc,
+            ],
+            units: [{ code: 'SPLICER - FIBER', type: 'LABOR', qty: hours, unit: 'HRS' }],
+          };
+        },
+      },
+
+      SPLICER_COPPER: {
+        attributes: [
+          { key: 'Hours',       label: 'Qty (hours)',  type: 'number',   placeholder: '0' },
+          { key: 'Description', label: 'Description',  type: 'textarea', placeholder: 'Reason for billing...' },
+        ],
+        mapping: (input) => {
+          const hours = parseFloat(input.Hours) || 0;
+          const desc  = input.Description || '';
+          return {
+            color: '#000000',
+            calloutLines: [
+              'SPLICER - COPPER',
+              `${hours} hrs`,
+              desc,
+            ],
+            units: [{ code: 'SPLICER - COPPER', type: 'LABOR', qty: hours, unit: 'HRS' }],
+          };
+        },
+      },
+
+      EMERGENCY_TRAVEL: {
+        attributes: [
+          { key: 'Qty', label: 'Qty (hours)', type: 'number', placeholder: '0' },
+        ],
+        mapping: (input) => {
+          const qty = parseFloat(input.Qty) || 0;
+          return {
+            color: '#000000',
+            calloutLines: [
+              'EMERGENCY TRAVEL TIME',
+              `${qty} hrs`,
+            ],
+            units: [{ code: 'EMERGENCY TRAVEL TIME', type: 'LABOR', qty: qty, unit: 'HRS' }],
+          };
+        },
+      },
+
+      VAC_TRUCK: {
+        attributes: [
+          { key: 'Company', label: 'Company / Vendor', type: 'text', placeholder: 'e.g. AMS Vac Services' },
+        ],
+        mapping: (input) => {
+          const company = (input.Company || 'VENDOR TBD').toUpperCase();
+          return {
+            color: '#333333',
+            calloutLines: [
+              'VAC TRUCK',
+              company,
+              'SEE VENDOR INVOICE',
+            ],
+            units: [],
+          };
+        },
+      },
+
+
+      DOWNTIME: {
+        attributes: [
+          {
+            key: 'Crew', label: 'Crew', type: 'select',
+            options: [
+              'T& E 1 MAN ($98/hr)',
+              'T&E 2 MAN AERIAL CREW',
+              'T&E 2 MAN EXCAVATION CREW',
+              'T&E 2 MAN SVC DROP CREW',
+              'T&E 3 MAN AERIAL CREW ($320/hr)',
+              'T&E 3 MAN EXCAVATION CREW ($275/hr)',
+              'T&E 3 MAN UNDERGROUND CREW ($275/hr)',
+              'T&E 4 MAN AERIAL CREW ($420/hr)',
+              'T&E 4 MAN EXCAVATION CREW',
+            ],
+          },
+          { key: 'Hours',       label: 'Hours',       type: 'number',   placeholder: '0' },
+          { key: 'Description', label: 'Description (required justification)', type: 'textarea', placeholder: 'Justification...' },
+        ],
+        mapping: (input) => {
+          const crew  = input.Crew        || 'T&E 2 MAN AERIAL CREW';
+          const hours = parseFloat(input.Hours) || 0;
+          const desc  = input.Description || '';
+          const rate  = _extractRate(crew);
+          const amount = rate ? (hours * rate) : null;
+          return {
+            color: '#000000',
+            calloutLines: [
+              'DOWNTIME - CAPITAL PROJECT',
+              `${hours} hrs${amount !== null ? ' — $' + amount.toFixed(2) : ''}`,
+              desc,
+            ],
+            billDashCode: 'DOWNTIME - CAPITAL PROJECT',
+            billDashHours: hours,
+            units: [{ code: 'DOWNTIME - CAPITAL PROJECT', type: 'LABOR', qty: hours, unit: 'HRS' }],
+          };
+        },
+      },
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────
+  // Basic drawing tools (no billing)
+  // ──────────────────────────────────────────────────────────
+  basic: {
+    label: 'Basic',
+    symbols: [
+      { key: 'BASIC_LINE',    icon: '╱',   label: 'Line',      type: 'LINE'    },
+      { key: 'BASIC_CIRCLE',  icon: '◯',   label: 'Circle',    type: 'CIRCLE'  },
+      { key: 'BASIC_SQUARE',  icon: '□',   label: 'Rectangle', type: 'RECT'    },
+      { key: 'BASIC_ARROW',   icon: '↗',   label: 'Arrow',     type: 'LINE'    },
+      { key: 'BASIC_DIM',     icon: '|↔|', label: 'Dimension', type: 'LINE'    },
+      { key: 'BASIC_CALLOUT', icon: '💬',  label: 'Callout',   type: 'CALLOUT' },
+      { key: 'BASIC_TEXT',    icon: 'T',   label: 'Text',      type: 'TEXT'    },
+      { key: 'BASIC_IMAGE',   icon: '🖼',  label: 'Image',     type: 'IMAGE'   },
+      { key: 'BASIC_PENCIL',  icon: '✎',   label: 'Freehand',  type: 'LINE'    },
+    ],
+    logic: {
+      BASIC_LINE:    { attributes: [], mapping: () => null },
+      BASIC_CIRCLE:  { attributes: [], mapping: () => null },
+      BASIC_SQUARE:  { attributes: [], mapping: () => null },
+      BASIC_ARROW:   { attributes: [], mapping: () => null },
+      BASIC_DIM:     { attributes: [], mapping: () => null },
+      BASIC_CALLOUT: { attributes: [], mapping: () => null },
+      BASIC_TEXT:    { attributes: [], mapping: () => null },
+      BASIC_IMAGE:   { attributes: [], mapping: () => null },
+      BASIC_PENCIL:  { attributes: [], mapping: () => null },
+    },
+  },
+};
+
+// ============================================================
+// PRIVATE HELPERS
+// ============================================================
+function _extractRate(crewLabel) {
+  const m = crewLabel.match(/\$(\d+)\/hr/);
+  return m ? parseInt(m[1]) : null;
+}
+
+// ============================================================
+// resolveSmartUnit — PRIMARY RESOLUTION FUNCTION
+// Returns a normalized result object:
+// {
+//   color,         // hex string
+//   label,         // optional canvas label
+//   unit_code,     // primary billing code
+//   unit,          // 'EA' | 'FT' | 'HRS'
+//   qty,           // number
+//   extraUnits,    // [{ unit_code, unit, qty }]
+//   removeXMarks,  // boolean — line tools with REMOVE status
+//   calloutText,   // string for transfer arrow callouts
+//   calloutLines,  // string[] for T&E / DOWNTIME callout boxes
+//   trenchDetail,  // object with trench detail fields (Change 6)
+// }
+// ============================================================
+export function resolveSmartUnit(category, symbolKey, attributes = {}) {
+  const catData = SMART_UNIT_DICTIONARY[category];
+  if (!catData || !catData.logic || !catData.logic[symbolKey]) {
+    return {
+      unit_code: symbolKey,
+      desc: symbolKey,
+      unit: 'EA',
+      qty: 1,
+      color: '#000000',
+      extraUnits: [],
+    };
+  }
+
+  const logic = catData.logic[symbolKey];
+
+  if (typeof logic.mapping !== 'function') {
+    return {
+      unit_code: symbolKey,
+      desc: symbolKey,
+      unit: 'EA',
+      qty: 1,
+      color: '#000000',
+      extraUnits: [],
+    };
+  }
+
+  const raw = logic.mapping(attributes);
+
+  if (!raw) return null;
+
+  // raw.units is an array of { code, type, qty, unit }
+  const rawUnits = raw.units || [];
+
+  if (rawUnits.length === 0) {
+    // No billing (Existing, canvas-only, etc.)
+    return {
+      unit_code: null,
+      desc: raw.label || symbolKey,
+      unit: 'EA',
+      qty: 0,
+      color: raw.color || '#000000',
+      label: raw.label || null,
+      removeXMarks: raw.removeXMarks || false,
+      calloutText:  raw.calloutText  || null,
+      calloutLines: raw.calloutLines || null,
+      dashArray:    raw.dashArray    || null,
+      trenchDetail: raw.trenchDetail || null,
+      extraUnits: [],
+    };
+  }
+
+  const primary = rawUnits[0];
+  const extras  = rawUnits.slice(1).map(u => ({
+    unit_code: u.unit_code || u.code,
+    desc:      u.desc      || u.unit_code || u.code,
+    unit:      u.unit      || 'FT',
+    qty:       u.qty       != null ? u.qty : 1,
+  }));
+
+  return {
+    unit_code:    primary.unit_code || primary.code,
+    desc:         primary.desc      || primary.unit_code || primary.code,
+    unit:         primary.unit      || 'FT',
+    qty:          primary.qty       != null ? primary.qty : 1,
+    color:        raw.color    || '#000000',
+    label:        raw.label    || null,
+    removeXMarks: raw.removeXMarks || false,
+    calloutText:  raw.calloutText  || null,
+    calloutLines: raw.calloutLines || null,
+    dashArray:    raw.dashArray    || null,
+    billDashCode:  raw.billDashCode  || null,
+    billDashHours: raw.billDashHours || null,
+    trenchDetail:  raw.trenchDetail  || null,
+    extraUnits:   extras,
+  };
+}
+
+// ============================================================
+// resolveUnit — legacy wrapper
+// ============================================================
+export function resolveUnit(symbolKey, attributes = {}) {
+  let category = 'basic';
+  if (['POLE','STRAND_10M','DOWN_GUY','DE_RE','RE_TENSION','ANCHOR','TREE_TRIM','XFERS','ARBORIST'].includes(symbolKey)) category = 'aerial';
+  if (['HH','MH','PEDESTAL','TRENCH','BORE','SPLICE_PIT','MH_GRADE_ADJ','POTHOLE','GRUBBING','ROD_PROOF','LOC_SONDE'].includes(symbolKey)) category = 'underground';
+  if (['COPPER_CABLE','FIBER_CABLE','ASW','BSW','RMV_FIBER','RMV_COPPER','RMV_ASW','RMV_BSW'].includes(symbolKey)) category = 'cable';
+  if (['SPLICE_WIZARD','RISER','GROUND_ROD','SNOWSHOE','TERMINAL','BURIED_SPLICE'].includes(symbolKey)) category = 'splicing';
+  if (['XFER_POLE_ATTACH','XFER_POLE_ATTACH_ADDL','XFER_SVC_DROP','XFER_SMALL_FAC','XFER_LARGE_FAC','XFER_POLE_TAG'].includes(symbolKey)) category = 'xfers';
+  if (['RMV_AER_COPPER','RMV_UG_COPPER','RMV_AER_FIBER','RMV_UG_FIBER'].includes(symbolKey)) category = 'removals';
+  if (['RMV_BURIED_FAC'].includes(symbolKey)) category = 'underground';
+  if (['RMV_ANCHOR'].includes(symbolKey)) category = 'aerial';
+  if (['TNE','DOWNTIME','SPLICER_FIBER','SPLICER_COPPER','EMERGENCY_TRAVEL','VAC_TRUCK','CORE_DRILL'].includes(symbolKey)) category = 'misc';
+  return resolveSmartUnit(category, symbolKey, attributes);
+}
+
+
+======================================================================
+===== FILE: js/sketcher.js =====
+======================================================================
+import * as THREE from 'three';
+import { resolveUnit, resolveSmartUnit, SMART_UNIT_DICTIONARY, ASBUILT_THEME } from './units.js';
+
+export class Sketcher {
+    constructor(app) {
+        this.app = app;
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+
+        // Interaction State
+        this.isDrawing = false;
+        this.currentLine = null; // Temporary line mesh while drawing
+        this.startPoint = null; // Vector3
+
+        // Snapping
+        this.snapRadius = 1.0; // Distance to snap to existing vertices
+        this.snapRadius = 1.0; // Distance to snap to existing vertices
+        this.gridSize = 10; // Grid snap
+
+        // Selection / Transformation State
+        this.interactionMode = 'IDLE'; // 'IDLE', 'MOVE', 'RESIZE'
+        this.activeHandle = null; // 'tl', 'tr', 'bl', 'br'
+        this.dragStart = new THREE.Vector3(); // Mouse World Pos at start
+        this.objectStartPos = new THREE.Vector3(); // Object Pos at start
+        this.objectStartScale = new THREE.Vector3(); // Object Scale at start
+        this.selectionHelper = null; // Group { box, handles... }
+
+        this.initSelectionHelper();
+
+        // Helper marker
+        this.cursorMarker = this.createCursorMarker();
+        this.app.scene.add(this.cursorMarker);
+
+        // Events
+        // Events
+        this.app.renderer.domElement.addEventListener('mousemove', (e) => this.onMouseMove(e));
+        this.app.renderer.domElement.addEventListener('mousedown', (e) => this.onMouseDown(e));
+        this.app.renderer.domElement.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        this.app.renderer.domElement.addEventListener('mouseup', (e) => this.onMouseUp(e));
+
+        // Global Keydown for Tools
+        window.addEventListener('keydown', (e) => this.onKeyDown(e));
+    }
+
+    initSelectionHelper() {
+        this.selectionHelper = new THREE.Group();
+        this.selectionHelper.name = 'SelectionHelper';
+        this.selectionHelper.visible = false;
+
+        // 1. Bounding Box (Blue Line)
+        const boxGeom = new THREE.BufferGeometry();
+        const boxMat = new THREE.LineBasicMaterial({ color: 0x00a5e6, depthTest: false, transparent: true });
+        this.selectionBox = new THREE.LineSegments(boxGeom, boxMat);
+        this.selectionBox.renderOrder = 999;
+        this.selectionHelper.add(this.selectionBox);
+
+        // 2. Resize Handles
+        this.handles = {};
+        const handleKeys = ['tl', 'tr', 'bl', 'br'];
+        const handleGeom = new THREE.PlaneGeometry(2, 2);
+        const handleMat = new THREE.MeshBasicMaterial({ color: 0x00a5e6, depthTest: false, transparent: true });
+
+        handleKeys.forEach(key => {
+            const handle = new THREE.Mesh(handleGeom, handleMat);
+            handle.rotation.x = -Math.PI / 2; // Flat
+            handle.renderOrder = 1000;
+            handle.name = `handle_${key}`;
+            this.handles[key] = handle;
+            this.selectionHelper.add(handle);
+        });
+
+        this.app.scene.add(this.selectionHelper);
+    }
+
+    updateSelectionHelper() {
+        const obj = this.app.selectedObject?.mesh;
+        if (!obj) {
+            this.selectionHelper.visible = false;
+            return;
+        }
+
+        this.selectionHelper.visible = true;
+
+        // Calculate Bounds
+        const box = new THREE.Box3().setFromObject(obj);
+        const min = box.min;
+        const max = box.max;
+        const y = 0.6;
+
+        // Handles Positions (Top-Down View: X/Z plane)
+        const tl = new THREE.Vector3(min.x, y, min.z);
+        this.handles.tl.position.set(min.x, y, min.z);
+        this.handles.tr.position.set(max.x, y, min.z);
+        this.handles.bl.position.set(min.x, y, max.z);
+        this.handles.br.position.set(max.x, y, max.z);
+
+        // Update Box Geometry points
+        const points = [
+            this.handles.tl.position, this.handles.tr.position,
+            this.handles.tr.position, this.handles.br.position,
+            this.handles.br.position, this.handles.bl.position,
+            this.handles.bl.position, this.handles.tl.position
+        ];
+        this.selectionBox.geometry.setFromPoints(points);
+    }
+
+    onKeyDown(event) {
+        if (event.key === 'Escape') {
+            this.interactionMode = 'IDLE';
+            this.app.selectObject(null);
+            this.updateSelectionHelper();
+        }
+    }
+
+    syncObjectData() {
+        if (!this.app.selectedObject) return;
+        const obj = this.app.selectedObject;
+        const mesh = obj.mesh;
+
+        obj.position = mesh.position.clone();
+
+        // Update Length for Lines if scaled
+        if (obj.type.includes('LINE') || obj.type.includes('CABLE')) {
+            obj.length = mesh.scale.x;
+        }
+
+        this.app.updateTotals();
+    }
+
+    createCursorMarker() {
+        const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+        const material = new THREE.MeshBasicMaterial({ color: 0xffff00, opacity: 0.5, transparent: true });
+        return new THREE.Mesh(geometry, material);
+    }
+
+    getIntersects(event) {
+        const rect = this.app.renderer.domElement.getBoundingClientRect();
+        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        this.raycaster.setFromCamera(this.mouse, this.app.camera);
+
+        // Intersect with ground
+        return this.raycaster.intersectObject(this.app.ground);
+    }
+
+    getSnappedPosition(rawPos) {
+        // 1. Vertex Snapping (Snap to existing objects)
+        let closestDist = Infinity;
+        let snapPos = null;
+
+        for (const obj of this.app.drawnObjects) {
+            // Check start and end points of lines, or position of points
+            const pointsToCheck = [];
+            if (obj.type === 'LINE') {
+                pointsToCheck.push(obj.start, obj.end);
+            } else if (obj.type === 'POINT') {
+                pointsToCheck.push(obj.position);
+            }
+
+            for (const p of pointsToCheck) {
+                const dist = rawPos.distanceTo(p);
+                if (dist < this.snapRadius && dist < closestDist) {
+                    closestDist = dist;
+                    snapPos = p.clone();
+                }
+            }
+        }
+
+        if (snapPos) return snapPos;
+
+        // 2. Grid Snapping (if no vertex snap)
+        // Only snap X and Z on the grid, keep Y (height) free or snapped to levels? 
+        // For now, simple grid snap on X/Z
+        const snappedX = Math.round(rawPos.x / this.gridSize) * this.gridSize;
+        const snappedZ = Math.round(rawPos.z / this.gridSize) * this.gridSize;
+        return new THREE.Vector3(snappedX, rawPos.y, snappedZ);
+    }
+
+    getDrawnObjectIntersects(event) {
+        const rect = this.app.renderer.domElement.getBoundingClientRect();
+        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, this.app.camera);
+        this.raycaster.params.Line.threshold = 3;
+
+        const meshes = this.app.drawnObjects.map(o => o.mesh).filter(m => m);
+        return this.raycaster.intersectObjects(meshes, true);
+    }
+
+    getHandleIntersects() {
+        if (!this.selectionHelper.visible) return [];
+        const handleMeshes = Object.values(this.handles);
+        return this.raycaster.intersectObjects(handleMeshes);
+    }
+
+
+
+    // 1. Mouse Down: Select or Start Drawing
+    onMouseDown(event) {
+        if (event.target !== this.app.renderer.domElement) return;
+
+        // 1. Check Handles (Resize)
+        const handleIntersects = this.getHandleIntersects();
+        if (handleIntersects.length > 0) {
+            const handle = handleIntersects[0].object;
+            const handleName = handle.name.replace('handle_', '');
+            this.interactionMode = 'RESIZE';
+            this.activeHandle = handleName;
+
+            // Interaction Start State
+            const intersects = this.getIntersects(event);
+            this.dragStart.copy(intersects[0].point);
+            const obj = this.app.selectedObject.mesh;
+            this.objectStartPos.copy(obj.position);
+            this.objectStartScale.copy(obj.scale);
+
+            this.app.controls.enabled = false;
+            return;
+        }
+
+        // 2. Check Objects (Selection / Move)
+        const objectIntersects = this.getDrawnObjectIntersects(event);
+        if (objectIntersects.length > 0) {
+            // Pass through TransformControls first?
+            // If we clicked the Gizmo, ThreeJS Raycaster handles it via controls logic usually, 
+            // but we need to ensure we don't deselect if we clicked the gizmo.
+            // Actually, `getDrawnObjectIntersects` filters for drawings.
+
+            const clickedMesh = objectIntersects[0].object;
+            const parentItem = this.app.drawnObjects.find(obj =>
+                obj.mesh === clickedMesh ||
+                (obj.mesh.children && obj.mesh.children.includes(clickedMesh))
+            );
+            if (parentItem) {
+                // If already selected, maybe dragging?
+                if (this.app.selectedObject === parentItem) {
+                    this.interactionMode = 'MOVE';
+
+                    const intersects = this.getIntersects(event);
+                    if (intersects.length > 0) this.dragStart.copy(intersects[0].point);
+                    this.objectStartPos.copy(parentItem.mesh.position);
+                    this.app.controls.enabled = false;
+                } else {
+                    // New Selection
+                    this.app.selectObject(parentItem);
+                    this.updateSelectionHelper();
+
+                    // Enable Move immediately
+                    this.interactionMode = 'MOVE';
+                    const intersects = this.getIntersects(event);
+                    if (intersects.length > 0) this.dragStart.copy(intersects[0].point);
+                    this.objectStartPos.copy(parentItem.mesh.position);
+                    this.app.controls.enabled = false;
+                }
+                return;
+            }
+        }
+
+        // If we are hovering over the gizmo, do not start drawing!
+
+
+        // If we didn't hit a drawn object, and we are not on gizmo:
+        if (objectIntersects.length === 0) {
+            // If we clicked nothing, deselect
+            this.app.selectObject(null);
+            this.updateSelectionHelper();
+            this.interactionMode = 'IDLE';
+        }
+
+        const position = this.cursorMarker.position.clone();
+
+        if (this.app.activeTool === 'POINT') {
+            const category = this.app.activeCategory;
+            const key = this.app.selectedUnitKey;
+            const catData = SMART_UNIT_DICTIONARY[category];
+            const symbol = catData?.symbols.find(s => s.key === key);
+            const shape = symbol?.shape || 'SQUARE';
+
+            // 1. Render Marker Immediately (Optimistic UI)
+            const previewMarker = this.createSymbolSprite(shape, '#0284c7', '...');
+            previewMarker.position.copy(position);
+            previewMarker.position.y = 0.5;
+            previewMarker.material.opacity = 0.9;
+            this.app.scene.add(previewMarker);
+
+            // 2. Trigger Modal
+            this.app.showSmartModal(category, key, (attributes) => {
+                this.app.scene.remove(previewMarker); // Clear preview 
+                if (attributes) {
+                    // 3. Save officially
+                    this.placePoint(position, attributes);
+                }
+            });
+        } else if (['LINE', 'RECT', 'CIRCLE', 'ARROW', 'PENCIL', 'STRAND', 'TRENCH', 'BORE', 'ANCHOR', 'DIMENSION', 'CALLOUT'].includes(this.app.activeTool)) {
+            this.startDrawing(position);
+        }
+        else if (this.app.activeTool === 'TEXT') {
+            const text = prompt("Enter label text:", "Label");
+            if (text) this.placeText(position, text);
+        }
+    }
+
+    placeImage(texture) {
+        const geometry = new THREE.PlaneGeometry(20, 20); // Default size 20ft
+        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(0, 0.1, 0); // Flat on ground
+        this.app.scene.add(mesh);
+
+        this.app.drawnObjects.push({
+            type: 'IMAGE',
+            category: 'basic',
+            baseKey: 'BASIC_IMAGE',
+            mesh: mesh,
+            color: '#ffffff'
+        });
+        this.app.updateTotals();
+    }
+
+    // 2. Mouse Move: Update Cursor and Shape Preview
+    onMouseMove(event) {
+        // Handle Interactions
+        if (this.interactionMode === 'MOVE') {
+            const intersects = this.getIntersects(event);
+            if (intersects.length > 0) {
+                const currentPos = intersects[0].point;
+                const delta = new THREE.Vector3().subVectors(currentPos, this.dragStart);
+
+                const obj = this.app.selectedObject.mesh;
+                obj.position.copy(this.objectStartPos).add(delta);
+                this.updateSelectionHelper();
+            }
+            return;
+        }
+        else if (this.interactionMode === 'RESIZE') {
+            const intersects = this.getIntersects(event);
+            if (intersects.length > 0) {
+                const currentPos = intersects[0].point;
+
+                const deltaX = currentPos.x - this.dragStart.x;
+                const deltaZ = currentPos.z - this.dragStart.z;
+
+                const obj = this.app.selectedObject.mesh;
+
+                const factor = 1.0; // 1:1 movement
+                let sx = this.objectStartScale.x;
+                let sy = this.objectStartScale.y;
+
+                // Note: This logic assumes Uniform Center Scaling or similar.
+                // For true PDF dragging, we want edge dragging.
+                // But for this simple mesh scale, we will just scale X/Y relative to start.
+
+                if (this.activeHandle === 'br') {
+                    sx += deltaX * factor;
+                    sy += deltaZ * factor;
+                } else if (this.activeHandle === 'bl') {
+                    sx -= deltaX * factor;
+                    sy += deltaZ * factor;
+                } else if (this.activeHandle === 'tr') {
+                    sx += deltaX * factor;
+                    sy -= deltaZ * factor;
+                } else if (this.activeHandle === 'tl') {
+                    sx -= deltaX * factor;
+                    sy -= deltaZ * factor;
+                }
+
+                sx = Math.max(0.1, sx);
+                sy = Math.max(0.1, sy);
+
+                obj.scale.set(sx, sy, 1);
+                this.updateSelectionHelper();
+            }
+            return;
+        }
+
+        // Hover Logic
+        const handleIntersects = this.getHandleIntersects();
+        if (handleIntersects.length > 0) {
+            document.body.style.cursor = 'nwse-resize';
+        } else {
+            const objectIntersects = this.getDrawnObjectIntersects(event);
+            if (objectIntersects.length > 0) {
+                if (this.app.selectedObject && objectIntersects[0].object === this.app.selectedObject.mesh) {
+                    document.body.style.cursor = 'move';
+                } else {
+                    document.body.style.cursor = 'pointer';
+                }
+            } else {
+                document.body.style.cursor = 'default';
+            }
+        }
+
+        const intersects = this.getIntersects(event);
+        if (intersects.length > 0) {
+            const rawPos = intersects[0].point;
+            rawPos.y = 0;
+            const snapped = this.getSnappedPosition(rawPos);
+            this.cursorMarker.position.copy(snapped);
+
+            // Update Preview
+            if (this.isDrawing && this.currentShape) {
+                this.updateShapePreview(snapped);
+            }
+        }
+    }
+
+    // 3. Mouse Up: Finish Shape
+    onMouseUp(event) {
+        if (this.interactionMode === 'MOVE' || this.interactionMode === 'RESIZE') {
+            this.interactionMode = 'IDLE';
+            this.app.controls.enabled = true;
+            this.syncObjectData();
+            return;
+        }
+
+        if (this.isDrawing) {
+            const position = this.cursorMarker.position.clone();
+            this.finishDrawing(position);
+        }
+    }
+
+    placePoint(position, attributes = {}) {
+        const category = this.app.activeCategory;
+        const key = this.app.selectedUnitKey;
+        const unitData = resolveSmartUnit(category, key, attributes);
+
+        let color = ASBUILT_THEME.EXISTING; // Default
+
+        // Use Logic Color if available
+        if (unitData.color) {
+            color = unitData.color;
+        } else {
+            if (attributes.condition === 'Remove') color = ASBUILT_THEME.REMOVE;
+            else if (attributes.condition === 'New') color = ASBUILT_THEME.NEW;
+            else if (this.app.userColor) color = this.app.userColor;
+        }
+
+        const catData = SMART_UNIT_DICTIONARY[category];
+        const symbol = catData?.symbols.find(s => s.key === key);
+        const shape = symbol?.shape || 'SQUARE';
+
+        // Use Logic Label if available (e.g. "A123 35'")
+        let labelText = unitData.label || unitData.unit_code;
+        if (attributes.tag && (shape === 'RECT_LABEL' || shape === 'HH_BOX' || shape === 'PED' || shape === 'SQUARE_DOT')) {
+            labelText = attributes.tag;
+        }
+        // Force Tag Only for Pole (User Request: "ONLY THE ATAG AND NO OTHER INFO")
+        if (shape === 'POLE_X') {
+            if (attributes.ATAG) {
+                labelText = attributes.ATAG;
+            } else if (labelText && typeof labelText === 'string') {
+                // Fallback: split "A999 45'" -> "A999"
+                labelText = labelText.split(' ')[0];
+            }
+        }
+
+        const sprite = this.createSymbolSprite(shape, color, labelText);
+        sprite.position.copy(position);
+        sprite.position.y = 0.5;
+
+        // SCALE ADJUSTMENT FOR VISIBILITY
+        if (shape === 'POLE_X') {
+            sprite.scale.set(30, 30, 1); // VERY LARGE Pole - Square Scale
+        } else {
+            sprite.scale.set(4, 4, 1); // Standard scale for others
+        }
+
+        this.app.scene.add(sprite);
+
+        // Render Tag if present (e.g. Existing Pole Tag)
+        let tagSprite = null;
+        if (attributes.tag) {
+            tagSprite = this.createTextSprite(attributes.tag, color); // Pass Symbol Color
+            tagSprite.position.copy(position);
+            tagSprite.position.z -= 10; // Offset "up" significantly (North)
+            tagSprite.position.y = 5;   // Higher z-index visually? No, y is up. Lift it up so it doesn't clip.
+            this.app.scene.add(tagSprite);
+        }
+
+        this.app.drawnObjects.push({
+            type: 'POINT',
+            category: category,
+            baseKey: key,
+            attributes: attributes,
+            unit_code: unitData.unit_code,
+            position: position.clone(),
+            mesh: sprite,
+            tagMesh: tagSprite // Store for undo/cleanup
+        });
+
+        this.app.updateTotals();
+    }
+
+    startDrawing(position) {
+        this.isDrawing = true;
+        this.startPoint = position;
+
+        // --- GLOBAL DEFAULTS ENFORCEMENT ---
+        // If no explicit override, default to Black and Weight 2
+        let color = this.app.userColor || ASBUILT_THEME.EXISTING;
+
+        // Status Override (Preview) removed - strictly modal based now
+        // if (this.app.globalStatus === 'New') color = ASBUILT_THEME.NEW; ...
+
+        let weight = this.app.userWeight || 2;
+
+        if (this.app.selectedUnitKey === 'TRENCH') {
+            color = '#FF0000';
+            weight = 3;
+        }
+
+        // STRAND Force Thickness 3 (User Request)
+        if (this.app.selectedUnitKey === 'STRAND_10M' || this.app.selectedUnitKey === 'STRAND') {
+            weight = 3;
+        }
+
+
+
+        // Removal Tool Pre-selection Color Override
+        if (this.app.selectedUnitKey && this.app.selectedUnitKey.startsWith('RMV_')) {
+            color = ASBUILT_THEME.REMOVE;
+        }
+
+        const key = this.app.selectedUnitKey;
+        const isStrand = (key === 'STRAND' || key === 'STRAND_10M');
+
+        if (['LINE', 'PENCIL', 'STRAND', 'TRENCH', 'BORE', 'DIMENSION', 'CALLOUT'].includes(this.app.activeTool)) {
+            // Special handling for Cables (including Removal) -> Group { Line, Markers }
+            // ALSO handling                const key = this.app.selectedUnitKey;
+            const isCable = key === 'COPPER_CABLE' || key === 'FIBER_CABLE' || (key && key.startsWith('RMV_'));
+            // Treat TRENCH and BORE as "Strand-like" (Mesh Lines) for thickness support
+            const isStrand = (key === 'STRAND' || key === 'STRAND_10M');
+            const isTrench = key === 'TRENCH';
+            const isBore = key === 'BORE';
+            const isMeshLine = isCable || isStrand || isTrench || isBore;
+
+            if (isMeshLine) {
+                this.currentShape = new THREE.Group();
+                this.currentShape.name = isStrand ? 'STRAND_GROUP' : 'CABLE_GROUP'; // Reuse Group Name or generic? 
+                // Let's stick to CABLE_GROUP for general mesh-lines unless it needs specific handling
+
+                if (key.startsWith('RMV_')) {
+                    color = ASBUILT_THEME.REMOVE;
+                } else if (isStrand) {
+                    color = this.app.userColor || '#000000';
+                    if (this.app.userColor === '#0284c7') color = '#000000';
+                } else if (isTrench || isBore) {
+                    color = '#8B4513'; // Construction Brown
+                } else {
+                    color = ASBUILT_THEME.EXISTING;
+                }
+
+                // 1. The Line (Mesh for thickness)
+                const geometry = new THREE.PlaneGeometry(1, 1);
+                geometry.translate(0.5, 0, 0); // Anchor at start
+
+                let material;
+                if (isStrand || isBore) {
+                    const dashTexture = this.createDashedTexture();
+                    material = new THREE.MeshBasicMaterial({
+                        color: color,
+                        side: THREE.DoubleSide,
+                        map: dashTexture,
+                        transparent: true,
+                        alphaTest: 0.1
+                    });
+                } else {
+                    material = new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide });
+                }
+
+                const line = new THREE.Mesh(geometry, material);
+                line.rotation.x = -Math.PI / 2; // Flat on ground
+                line.position.y = 0.5;
+                line.name = 'line_mesh';
+                this.currentShape.add(line);
+
+                // 2. The Markers Group (Only for Cables)
+                if (isCable) {
+                    const markers = new THREE.Group();
+                    markers.name = 'markers_group';
+                    this.currentShape.add(markers);
+                }
+            }
+            else {
+                // Standard Line logic
+                const geometry = new THREE.BufferGeometry();
+                const vertices = new Float32Array([position.x, 0.5, position.z, position.x, 0.5, position.z]);
+                geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
+                let material;
+                if (this.app.activeTool === 'STRAND') {
+                    // Default to Black if user hasn't picked a custom color (assuming Blue #0284c7 is default)
+                    // Otherwise use the user's selected color.
+                    const isDefaultColor = !this.app.userColor || this.app.userColor === '#0284c7';
+                    const strandColor = isDefaultColor ? 0x000000 : this.app.userColor;
+
+                    material = new THREE.LineDashedMaterial({
+                        color: strandColor,
+                        linewidth: weight,
+                        scale: 1,
+                        dashSize: 4, // Increased slightly for visibility
+                        gapSize: 3
+                    });
+                } else {
+                    material = new THREE.LineBasicMaterial({ color: color, linewidth: weight });
+                }
+
+                this.currentShape = new THREE.Line(geometry, material);
+                if (this.app.activeTool === 'STRAND') this.currentShape.computeLineDistances();
+            }
+        }
+        else if (this.app.activeTool === 'ARROW') {
+            // Arrow is a Group: Line + Cone
+            this.currentShape = new THREE.Group();
+
+            const lineGeom = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 0, 0, 0]), 3));
+            const lineMat = new THREE.LineBasicMaterial({ color: color, linewidth: weight });
+            const line = new THREE.Line(lineGeom, lineMat);
+            line.name = 'arrow_line';
+
+            const headGeom = new THREE.ConeGeometry(1, 4, 8);
+            const headMat = new THREE.MeshBasicMaterial({ color: color });
+            const head = new THREE.Mesh(headGeom, headMat);
+            head.name = 'arrow_head';
+            head.visible = false; // Hide until we have direction
+
+            this.currentShape.add(line, head);
+        }
+        else if (this.app.activeTool === 'ANCHOR') {
+            // Default Black if not user override
+            const isDefaultColor = !this.app.userColor || this.app.userColor === '#0284c7';
+            const anchorColor = isDefaultColor ? '#000000' : this.app.userColor;
+
+            // Dynamic look up of shape/icon from dictionary
+            const category = this.app.activeCategory;
+            const key = this.app.selectedUnitKey;
+            const catData = SMART_UNIT_DICTIONARY[category];
+            const symbol = catData?.symbols.find(s => s.key === key);
+            const shape = symbol?.shape || 'ANCHOR_ARROW';
+            const icon = symbol?.icon || '--<'; // Fallback
+
+            this.currentShape = this.createSymbolSprite(shape, anchorColor, icon);
+            this.currentShape.position.copy(position);
+            this.currentShape.position.y = 0.5;
+
+            // Re-creating as a Mesh Plane for rotation capability
+            const texture = this.currentShape.material.map;
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, color: anchorColor });
+            // Aspect ratio? The sprite was 10x10. Let's make a plane 10x10.
+            const geometry = new THREE.PlaneGeometry(10, 10);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.x = -Math.PI / 2; // Flat on ground
+            mesh.position.copy(position);
+            mesh.position.y = 0.5;
+
+            // Let's manually create the anchor mesh here.
+            this.currentShape = mesh;
+        }
+        else if (this.app.activeTool === 'RECT') {
+            this.currentShape = new THREE.Group();
+            this.currentShape.name = 'RECT_GROUP';
+
+            // Visual Line
+            const points = [
+                new THREE.Vector3(position.x, 0.5, position.z),
+                new THREE.Vector3(position.x, 0.5, position.z),
+                new THREE.Vector3(position.x, 0.5, position.z),
+                new THREE.Vector3(position.x, 0.5, position.z)
+            ];
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ color: color, linewidth: weight });
+            const line = new THREE.LineLoop(geometry, material);
+            line.name = 'rect_visual';
+            this.currentShape.add(line);
+
+            // Hit Plane (for easy selection)
+            const planeGeom = new THREE.PlaneGeometry(1, 1);
+            const planeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.01, side: THREE.DoubleSide, depthTest: false });
+            const plane = new THREE.Mesh(planeGeom, planeMat);
+            plane.rotation.x = -Math.PI / 2;
+            plane.name = 'rect_hit_plane';
+            plane.visible = false;
+            this.currentShape.add(plane);
+        }
+        else if (this.app.activeTool === 'CIRCLE') {
+            const segmentCount = 64;
+            const points = new Array(segmentCount).fill(new THREE.Vector3(position.x, 0.5, position.z));
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ color: color, linewidth: weight });
+            this.currentShape = new THREE.LineLoop(geometry, material);
+        }
+        else if (this.app.activeTool === 'PENCIL') {
+            const points = [new THREE.Vector3(position.x, 0.5, position.z)];
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ color: color, linewidth: weight });
+            this.currentShape = new THREE.Line(geometry, material);
+            this.currentShape.userData.points = points;
+        }
+
+        if (this.currentShape) this.app.scene.add(this.currentShape);
+    }
+
+    updateShapePreview(currentPos) {
+        const start = this.startPoint;
+        if (!this.currentShape) return;
+        const key = this.app.selectedUnitKey;
+
+        if (['LINE', 'STRAND', 'TRENCH', 'BORE'].includes(this.app.activeTool)) {
+            const isCable = key === 'COPPER_CABLE' || key === 'FIBER_CABLE' || (key && key.startsWith('RMV_'));
+            const isStrand = (key === 'STRAND' || key === 'STRAND_10M');
+            const isTrench = key === 'TRENCH';
+            const isBore = key === 'BORE';
+            const isMeshLine = isCable || isStrand || isTrench || isBore;
+
+            if (isMeshLine) {
+
+                // Handle Group: line_mesh, markers_group (Strand has no markers group but logic safe check)
+                const line = this.currentShape.getObjectByName('line_mesh');
+                const markers = this.currentShape.getObjectByName('markers_group'); // Undefined for Strand
+
+                // Update Line Mesh (Scale and Rotate)
+                const dx = currentPos.x - start.x;
+                const dz = currentPos.z - start.z;
+                const dist = Math.sqrt(dx * dx + dz * dz) || 0.001;
+
+                // Scale: X = Length, Y = Thickness
+                let thickness = 0.5 + ((this.app.userWeight || 2) * 0.2);
+
+                if (key.includes('STRAND')) thickness = 1.5;
+                if (key === 'TRENCH') thickness = 2.0; // Thickness 4 -> ~2.0 units
+                if (key === 'BORE') thickness = 1.5;   // Thickness 3 -> ~1.5 units
+
+                line.scale.set(dist, thickness, 1);
+
+                // Update Texture Repeat for Strand/Bore
+                if ((isStrand || isBore) && line.material.map) {
+                    // Repeat texture every 4 units
+                    const repeat = dist / 4;
+                    line.material.map.repeat.set(repeat, 1);
+                }
+
+                // Position: Midpoint of the line
+                // The Mesh is centered at origin (0,0) of local space?
+                // Geometry was: PlaneGeometry(1, 1).translate(0.5, 0, 0); 
+                // So origin is at Left edge.
+
+                line.position.copy(start);
+                line.position.y = 0.5;
+
+                // Rotation:
+                // Default: +X direction.
+                // We want +X to point to currentPos.
+                // Angle atan2(dz, dx) is angle from +X (CCW).
+                // Rotation Y = -angle.
+                // Mesh is flat on ground (Rotation X = -90).
+                // Initial: Normal +Y (Up). Local X = World X. Local Y = World -Z.
+                // We rotate around World Y.
+                // Since object is rotated X=-90, Local Z axis is World Y axis?
+                // X cross Y -> Z.
+                // X (Right), Y (Up), Z (Forward).
+                // Rot X -90:
+                // New Y axis points along -Z (Away).
+                // New Z axis points along +Y (Up).
+                // So rotating around Local Z rotates around World Y.
+                // Rotation is CCW.
+                // Angle `atan2(dz, dx)` is standard math angle (CCW from +X).
+                // So `line.rotation.z = angle` should work if Z is Up.
+
+                // Let's reset rotation completely to ensure cleanliness
+                line.rotation.set(-Math.PI / 2, 0, 0);
+                line.rotateZ(Math.atan2(dz, dx));
+                // Note: reduce atan2(dz, dx) to flip if needed? 
+                // Check coordinate system: 
+                // +Z in ThreeJS is towards viewer (Screen).
+                // +X Right.
+                // atan2(dz, dx): (0, 1) -> +Z -> PI/2.
+                // Rotate Z by PI/2 (90 deg CCW).
+                // Original X axis -> Points along Local Y? 
+                // Local Y was World -Z.
+                // So X -> -Z.
+                // But we want X -> +Z.
+                // So we need -Math.atan2(dz, dx)? 
+
+                // Try: -angle
+                // (0, 1) -> angle PI/2. -PI/2 = -90.
+                // X -> -90 deg -> Points +Z? 
+                // Standard Right Hand Rule around Z (Up): X -> Y.
+                // Local X -> Local Y (-World Z). 
+                // So +90 means X points Away (-Z).
+                // We want X points Towards (+Z).
+                // So -90.
+                // Thus: -angle works.
+                line.rotation.set(-Math.PI / 2, 0, -Math.atan2(dz, dx));
+
+                // Update Markers (Cables Only)
+                if (markers) {
+                    markers.clear();
+                    const spacing = 40; // Every 40 units
+                    const count = Math.floor(dist / spacing);
+
+                    if (count > 0) {
+                        const dir = new THREE.Vector3().subVectors(currentPos, start).normalize();
+                        if (key.startsWith('RMV_')) previewColor = ASBUILT_THEME.REMOVE;
+
+                        const symbolShape = (key.includes('COPPER')) ? 'COPPER_C' : 'FIBER_F';
+
+                        // Lookup Symbol Data for Custom Text (e.g. X-AC-X)
+                        let customText = null;
+                        const catData = SMART_UNIT_DICTIONARY[this.app.activeCategory];
+                        const symbolData = catData?.symbols.find(s => s.key === key);
+
+                        if (symbolData && symbolData.icon) {
+                            customText = symbolData.icon;
+                        }
+
+                        for (let i = 1; i <= count; i++) {
+                            const sprite = this.createSymbolSprite(symbolShape, previewColor, customText);
+                            const pos = start.clone().add(dir.clone().multiplyScalar(i * spacing));
+                            sprite.position.copy(pos);
+                            sprite.position.y = 0.75; // Left up to verify visibility
+                            sprite.scale.set(16, 16, 1); // Double size
+                            // Rotate sprite to match line angle?
+                            // Sprites always face camera usually. Or flat.
+                            // Existing createSymbolSprite makes a sprite (billboard).
+                            // If we want flat text on ground, we need a Mesh, not Sprite.
+                            // createSymbolSprite returns a Sprite?
+                            // Let's check definition. It returns THREE.Sprite or Mesh?
+                            // It returns a Sprite (Material uses canvas).
+                            // Sprites always face camera.
+                            // If user wants them strictly on the line, Sprite is okay but "flat" text is better.
+                            // But let's stick to Sprite for compatibility with existing code unless requested.
+                            markers.add(sprite);
+                        }
+                    }
+                }
+                else {
+                    const positions = this.currentShape.geometry.attributes.position.array;
+                    positions[3] = currentPos.x;
+                    positions[4] = 0.5;
+                    positions[5] = currentPos.z;
+                    this.currentShape.geometry.attributes.position.needsUpdate = true;
+                    if (this.app.activeTool === 'STRAND') {
+                        this.currentShape.computeLineDistances();
+                    }
+                }
+            }
+        }
+        else if (this.app.activeTool === 'DIMENSION') {
+            // Basic Line with End ticks
+            // Geometry needs to be dynamic. 
+            // Logic: Draw line from Start to Current.
+            // Visuals: Center text is handled in finishDrawing usually, but we could preview?
+            // Just draw the line and cross-bars for now.
+
+            const positions = this.currentShape.geometry.attributes.position.array;
+            positions[0] = start.x; positions[1] = 0.5; positions[2] = start.z;
+            positions[3] = currentPos.x; positions[4] = 0.5; positions[5] = currentPos.z;
+            this.currentShape.geometry.attributes.position.needsUpdate = true;
+        }
+        else if (this.app.activeTool === 'CALLOUT') {
+            // Line from Start (Target) to Current (Text Box location)
+            const positions = this.currentShape.geometry.attributes.position.array;
+            positions[0] = start.x; positions[1] = 0.5; positions[2] = start.z;
+            positions[3] = currentPos.x; positions[4] = 0.5; positions[5] = currentPos.z;
+            this.currentShape.geometry.attributes.position.needsUpdate = true;
+        }
+        else if (this.app.activeTool === 'ARROW') {
+            const line = this.currentShape.getObjectByName('arrow_line');
+            const head = this.currentShape.getObjectByName('arrow_head');
+
+            // Update Line
+            const positions = line.geometry.attributes.position.array;
+            positions[0] = start.x; positions[1] = 0.5; positions[2] = start.z;
+            positions[3] = currentPos.x; positions[4] = 0.5; positions[5] = currentPos.z;
+            line.geometry.attributes.position.needsUpdate = true;
+
+            // Update Head
+            const dir = new THREE.Vector3().subVectors(currentPos, start);
+            const length = dir.length();
+            if (length > 0.1) {
+                head.visible = true;
+                head.position.copy(currentPos);
+
+                const arrowDir = dir.clone().normalize();
+                const axis = new THREE.Vector3(0, 1, 0).cross(arrowDir).normalize();
+                const angle = Math.acos(new THREE.Vector3(0, 1, 0).dot(arrowDir));
+                head.quaternion.setFromAxisAngle(axis, angle);
+
+                const scale = (this.app.userWeight || 2) * 0.5;
+                head.scale.set(scale, scale, scale);
+            }
+        }
+        else if (this.app.activeTool === 'ANCHOR') {
+            const dx = currentPos.x - start.x;
+            const dz = currentPos.z - start.z;
+            const angle = Math.atan2(dz, dx);
+            if (this.currentShape) {
+                this.currentShape.rotation.z = -angle;
+            }
+        }
+        else if (this.app.activeTool === 'RECT') {
+            const line = this.currentShape.getObjectByName('rect_visual');
+            const plane = this.currentShape.getObjectByName('rect_hit_plane');
+
+            // Update Line
+            const points = [
+                new THREE.Vector3(start.x, 0.5, start.z),
+                new THREE.Vector3(currentPos.x, 0.5, start.z),
+                new THREE.Vector3(currentPos.x, 0.5, currentPos.z),
+                new THREE.Vector3(start.x, 0.5, currentPos.z)
+            ];
+            line.geometry.setFromPoints(points);
+
+            // Update Hit Plane
+            const centerX = (start.x + currentPos.x) / 2;
+            const centerZ = (start.z + currentPos.z) / 2;
+            const width = Math.abs(currentPos.x - start.x);
+            const height = Math.abs(currentPos.z - start.z);
+
+            plane.position.set(centerX, 0.5, centerZ);
+            plane.scale.set(Math.max(0.1, width), Math.max(0.1, height), 1);
+            plane.visible = true;
+        }
+        else if (this.app.activeTool === 'CIRCLE') {
+            const radius = start.distanceTo(currentPos);
+            const segments = 64;
+            const points = [];
+            for (let i = 0; i < segments; i++) {
+                const theta = (i / segments) * Math.PI * 2;
+                points.push(new THREE.Vector3(start.x + Math.cos(theta) * radius, 0.5, start.z + Math.sin(theta) * radius));
+            }
+            this.currentShape.geometry.setFromPoints(points);
+        }
+        else if (this.app.activeTool === 'PENCIL') {
+            // Append new point
+            const points = Array.from(this.currentShape.geometry.attributes.position.array);
+            // BufferGeometry is static sized by default, need to create new one or use setFromPoints if we kept the points array
+            // PENCIL is complex with BufferGeometry. Let's simplify: PENCIL creates a new Line segment for each move? 
+            // Or easier: reconstruct geometry from tracked points.
+            // We need to track points in instance.
+            if (!this.currentShape.userData.points) this.currentShape.userData.points = [start];
+            this.currentShape.userData.points.push(currentPos);
+            this.currentShape.geometry.setFromPoints(this.currentShape.userData.points);
+        }
+    }
+
+    finishDrawing(endPosition) {
+        this.isDrawing = false;
+        if (this.startPoint.distanceTo(endPosition) < 0.5 && this.app.activeTool !== 'PENCIL') {
+            this.cancelDrawing();
+            return;
+        }
+
+        const category = this.app.activeCategory;
+        const key = this.app.selectedUnitKey;
+        const isTelecom = category !== 'basic' && category !== undefined;
+        // Include STRAND in this logic
+        if (isTelecom && (['LINE', 'POINT', 'STRAND', 'TRENCH', 'BORE', 'ANCHOR', 'ARROW'].includes(this.app.activeTool))) {
+            this.app.showSmartModal(category, key, (attributes) => {
+                if (!attributes) {
+                    this.cancelDrawing();
+                    return;
+                }
+
+                const isWreckout = key === 'CABLE_WRECKOUT';
+                if (isWreckout) {
+                    this.addWreckoutMarkers(this.startPoint, endPosition);
+                }
+
+                // Resolve Unit to get Billing and Color
+                const unitData = resolveSmartUnit(category, key, attributes);
+                let finalColor = unitData.color;
+
+                // Fallback Color Logic
+                if (!finalColor) {
+                    if (key === 'TRENCH') finalColor = '#FF0000';
+                    else if (attributes.condition === 'New') finalColor = ASBUILT_THEME.NEW;
+                    else if (attributes.condition === 'Remove') finalColor = ASBUILT_THEME.REMOVE;
+                    else finalColor = ASBUILT_THEME.EXISTING;
+                }
+
+                // Force Update Mesh Color
+                if (this.currentShape) {
+                    this.currentShape.traverse(c => {
+                        if (c.material) {
+                            if (c.material.color) c.material.color.set(finalColor);
+                            if (c.name === 'arrow_head') c.visible = true;
+                        }
+                    });
+                    // Special case: Dashed Lines might need re-calc if something changed, but color set is enough
+                    // If it's a LineDashedMaterial, standard .set works.
+                }
+
+                this.app.drawnObjects.push({
+                    type: this.app.activeTool,
+                    category: category,
+                    baseKey: key,
+                    attributes: attributes,
+                    mesh: this.currentShape,
+                    start: this.startPoint.clone(),
+                    end: endPosition.clone(),
+                    length: this.startPoint.distanceTo(endPosition),
+                    color: finalColor
+                });
+
+                this.currentShape = null;
+                this.app.updateTotals();
+            });
+        }
+        else if (this.app.activeTool === 'DIMENSION') {
+            // Calculate distance and add Text Label
+            const dist = this.startPoint.distanceTo(endPosition).toFixed(1) + "'";
+
+            // 1. The Line
+            this.app.drawnObjects.push({
+                type: 'DIMENSION_LINE',
+                category: 'basic',
+                start: this.startPoint.clone(),
+                end: endPosition.clone(),
+                mesh: this.currentShape,
+                color: '#000000'
+            });
+
+            // 2. The Text (Centered)
+            const mid = new THREE.Vector3().addVectors(this.startPoint, endPosition).multiplyScalar(0.5);
+            this.placeText(mid, dist); // Use existing placeText for now, maybe style it smaller later
+
+            this.currentShape = null;
+        }
+        else if (this.app.activeTool === 'CALLOUT') {
+            // 1. Prompt for Text
+            const text = prompt("Enter Note:", "");
+            if (!text) {
+                this.cancelDrawing();
+                return;
+            }
+
+            // 2. The Leader Line
+            this.app.drawnObjects.push({
+                type: 'CALLOUT_LINE',
+                category: 'basic',
+                start: this.startPoint.clone(),
+                end: endPosition.clone(),
+                mesh: this.currentShape,
+                color: '#000000'
+            });
+
+            // 3. The Text Box (at end point)
+            // We'll use a specialized "BOXED_TEXT" style if possible, or just Text for now
+            this.placeText(endPosition, text);
+
+            this.currentShape = null;
+        }
+        else {
+            // Basic tool: Persistent entry
+            this.app.drawnObjects.push({
+                type: this.app.activeTool,
+                category: 'basic',
+                baseKey: key,
+                mesh: this.currentShape,
+                start: this.startPoint.clone(),
+                end: endPosition.clone(),
+                color: '#000000', // STRICT ENFORCEMENT OF BLACK
+                weight: this.app.userWeight || 2
+            });
+            this.currentShape = null;
+            this.app.updateTotals();
+        }
+    }
+
+    cancelDrawing() {
+        this.isDrawing = false;
+        if (this.currentShape) {
+            this.app.scene.remove(this.currentShape);
+            this.currentShape = null;
+        }
+        this.startPoint = null;
+    }
+
+
+
+    createSymbolSprite(shape, colorHex, label) {
+        // Draw in WHITE so we can tint it with material color
+        const drawColor = '#FFFFFF';
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const size = 256; // Increased further for long text
+        canvas.width = size; // Default width, might resize if label is long
+        canvas.height = size; // Square default
+
+        // If label is custom string (Removals), resize canvas to rectangle
+        // SKIP resizing for POLE_X to keep it square!
+        if (label && label.length > 3 && shape !== 'POLE_X') {
+            canvas.width = 512;
+            canvas.height = 128;
+        } else if (shape === 'POLE_X') {
+            // Force Square Large Canvas for Pole
+            canvas.width = 512;
+            canvas.height = 512;
+        }
+
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const lineWidth = 2;
+
+        ctx.strokeStyle = drawColor;
+        ctx.fillStyle = drawColor;
+        ctx.lineWidth = lineWidth;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Specific Shapes First to avoid Label override
+        // Specific Shapes First to avoid Label override
+        if (shape === 'POLE_X') {
+            // Circle with X
+            ctx.lineWidth = 12; // Much Thicker lines for visibility
+            ctx.beginPath();
+            // Larger Circle (Radius 120) centered in 512x512
+            // CenterY is 256. Shift up slightly for text space?
+            // Let's keep it centered or slightly up.
+            ctx.arc(centerX, centerY - 60, 120, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Large X
+            // 45 degrees.
+            const r = 85; // Length of arms from center
+            ctx.beginPath();
+            ctx.moveTo(centerX - r, (centerY - 60) - r);
+            ctx.lineTo(centerX + r, (centerY - 60) + r);
+            ctx.moveTo(centerX + r, (centerY - 60) - r);
+            ctx.lineTo(centerX - r, (centerY - 60) + r);
+            ctx.stroke();
+
+            // Draw Tag Text Below
+            if (label) {
+                ctx.font = 'bold 80px Arial'; // Large Font
+                ctx.fillStyle = colorHex; // Text in Color
+                ctx.fillText(label, centerX, centerY + 160); // Position below circle
+            }
+        }
+        // Custom Text Label Override (For Removals or non-shapes with long text)
+        else if (label && label.length > 3) {
+            ctx.font = 'bold 36px Arial'; // Slightly smaller for long labels
+            ctx.fillText(label, centerX, centerY);
+        }
+        else if (shape === 'COPPER_C') {
+            // "C" Symbol
+            ctx.font = 'bold 40px Arial'; // Reduced size (User request: smaller font)
+            ctx.fillText("C", centerX, centerY);
+        }
+        else if (shape === 'FIBER_F') {
+            // "F" Symbol
+            ctx.font = 'bold 40px Arial'; // Reduced size
+            ctx.fillText("F", centerX, centerY);
+        }
+        else if (shape === 'SQUARE_DOT' || shape === 'PED') {
+            ctx.strokeRect(centerX - s, centerY - s, s * 2, s * 2);
+            ctx.font = 'bold 40px Arial';
+            ctx.fillText("P", centerX, centerY);
+        }
+        else if (shape === 'HH_BOX') {
+            ctx.font = 'bold 40px Arial';
+            ctx.fillText("P", centerX, centerY);
+        }
+        else if (shape === 'rect_divided_H') {
+            // Rectangle with center line and "H" on each side
+            const w = size;
+            const h = size / 2;
+            const x = centerX - w;
+            const y = centerY - h;
+
+            // Box
+            ctx.strokeRect(x, y, w * 2, h * 2);
+
+            // Center Line
+            ctx.beginPath();
+            ctx.moveTo(centerX, y);
+            ctx.lineTo(centerX, y + h * 2);
+            ctx.stroke();
+
+            // "H" on left and right
+            ctx.font = 'bold 36px Arial';
+            ctx.fillText("H", centerX - (w / 2), centerY + 12);
+            ctx.fillText("H", centerX + (w / 2), centerY + 12);
+        }
+        else if (shape === 'square_x') {
+            // Square with X
+            const s = size / 1.5;
+            const x = centerX - s;
+            const y = centerY - s;
+
+            // Box
+            ctx.strokeRect(x, y, s * 2, s * 2);
+
+            // X
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + s * 2, y + s * 2);
+            ctx.moveTo(x + s * 2, y);
+            ctx.lineTo(x, y + s * 2);
+            ctx.stroke();
+        }
+        else if (shape === 'HH_BOX') {
+            // Rectangle with HH
+            const w = size / 2;
+            const h = size / 3;
+            ctx.strokeRect(centerX - w, centerY - h, w * 2, h * 2);
+            ctx.font = 'bold 36px Arial';
+            ctx.fillText("HH", centerX, centerY);
+        }
+        else if (shape === 'DIAMOND') {
+            // Diamond for Splice
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY - 60);
+            ctx.lineTo(centerX + 60, centerY);
+            ctx.lineTo(centerX, centerY + 60);
+            ctx.lineTo(centerX - 60, centerY);
+            ctx.closePath();
+            ctx.stroke();
+            // Fill slightly?
+            ctx.fillStyle = colorHex;
+            ctx.globalAlpha = 0.2;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+        else if (shape === 'RECT_LABEL') {
+            // Vault/MPOP with Label
+            const w = size / 2; // Wide box
+            const h = size / 2;
+            ctx.strokeRect(centerX - w, centerY - h, w * 2, h * 2);
+
+            // Draw Tag inside if available (passed as label?)
+            // If label is "V" or "MPOP", showing that is fine.
+            // But if attributes.tag exists, we want THAT.
+            // createSymbolSprite is called with (shape, color, unit_code OR text).
+            // We need to pass the tag in the label.
+            if (label) {
+                ctx.font = 'bold 32px Arial';
+                ctx.fillText(label, centerX, centerY);
+            }
+        }
+        else if (shape === 'MPOP') {
+            // Specific MPOP box? Or just RECT_LABEL
+            const s = 50;
+            ctx.strokeRect(centerX - s, centerY - s, s * 2, s * 2);
+            ctx.font = 'bold 32px Arial';
+            ctx.fillText("MPOP", centerX, centerY);
+        }
+        else if (shape === 'SQUARE') {
+            const s = 40;
+            ctx.fillRect(centerX - s, centerY - s, s * 2, s * 2);
+        }
+        else if (shape === 'ANCHOR_ARROW') {
+            // Anchor Arrow >--|
+            ctx.beginPath();
+            ctx.moveTo(centerX - 40, centerY);
+            ctx.lineTo(centerX + 40, centerY);
+            // Head
+            ctx.moveTo(centerX + 20, centerY - 20);
+            ctx.lineTo(centerX + 40, centerY);
+            ctx.lineTo(centerX + 20, centerY + 20);
+            // Bar
+            ctx.moveTo(centerX - 40, centerY - 20);
+            ctx.lineTo(centerX - 40, centerY + 20);
+            ctx.stroke();
+        }
+        else if (shape === 'SIMPLE_ARROW') {
+            // Arrow ->
+            ctx.beginPath();
+            ctx.moveTo(centerX - 40, centerY);
+            ctx.lineTo(centerX + 40, centerY);
+            ctx.moveTo(centerX + 20, centerY - 20);
+            ctx.lineTo(centerX + 40, centerY);
+            ctx.lineTo(centerX + 20, centerY + 20);
+            ctx.stroke();
+        }
+        else {
+            // Default Circle
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 20, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture, color: colorHex });
+        const sprite = new THREE.Sprite(material);
+
+        if (label && label.length > 3) {
+            sprite.scale.set(30, 7.5, 1); // Wide rectangle for text
+        } else {
+            sprite.scale.set(10, 10, 1); // Standard square
+        }
+
+        return sprite;
+    }
+
+
+
+
+
+    recreateObject(data) {
+        if (data.type === 'POINT') {
+            const attributes = data.attributes || {};
+            const unitData = resolveUnit(data.baseKey, attributes);
+            let color = data.color || '#000000';
+            if (attributes.condition === 'Remove') color = '#8B0000';
+            else if (attributes.condition === 'New') color = '#008000';
+            const shape = data.shape || 'SQUARE';
+
+            const sprite = this.createSymbolSprite(shape, color, unitData.unit_code);
+            const pos = new THREE.Vector3(data.position.x, data.position.y, data.position.z);
+            sprite.position.copy(pos);
+            sprite.position.y = 0.5;
+            this.app.scene.add(sprite);
+
+            // Restore Tag if present
+            let tagSprite = null;
+            if (attributes.tag) {
+                tagSprite = this.createTextSprite(attributes.tag);
+                tagSprite.position.copy(pos);
+                tagSprite.position.z -= 5;
+                tagSprite.position.y = 5;
+                this.app.scene.add(tagSprite);
+            }
+
+            this.app.drawnObjects.push({
+                type: 'POINT',
+                category: data.category || 'aerial',
+                baseKey: data.baseKey,
+                attributes: attributes,
+                unit_code: unitData.unit_code,
+                position: pos,
+                mesh: sprite,
+                tagMesh: tagSprite,
+                depth: data.depth
+            });
+        }
+        else if (data.type === 'LINE') {
+            const unitData = resolveUnit(data.baseKey, {});
+            // Use saved color if available (Red/Black), otherwise fallback
+            // Use saved color if available (Red/Black), otherwise fallback
+            let color = data.color || unitData.color || '#38bdf8';
+            if (data.baseKey && data.baseKey.startsWith('RMV_')) color = '#FF0000';
+            else if (data.attributes && data.attributes.condition === 'New') color = '#008000'; // Force Green for New
+            else if (data.attributes && data.attributes.condition === 'Existing') color = '#000000'; // Force Black for Existing
+
+            // Check if this is a Cable Group (Mesh + Markers)
+            if (['COPPER_CABLE', 'FIBER_CABLE'].includes(data.baseKey) || (data.baseKey && data.baseKey.startsWith('RMV_'))) {
+                const group = new THREE.Group();
+                group.name = 'CABLE_GROUP';
+
+                // 1. Rebuild Line Mesh
+                const dist = data.length || new THREE.Vector3(data.start.x, data.start.y, data.start.z).distanceTo(new THREE.Vector3(data.end.x, data.end.y, data.end.z));
+                const geometry = new THREE.PlaneGeometry(1, 1);
+                geometry.translate(0.5, 0, 0);
+                const material = new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide });
+                const line = new THREE.Mesh(geometry, material);
+                line.rotation.x = -Math.PI / 2;
+                line.position.y = 0.5;
+                line.name = 'line_mesh';
+
+                // Transform logic (same as updateShapePreview)
+                const start = new THREE.Vector3(data.start.x, data.start.y, data.start.z);
+                const end = new THREE.Vector3(data.end.x, data.end.y, data.end.z);
+                const dx = end.x - start.x;
+                const dz = end.z - start.z;
+                const angle = Math.atan2(dz, dx);
+
+                line.scale.set(dist, 1, 1);
+                line.scale.y = (data.weight || 2) * 0.3; // Default 2 weight
+                line.position.copy(start);
+                line.rotation.set(-Math.PI / 2, 0, -angle);
+
+                group.add(line);
+
+                // 2. Rebuild Markers
+                const markers = new THREE.Group();
+                markers.name = 'markers_group';
+                const spacing = 40;
+                const count = Math.floor(dist / spacing);
+                if (count > 0) {
+                    const dir = new THREE.Vector3().subVectors(end, start).normalize();
+                    let symbolShape = (data.baseKey.includes('COPPER')) ? 'COPPER_C' : 'FIBER_F';
+
+                    let customText = null;
+                    if (data.baseKey === 'RMV_AER_COPPER') customText = 'XX-AER COP--XX';
+                    else if (data.baseKey === 'RMV_UG_COPPER') customText = 'XX-COP UG-XX';
+                    else if (data.baseKey === 'RMV_AER_FIBER') customText = 'XX-AER FIB-XX';
+                    else if (data.baseKey === 'RMV_UG_FIBER') customText = 'XX-FIB UG-XX';
+
+                    // Markers inherit the final color (Red/Black)
+                    for (let i = 1; i <= count; i++) {
+                        const sprite = this.createSymbolSprite(symbolShape, color, customText); // Use final color
+                        const pos = start.clone().add(dir.clone().multiplyScalar(i * spacing));
+                        sprite.position.copy(pos);
+                        sprite.position.y = 0.75;
+                        sprite.scale.set(16, 16, 1);
+                        markers.add(sprite);
+                    }
+                }
+                group.add(markers);
+
+                this.app.scene.add(group);
+                this.app.drawnObjects.push({
+                    ...data,
+                    mesh: group
+                });
+                return; // Done for Cable
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            const vertices = new Float32Array([
+                data.start.x, data.start.y, data.start.z,
+                data.end.x, data.end.y, data.end.z
+            ]);
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
+            let material;
+            if (data.baseKey && data.baseKey.includes('STRAND')) {
+                material = new THREE.LineDashedMaterial({
+                    color: 0x000000,
+                    linewidth: 2,
+                    scale: 1,
+                    dashSize: 3,
+                    gapSize: 2
+                });
+            } else {
+                material = new THREE.LineBasicMaterial({ color: color, linewidth: 2 });
+            }
+
+            const line = new THREE.Line(geometry, material);
+            if (data.baseKey && data.baseKey.includes('STRAND')) line.computeLineDistances();
+
+            line.position.y = 0.5;
+            this.app.scene.add(line);
+
+            this.app.drawnObjects.push({
+                type: 'LINE',
+                baseKey: data.baseKey,
+                code: data.code, // Preserves custom "PLACE FIBER 144" code
+                start: new THREE.Vector3(data.start.x, data.start.y, data.start.z),
+                end: new THREE.Vector3(data.end.x, data.end.y, data.end.z),
+                length: data.length,
+                depth: data.depth,
+                mesh: line
+            });
+        }
+
+        else if (data.type === 'ANCHOR') {
+            // Recreate Anchor Mesh
+            const attributes = data.attributes || {};
+            const unitData = resolveUnit(data.baseKey, attributes);
+            let color = '#000000'; // Default Black
+            // Logic to preserve saved color if any, or condition based?
+            // Anchor creates a sprite/mesh.
+
+            // We need to rebuild the Mesh from createSymbolSprite logic
+            // But we need the rotation.
+            // We didn't save rotation explicitly in finishDrawing?
+            // finishDrawing saves `mesh: this.currentShape` which is transient.
+            // The `exportProject` loops through `drawnObjects` which has `mesh`.
+            // But for JSON export, we need to save `rotation` or `end` point to reconstruct angle.
+            // finishDrawing saves `start` and `end`. We can re-calculate angle from that.
+
+            const sprite = this.createSymbolSprite('ANCHOR_ARROW', color, '--<');
+            const texture = sprite.material.map;
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, color: color });
+            const geometry = new THREE.PlaneGeometry(10, 10);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.x = -Math.PI / 2;
+
+            // Calculate angle from start/end
+            const dx = data.end.x - data.start.x;
+            const dz = data.end.z - data.start.z;
+            const angle = Math.atan2(dz, dx);
+            mesh.rotation.z = -angle;
+
+            mesh.position.copy(data.start); // Anchor is at start, aimed at end
+            mesh.position.y = 0.5;
+
+            this.app.scene.add(mesh);
+
+            this.app.drawnObjects.push({
+                type: 'ANCHOR',
+                category: data.category,
+                baseKey: data.baseKey,
+                attributes: attributes,
+                unit_code: unitData.unit_code,
+                start: data.start,
+                end: data.end,
+                mesh: mesh
+            });
+        }
+        else if (data.type === 'TEXT' || data.type === 'MARKER') {
+            const text = data.text || 'X';
+            const sprite = this.createTextSprite(text);
+            const pos = new THREE.Vector3(data.position.x, data.position.y, data.position.z);
+            sprite.position.copy(pos);
+            sprite.position.y = 1;
+
+            if (data.type === 'MARKER') {
+                sprite.scale.set(5, 5, 1); // Specific scale for wreckout markers
+            } else {
+                // Use default scale from createTextSprite for labels
+                // But wait, createTextSprite returns a sprite with scale set.
+                // If we had a Pole Tag, we probably scaled it manually?
+                // In placePoint(pos, tag), we did: textSprite.scale.set(4, 4, 1);
+                // We didn't save the scale in JSON. The JSON for TEXT only has position and text.
+                // We might lose specific scaling for Pole Tags vs regular text labels.
+                // For now, let's assume default scaling is okay or try to guess.
+                // Regular "TEXT" tool uses default. Pole Tag uses 4,4,1.
+                // We can check if it looks like a tag? Or just accept default.
+            }
+
+            this.app.scene.add(sprite);
+
+            this.app.drawnObjects.push({
+                type: data.type, // TEXT or MARKER
+                text: text,
+                position: pos,
+                mesh: sprite
+            });
+        }
+
+        // Update totals after loading all? App calls updateTotals() after loop.
+    }
+
+    addWreckoutMarkers(start, end) {
+        const dist = start.distanceTo(end);
+        const spacing = 20; // Every 20 feet
+        const steps = Math.floor(dist / spacing);
+
+        // Direction vector
+        const dir = new THREE.Vector3().subVectors(end, start).normalize();
+
+        for (let i = 1; i <= steps; i++) {
+            const pos = start.clone().add(dir.clone().multiplyScalar(i * spacing));
+            // Use Text 'X' for wreckout marker
+            const textSprite = this.createTextSprite('X');
+            textSprite.position.copy(pos);
+            textSprite.position.y = 1;
+            textSprite.scale.set(5, 5, 1); // Smaller than standard text
+
+            // Override material color? createTextSprite uses Black text by default which matches Wreckout
+            this.app.scene.add(textSprite);
+
+            this.app.drawnObjects.push({
+                type: 'MARKER',
+                mesh: textSprite
+            });
+        }
+    }
+
+    createDashedTexture() {
+        // Create 64x64 texture for repeating dash
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+
+        // Transparent BG
+        ctx.fillStyle = 'rgba(0,0,0,0)';
+        ctx.fillRect(0, 0, 64, 64);
+
+        // White Dash (left half) - Tintable
+        ctx.fillStyle = '#FFFFFF';
+        // Draw a rect that covers 50% of the width
+        ctx.fillRect(0, 0, 32, 64);
+
+        const THREE = window.THREE || this.app.THREE;
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.minFilter = THREE.LinearFilter;
+        return texture;
+    }
+
+    placeText(position, text) {
+        const sprite = this.createTextSprite(text);
+        sprite.position.copy(position);
+        sprite.position.y = 1; // Above everything
+        this.app.scene.add(sprite);
+
+        this.app.drawnObjects.push({
+            type: 'TEXT',
+            text: text,
+            position: position,
+            mesh: sprite
+        });
+    }
+
+    createTextSprite(message) {
+        const fontface = "Arial";
+        const fontsize = 128; // High resolution for sharp text
+        // No border padding needed
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+
+        // Dynamic size
+        context.font = "Bold " + fontsize + "px " + fontface;
+        const metrics = context.measureText(message);
+        const textWidth = metrics.width;
+
+        // Size canvas to fit text
+        canvas.width = textWidth + 20;
+        canvas.height = fontsize * 1.2;
+
+        // Transparent Background (Default)
+        // No Border
+
+        // Text
+        context.font = "Bold " + fontsize + "px " + fontface;
+        context.fillStyle = "rgba(0, 0, 0, 1.0)";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(message, canvas.width / 2, canvas.height / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+
+        const material = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(material);
+
+        // Scale: Convert pixel size to World Units
+        // 128px font -> we want this to be BIG in the world. 
+        // Let's say we want the height to be roughly 15 units (bigger than pole)
+        const aspect = canvas.width / canvas.height;
+        const height = 5; // Target height in world units (Reduced)
+        const width = height * aspect;
+
+        sprite.scale.set(width, height, 1);
+
+        return sprite;
+    }
+}
+
+
+======================================================================
+===== FILE: BILLING_ANALYSIS.md =====
+======================================================================
+# North Sky Communications — Contract Billing Unit Analysis
+## Total Units: 746 (from CONTRACT-UNITS-DESCRIPTION.xlsx)
+
+---
+
+## KEY FINDINGS FOR APP INTEGRATION
+
+### What the current `units.js` gets WRONG vs. the real contract:
+
+#### POLES
+- App uses: `POLE-WOOD ${size}`, `LAB-POLE-INSTALL` ❌
+- Real codes:
+  - **Labor**: `POLE WOOD <= 40ft` (also: IN POWER, IN ROCK variants)
+  - **Labor**: `POLE WOOD > 40-55ft` (also: IN POWER, IN ROCK variants)
+  - **Material**: `POLE 30-5 DF`, `POLE 35-5 DF`, `POLE 40-5 DF`, `POLE 45-5 DF`, `POLE 50-4 DF` etc.
+  - Format: `POLE [height]-[class] DF`
+  - Classes: 2, 3, 4, 5, 6
+  - Heights: 30, 35, 40, 45, 50, 55
+  - Removal: `RMV POLE - CTL OWNED` or `RMV POLE - FOREIGN`
+
+#### STRAND
+- App uses: `STRAND 10M` ✅ (correct!)
+- Real codes: `STRAND 10M`, `STRAND 16M`, `STRAND 6M`, `STRAND 6.6M`
+- Removal: `RMV STRAND - BARE`
+
+#### DOWN GUY / ANCHOR
+- Real labor: `DOWN GUY`
+- Real material: `DOWN GUY 10M`, `DOWN GUY 16M`, `DOWN GUY 6M`
+- Also: `DOWN GUY GUARD`, `DOWN GUY INSULATOR`
+- Anchor labor: `ANCHOR - SCREW`, `ANCHOR - ROCK`, `ANCHOR - EXPAND / CROSSPLATE / BUST`, `ANCHOR - SWAMP`, `ANCHOR - MANTA RAY`
+- Anchor material: `ANCHOR SCREW 10M`, `ANCHOR ROCK 10M`, etc.
+
+#### AERIAL WORK
+- De/Relash: `AERIAL DELASH - RELASH` (per foot) ✅
+- Re-tension: `AERIAL SPAN RE-TENSION` ✅
+- Lash fiber: `LASH FIBER`
+- Lash copper: `LASH COPPER <= 400pr`, `LASH COPPER > 400pr`
+- Overlash fiber: `OVERLASH FIBER`
+- Overlash copper: `OVERLASH COPPER <= 400pr`, `OVERLASH COPPER > 400pr`
+- Fiber snowshoe: `AERIAL FIBER SNOWSHOE`
+
+#### COPPER CABLE (Material)
+- App uses: `COP CABLE ${size} ANMW` ✅ (CORRECT format!)
+- Real codes: `COP CABLE 25 ANMW`, `COP CABLE 50 ANMW`, `COP CABLE 100 ANMW`, `COP CABLE 200 ANMW`, `COP CABLE 300 ANMW`, `COP CABLE 400 ANMW`, `COP CABLE 600 ANMW`, `COP CABLE 900 ANMW`, `COP CABLE 1200 ANMW`, `COP CABLE 1500 ANMW`, `COP CABLE 1800 ANMW`
+- Special: `COP CABLE 6pr-19g`, `COP CABLE 6pr-22g`, `COP CABLE 6pr-24g`, `COP CABLE 100 BHAP SS` (self-supporting)
+- Labor for placing UG copper: `COPPER PL IN CONDUIT <= 300pr`, `COPPER PL IN CONDUIT 400-900pr`, `COPPER PL IN CONDUIT 1200-2400pr`, `COPPER PL IN CONDUIT > 2400pr`
+
+#### FIBER CABLE (Material)
+- Real codes: `FIB 12 1JKT 1ARMOR LT`, `FIB 24 1JKT 1ARMOR LT`, `FIB 48 1JKT 1ARMOR LT`, `FIB 72 1JKT 1ARMOR LT`, `FIB 96 1JKT 1ARMOR LT`, `FIB 144 1JKT 1ARMOR LT`, `FIB 216 1JKT 1ARMOR LT`
+- App uses: `FIB ${size} 1 JKT 1 ARMR` ❌ (close but wrong — no spaces in 1JKT1ARMOR)
+- **Correct format**: `FIB 48 1JKT 1ARMOR LT`
+- Self-supporting: `FIB 12 SELF SUPPORT LT`
+- Labor: `LASH FIBER`, `OVERLASH FIBER`, `FIBER PL IN CONDUIT`, `FIBER PL IN CONDUIT ADDL`
+
+#### TRENCH
+- App uses: `TRENCH - ${surface}` ❌
+- Real codes are depth+width based:
+  - `TRENCH 30in CVR <= 2.5in` (30in cover, up to 2.5in conduit)
+  - `TRENCH 30in CVR 3-6in`
+  - `TRENCH 36in CVR <= 2.5in`, `TRENCH 36in CVR 3-6in`
+  - `TRENCH 48in CVR <= 2.5in`, `TRENCH 48in CVR 3-6in`
+  - STICK variants: `TRENCH 30in CVR STICK <= 2.5in` etc.
+  - Also: `OPEN TRENCH <= 2.5in`, `OPEN TRENCH 3-6in` (for open cut)
+
+#### BORE
+- App uses: `DIRECTIONAL BORE - ${diameter}in` ❌
+- No specific bore labor code in contract — bore is part of OPEN TRENCH or separate quote
+- SPECIAL: `SPECIAL QUOTE - BORE - LE`
+
+#### HANDHOLES
+- App uses: `VAULT - SET PRECAST ${size}` ❌
+- Real codes (just HH size, no "SET PRECAST" prefix):
+  - `HH 17x30x24`, `HH 30x48x36`, `HH 30x48x36 SPLIT LID`, `HH 30x60x30`, `HH 36x60x36` etc.
+  - Format: `HH [width]x[length]x[depth]`
+  - Grounding: `HH 13x24x18 GROUNDING`
+  - Grade adj: `HH GRADE ADJUSTMENT`
+  - Maintenance: `HH OR MH MAINTENANCE`
+  - Removal: `RMV HH`
+
+#### PEDESTAL
+- Real codes: `PED 6in STAKE MOUNT`, `PED 8in STAKE MOUNT`, `PED 10in STAKE MOUNT`, `PED 12in STAKE MOUNT`
+- Fiber ped: `PED FIB 8in SQ BASE HH MOUNT`, `PED FIB 10in STAKE MOUNT` etc.
+- Sizes: SMALL (6-12in), MEDIUM (14-24in), LARGE (36-42in)
+
+#### SPLICE CASES
+- Aerial copper: `CASE AER COP [size] [type]` (201 variants)
+- Aerial fiber: `CASE AER FIB [size] [tray info]`
+- Buried: `CASE BUR COP/FIB ...`
+- Underground: `CASE UG COP/FIB ...`
+- High-level labor: `CASE COPPER NEW PRESSURE`, `CASE COPPER NEW NON-PRESSURE`, `CASE FIBER NEW`
+- Re-enter: `RE-ENTER EXIST COPPER CASE`, `RE-ENTER EXIST FIBER CASE`
+
+#### SPLICING LABOR
+- Copper splicing: `SPLICE COPPER MECHANICAL 1-25pr`, `SPLICE COPPER MECHANICAL 26-100pr`, `SPLICE COPPER MECHANICAL > 100pr`
+- Copper module: `SPLICE COPPER MODULE <= 300pr`, `SPLICE COPPER MODULE 301-900pr` etc.
+- Fiber fusion: `SPLICE FIBER FUSION 1-4`, `SPLICE FIBER FUSION 5-12`, `SPLICE FIBER FUSION 13-24` ... up to 864
+- Fiber ribbon: `SPLICE FIBER RIBBONS <=2`, `SPLICE FIBER RIBBONS 3-12` etc.
+- Setup: `SPL SETUP-TEARDOWN AERIAL-FIB`, `SPL SETUP-TEARDOWN AERIAL-COP`, `SPL SETUP-TEARDOWN HH-FIB`, etc.
+
+#### CONDUIT
+- `CONDUIT 2in SCH40 20ft GRY`, `CONDUIT 3in SCH40 20ft GRY`, `CONDUIT 4in SCH40 20ft GRY` (material)
+- Labor: `HDPE PL IN CONDUIT <= 2in`, `FIBER IN CONDUIT ISP`
+
+#### SURFACE RESTORATION
+- Asphalt: `ASPHALT RMV & RESTORE <= 6in`, `ASPHALT RMV & RESTORE > 6-12in`, `ASPHALT RMV & RESTORE > 12-18in`
+- Concrete: `CONCRETE RMV-RESTORE <= 6in` etc.
+- Cold patch: `ASPHALT TEMPORARY COLD PATCH`
+
+#### REMOVALS (key ones)
+- `RMV AERIAL COPPER <= 400pr`, `RMV AERIAL COPPER > 400pr`
+- `RMV AERIAL FIBER`
+- `RMV COPPER FROM CONDUIT <= 400pr`, `RMV COPPER FROM CONDUIT > 400pr`
+- `RMV FIBER FROM CONDUIT`
+- `RMV POLE - CTL OWNED`, `RMV POLE - FOREIGN`
+- `RMV STRAND - BARE`
+- `RMV HH`, `RMV MH`, `RMV PEDESTAL`
+- `RMV BURIED FACILITY <= 48in`
+
+---
+
+## BILLING RULES (inferred from descriptions)
+
+1. **Most labor units are PER FOOT** (cable, strand, trench, bore, conduit placement)
+2. **Point items are PER EACH** (poles, handholes, splice cases, pedestals, anchors)
+3. **Splicing is PER COUNT** (number of pairs or fiber count determines which tier)
+4. **Many jobs have BOTH a labor unit AND a material unit** — e.g.:
+   - Pole job = `POLE WOOD <= 40ft` (labor EA) + `POLE 35-5 DF` (material EA)
+   - Strand job = `STRAND 10M` (labor FT)
+   - Copper cable job = `COP CABLE 200 ANMW` (material FT) + `LASH COPPER <= 400pr` (labor FT)
+5. **Removal jobs are labor only** (no material)
+6. **"EXISTING" items = $0 billing**, reference only
+7. **Trench depth and conduit size determine the correct trench code** — not surface type
+8. **Splice setup codes are charged separately** from the splice labor itself
+
+---
+
+## RECOMMENDED UNIT CODE CORRECTIONS FOR APP
+
+### Fiber cable material:
+- OLD: `FIB 48 1 JKT 1 ARMR` → NEW: `FIB 48 1JKT 1ARMOR LT`
+
+### Pole material:
+- OLD: `POLE 35-5 DF` ✅ (already correct)
+
+### Trench:
+- OLD: `TRENCH - Asphalt` → NEW: `TRENCH 30in CVR <= 2.5in` (based on depth + conduit size)
+
+### Bore:
+- OLD: `DIRECTIONAL BORE - 2in` → NEW: `SPECIAL QUOTE - BORE - LE` (or use open trench codes)
+
+### HH:
+- OLD: `VAULT - SET PRECAST 1730` → NEW: `HH 17x30x24` (actual dimensions)
+
+### Removal copper:
+- OLD: `RMV AERIAL COPPER` → NEW: `RMV AERIAL COPPER <= 400pr` or `> 400pr`
+
+### Lash/Overlash:
+- OLD: `LASH COPPER` → NEW: `LASH COPPER <= 400pr` or `LASH COPPER > 400pr`
+
+
+======================================================================
+===== FILE: RENDER_BILLING_SPEC.md =====
+======================================================================
+# North Sky As-Built — Render + Billing Spec
+## The "All-In-One" Rule: Every drawn element generates both a visual AND billing output simultaneously.
+
+---
+
+## COLOR CONVENTION (Industry Standard As-Built)
+| Status     | Color     | Hex       |
+|------------|-----------|-----------|
+| NEW        | Red       | #FF0000   |
+| EXISTING   | Black     | #000000   |
+| REMOVE     | Green     | #00AA00   |
+| TRANSFER   | Blue      | #0000FF   |
+| TEMP       | Orange    | #FF8800   |
+
+---
+
+## AERIAL CATEGORY
+
+### POLE
+- **Render**: Circle with X inside. A-Tag label below. Height label optional.
+  - NEW = Red circle+X
+  - EXISTING = Black circle+X
+  - REMOVE = Green circle+X
+  - TRANSFER (Xfer) = Blue circle+X
+- **Modal fields**: Status | A-Tag (text) | Height (30/35/40/45/50/55ft) | Class (2/3/4/5) | Set Type (Standard / Hand Set / In Power / In Rock)
+- **Billing output**:
+  - NEW: Labor = `POLE WOOD <= 40ft` (if ht<=40) OR `POLE WOOD > 40-55ft` (if ht>40) + variants (IN POWER, IN ROCK)
+  - NEW: Material = `POLE [ht]-[class] DF` (e.g. `POLE 35-5 DF`)
+  - REMOVE: Labor = `RMV POLE - CTL OWNED` or `RMV POLE - FOREIGN`
+  - EXISTING: No billing (reference only)
+- **Unit type**: EA
+
+### STRAND
+- **Render**: Thick dashed line (dash-gap pattern). Black=NEW, Green=REMOVE.
+  - Label along line: "10M" or "16M" or "6M"
+- **Modal fields**: Status (NEW/REMOVE) | Size (6M/6.6M/10M/16M) | Footage (number, auto-measured)
+- **Billing output**:
+  - NEW: `STRAND 10M` (or 16M/6M) per FT
+  - REMOVE: `RMV STRAND - BARE` per FT
+- **Unit type**: FT
+
+### DE/RELASH
+- **Render**: Wavy/zigzag purple line. Label: "DE&RE"
+- **Modal fields**: Footage (auto-measured)
+- **Billing output**: `AERIAL DELASH - RELASH` per FT
+- **Unit type**: FT
+
+### RE-TENSION
+- **Render**: Red arrow →. Label: "RE-TEN"
+- **Modal fields**: Qty (number of spans)
+- **Billing output**: `AERIAL SPAN RE-TENSION` per EA (qty entered)
+- **Unit type**: EA
+
+### DOWN GUY
+- **Render**: Diagonal arrow pointing down-toward-ground. Color by status.
+  - NEW = Red, REMOVE = Green
+- **Modal fields**: Status (NEW/REMOVE) | Strand Size (6M/10M/16M) | Qty
+- **Billing output**:
+  - NEW: Labor = `DOWN GUY` (EA) + Material = `DOWN GUY [size]` (EA) + `DOWN GUY GUARD` (EA)
+  - REMOVE: `DOWN GUY` removal (discuss — no specific removal code in contract)
+- **Unit type**: EA
+
+### ANCHOR
+- **Render**: Arrow with perpendicular base bar (→|). Color by status.
+- **Modal fields**: Status (NEW/REMOVE) | Type (SCREW/ROCK/EXPAND-BUST/SWAMP/MANTA RAY/PLATE) | Size (6M/10M/16M)
+- **Billing output**:
+  - NEW: Labor = `ANCHOR - SCREW` (or ROCK/EXPAND etc.) + Material = `ANCHOR SCREW 10M` (or variant)
+  - REMOVE: (No specific removal code — flag for supervisor review)
+- **Unit type**: EA
+
+### LASH / OVERLASH (add to Aerial panel)
+- **Render**: Solid line with "LASH" or "O/L" label. Black=LASH, Purple=OVERLASH
+- **Modal fields**: Type (LASH/OVERLASH/OVERLASH ADDL) | Cable Type (COPPER/FIBER) | Cable Size | Footage
+- **Billing output**:
+  - LASH FIBER: `LASH FIBER` per FT
+  - LASH COPPER <=400pr: `LASH COPPER <= 400pr` per FT
+  - LASH COPPER >400pr: `LASH COPPER > 400pr` per FT
+  - OVERLASH FIBER: `OVERLASH FIBER` per FT
+  - OVERLASH COPPER: `OVERLASH COPPER <= 400pr` or `> 400pr` per FT
+
+---
+
+## CABLE CATEGORY
+
+### COPPER CABLE (Aerial)
+- **Render**: Solid black line. "C" markers every ~200px along line. Size label.
+  - NEW=Red line, EXISTING=Black, REMOVE=Green
+- **Modal fields**: Condition (NEW/EXISTING/REMOVE) | Pair Size (25/50/100/200/300/400/600/900/1200) | Footage | Method (LASH/OVERLASH/OVERLASH ADDL/UG CONDUIT)
+- **Billing output** (NEW):
+  - Material: `COP CABLE [size] ANMW` per FT (e.g. `COP CABLE 200 ANMW`)
+  - Labor: `LASH COPPER <= 400pr` or `LASH COPPER > 400pr` per FT (based on pair size)
+  - If UG: `COPPER PL IN CONDUIT <= 300pr` or appropriate tier per FT
+- **Billing output** (REMOVE):
+  - `RMV AERIAL COPPER <= 400pr` or `> 400pr` per FT
+- **Unit type**: FT
+
+### FIBER CABLE (Aerial)
+- **Render**: Solid black line. "F" markers every ~200px. Count label.
+  - NEW=Red, EXISTING=Black, REMOVE=Green
+- **Modal fields**: Condition (NEW/EXISTING/REMOVE) | Count (12/24/48/72/96/144/216/288) | Footage | Start Foot Mark | End Foot Mark | Method (LASH/OVERLASH/ADSS/UG) | Rack/Slack footage
+- **Billing output** (NEW):
+  - Material: `FIB [count] 1JKT 1ARMOR LT` per FT (e.g. `FIB 144 1JKT 1ARMOR LT`)
+  - Labor: `LASH FIBER` or `OVERLASH FIBER` per FT
+  - If UG: `FIBER PL IN CONDUIT` per FT
+  - If slack storage: `AERIAL FIBER SNOWSHOE` per EA
+- **Billing output** (REMOVE):
+  - `RMV AERIAL FIBER` per FT
+- **Unit type**: FT (material and labor both per foot)
+
+### COAX CABLE
+- **Render**: Brown solid line. Size label.
+- **Modal fields**: Size (.500/.625/.750/.875) | Footage | Method
+- **Billing output**: No specific coax code in contract — flag for special quote
+- **Unit type**: FT
+
+---
+
+## UNDERGROUND CATEGORY
+
+### TRENCH
+- **Render**: Red solid thick line. Label shows depth/width. "TRENCH" text.
+- **Modal fields**: Cover Depth (30in/36in/48in) | Conduit Size (<=2.5in / 3-6in / >6in) | Type (Standard/Stick/Metal) | Footage
+- **Billing output**: Correct code = `TRENCH [depth]in CVR [conduit size]` per FT
+  - e.g. `TRENCH 30in CVR <= 2.5in`, `TRENCH 36in CVR 3-6in`, `TRENCH 48in CVR STICK <= 2.5in`
+  - Open cut (no conduit): `OPEN TRENCH <= 2.5in` or `OPEN TRENCH 3-6in`
+- **Unit type**: FT
+
+### BORE
+- **Render**: Brown dashed thick line. Label: "BORE [diameter]""
+- **Modal fields**: Diameter (1.25/2/4 in) | Footage
+- **Billing output**: No standard bore unit — maps to `SPECIAL QUOTE - BORE - LE` with supervisor flag
+  - OR use open trench equivalent if applicable
+- **Unit type**: FT (flagged)
+
+### HANDHOLE (HH)
+- **Render**: Rectangle divided by center vertical line, "H" on each side. Color by status.
+- **Modal fields**: Status (NEW/EXISTING/REMOVE) | Dimensions (select from real sizes) | Lid Type (Standard/Split Lid) | Grounding (Y/N)
+- **HH Size options** (real codes):
+  - Small: `HH 13x24x18`, `HH 17x30x24`
+  - Medium: `HH 30x48x36`, `HH 30x48x36 SPLIT LID`, `HH 30x60x30`
+  - Large: `HH 36x60x36`, `HH 48x48x48`, `HH 48x60x36`
+  - XL: `HH 48x72x48`, `HH 48x96x50`
+- **Billing output**:
+  - NEW: `HH [dimensions]` per EA (e.g. `HH 30x48x36`)
+  - NEW+Grounding: also add `HH 13x24x18 GROUNDING` or `GROUND POLE ASSEMBLY`
+  - REMOVE: `RMV HH` per EA
+  - Grade adjust: `HH GRADE ADJUSTMENT` per EA
+- **Unit type**: EA
+
+### VAULT / MANHOLE (MH)
+- **Render**: Larger rectangle with "V" or "MH" label.
+- **Modal fields**: Status | Type (HH/MH) | Dimensions
+- **MH codes**: `MH 48x72x84in`, `MH 72x72x72in`, `MH 72x144x84in`
+- **Billing output**: MH size code per EA
+- **Unit type**: EA
+
+### SPLICE PIT
+- **Render**: Square with X inside. Color by status.
+- **Modal fields**: Status (NEW/REMOVE) | Size (SMALL/MEDIUM/LARGE)
+- **Billing output**: `PIT SMALL 6x4x5ft`, `PIT MEDIUM 12x6x5ft`, or `PIT LARGE 12x12x6ft` per EA
+- **Unit type**: EA
+
+### PEDESTAL
+- **Render**: Small rectangle with dot inside. "PED" label.
+- **Modal fields**: Status | Type (Copper/Fiber) | Size (6/8/10/12/14in) | Mount (Stake/Pole/Integral Stake)
+- **Billing output**:
+  - Copper: `PED [size]in [mount type]` e.g. `PED 10in STAKE MOUNT`
+  - Fiber: `PED FIB [size]in [mount type]` e.g. `PED FIB 10in STAKE MOUNT`
+  - Sizes map: SMALL=6-12in, MEDIUM=14-24in, LARGE=36-42in
+  - REMOVE: `RMV PEDESTAL` per EA
+- **Unit type**: EA
+
+### CONDUIT
+- **Render**: Dashed gray line. Size label. "CDUT" text.
+- **Modal fields**: Size (1in/2in/3in/4in) | Schedule (SCH40/SCH80/HDPE) | Footage | Location (Aerial/UG)
+- **Billing output**:
+  - Material: `CONDUIT 2in SCH40 20ft GRY` or `CONDUIT 2in SCH40 20ft GRY UG` per EA (per stick)
+  - Labor placement: `HDPE PL IN CONDUIT <= 2in` or `FIBER IN CONDUIT ISP` per FT
+- **Unit type**: EA (material per stick) + FT (labor)
+
+---
+
+## SPLICING CATEGORY
+
+### SPLICE CASE
+- **Render**: Diamond shape. Color by status. Case ID label.
+- **Modal fields**: Status (NEW/EXISTING) | Location (AERIAL/BURIED/UG) | Cable Type (COPPER/FIBER) | Case Size (from dropdown of real codes) | Pressure (Pressurized/Non-pressure/Free Breathing)
+- **Billing output**:
+  - NEW FIBER: `CASE FIBER NEW` (labor) + specific case material code per EA
+  - NEW COPPER: `CASE COPPER NEW PRESSURE` or `CASE COPPER NEW NON-PRESSURE` (labor) + case material
+  - RE-ENTER: `RE-ENTER EXIST FIBER CASE` or `RE-ENTER EXIST COPPER CASE`
+  - Always add: `SPL SETUP-TEARDOWN [location]-[type]` per EA
+    - e.g. `SPL SETUP-TEARDOWN AERIAL-FIB`, `SPL SETUP-TEARDOWN HH-COP`
+- **Unit type**: EA
+
+### SPLICE ACTIVITY (Fiber)
+- **Render**: Small circle/dot on splice case. Count label.
+- **Modal fields**: Type (FUSION/RIBBON/MECHANICAL) | Count (number of fibers/pairs)
+- **Billing output** (Fiber Fusion):
+  - 1-4 fibers: `SPLICE FIBER FUSION 1-4`
+  - 5-12: `SPLICE FIBER FUSION 5-12`
+  - 13-24: `SPLICE FIBER FUSION 13-24`
+  - 25-48: `SPLICE FIBER FUSION 25-48`
+  - 49-144: `SPLICE FIBER FUSION 49-144`
+  - 145-288: `SPLICE FIBER FUSION 145-288`
+  - 289-432: `SPLICE FIBER FUSION 289-432`
+  - 433-864: `SPLICE FIBER FUSION 433-864`
+- **Billing output** (Ribbon):
+  - <=2 ribbons: `SPLICE FIBER RIBBONS <=2`
+  - 3-12: `SPLICE FIBER RIBBONS 3-12`, etc.
+- **Unit type**: EA (per splice count tier)
+
+### SPLICE ACTIVITY (Copper)
+- **Billing output**:
+  - Mechanical 1-25pr: `SPLICE COPPER MECHANICAL 1-25pr`
+  - Mechanical 26-100pr: `SPLICE COPPER MECHANICAL 26-100pr`
+  - Mechanical >100pr: `SPLICE COPPER MECHANICAL > 100pr`
+  - Module <=300pr: `SPLICE COPPER MODULE <= 300pr`
+  - Module 301-900pr: `SPLICE COPPER MODULE 301-900pr`
+  - Module 901-1800pr: `SPLICE COPPER MODULE 901-1800pr`
+  - Module >1800pr: `SPLICE COPPER MODULE > 1800pr`
+- **Unit type**: EA
+
+### TERMINAL
+- **Render**: Small square. Label with pair count.
+- **Modal fields**: Type | Pair count
+- **Billing output**: Terminal-specific codes (part of case install)
+
+### MPOP
+- **Render**: Rectangle with "MPOP" label.
+- **Modal fields**: Label text
+- **Billing output**: Reference only / Special Quote
+
+### RISER
+- **Render**: Vertical rectangle at pole base. Size label.
+- **Modal fields**: Diameter (2in/3in/4in) | Material (Plastic/Steel) | Height
+- **Billing output**:
+  - Material: `RISER PIPE POLE 2in PLASTIC` or `2in STEEL` or `3in PLASTIC` etc.
+  - Guard: `RISER U-GUARD 2 in PLASTIC` or `3in PLASTIC` etc.
+  - Removal: `RMV POLE RISER OR U-GUARD`
+- **Unit type**: EA
+
+### GROUND ROD
+- **Render**: Small circle with downward bar.
+- **Modal fields**: Size (5/8in-8ft / 5/8in-20ft / 1/2in-5ft)
+- **Billing output**:
+  - `GROUND ROD 5/8in-8ft` (most common)
+  - `GROUND ROD 5/8in-20ft THREADED`
+  - `GROUND ROD 1/2in-5ft`
+  - Also: `GROUND POLE ASSEMBLY` (for HH grounding)
+- **Unit type**: EA
+
+---
+
+## X-FERS (TRANSFER) CATEGORY
+All transfer items render in BLUE (#0000FF).
+
+### XFER POLE
+- Same as POLE but blue. Means the pole and its attachments are being transferred (rearranged).
+- **Billing**: `REARRANGE XFER POLE ATTACHMENT` (EA) + `REARRANGE XFER POLE ATTACHMENT ADDL` for each additional attachment
+- Also: `REARRANGE POLE` (EA)
+
+### XFER ANCHOR
+- Blue anchor symbol.
+- **Billing**: No specific transfer anchor code — use supervisor review flag
+
+### XFER EQUIP
+- Blue rectangle/symbol.
+- **Billing**: `REARRANGE XFER POLE MOUNT SMALL FAC` or `REARRANGE XFER POLE MOUNT LARGE FAC`
+
+---
+
+## REMOVALS CATEGORY
+All removals render in GREEN (#00AA00).
+
+| Tool | Visual | Billing Code |
+|------|--------|-------------|
+| RMV AER COPPER | Green line + "X-AC-X" markers | `RMV AERIAL COPPER <= 400pr` or `> 400pr` |
+| RMV UG COPPER | Green line + "X-UC-X" markers | `RMV COPPER FROM CONDUIT <= 400pr` or `> 400pr` |
+| RMV AER FIBER | Green line + "X-AF-X" markers | `RMV AERIAL FIBER` |
+| RMV UG FIBER | Green line + "X-UF-X" markers | `RMV FIBER FROM CONDUIT` |
+| RMV POLE | Green circle-X | `RMV POLE - CTL OWNED` or `RMV POLE - FOREIGN` |
+| RMV STRAND | Green dashed line | `RMV STRAND - BARE` |
+| RMV ANCHOR | Green anchor arrow | (supervisor flag) |
+| RMV HH | Green HH symbol | `RMV HH` |
+| RMV PED | Green ped symbol | `RMV PEDESTAL` |
+
+---
+
+## SURFACE RESTORATION (add-on items, not drawn — entered in sidebar)
+These don't render as drawn lines but are added as billable items from a checklist:
+- `ASPHALT RMV & RESTORE <= 6in` (SF)
+- `ASPHALT RMV & RESTORE > 6-12in` (SF)
+- `ASPHALT TEMPORARY COLD PATCH` (SF)
+- `CONCRETE RMV-RESTORE <= 6in` (SF)
+- `SELECT BACKFILL SAND`, `SELECT BACKFILL PEA GRAVEL` (CY)
+- `POTHOLE HARD SURFACE`, `POTHOLE SOFT SURFACE` (EA)
+
+---
+
+## BILLING DASHBOARD DISPLAY FORMAT
+```
+UNIT CODE              | QTY  | UNIT
+-----------------------|------|-----
+POLE WOOD <= 40ft      |  3   | EA
+POLE 35-5 DF           |  3   | EA
+STRAND 10M             | 850  | FT
+LASH FIBER             | 850  | FT
+FIB 48 1JKT 1ARMOR LT  | 850  | FT
+HH 30x48x36            |  2   | EA
+CASE FIBER NEW         |  1   | EA
+SPLICE FIBER FUSION 49-144 | 1 | EA
+SPL SETUP-TEARDOWN AERIAL-FIB | 1 | EA
+```
+
+---
+
+## SUPERVISOR / BILLING WORKFLOW
+1. Foreman draws the job in the field (phone/tablet)
+2. Supervisor reviews sketch, fixes any missing elements
+3. Billing dashboard auto-populates with correct unit codes
+4. **Billing team exports**: PDF (sketch + header + unit table) ready for Lumen submittal
+5. Optional: Export unit codes as CSV for direct entry into billing system
+
+
+======================================================================
+===== FILE: EXTRACTED: state object initial value =====
+======================================================================
+const state = {
+  activeTool:      'SELECT',
+  activeCategory:  null,
+  activeKey:       null,
+  activeType:      null,      // POINT | LINE | ARROW | ANCHOR | ARROW_CALLOUT | MODAL_ONLY
+  drawingLine:     false,
+  lineStart:       null,
+  previewLine:     null,
+  calloutStep:     0,
+  calloutLeaderPt: null,
+  calloutDragging: false,    // Change 4: track drag state for callout
+  drawingRect:     false,
+  rectStart:       null,
+  previewRect:     null,
+  drawingCircle:   false,
+  circleStart:     null,
+  previewCircle:   null,
+
+  // grubbing rect draw
+  drawingGrubbing:   false,
+  drawingRmvBuried:  false,
+  rmvBuriedStart:    null,
+  previewRmvBuried:  null,
+  grubbingStart:   null,
+  previewGrubbing: null,
+  // rod & proof / locate sonde — multi-segment polyline
+  polyLineTool:    null,   // 'ROD_PROOF' | 'LOC_SONDE' | null
+  polyPoints:      [],     // array of {x,y} clicked so far
+  polySegments:    [],     // fabric.Line preview segments on canvas
+  polyPreview:     null,   // current rubber-band segment
+  // two-click transfer arrow
+  xferStep:        0,
+  xferStart:       null,
+  xferAttrs:       null,
+  // New unified XFERS tool
+  xfersMode:       false,  // waiting for pole click
+  xfersDot:        null,
+  isPanning:       false,
+  lastPanPoint:    null,
+  spaceDown:       false,
+  history:         [],
+  historyLocked:   false,
+  toolColor:       '#000000',
+  toolStroke:      2,
+  toolLinestyle:   'solid',
+  billableData:    [],
+  unitMap:         new Map(),   // objectId => [billing entries]
+};
+
+======================================================================
+===== FILE: EXTRACTED: setTelecomTool calls + tele-btn data-keys =====
+======================================================================
+function setTelecomTool(category, key, type) {
+        <button class="tool-btn tele-btn" data-category="misc" data-key="TNE" data-type="MODAL_ONLY">T&amp;E</button>
+        <button class="tool-btn tele-btn" data-category="misc" data-key="DOWNTIME" data-type="MODAL_ONLY">DOWNTIME</button>
+        <button class="tool-btn tele-btn" data-category="misc" data-key="SPLICER_FIBER" data-type="MODAL_ONLY">SPLICER FIBER</button>
+        <button class="tool-btn tele-btn" data-category="misc" data-key="SPLICER_COPPER" data-type="MODAL_ONLY">SPLICER COPPER</button>
+        <button class="tool-btn tele-btn" data-category="misc" data-key="EMERGENCY_TRAVEL" data-type="MODAL_ONLY">EMG TRAVEL TIME</button>
+        <button class="tool-btn tele-btn" data-category="misc" data-key="VAC_TRUCK" data-type="MODAL_ONLY">VAC TRUCK</button>
+        <button class="tool-btn tele-btn" data-category="underground" data-key="GRUBBING" data-type="RECT">GRUBBING</button>
+    // Buttons with data-tool (e.g. XFERS) go through setTool, not setTelecomTool
+        setTelecomTool(clone.dataset.category, clone.dataset.key, clone.dataset.type);
+
+===== END OF PART 3 OF 4 =====
+```

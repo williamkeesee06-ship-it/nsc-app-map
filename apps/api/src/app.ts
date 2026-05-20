@@ -23,7 +23,19 @@ export function createApp() {
     const message = err instanceof Error ? err.message : "Unknown error";
     // eslint-disable-next-line no-console
     console.error("[api] error:", err);
-    res.status(500).json({ error: message });
+
+    let statusCode = 500;
+    if (err instanceof Error) {
+      const match = err.message.match(/\[smartsheet\] (\d+)/);
+      if (match) {
+        const code = parseInt(match[1]!, 10);
+        if (code >= 100 && code < 600) {
+          statusCode = code;
+        }
+      }
+    }
+
+    res.status(statusCode).json({ error: message });
   });
 
   return app;

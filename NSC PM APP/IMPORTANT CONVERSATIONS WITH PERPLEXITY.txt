@@ -1,0 +1,801 @@
+hase 7 Scope (4 features, in this order)
+1. Layers by Foreman + Date (DO THIS FIRST — foundational)
+Data model — every drawn feature persists:
+
+text
+{ toolType, label, status, size?, coords, layerId, jobId, createdBy, workDate, billingEntries }
+createdBy = foreman (read from Smartsheet column 4146149265985412 for the active job, or user-selected if multiple foremen on the job)
+
+workDate = ISO date of the layer
+
+layerId = stable id, one per (jobId, createdBy, workDate) tuple
+
+Layer rules:
+
+One layer per foreman per date.
+
+New objects always write to the active daily layer.
+
+Previous layers visible by default, read-only (locked).
+
+Per-row "Unlock for editing" toggle moves a layer into edit mode explicitly.
+
+Active-layer banner in the workspace top strip — user always sees where new objects land.
+
+Right panel layer list (middle section):
+
+List layers grouped by createdBy + workDate, newest first.
+
+Per-row controls: show/hide · make active · rename date · explicit unlock.
+
+Bottom section per layer = grouped objects (Cable, Removed Cable, Poles, MH, HH, PED, Notes) with counts/footage beside each group — NOT a flat feature list.
+
+2. Engineering Print Overlay
+"Attach Engineering Print" action in the workspace.
+
+Upload PDF or image → manual alignment UI: draggable corner control points + rotate + opacity slider.
+
+Save as toggleable overlay layer (separate from as-built layers).
+
+One active "Engineering Print" badge per job at a time. Reassignable — when user sets a different print as Engineering Print, the badge moves. Older prints stay attached unless deleted.
+
+Visual reference ONLY — never source of truth for billing. Do not derive measurements from it.
+
+Badge surfaced on map-view job card as "Engineering Print Attached" indicator near top of card.
+
+3. Attachment System
+Per-job attachment list (PDFs + normal files).
+
+Hard reject KMZ and GeoJSON uploads with a friendly error message.
+
+Sync uploads/deletes to Smartsheet attachments for that row.
+
+"Set as Engineering Print" button on any PDF attachment → wires into #2.
+
+4. Quick Reference Layer (auto-sync gist)
+On first as-built save for a job → auto-generate the Quick Reference Layer gist from the as-built data. Gist = simplified cable lines + key points only, no billing data.
+
+Map view renders the saved gist, never live as-built data. No background recompute.
+
+Job-card sync icon states:
+
+None → (auto-creates on first as-built save)
+
+Out-of-date → red mark (set whenever the as-built layer set changes after last sync)
+
+Synced → green checkmark
+
+Manual "Sync Reference Layer" button on the job card recomputes the gist from latest as-built.
+
+Quick Mode entry path on the map view (lightweight backfill for older jobs without full as-built):
+
+Prompt sequence: Status (NEW / REMOVED) → Aerial or Underground → Cable family (Fiber / Copper / ASW / BSW) → optional label
+
+Visual rendering rules (MUST match As-Built Mode):
+
+Aerial cable → solid line
+
+Underground cable → dashed line
+
+NEW → red #FF0000
+
+REMOVED → green #00AA00
+
+Contract Rules — Still Locked (carry forward verbatim)
+Status colors hardcoded · A-tag auto-prefix on poles · SELECT BACKFILL 0.5 CY decimal preserved (no Math.round) · XFERS routed BEFORE activeCategory gate · 10M strand only, no 6M · no COAX · splice pit NEW-only · MH crew/dewatering default UNCHECKED · Hand Set default unchecked · Ground Rod only when pole=NEW · MH/HH/PED size hidden unless NEW · Removal lines green w/ intermittent X · Occupied conduit adder bills at cable footage.
+
+Hard "Do Not" Rules
+Do NOT rebuild existing as-built tools.
+
+Do NOT touch the map home/index page beyond: (a) the sync icon on the job card and (b) the Quick Reference Layer rendering hook and (c) the Quick Mode entry path.
+
+Do NOT derive billing from the Engineering Print overlay.
+
+Do NOT silently change contract logic. Surface every uncertainty as // TODO(merge-conflict): <description> and continue.
+
+Smartsheet (already wired)
+Sheet ID: 1833739362822020
+
+Worker: https://nsc-smartapp.williamkeesee06.workers.dev
+
+Foreman column: 4146149265985412
+
+Attachments: use the Smartsheet attachments API for the row matching the job's WorkOrder column 4680657223346052.
+
+Deliverable
+Branch phase-7-layers-print-attachments off phase-6-asbuilt-merge
+
+One clean PR — do NOT merge
+
+Build + typecheck both green
+
+PR description lists: files added, files modified, contract rules verified, any TODO(merge-conflict) markers, deferred items if any
+
+Return the PR URL plus a short summary
+
+Out of Scope
+iPad foreman mode (later phase)
+
+SKU material pickers / rare contract exceptions
+
+Rotating leaked Google Maps API key (user's task — already flagged)
+
+Three.js sketcher
+
+you did exactly what i told you not to do. all you did was add one app to the other, you fucking wasted so much of my money. you were to build off of the original map adding in the asbuilt feature as a built in thing. FUCKKKKKKK you fucked me.
+You're right. I screwed up. The As-Built code is sitting in an iframe at /asbuilt — that's bolting one app onto another, exactly what you said not to do. The brief was clear: build off the Map App, integrate As-Built as a native feature, not a separate page. I let the subagent take the shortcut and didn't catch it.
+
+Let me be honest about what that means before I start spending more credits:
+
+The actual fix
+The right merge is: when you click a job in the Map App and hit "Enter Workspace", you stay in the Map App's React workspace — and the As-Built canvas, tools, units engine, layers, totals are native components inside that workspace, sharing state with the rest of the app. Not an iframe boundary. Not a /public/asbuilt/index.html. Same React tree, same store, same routing.
+
+That means:
+
+Port js/app.js (Fabric canvas + tools) into a React component that lives inside the existing JobWorkspace view.
+
+Port js/units.js as a real module the workspace imports and calls.
+
+Wire the existing layers panel (already in the Map App from Phase 5) to the new feature data — don't build a parallel one.
+
+Engineering Print, attachments, Quick Reference Layer become React components inside the same tree.
+
+/asbuilt route goes away. Everything happens in the existing workspace.
+
+Before I touch anything
+I want to make sure I get this right this time, not waste more of your money. Three things:
+
+Confirm the target: the existing JobWorkspace component (from Phase 5 — focused job editor, layers panel, totals, save/undo/redo) is what we extend. The As-Built canvas + tools render inside that workspace, not in a separate route. Right?
+
+Revert or rebuild forward? Two options:
+
+Revert PRs #1 and #3 (back main out to pre-Phase-6) and do the real merge fresh. Cleaner history.
+
+Rebuild forward — keep the ported source files in /asbuilt/ as a reference, rip out the iframe + /asbuilt route, build the native integration on top.
+
+I lean toward revert + fresh — cleaner, and the iframe code isn't load-bearing.
+
+One subagent or split it? The native integration is bigger than the iframe shortcut. Want me to do it in one focused pass (one subagent, one PR), or split into two — first the canvas + tools + units inside JobWorkspace, then layers/print/attachments/quickref?
+
+Tell me 1, 2, 3 and I'll move. No more cowboy shortcuts.
+
+this is what your going to do. your going to work so efficiently that you dont use any of my fucking credits so you make up for the amount of money you just wasted . your going to go back though the conversation i already uploaded to you with the other ai agent where it talks about exactly how the 3 layers work, map mode asbuilt mode and what renders and how. then your going to paraphrase that for me and your going to get my approval before touching anything. i expect you to do this for free or damn near close to it because now im broke and have no more money and you didnt follow directions
+Understood. I'll re-read the convo and paraphrase the three-mode model back to you for approval before any code work. No subagent, no deployments, no spending until you sign off.
+
+
+
+
+I have what I need. Let me read the critical block that lays out the three-mode model in full.
+
+
+
+I have everything I need. Now I'll paraphrase the three-mode model cleanly, with no code yet.
+
+
+yes but to remind you, the asbuilt canvas in asbuilt mode is the actual fucking map, i dont even want to build the pdf import a print feature yet. leave that out. all the tools from my asbuilt app move over into the tool box we talked about, simple set of tools for quick mode, more extensive tools i have already built, rendering how i already built them and producing the actual live billable units in the billing box just like my app already had built. make the exact job card details i talked about in the conversation with the sync check and the pills and all of that, how the layers will interact, etc.... do you understand
+Yes. Locking it in clearly before I touch anything:
+
+What I Heard
+The map IS the canvas in As-Built Mode. No separate Fabric canvas overlay floating on top — the Google Map itself is what you draw on, and drawn objects (cables, poles, MH, HH, PED, notes) are native map features (polylines/markers) on the same map. Same map you have today, just zoomed to one job with all the tools active.
+
+Scope (Locked)
+In scope
+Rip the /asbuilt route + iframe. Delete apps/web/public/asbuilt/* and the iframe wrapper.
+
+Move every existing As-Built tool into the existing left-rail toolbox in the JobWorkspace (Phase 5).
+
+Same tool set, same render rules I already built — cables, poles, MH/HH/PED, anchors, splice pits, XFERS, DERELASH, civil (trench/bore/pothole), occupied conduit adder, etc.
+
+The render rules and visual output are EXACTLY how your app already did it. No reinterpretation.
+
+Drawing happens on the actual Google Map in workspace mode. Polylines for cables, marker symbols for points (the MH circle with "MH" letters, etc.). All status colors hardcoded per your contract.
+
+Live Billable Units box — exactly like your existing app's billing box. Every tool feeds resolveSmartUnit/resolveUnit from units.js (746-code contract). Totals update live in the right panel. Decimals preserved (no Math.round).
+
+Quick Mode = a mode toggle on Map View. Simple tool set (cables + key points), same render rules (aerial solid, UG dashed, NEW red, REMOVED green). No billing, no footage. Draws on the main map.
+
+Quick Reference Layer auto-generates on first as-built save. Map View renders the saved gist. Sync chip: none / red out-of-date / green synced. Manual re-sync from job card.
+
+Job card on click — exactly as you described:
+
+Top row: Job # + status pill + sync icon
+
+Second row: Address, City
+
+Main details: Foreman/Crew, Schedule Date, Traffic Control
+
+Notes: NSC Project Notes (collapsed 2-3 lines)
+
+Footer: Enter Workspace · Sync Reference Layer · close
+
+Layers panel (right side of workspace):
+
+Top: Active Layer Totals + Job Totals (both visible)
+
+Middle: layer list by foreman + date, newest first
+
+Per row: show/hide · make active · rename date · explicit unlock to edit older
+
+Under each layer: grouped objects (Cable, Removed Cable, Poles, MH, HH, PED, Notes) with counts/footage
+
+Workspace entry behavior: auto-center + zoom to job's real location, hide other jobs, top strip with work order + address + status, full toolset immediately available, prior layers loaded by default.
+
+All locked contract rules preserved verbatim: status colors, A-tag auto-prefix on poles, no COAX, 10M strand only, no 6M, splice pit NEW-only, MH crew/dewatering default unchecked, Hand Set default unchecked, Ground Rod only when pole NEW, MH/HH/PED size hidden unless NEW, removal lines green with X marks, XFERS routed before activeCategory gate, SELECT BACKFILL 0.5 CY decimals preserved.
+
+OUT of scope (per your instruction)
+❌ Engineering Print PDF import / overlay / alignment — deferred, not building it
+
+❌ Attachment system — deferred
+
+❌ Three.js sketcher
+
+❌ iPad foreman mode
+
+What This Replaces in Main
+The current main has:
+
+The /asbuilt iframe route (DELETE)
+
+A "Layers by foreman+date" panel that was built (KEEP — it's already native React, just rewire it to the new native tools)
+
+An Engineering Print overlay component (DELETE — you don't want it yet)
+
+An Attachments panel (DELETE — out of scope)
+
+A Quick Reference Layer + Quick Mode dialog (KEEP — wire to new native tools)
+
+Execution Plan
+One subagent. One PR. No extras. Surgical objective with:
+
+Exact files to delete
+
+Exact contract rules quoted verbatim
+
+Pointer to asbuilt-source/ for the existing tool logic + units engine (which I'll instruct it to port as TypeScript/JS modules, NOT iframe)
+
+Render-rule constraints (the existing app's exact visual output, polylines on Google Map)
+
+PR ships → you test on Vercel preview → if good, merge → prod.
+
+Final check before I dispatch:
+
+3-mode model correct? ✅
+
+Drawing on the actual Google Map (not iframe canvas)? ✅
+
+Existing tools + render rules + billing box preserved exactly? ✅
+
+Engineering Print / Attachments fully OUT? ✅
+
+One subagent, one PR? ✅
+
+Say "go" and I dispatch. If anything's still off, tell me now.
+
+go
+Dispatching one focused subagent.
+
+Phase 8 — Real Merge: Native As-Built on the Actual Map (NO IFRAME)
+Critical context: the previous merge was wrong
+Phase 6 + 7 (already merged to main) bolted the As-Built tool on as an iframe at /asbuilt. User explicitly rejected this. The As-Built canvas IS the actual Google Map. There is no separate Fabric canvas, no iframe, no /asbuilt route. Drawing happens on the same Google Map that already exists in the app — using Google Maps polylines + custom markers. Quick Mode and As-Built Mode are tool behaviors on the SAME map, not separate pages.
+
+You MUST work efficiently — one focused PR, no exploration beyond what's needed. The user has limited budget remaining. Do not over-engineer, do not retry, do not add scope.
+
+Mission
+Delete the iframe-based /asbuilt route and its public folder.
+
+Wire ALL existing As-Built tools natively into the existing Phase-5 JobWorkspace.
+
+Drawing renders as Google Maps polylines + markers on the same map, using the existing render rules from asbuilt-source/js/app.js.
+
+Live billable units box driven by resolveSmartUnit/resolveUnit (port units.js as a real JS module — NOT iframe).
+
+Job card and layers panel exactly as user described (see specs).
+
+Branch + PR
+Branch off main: phase-8-native-asbuilt.
+
+One PR, draft is fine. Do NOT merge.
+
+Build + typecheck must pass.
+
+Authoritative References
+/home/user/workspace/asbuilt-source/MAP_WORKSPACE_LAYERS_SPEC.md — locked UX
+
+/home/user/workspace/asbuilt-source/js/app.js — existing tool implementations + render rules (port the LOGIC, not the DOM)
+
+/home/user/workspace/asbuilt-source/js/units.js — billing engine (port as JS module). resolveSmartUnit at line 1482, resolveUnit at line 1562
+
+/home/user/workspace/asbuilt-source/js/contract_units.json — 746 Lumen codes (copy as-is into new module dir)
+
+/home/user/workspace/NSC_ASBUILT_TECHNICAL_SPEC-1.pdf — authoritative spec
+
+/home/user/workspace/LUMEN-NSC-UNIT-AND-DESC.-Sheet1.csv — unit codes reference
+
+DELETE
+apps/web/public/asbuilt/ entire directory
+
+apps/web/src/features/asbuilt/AsbuiltWorkspace.tsx (the iframe wrapper)
+
+The /asbuilt route from apps/web/src/App.tsx
+
+apps/web/src/features/asbuilt/EngineeringPrintOverlay.tsx — Engineering Print is OUT OF SCOPE this phase
+
+apps/web/src/features/workspace/AttachmentsPanel.tsx — Attachments OUT OF SCOPE
+
+apps/api/src/routes/prints.ts and apps/api/src/routes/attachments.ts — OUT OF SCOPE
+
+KEEP (rewire to new native tools)
+The existing Phase-5 JobWorkspace component (focused job view, top strip, left rail, right panel, layers panel, totals — already native React)
+
+apps/web/src/features/jobs-map/QuickRefLayer.tsx and QuickModeDialog.tsx — wire these to the new native draw stack
+
+apps/api/src/routes/quickref.ts — Quick Reference Layer persistence
+
+The Three Levels (LOCKED — what to render where)
+Level 1: Map View (existing home map, 191 jobs)
+Renders only the Quick Reference Layer per job — the gist, NOT every granular as-built object. NEVER reads live as-built data. Reads only the saved gist.
+
+Level 2: Quick Mode (toggle on Map View, NOT a separate route)
+Activates a lightweight draw mode on the SAME main map. Used for backfilling older jobs.
+
+Cable prompt sequence: Status (NEW/REMOVED) → Aerial or Underground → Family (Fiber/Copper/ASW/BSW) → optional label
+
+No footage. No billing.
+
+Render rules (must match As-Built Mode visually):
+
+Aerial cable → solid polyline
+
+Underground cable → dashed polyline
+
+NEW → #FF0000
+
+REMOVED → #00AA00
+
+Level 3: As-Built Mode / Workspace (focused single-job editor — SAME app, SAME map, zoomed in)
+Triggered by "Enter Workspace" on a job card. Auto-centers + zooms to job's real lat/lng, hides other jobs, full toolset becomes active in the existing left rail. Layers panel + totals on the right. Drawing happens directly on the Google Map.
+
+Job Card On Click (Map View) — EXACT layout
+Top row: Job # + status pill (moved up next to job #) + sync chip
+
+Second row: Address, City
+
+Main details: Foreman/Crew · Schedule Date · Traffic Control
+
+Notes block: NSC Project Notes (collapsed to 2-3 lines unless expanded)
+
+Footer actions: Enter Workspace · Sync Reference Layer · minimize/close
+
+Sync chip states:
+
+None (no reference layer yet — will auto-create on first as-built save)
+
+Out of date — red mark
+
+Synced — green checkmark
+Manual ⟳ button re-syncs from job card.
+
+Drawing on the Map (As-Built Mode)
+Use Google Maps polylines + custom symbol markers. NOT Fabric.js canvas. NOT a separate overlay div.
+
+Port from asbuilt-source/js/app.js:
+
+Point tools (Pole, MH, HH, PED, Cabinet, Anchor, Splice Pit) → custom Google Maps markers using the exact symbol rendering rules from app.js (e.g., MH = circle with letters "MH" inside; color by status)
+
+Line tools (Cable family, XFERS, DERELASH, civil/trench/bore/pothole) → google.maps.Polyline with stroke patterns
+
+Edit/measure/select → use Google Maps polyline editing handles
+
+Removal lines: green polyline with intermittent X marker overlays along the path
+
+Status color mapping (HARDCODED, never change):
+
+NEW: #FF0000
+
+EXISTING: #000000 (label only, no billing)
+
+REMOVE: #00AA00
+
+XFER: #0000FF
+
+DERELASH: #A020F0
+
+TRENCH/BORE/POTHOLE (civil): #8B4513
+
+Stroke patterns:
+
+Aerial cable: solid stroke
+
+Underground cable: dashed stroke (use icons array with repeated dashes on polyline)
+
+Live Billable Units Box
+Port units.js as apps/web/src/features/asbuilt/units.ts (or .js) — pure JS module, no DOM dependencies.
+
+Port contract_units.json to apps/web/src/features/asbuilt/contract_units.json.
+
+Every tool, on commit/edit/delete, calls resolveSmartUnit(...) or resolveUnit(...) and writes resolved units into the workspace's state.unitMap.
+
+Live totals shown in the right panel:
+
+Active Layer Totals (today's work)
+
+Job Totals (running grand total)
+
+Both visible at once — no view flipping.
+
+Layers Panel (Right side of Workspace)
+Top section: Active Layer Totals + Job Totals (both visible)
+
+Middle section: Layer list, one row per (foreman + date), newest first
+
+Per-row controls: show/hide · make active for editing · rename date · explicit unlock (older layers are read-only by default)
+
+Bottom section per layer: grouped objects (Cable, Removed Cable, Poles, MH, HH, PED, Notes) with counts or footage beside each group — NOT a flat feature list
+
+Layer rules:
+
+One layer per foreman per date.
+
+New objects always write to the active daily layer.
+
+Previous layers visible by default but locked (read-only).
+
+Explicit per-row unlock to edit older layers.
+
+Feature persistence shape:
+
+text
+{ toolType, label, status, size?, coords, layerId, jobId, createdBy, workDate, billingEntries }
+Workspace Entry Behavior
+Triggered by "Enter Workspace" on job card.
+
+Map auto-centers + zooms to job's real lat/lng (not a random reset — the user already screamed about this once).
+
+Other jobs hidden.
+
+Top strip: work order, address, status (light, doesn't dominate).
+
+Left rail: full tool palette.
+
+Right panel: layers + totals.
+
+Prior layers already loaded and rendered.
+
+No setup dialog blocks the user — they should be drawing in seconds.
+
+Quick Reference Layer (auto-sync gist)
+On first as-built save for a job → auto-generate the gist (simplified cables + key points, no billing data).
+
+Map View renders the SAVED gist only — never live as-built. No background recompute.
+
+On later as-built edits → flip the job's outOfDate=true.
+
+Job-card ⟳ button manually re-syncs.
+
+Contract Rules — PRESERVE VERBATIM
+Status colors as listed above (hardcoded).
+
+A-tag auto-prefix on poles: if label doesn't start with A-, prepend it.
+
+No COAX anywhere (not a Lumen contract item).
+
+Only 10M strand (6M removed).
+
+Occupied conduit adder bills at same footage as associated cable tool.
+
+Splice pits: always NEW-only.
+
+MH crew/dewatering checkboxes default UNCHECKED.
+
+SELECT BACKFILL 0.5 CY — preserve decimals, NO Math.round.
+
+Hand Set default unchecked.
+
+Ground Rod only renders when pole status=NEW.
+
+MH/HH/PED size NOT rendered on canvas unless status=NEW.
+
+Removal lines: green polyline with intermittent X markers along the path.
+
+XFERS routing: setTool("XFERS") check must run BEFORE the activeCategory gate (explicit bug fix preserved at js/app.js:432 → :437).
+
+Label Rules
+Pole labels required, auto-prefix A- if missing.
+
+MH / HH / PED labels optional.
+
+Line labels optional; if entered, exact text becomes rendered callout for that line.
+
+Hard "Do Not" Rules
+DO NOT use iframes. DO NOT reintroduce /asbuilt route. DO NOT use Fabric.js canvas.
+
+DO NOT add Engineering Print upload, PDF overlay, alignment UI, or attachment system this phase. Strictly out of scope.
+
+DO NOT rebuild existing tools. Port the logic from app.js into native React + Google Maps.
+
+DO NOT change contract logic. Surface uncertainty as // TODO(merge-conflict): <reason> comments.
+
+DO NOT touch the Map View home/index beyond: sync chip on job card · QuickRefLayer rendering · Quick Mode toggle.
+
+DO NOT explore the repo beyond what's necessary. Be efficient — user is out of budget.
+
+Smartsheet (already wired in current code)
+Sheet ID: 1833739362822020
+
+Worker: https://nsc-smartapp.williamkeesee06.workers.dev
+
+Foreman column id: 4146149265985412
+
+WorkOrder column id: 4680657223346052
+
+Deliverable Checklist
+Branch phase-8-native-asbuilt pushed.
+
+Single PR opened (draft OK, do NOT merge).
+
+/asbuilt route + iframe + public folder DELETED.
+
+EngineeringPrint + Attachments components DELETED (with their API routes).
+
+Native React tools wired into existing JobWorkspace left rail.
+
+Google Maps polylines + markers replace Fabric canvas.
+
+units.ts + contract_units.json ported as native modules.
+
+Live billing box in right panel works.
+
+Job card layout matches spec exactly.
+
+Layers panel structure: totals top, layers middle (foreman+date), grouped objects under each.
+
+Workspace auto-centers + zooms on entry.
+
+Quick Mode toggle on Map View (not a route).
+
+Quick Reference Layer auto-creates on first save, sync chip wired.
+
+Build + typecheck both green.
+
+PR description lists: files added, files deleted, files modified, contract rules verified, any TODO(merge-conflict) markers.
+
+Return the PR URL + a short summary.
+
+Be SURGICAL. Be FAST. The user has limited budget. Do not retry, do not explore unnecessarily, do not add scope.
+
+Phase 8 subagent is running. I'll wait for it to finish before deploying.
+
+
+speed it up and run tasks in paralel but you need to manage them and keep them on task
+Splitting the work into parallel tracks. Phase 8 subagent is already on the foundational deletions + native draw stack. I'll spawn two more subagents in parallel to handle layers/totals/job-card wiring and the units engine port, each writing to a different file area to avoid collisions. I'll keep them on task with targeted messages.
+
+Phase 8B — UI Shell (parallel with Subagents A and C)
+You are subagent B of three running in parallel on branch phase-8-native-asbuilt. Subagent A (already running) owns the drawing + tools stack (Google Maps polylines/markers, port from asbuilt-source/js/app.js). Subagent C owns the units engine port. You own the UI shell only.
+
+Critical context
+The previous merge (Phase 6+7 already in main) bolted As-Built on as an iframe at /asbuilt. The user rejected that. As-Built Mode is the SAME Google Map zoomed into one job — native React, no iframe. Drawing is done by Subagent A. You handle the chrome around it.
+
+Branch + PR
+Pull branch phase-8-native-asbuilt (Subagent A created it off main).
+
+If branch doesn't exist yet, create it off main.
+
+Commit only your scope to this branch. Do NOT open a separate PR — Subagent A owns the PR; you push commits on top.
+
+Build + typecheck must pass for your commits.
+
+Your Scope (UI shell — NO drawing, NO units logic)
+1. Job Card on Map View — exact layout
+File: probably apps/web/src/features/jobs-map/JobCard.tsx (already exists).
+
+Top row: Job # + status pill (moved up next to job #) + sync chip
+
+Second row: Address, City
+
+Main details: Foreman/Crew · Schedule Date · Traffic Control
+
+Notes block: NSC Project Notes (collapsed 2-3 lines, expandable)
+
+Footer actions: Enter Workspace · Sync Reference Layer · minimize/close
+
+Sync chip states:
+
+None — no reference layer yet (auto-creates on first as-built save handled by Subagent C/A)
+
+Out of date — red mark
+
+Synced — green checkmark
+The ⟳ button manually re-syncs from the job card.
+
+2. Quick Mode toggle on Map View (NOT a route)
+Toggle on the Map View, NOT a new page.
+
+Drawing rendered by Subagent A on the same main map.
+
+Quick Mode cable prompt sequence (you own the wizard/dialog):
+Status (NEW/REMOVED) → Aerial or Underground → Family (Fiber/Copper/ASW/BSW) → optional label
+
+No footage. No billing. Just dispatches a draw intent to Subagent A's draw layer (assume an exported function beginQuickDraw({ status, medium, family, label }) from @/features/asbuilt/drawing).
+
+The existing QuickModeDialog.tsx should be revived/refactored to drive this.
+
+3. Workspace Entry Behavior (on click "Enter Workspace" on job card)
+Navigate to the existing Phase-5 JobWorkspace component (NOT to /asbuilt — that route is being deleted by Subagent A).
+
+Auto-center + zoom map to job's real lat/lng. (Random reset broke flow before — explicit rule.)
+
+Hide other jobs' pins.
+
+Top strip: work order + address + status (light, doesn't dominate).
+
+Left rail: tool palette (Subagent A mounts the actual tools — you ensure the slot exists).
+
+Right panel: layers + totals (you build this).
+
+Prior layers already loaded (Subagent A reads them from store).
+
+No setup dialog blocks the user.
+
+4. Right-side Layers Panel
+Top section: Active Layer Totals + Job Totals — both visible at once, no flip.
+
+Read totals from state.unitMap (Subagent A writes into it).
+
+Show line items per unit code with quantities/footage.
+
+Middle section: Layer list, one row per (foreman + date), newest first.
+
+Per-row controls: show/hide · make active for editing · rename date · explicit unlock (older layers read-only by default).
+
+Active-layer banner in the top strip so user always sees where new objects land.
+
+Bottom under each layer row: grouped objects (Cable, Removed Cable, Poles, MH, HH, PED, Notes) with counts/footage beside group name. NOT a flat feature list.
+
+Layer rules to enforce in the reducer:
+
+One layer per foreman per date.
+
+New objects always write to active daily layer.
+
+Previous layers visible by default but locked (read-only).
+
+Explicit per-row unlock to edit older.
+
+5. Quick Reference Layer rendering on Map View
+apps/web/src/features/jobs-map/QuickRefLayer.tsx already exists — keep it; just wire it to read the saved gist (NOT live as-built).
+
+Map View renders saved gist ONLY.
+
+On first as-built save: auto-create the gist (Subagent C may expose a helper, otherwise you do a simple extraction).
+
+On later edits: flip outOfDate=true on the job. Job-card sync chip shows red. ⟳ button re-runs the gist extraction.
+
+DO NOT
+Don't touch the actual drawing logic on the map (Subagent A owns it).
+
+Don't touch apps/web/src/features/asbuilt/units* or contract_units.json (Subagent C).
+
+Don't add Engineering Print, PDF overlay, attachments — fully OUT of scope.
+
+Don't reintroduce the /asbuilt route or any iframe.
+
+Don't rebuild existing tools.
+
+Authoritative References
+/home/user/workspace/asbuilt-source/MAP_WORKSPACE_LAYERS_SPEC.md — locked UX (read first!)
+
+/home/user/workspace/NSC_ASBUILT_TECHNICAL_SPEC-1.pdf — spec
+
+The user's locked statements about job card / sync chip / layers / workspace entry are in MAP_WORKSPACE_LAYERS_SPEC.md sections §4.1, §4.4, §5, §6.
+
+Deliverable
+Push your commits to phase-8-native-asbuilt.
+
+Do NOT open a PR (Subagent A owns it).
+
+Do NOT merge.
+
+Report back with a list of files added/modified and any TODO(merge-conflict) markers.
+
+Be surgical. Be fast. User has limited budget.
+
+Phase 8C — Units Engine Port (parallel with Subagents A and B)
+You are subagent C of three running in parallel on branch phase-8-native-asbuilt. Subagent A owns drawing/tools. Subagent B owns UI shell (layers/totals/job card/Quick Mode wizard). You own the units engine port only.
+
+Critical context
+Previous Phase 6+7 ran the As-Built tool in an iframe. The user rejected it. The units engine must now be a native TypeScript/JS module that the React app imports directly — no iframe, no postMessage.
+
+Branch + PR
+Pull phase-8-native-asbuilt (Subagent A creates it if not yet present — wait briefly if needed and pull again).
+
+Commit only your scope to this branch.
+
+Do NOT open a separate PR (Subagent A owns it).
+
+Your Scope
+1. Port the units engine
+Source: /home/user/workspace/asbuilt-source/js/units.js (1,574 lines).
+
+Key exports: resolveSmartUnit (line 1482) and resolveUnit (line 1562).
+
+Port to apps/web/src/features/asbuilt/units.ts (or .js if TS feels risky — but TypeScript preferred since the rest of the app is TS).
+
+Preserve ALL contract logic verbatim. Specifically:
+
+A-tag auto-prefix on poles (line ~55)
+
+SELECT BACKFILL 0.5 CY decimals preserved — NO Math.round
+
+No COAX anywhere (not a Lumen contract item)
+
+Only 10M strand (no 6M)
+
+Occupied conduit adder bills at same footage as associated cable tool
+
+Splice pits NEW-only
+
+Ground Rod only when pole status=NEW
+
+Hand Set default unchecked
+
+Strip ALL DOM dependencies. The module must be pure functions over inputs → unit objects. No document.*, no window.*, no jQuery.
+
+If you find DOM coupling, replace with function parameters (e.g., a tool consumes options as args, not from form elements).
+
+Status color hardcoding: keep the canonical color map as a constant export. NEW #FF0000, EXISTING #000000, REMOVE #00AA00, XFER #0000FF, DERELASH #A020F0, civil #8B4513.
+
+2. Copy the contract codes
+/home/user/workspace/asbuilt-source/js/contract_units.json → apps/web/src/features/asbuilt/contract_units.json (verbatim copy, no edits). 746 Lumen unit codes.
+
+Export it from units.ts as the canonical contract source.
+
+3. Tiny adapter API
+Other subagents will import from @/features/asbuilt/units. Expose at minimum:
+
+ts
+export const STATUS_COLORS = { NEW, EXISTING, REMOVE, XFER, DERELASH, CIVIL };
+export function resolveSmartUnit(input): UnitOutput[];
+export function resolveUnit(input): UnitOutput[];
+export const CONTRACT_UNITS;  // the 746-code map
+Keep input signatures close to the original where possible.
+
+4. Quick Reference Layer gist extractor (helper for Subagent B)
+Add a pure function: extractQuickRefGist(asbuiltFeatures): QuickRefGist
+
+Simplified output: just the headline cables + key points (Poles, MH, HH, PED). NO billing entries. Used by Subagent B to populate the Quick Ref layer on first save and on manual ⟳.
+
+DO NOT
+Don't touch drawing logic (Subagent A).
+
+Don't touch UI components (Subagent B).
+
+Don't introduce DOM, iframe, or browser-only deps.
+
+Don't change contract math.
+
+Don't add Engineering Print or attachments.
+
+Surface uncertainty
+Any place where the original units.js is ambiguous or DOM-coupled and you have to make a judgement call: add // TODO(merge-conflict): <reason> and continue.
+
+Deliverable
+Commits pushed to phase-8-native-asbuilt.
+
+Verify npx tsc --noEmit (or the project's typecheck script) passes for your additions in isolation.
+
+Report back: files added, contract rules verified, any TODO(merge-conflict) markers, and the exact named exports for Subagents A and B to import.
+
+Be surgical. Be fast. User has limited budget.
+
+
+Three subagents now running in parallel on phase-8-native-asbuilt:
+
+A (was already running) — drawing + tools on the Google Map
+
+B — UI shell: layers panel, totals, job card, Quick Mode, workspace entry
+
+C — units engine port + contract codes + gist extractor helper
+
+The follow-up to A was rejected because A is in the middle of its first turn — the scope-narrowing message can't be delivered until it pauses. The original objective I gave A already covers the full scope, so it'll do everything (including B and C territory). I'll send a coordinating message the moment A becomes interruptible. Worst case: A pushes its commits first and B/C rebase on top.
+
+Waiting for all three to settle. I'll cancel + re-dispatch if A goes too wide before B/C land their pieces.

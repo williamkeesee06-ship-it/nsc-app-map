@@ -6,7 +6,6 @@ import { useState, useRef, useCallback, useMemo } from "react";
 import type { AsBuiltLayer, DrawingObject } from "@nsc/types";
 import { useDrawing } from "../drawing/drawingContext.js";
 import ObjectDetailsCard from "../drawing/ObjectDetailsCard.js";
-import { aggregateUnits, type BillingEntry } from "../asbuilt/billing.js";
 
 
 const FEET_PER_METER = 3.28084;
@@ -580,67 +579,6 @@ function LayersSection() {
   );
 }
 
-// ── Phase 8: Billable units totals ──────────────────────────────────────────
-
-function fmtQty(qty: number, unit: string): string {
-  // Preserve decimals — contract rule: SELECT BACKFILL 0.5 CY etc. (no rounding).
-  if (unit === "FT") return `${Math.round(qty).toLocaleString()} ft`;
-  if (qty === Math.floor(qty)) return `${qty.toLocaleString()} ${unit}`;
-  return `${qty.toFixed(2)} ${unit}`;
-}
-
-function BillingTable({ entries, label, empty }: { entries: BillingEntry[]; label: string; empty: string }) {
-  return (
-    <div style={{ padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>
-      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 4 }}>
-        {label}
-      </div>
-      {entries.length === 0 ? (
-        <div style={{ fontSize: 10, color: "var(--text-muted)", padding: "2px 0" }}>{empty}</div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2px 8px", fontSize: 10 }}>
-          {entries.map((e) => (
-            <span key={`${e.unit_code}::${e.unit}`} style={{ display: "contents" }}>
-              <span style={{ color: "var(--text)" }} title={e.desc}>{e.unit_code}</span>
-              <span style={{ color: "#39ff7a", fontWeight: 600, textAlign: "right" }}>{fmtQty(e.qty, e.unit)}</span>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BillingTotalsSection() {
-  const { state } = useDrawing();
-  const activeLayerId = state.activeLayerId;
-
-  const activeEntries = useMemo<BillingEntry[]>(() => {
-    if (!activeLayerId) return [];
-    const objs = state.objects.filter((o) => o.style.layerId === activeLayerId);
-    return aggregateUnits(objs);
-  }, [state.objects, activeLayerId]);
-
-  const jobEntries = useMemo<BillingEntry[]>(
-    () => aggregateUnits(state.objects),
-    [state.objects],
-  );
-
-  return (
-    <>
-      <BillingTable
-        entries={activeEntries}
-        label="Active Layer Totals"
-        empty={activeLayerId ? "No billable units on active layer yet." : "Select or create an active layer."}
-      />
-      <BillingTable
-        entries={jobEntries}
-        label="Job Totals"
-        empty="No billable units yet."
-      />
-    </>
-  );
-}
 
 function ActiveLayerBanner() {
   const { state } = useDrawing();
@@ -747,8 +685,6 @@ export default function LayersPanel() {
       {/* Phase 7: active-layer banner */}
       <ActiveLayerBanner />
 
-      {/* Phase 8: billable units — Active Layer + Job totals, both visible */}
-      <BillingTotalsSection />
 
       {/* Phase 7: daily layer list */}
       <LayersSection />

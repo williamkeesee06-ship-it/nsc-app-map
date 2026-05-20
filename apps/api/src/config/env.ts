@@ -36,7 +36,9 @@ export function getEnv(): Env {
   // Normalize the PEM: Vercel/CI typically stores \n as literal "\n"
   const normalized: Env = {
     ...parsed.data,
-    FIREBASE_PRIVATE_KEY: parsed.data.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    FIREBASE_PRIVATE_KEY: parsed.data.FIREBASE_PRIVATE_KEY.trim()
+      .replace(/^["']|["']$/g, "")
+      .replace(/\\n/g, "\n"),
   };
   cached = normalized;
   return normalized;

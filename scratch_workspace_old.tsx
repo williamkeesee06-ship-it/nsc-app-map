@@ -1,6 +1,9 @@
-// JobWorkspace — Phase 8: Native single-job editor on the same Google Map.
-// Centers + zooms to job on entry, hides other markers, full toolset active.
-import { useCallback, useEffect, useRef } from "react";
+﻿// JobWorkspace ΓÇö Phase 5: Focused single-job editor.
+// Reuses the same drawing engine, left rail, and modifier strip as the Jobs Map,
+// but filters to one job, hides non-active markers, and enables auto-save.
+// Phase 5.3: auto-center on job geocode at zoom 19 on workspace entry.
+// Phase 7: AttachmentsPanel + EngineeringPrintOverlay surfaced in workspace.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Map, useMap } from "@vis.gl/react-google-maps";
 import { stylesFor, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
@@ -13,7 +16,6 @@ import { defaultFilters } from "../jobs-map/FilterRail.js";
 import { api } from "../../lib/api.js";
 import JobContextStrip from "./JobContextStrip.js";
 import LayersPanel from "./LayersPanel.js";
-import FloatingBillingCard from "./FloatingBillingCard.js";
 import AttachmentsPanel from "./AttachmentsPanel.js";
 import EngineeringPrintOverlay from "../asbuilt/EngineeringPrintOverlay.js";
 import type { EngineeringPrint } from "@nsc/types";
@@ -33,7 +35,7 @@ export default function JobWorkspace() {
   );
 }
 
-// ── Inner component (has access to DrawingContext) ────────────────────────────
+// ΓöÇΓöÇ Inner component (has access to DrawingContext) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 interface InnerProps {
   jobId: string;
@@ -42,7 +44,7 @@ interface InnerProps {
 }
 
 function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
-  const { state, setTarget, loadObjects, setWorkspaceJobId, activateLayerForToday } = useDrawing();
+  const { setTarget, loadObjects, setWorkspaceJobId, activateLayerForToday } = useDrawing();
   const jobState = useJob(jobId);
 
   // Set drawing target + workspace mode on mount
@@ -108,29 +110,18 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
     void api.patchPrint(jobId, activePrint.printId, { corners }).catch(() => {});
   }, [activePrint, jobId]);
 
-  // Phase 6: Auto-sync QuickReferenceGist when save occurs (dirty transitions from true to false)
-  const prevDirtyRef = useRef(state.dirty);
-  useEffect(() => {
-    if (prevDirtyRef.current === true && state.dirty === false) {
-      // Save just completed
-      api.syncGist(jobId).catch((err) => console.error("Failed to auto-sync gist:", err));
-    }
-    prevDirtyRef.current = state.dirty;
-  }, [state.dirty, jobId]);
-
   return (
     <div className="workspace-layout">
       {/* Job context strip below topbar */}
       {jobId && <JobContextStrip jobId={jobId} />}
 
       <div className="workspace-layout__body">
-        {/* Left rail (tools only — no filter rail in workspace mode) */}
+        {/* Left rail (tools only ΓÇö no filter rail in workspace mode) */}
         <WorkspaceLeftRail />
 
         {/* Map area */}
         <div className="workspace-layout__map">
           <ModifiersPanel />
-          <FloatingBillingCard />
           {jobId && (
             <AttachmentsPanel
               jobId={jobId}
@@ -168,7 +159,7 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
   );
 }
 
-// ── Left rail without filter section ────────────────────────────────────────
+// ΓöÇΓöÇ Left rail without filter section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 function WorkspaceLeftRail() {
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -188,7 +179,7 @@ function WorkspaceLeftRail() {
   );
 }
 
-// ── Map handle ───────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Map handle ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 function MapHandle({ mapRef }: { mapRef: React.MutableRefObject<google.maps.Map | null> }) {
   const map = useMap();
@@ -201,7 +192,7 @@ function MapHandle({ mapRef }: { mapRef: React.MutableRefObject<google.maps.Map 
   return null;
 }
 
-// ── Fit map to drawing geometry or job geocode (runs once per workspace entry) ──
+// ΓöÇΓöÇ Fit map to drawing geometry or job geocode (runs once per workspace entry) ΓöÇΓöÇ
 
 interface FitProps {
   job: { geocode?: { lat: number; lng: number; status: string } | null; address?: string | null } | null;
@@ -211,7 +202,7 @@ interface FitProps {
 function FitToJobGeometry({ job, jobId }: FitProps) {
   const map = useMap();
   const { state } = useDrawing();
-  // One-shot fit per jobId — reset when jobId changes
+  // One-shot fit per jobId ΓÇö reset when jobId changes
   const didFitRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -221,7 +212,7 @@ function FitToJobGeometry({ job, jobId }: FitProps) {
 
     const objects = state.objects;
 
-    // ── Case 1: existing drawings → fit to their bounds ──────────────────
+    // ΓöÇΓöÇ Case 1: existing drawings ΓåÆ fit to their bounds ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     if (objects.length > 0) {
       const bounds = new google.maps.LatLngBounds();
       let hasPoints = false;
@@ -249,10 +240,10 @@ function FitToJobGeometry({ job, jobId }: FitProps) {
       }
     }
 
-    // ── Case 2: job not loaded yet — wait ────────────────────────────────
+    // ΓöÇΓöÇ Case 2: job not loaded yet ΓÇö wait ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     if (!job) return;
 
-    // ── Case 3: job has geocode → center + zoom 19 ───────────────────────
+    // ΓöÇΓöÇ Case 3: job has geocode ΓåÆ center + zoom 19 ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     if (job.geocode?.status === "OK" && job.geocode.lat !== 0) {
       const { lat, lng } = job.geocode;
       map.setCenter({ lat, lng });
@@ -264,7 +255,7 @@ function FitToJobGeometry({ job, jobId }: FitProps) {
       return;
     }
 
-    // ── Case 4: job has address but no geocode → client-side geocode ─────
+    // ΓöÇΓöÇ Case 4: job has address but no geocode ΓåÆ client-side geocode ΓöÇΓöÇΓöÇΓöÇΓöÇ
     if (job.address) {
       const geocoder = new google.maps.Geocoder();
       geocoder.geocode({ address: job.address }, (results, status) => {
@@ -285,13 +276,13 @@ function FitToJobGeometry({ job, jobId }: FitProps) {
       return;
     }
 
-    // ── Case 5: no location data — mark done to stop retrying ────────────
+    // ΓöÇΓöÇ Case 5: no location data ΓÇö mark done to stop retrying ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     if (import.meta.env.DEV) {
-      console.warn("[workspace] job has no geocode and no address — cannot auto-center");
+      console.warn("[workspace] job has no geocode and no address ΓÇö cannot auto-center");
     }
     didFitRef.current = jobId;
 
-  // Re-run when map, job, or jobId changes — but the didFitRef guard prevents
+  // Re-run when map, job, or jobId changes ΓÇö but the didFitRef guard prevents
   // re-fitting after the initial fit, even as drawing objects accumulate.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, job, jobId, state.objects.length > 0]);

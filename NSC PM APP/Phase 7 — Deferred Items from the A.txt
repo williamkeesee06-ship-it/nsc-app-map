@@ -1,0 +1,147 @@
+Phase 7 — Deferred Items from the As-Built Merge
+Mission
+Land the four deferred items from Phase 6 on top of the merged /asbuilt workspace. Phase 6 shipped on branch phase-6-asbuilt-merge (PR #1, NOT yet merged). Stack Phase 7 on top of that branch — create a new feature branch phase-7-layers-print-attachments off phase-6-asbuilt-merge. Open a fresh PR off that branch when done — do NOT merge.
+
+What's Already Shipped (Phase 6 — do NOT re-do)
+/asbuilt route mounting the As-Built workspace
+
+Verbatim port at apps/web/public/asbuilt/ of index.html, style.css, js/app.js, js/units.js, js/contract_units.json, ss-worker.js, wrangler.toml
+
+apps/web/src/features/asbuilt/AsbuiltWorkspace.tsx (iframe host)
+
+App.tsx routes, JobCard.tsx "Enter As-Built →" button, global.css .asbuilt-workspace* styles
+
+All contract rules verified verbatim (colors, A-tag prefix, no Math.round, XFERS routing, etc.)
+
+Authoritative References (read first)
+/home/user/workspace/asbuilt-source/MAP_WORKSPACE_LAYERS_SPEC.md — locked UX architecture
+
+/home/user/workspace/NSC_ASBUILT_TECHNICAL_SPEC-1.pdf — 15-page spec
+
+/home/user/workspace/LUMEN-NSC-UNIT-AND-DESC.-Sheet1.csv — 746 Lumen unit codes
+
+/home/user/workspace/Asbuilt-Brain-VALIDATION_LISTS.csv + VALIDATION_SOURCE.csv
+
+Phase 7 Scope (4 features, in this order)
+1. Layers by Foreman + Date (DO THIS FIRST — foundational)
+Data model — every drawn feature persists:
+
+text
+{ toolType, label, status, size?, coords, layerId, jobId, createdBy, workDate, billingEntries }
+createdBy = foreman (read from Smartsheet column 4146149265985412 for the active job, or user-selected if multiple foremen on the job)
+
+workDate = ISO date of the layer
+
+layerId = stable id, one per (jobId, createdBy, workDate) tuple
+
+Layer rules:
+
+One layer per foreman per date.
+
+New objects always write to the active daily layer.
+
+Previous layers visible by default, read-only (locked).
+
+Per-row "Unlock for editing" toggle moves a layer into edit mode explicitly.
+
+Active-layer banner in the workspace top strip — user always sees where new objects land.
+
+Right panel layer list (middle section):
+
+List layers grouped by createdBy + workDate, newest first.
+
+Per-row controls: show/hide · make active · rename date · explicit unlock.
+
+Bottom section per layer = grouped objects (Cable, Removed Cable, Poles, MH, HH, PED, Notes) with counts/footage beside each group — NOT a flat feature list.
+
+2. Engineering Print Overlay
+"Attach Engineering Print" action in the workspace.
+
+Upload PDF or image → manual alignment UI: draggable corner control points + rotate + opacity slider.
+
+Save as toggleable overlay layer (separate from as-built layers).
+
+One active "Engineering Print" badge per job at a time. Reassignable — when user sets a different print as Engineering Print, the badge moves. Older prints stay attached unless deleted.
+
+Visual reference ONLY — never source of truth for billing. Do not derive measurements from it.
+
+Badge surfaced on map-view job card as "Engineering Print Attached" indicator near top of card.
+
+3. Attachment System
+Per-job attachment list (PDFs + normal files).
+
+Hard reject KMZ and GeoJSON uploads with a friendly error message.
+
+Sync uploads/deletes to Smartsheet attachments for that row.
+
+"Set as Engineering Print" button on any PDF attachment → wires into #2.
+
+4. Quick Reference Layer (auto-sync gist)
+On first as-built save for a job → auto-generate the Quick Reference Layer gist from the as-built data. Gist = simplified cable lines + key points only, no billing data.
+
+Map view renders the saved gist, never live as-built data. No background recompute.
+
+Job-card sync icon states:
+
+None → (auto-creates on first as-built save)
+
+Out-of-date → red mark (set whenever the as-built layer set changes after last sync)
+
+Synced → green checkmark
+
+Manual "Sync Reference Layer" button on the job card recomputes the gist from latest as-built.
+
+Quick Mode entry path on the map view (lightweight backfill for older jobs without full as-built):
+
+Prompt sequence: Status (NEW / REMOVED) → Aerial or Underground → Cable family (Fiber / Copper / ASW / BSW) → optional label
+
+Visual rendering rules (MUST match As-Built Mode):
+
+Aerial cable → solid line
+
+Underground cable → dashed line
+
+NEW → red #FF0000
+
+REMOVED → green #00AA00
+
+Contract Rules — Still Locked (carry forward verbatim)
+Status colors hardcoded · A-tag auto-prefix on poles · SELECT BACKFILL 0.5 CY decimal preserved (no Math.round) · XFERS routed BEFORE activeCategory gate · 10M strand only, no 6M · no COAX · splice pit NEW-only · MH crew/dewatering default UNCHECKED · Hand Set default unchecked · Ground Rod only when pole=NEW · MH/HH/PED size hidden unless NEW · Removal lines green w/ intermittent X · Occupied conduit adder bills at cable footage.
+
+Hard "Do Not" Rules
+Do NOT rebuild existing as-built tools.
+
+Do NOT touch the map home/index page beyond: (a) the sync icon on the job card and (b) the Quick Reference Layer rendering hook and (c) the Quick Mode entry path.
+
+Do NOT derive billing from the Engineering Print overlay.
+
+Do NOT silently change contract logic. Surface every uncertainty as // TODO(merge-conflict): <description> and continue.
+
+Smartsheet (already wired)
+Sheet ID: 1833739362822020
+
+Worker: https://nsc-smartapp.williamkeesee06.workers.dev
+
+Foreman column: 4146149265985412
+
+Attachments: use the Smartsheet attachments API for the row matching the job's WorkOrder column 4680657223346052.
+
+Deliverable
+Branch phase-7-layers-print-attachments off phase-6-asbuilt-merge
+
+One clean PR — do NOT merge
+
+Build + typecheck both green
+
+PR description lists: files added, files modified, contract rules verified, any TODO(merge-conflict) markers, deferred items if any
+
+Return the PR URL plus a short summary
+
+Out of Scope
+iPad foreman mode (later phase)
+
+SKU material pickers / rare contract exceptions
+
+Rotating leaked Google Maps API key (user's task — already flagged)
+
+Three.js sketcher

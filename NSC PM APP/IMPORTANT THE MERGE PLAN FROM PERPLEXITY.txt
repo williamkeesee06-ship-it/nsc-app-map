@@ -1,0 +1,156 @@
+Phase 6 — Merge North Sky As-Built into NSC App Map
+Mission
+Merge the existing North Sky As-Built tool (already a complete, working app) into this NSC App Map repo as a new /asbuilt route. This is a MERGE of TWO EXISTING PROJECTS — not a rewrite, not a third app. The Map App stays the base; its home/index is untouched. The As-Built code is ported VERBATIM where possible; contract logic must be preserved exactly. Open a PR on a feature branch — do NOT push to main.
+
+Repo Layout to Expect
+This repo is the NSC App Map. You'll explore it. The home page shows 191 Smartsheet jobs as neon pins with search/filters; phases 1-5.3 are already shipped (zoom-scaled symbols, callout labels, click-to-edit, totals, save/undo/redo, mint/emerald completed/scheduled pins).
+
+Source to Port (verbatim where possible)
+All extracted As-Built source lives at /home/user/workspace/asbuilt-source/ — these are the canonical files. Use them, do not re-fetch from the Perplexity Computer asset URL.
+
+index.html (723 lines) — As-Built shell (use as reference for tool palette + modals)
+
+style.css (2,188 lines) — port relevant blocks alongside route
+
+js/app.js (4,222 lines) — Fabric.js canvas, telecom tools, interactions
+
+line 2403: storeUnitData(obj, resolved)
+
+line 2459: updateBillableUnits()
+
+line 3035: const SS_WORKER = 'https://nsc-smartapp.williamkeesee06.workers.dev';
+
+js/units.js (1,574 lines) — billing engine
+
+line 1482: resolveSmartUnit
+
+line 1562: resolveUnit
+
+js/contract_units.json (746 Lumen unit codes, validated JSON)
+
+ss-worker.js (113 lines) + wrangler.toml — Cloudflare Worker (don't redeploy, just preserve)
+
+BILLING_ANALYSIS.md, RENDER_BILLING_SPEC.md — extra contract references
+
+SKIP entirely: js/sketcher.js (Three.js alt mode — user said skip).
+
+Authoritative specs to read FIRST before writing any code:
+
+/home/user/workspace/asbuilt-source/MAP_WORKSPACE_LAYERS_SPEC.md (176 lines — Map→Workspace→Layers UX, the locked architecture)
+
+/home/user/workspace/NSC_ASBUILT_TECHNICAL_SPEC-1.pdf (15-page authoritative spec)
+
+/home/user/workspace/LUMEN-NSC-UNIT-AND-DESC.-Sheet1.csv (746 Lumen unit codes)
+
+/home/user/workspace/Asbuilt-Brain-VALIDATION_LISTS.csv + VALIDATION_SOURCE.csv
+
+Three-Level Architecture (LOCKED — from MAP_WORKSPACE_LAYERS_SPEC.md)
+Map View (existing home) — Quick Reference Layer renders the "gist", NOT granular as-built data. DO NOT touch the home page beyond adding the "Enter Workspace" navigation.
+
+Workspace (/asbuilt?jobId=...) — focused single-job editor. On mount: load job from Smartsheet, auto-center + zoom to job lat/lng, hide other pins, mount canvas + tool palette + layers panel.
+
+Layers Panel (right side) — top: job totals · middle: layer list by foreman+date · bottom: grouped objects per layer.
+
+Layer Model
+One as-built layer per foreman per date.
+
+Previous layers visible by default but locked — require explicit unlock toggle to edit.
+
+New objects → active daily layer.
+
+Feature shape: { toolType, label, status, size?, coords, layerId, jobId, createdBy, workDate, billingEntries }.
+
+Engineering Print Overlay
+PDF/image upload per job, manual alignment (control points / rotate / stretch).
+
+Visual reference only — never source of truth for billing.
+
+ONE active "Engineering Print" badge per job, reassignable to revised prints. Older prints stay attached unless deleted.
+
+Attachment system: PDFs + normal files, BLOCKS KMZ/GeoJSON, syncs to Smartsheet attachments column.
+
+Quick Reference Layer
+Auto-generate on first as-built save for a job (gist extraction).
+
+Map View always renders the saved gist, NOT live as-built.
+
+Job-card sync icon: none / out-of-date (red) / synced (green) — manual re-sync only.
+
+Quick Mode prompt sequence: Status (NEW/REMOVED) → Aerial or Underground → Cable family (Fiber/Copper/ASW/BSW) → optional label. Visual rules: aerial solid, UG dashed, NEW red, REMOVED green — same visual language as As-Built Mode.
+
+Contract Rules — PRESERVE VERBATIM (do not "improve")
+Status colors hardcoded: NEW #FF0000, EXISTING #000000 (label-only, no billing), REMOVE #00AA00, XFER #0000FF, DERELASH #A020F0, civil (TRENCH/BORE/POTHOLE) #8B4513.
+
+No COAX anywhere (not a Lumen contract item).
+
+Only 10M strand (6M is removed).
+
+A-Tag auto-prefix: poles auto-prefix A- if not present.
+
+Occupied conduit adder: bills at same footage as associated cable tool.
+
+Splice pits: always NEW-only.
+
+MH crew/dewatering checkboxes default UNCHECKED.
+
+SELECT BACKFILL 0.5 CY — preserve decimals, NO Math.round.
+
+Hand Set default unchecked.
+
+Ground Rod only renders when Status=NEW on pole.
+
+MH/HH/PED size NOT rendered on canvas unless Status=NEW.
+
+Removal lines: green with intermittent X marks along the line.
+
+XFERS routing: setTool("XFERS") BEFORE activeCategory gate (explicit bug fix — keep this order).
+
+Label Rules
+Pole labels required, auto-format to A-##### if user omits prefix.
+
+MH/HH/PED labels optional.
+
+Line labels optional; if entered, exact text becomes the rendered callout for that line.
+
+Production-Readiness Priorities (user-locked order)
+Job lookup + map load — work order lookup, address fill, geocode, map capture always work.
+
+Canvas stability — draw, select, move, delete, undo/redo, zoom, pan, background image behavior.
+
+Billing integrity — every tool writes correct units into state.unitMap, removes stale entries on delete, preserves decimals.
+
+Export + persistence — save/load + PDF export submission-ready every time.
+
+Smartsheet Integration (already wired in Map App)
+Sheet ID: 1833739362822020 (191 jobs)
+
+Worker: https://nsc-smartapp.williamkeesee06.workers.dev
+
+Column IDs: WorkOrder=4680657223346052, Supervisor=8776041144995716, Foreman=4146149265985412, Address=7094520111753092, City=1465020577539972, Zip=4822376816371588, JobStatus=4721327342413700, TCRequired=6789809108373380, Notes=6458790863759236
+
+CDN Deps (already used by As-Built, keep via CDN)
+Fabric.js 5.3.0, jsPDF 2.5.1, html2canvas 1.4.1 — load via the same CDN refs in index.html.
+
+Hard "DO NOT" Rules
+DO NOT replace Map App's home page / index.
+
+DO NOT introduce a new framework or rewrite in React if the As-Built is vanilla — match the existing Map App's framework. If Map App is Vite+vanilla and As-Built is vanilla, port files into the Vite tree at /asbuilt. If Map App is React, wrap the As-Built shell in a route component but keep the canvas logic in the original imperative form.
+
+DO NOT rebuild existing tools. User explicitly said: "i'm done with tools, i already have the main ones built in."
+
+DO NOT silently change contract logic. Surface every uncertainty as // TODO(merge-conflict): <description> and continue.
+
+DO NOT port js/sketcher.js.
+
+Deliverable
+Feature branch (e.g., phase-6-asbuilt-merge) with a clean PR.
+
+/asbuilt route mounts the As-Built workspace, scoped to ?jobId=.
+
+Map View → job card → "Enter Workspace" button navigates to /asbuilt?jobId=....
+
+Layers panel renders on the right; job totals top, layer list middle, grouped objects bottom.
+
+All contract rules above implemented exactly.
+
+Open a PR with a clear description listing files added, files modified, deferred items, and any TODO(merge-conflict) markers.
