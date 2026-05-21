@@ -25,39 +25,42 @@ export interface MarkerColor {
 }
 
 export const MARKER_COLORS: Record<MarkerColorKey, MarkerColor> = {
-  red:    { key: "red",    label: "On Hold / Pending Permit / Pending Engineering", core: "#ff2d4a", glow: "#ff3355" },
-  green:  { key: "green",  label: "Scheduled",          core: "#00C853", glow: "#00A040" },
-  yellow: { key: "yellow", label: "Fielded RTS / RTS",  core: "#ffe338", glow: "#e0c022" },
-  blue:   { key: "blue",   label: "Routed to Sub",      core: "#3aa7ff", glow: "#1f7ad6" },
-  purple: { key: "purple", label: "Pending Splicing",   core: "#c44dff", glow: "#9b2bd1" },
-  orange: { key: "orange", label: "Needs Fielding",     core: "#ff8a1f", glow: "#e06a00" },
-  silver: { key: "silver", label: "Completed",          core: "#A7F3A0", glow: "#86EFAC" },
-  gray:   { key: "gray",   label: "Other / Unset",      core: "#9aa3ad", glow: "#5a6168" },
+  red:    { key: "red",    label: "On Hold",             core: "#ff2d4a", glow: "#ff3355" },
+  green:  { key: "green",  label: "Scheduled",           core: "#00C853", glow: "#00A040" },
+  yellow: { key: "yellow", label: "Fielded RTS / RTS",   core: "#ffe338", glow: "#e0c022" },
+  blue:   { key: "blue",   label: "In Progress",         core: "#3aa7ff", glow: "#1f7ad6" },
+  purple: { key: "purple", label: "Needs Fielding",      core: "#c44dff", glow: "#9b2bd1" },
+  orange: { key: "orange", label: "Pending",             core: "#ff8a1f", glow: "#e06a00" },
+  silver: { key: "silver", label: "Completed",           core: "#A7F3A0", glow: "#86EFAC" },
+  gray:   { key: "gray",   label: "Other / Unset",       core: "#9aa3ad", glow: "#5a6168" },
 };
 
 // All raw Secondary-Job-Status strings observed in the live sheet are grouped
 // into one of the buckets above. The match is case-insensitive on the trimmed
 // value. Anything not listed here falls into "gray".
 const STATUS_TO_COLOR: Array<{ test: (s: string) => boolean; key: MarkerColorKey }> = [
-  // RED — on hold / pending permit / pending engineering
+  // RED — On Hold (only)
   { test: (s) => s === "on hold", key: "red" },
-  { test: (s) => s === "pending permit", key: "red" },
-  { test: (s) => s === "pending engineering", key: "red" },
 
-  // GREEN — scheduled
-  { test: (s) => s === "scheduled", key: "green" },
+  // ORANGE — Pending bucket (includes pending permit / pending engineering /
+  // plain pending). These used to be RED; Billy 5/20: pending = orange.
+  { test: (s) => s === "pending", key: "orange" },
+  { test: (s) => s === "pending permit", key: "orange" },
+  { test: (s) => s === "pending engineering", key: "orange" },
+
+  // PURPLE — Needs Fielding (Billy 5/20: needs fielding = purple)
+  { test: (s) => s === "needs fielding", key: "purple" },
 
   // YELLOW — fielded rts / rts (covers "FIELDED - RTS" and bare "RTS")
-  { test: (s) => s === "rts" || s.includes("fielded") && s.includes("rts"), key: "yellow" },
+  { test: (s) => s === "rts" || (s.includes("fielded") && s.includes("rts")), key: "yellow" },
 
-  // BLUE — routed to sub
+  // BLUE — In Progress bucket members (scheduled, routed to sub,
+  // pending splicing, pending HSR). Billy 5/20: pending splicing should
+  // match In Progress, not stand alone as purple.
+  { test: (s) => s === "scheduled", key: "blue" },
   { test: (s) => s === "routed to sub", key: "blue" },
-
-  // PURPLE — pending splicing
-  { test: (s) => s === "pending splicing", key: "purple" },
-
-  // ORANGE — needs fielding
-  { test: (s) => s === "needs fielding", key: "orange" },
+  { test: (s) => s === "pending splicing", key: "blue" },
+  { test: (s) => s === "pending hsr", key: "blue" },
 ];
 
 export function colorKeyForSecondaryStatus(
@@ -118,10 +121,10 @@ export interface StatusBucketDef {
 }
 
 export const STATUS_BUCKETS: StatusBucketDef[] = [
-  { key: "needs_fielding", label: "Needs Fielding", colorKey: "orange" },
+  { key: "needs_fielding", label: "Needs Fielding", colorKey: "purple" },
   { key: "rts",            label: "RTS",            colorKey: "yellow" },
   { key: "on_hold",        label: "On Hold",        colorKey: "red" },
-  { key: "pending",        label: "Pending",        colorKey: "gray" },
+  { key: "pending",        label: "Pending",        colorKey: "orange" },
   { key: "in_progress",    label: "In Progress",    colorKey: "blue" },
   { key: "completed",      label: "Completed",      colorKey: "silver" },
 ];
