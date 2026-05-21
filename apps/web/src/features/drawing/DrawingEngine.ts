@@ -61,6 +61,13 @@ export class DrawingEngine {
   private tool: DrawingTool | null = null;
   private style: DrawingStyle | null = null;
 
+  // Phase 9: snap-target overlay (glowing blue circle when in range)
+  private snapGlow: google.maps.Marker | null = null;
+  /** Phase 9: function returning live point-tool object positions for snap. */
+  getSnapTargets?: () => Array<{ id: string; lat: number; lng: number }>;
+  /** Phase 9: snap radius in CSS pixels (default 25). */
+  snapPx = 25;
+
   // Callback for "drawing started" / "drawing in progress" (for UI hints)
   onDrawProgress?: (vertexCount: number, distanceFeet?: number) => void;
   onDrawEnd?: () => void;
@@ -104,6 +111,8 @@ export class DrawingEngine {
     this.previewCircle = null;
     this.measureInfoWindow?.close();
     this.measureInfoWindow = null;
+    this.snapGlow?.setMap(null);
+    this.snapGlow = null;
     this.vertices = [];
     this.dragStart = null;
     this.isDragging = false;
@@ -112,6 +121,54 @@ export class DrawingEngine {
     this.style = null;
     this.map.setOptions({ draggableCursor: null, draggable: true });
     this.onDrawEnd?.();
+  }
+
+  // ─── Phase 9: snap helpers ────────────────────────────────────────────────
+  private snapTarget(pt: { lat: number; lng: number }): { lat: number; lng: number } | null {
+    if (!this.getSnapTargets) return null;
+    const targets = this.getSnapTargets();
+    if (targets.length === 0) return null;
+    const proj = this.map.getProjection();
+    const zoom = this.map.getZoom();
+    if (!proj || zoom == null) return null;
+    const scale = Math.pow(2, zoom);
+    const ptWorld = proj.fromLatLngToPoint(new google.maps.LatLng(pt.lat, pt.lng));
+    if (!ptWorld) return null;
+    let best: { lat: number; lng: number; d: number } | null = null;
+    for (const t of targets) {
+      const tWorld = proj.fromLatLngToPoint(new google.maps.LatLng(t.lat, t.lng));
+      if (!tWorld) continue;
+      const dx = (tWorld.x - ptWorld.x) * scale;
+      const dy = (tWorld.y - ptWorld.y) * scale;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d <= this.snapPx && (best === null || d < best.d)) {
+        best = { lat: t.lat, lng: t.lng, d };
+      }
+    }
+    return best ? { lat: best.lat, lng: best.lng } : null;
+  }
+
+  private updateSnapGlow(at: { lat: number; lng: number } | null): void {
+    if (!at) {
+      this.snapGlow?.setMap(null);
+      return;
+    }
+    if (!this.snapGlow) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#3aa7ff" fill-opacity="0.18" stroke="#3aa7ff" stroke-width="2"/></svg>`;
+      this.snapGlow = new google.maps.Marker({
+        position: at,
+        clickable: false,
+        zIndex: 50,
+        icon: {
+          url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+          scaledSize: new google.maps.Size(32, 32),
+          anchor: new google.maps.Point(16, 16),
+        },
+      });
+    } else {
+      this.snapGlow.setPosition(at);
+    }
+    this.snapGlow.setMap(this.map);
   }
 
   cancel(): void {
@@ -194,8 +251,12 @@ export class DrawingEngine {
     const click = this.map.addListener("click", (e: google.maps.MapMouseEvent) => {
       const pt = latLng(e);
       if (!pt) return;
-      this.vertices.push(pt);
+      // Phase 9: snap to nearby pole/MH/HH/PED if within 25px
+      const snap = this.snapTarget(pt);
+      const finalPt = snap ?? pt;
+      this.vertices.push(finalPt);
       this.updatePolylinePreview();
+      this.updateSnapGlow(null);
       const dist = this.tool === "measure" ? totalDistanceFeet(this.vertices) : undefined;
       this.onDrawProgress?.(this.vertices.length, dist);
     });
@@ -207,8 +268,14 @@ export class DrawingEngine {
 
     // Track mouse for preview ghost segment
     const mousemove = this.map.addListener("mousemove", (e: google.maps.MapMouseEvent) => {
-      if (this.vertices.length === 0 || !e.latLng) return;
-      const ghost = [...this.vertices, { lat: e.latLng.lat(), lng: e.latLng.lng() }];
+      if (!e.latLng) return;
+      const cur = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+      // Phase 9: show snap glow even before first click
+      const snap = this.snapTarget(cur);
+      this.updateSnapGlow(snap);
+      if (this.vertices.length === 0) return;
+      const ghostEnd = snap ?? cur;
+      const ghost = [...this.vertices, ghostEnd];
       this.previewLine?.setPath(
         ghost.map((v) => new google.maps.LatLng(v.lat, v.lng))
       );

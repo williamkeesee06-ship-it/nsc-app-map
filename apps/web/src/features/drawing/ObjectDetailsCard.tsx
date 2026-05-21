@@ -150,6 +150,182 @@ function GeometryInfo({ obj }: { obj: DrawingObject }) {
   return null;
 }
 
+// ── Photos section ────────────────────────────────────────────────────────────
+
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+function PhotosSection({ obj }: { obj: DrawingObject }) {
+  const { patchObjectStyle } = useDrawing();
+  const photos = obj.style.photos ?? [];
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  async function addFiles(files: FileList | File[]) {
+    setError(null);
+    const accepted: Array<{ id: string; dataUrl: string; name?: string }> = [];
+    for (const f of Array.from(files)) {
+      if (!/^image\/(jpe?g|png)$/i.test(f.type)) {
+        setError(`Skipped ${f.name}: only JPG/PNG allowed.`);
+        continue;
+      }
+      if (f.size > MAX_PHOTO_BYTES) {
+        setError(`Skipped ${f.name}: exceeds 5MB.`);
+        continue;
+      }
+      try {
+        const dataUrl = await fileToDataUrl(f);
+        accepted.push({
+          id: `ph_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+          dataUrl,
+          name: f.name,
+        });
+      } catch {
+        setError(`Failed to read ${f.name}.`);
+      }
+    }
+    if (accepted.length > 0) {
+      patchObjectStyle(obj.id, { photos: [...photos, ...accepted] });
+    }
+  }
+
+  function removePhoto(id: string) {
+    patchObjectStyle(obj.id, { photos: photos.filter((p) => p.id !== id) });
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", marginBottom: 6 }}>
+        Photos {photos.length > 0 && <span style={{ opacity: 0.6 }}>({photos.length})</span>}
+      </div>
+
+      {/* Thumbnail strip */}
+      {photos.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+          {photos.map((p) => (
+            <div
+              key={p.id}
+              style={{
+                position: "relative",
+                width: 58,
+                height: 58,
+                borderRadius: 4,
+                overflow: "hidden",
+                border: "1px solid rgba(200,208,218,0.18)",
+                background: "rgba(0,0,0,0.4)",
+                cursor: "pointer",
+              }}
+              onClick={() => setLightbox(p.dataUrl)}
+            >
+              <img
+                src={p.dataUrl}
+                alt={p.name ?? "photo"}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removePhoto(p.id);
+                }}
+                style={{
+                  position: "absolute",
+                  top: 2,
+                  right: 2,
+                  width: 16,
+                  height: 16,
+                  background: "rgba(0,0,0,0.65)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "50%",
+                  cursor: "pointer",
+                  fontSize: 10,
+                  lineHeight: "16px",
+                  padding: 0,
+                }}
+                title="Remove"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Drop zone / file input */}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          if (e.dataTransfer?.files?.length) void addFiles(e.dataTransfer.files);
+        }}
+        onClick={() => fileInputRef.current?.click()}
+        style={{
+          padding: "8px 10px",
+          border: `1px dashed ${dragOver ? "#3aa7ff" : "rgba(200,208,218,0.22)"}`,
+          background: dragOver ? "rgba(58,167,255,0.08)" : "rgba(255,255,255,0.03)",
+          borderRadius: 5,
+          fontSize: 10,
+          color: "#8a96a3",
+          textAlign: "center",
+          cursor: "pointer",
+        }}
+      >
+        Click or drop JPG/PNG (5MB max)
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png"
+        multiple
+        style={{ display: "none" }}
+        onChange={(e) => {
+          if (e.target.files?.length) void addFiles(e.target.files);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        }}
+      />
+
+      {error && (
+        <div style={{ marginTop: 6, color: "#ff6b6b", fontSize: 10 }}>{error}</div>
+      )}
+
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.85)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 20000,
+            cursor: "zoom-out",
+            padding: 24,
+          }}
+        >
+          <img
+            src={lightbox}
+            alt="photo"
+            style={{ maxWidth: "92vw", maxHeight: "92vh", boxShadow: "0 6px 32px rgba(0,0,0,0.7)" }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 // ── Main card component ───────────────────────────────────────────────────────
 
 export interface ObjectDetailsCardProps {
@@ -181,7 +357,16 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     setLabel(v);
     if (labelDebounce.current) clearTimeout(labelDebounce.current);
     labelDebounce.current = setTimeout(() => {
-      patchObjectStyle(obj.id, { userLabel: v.trim() || undefined });
+      let finalLabel = v.trim();
+      // Phase 9: Pole labels auto-prefix with "A-" when missing
+      if (
+        finalLabel &&
+        (obj.tool === "pole_new" || obj.tool === "pole_removed") &&
+        !/^a-/i.test(finalLabel)
+      ) {
+        finalLabel = `A-${finalLabel}`;
+      }
+      patchObjectStyle(obj.id, { userLabel: finalLabel || undefined });
     }, 300);
   }
 
@@ -492,6 +677,11 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
               </div>
             </div>
           )}
+        </div>
+
+        {/* ── Photos ─────────────────────────────────── */}
+        <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 8 }}>
+          <PhotosSection obj={obj} />
         </div>
 
         {/* ── Geometry info ──────────────────────────── */}

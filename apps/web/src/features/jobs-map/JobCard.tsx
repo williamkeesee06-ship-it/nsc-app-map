@@ -115,10 +115,34 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
         </div>
       )}
 
-      <footer className="job-card__foot">
+      <footer className="job-card__foot" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Link to={`/jobs/${job.jobId}`} className="btn btn--primary">
           Open workspace →
         </Link>
+        <a
+          href={`https://nsc-asbuilt-app.vercel.app?jobId=${encodeURIComponent(job.workOrder)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn--secondary"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "6px 12px",
+            borderRadius: 999,
+            background: "rgba(58, 167, 255, 0.12)",
+            border: "1px solid rgba(58, 167, 255, 0.5)",
+            color: "#3aa7ff",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Open in As-Built →
+        </a>
       </footer>
     </div>
   );

@@ -6,20 +6,26 @@ import SyncAdmin from "./features/sync-admin/SyncAdmin.js";
 import { SearchFocusProvider } from "./features/search/searchContext.js";
 import SearchBar from "./features/search/SearchBar.js";
 import TopbarActions from "./features/drawing/TopbarActions.js";
+import { AuthProvider, useAuth } from "./features/auth/authContext.js";
+import LoginScreen from "./features/auth/LoginScreen.js";
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
 export default function App() {
   return (
     <APIProvider apiKey={apiKey ?? ""} libraries={["geometry"]}>
-      <SearchFocusProvider>
-        <Shell />
-      </SearchFocusProvider>
+      <AuthProvider>
+        <SearchFocusProvider>
+          <Shell />
+        </SearchFocusProvider>
+      </AuthProvider>
     </APIProvider>
   );
 }
 
 function Shell() {
+  const { username } = useAuth();
+  const needsLogin = username === null;
   return (
     <>
       <div className="app-frame">
@@ -39,6 +45,7 @@ function Shell() {
                 <NavLink to="/sync">Sync</NavLink>
               </nav>
               <TopbarActions />
+              <UserChip />
             </header>
             <Routes>
               <Route path="/" element={<JobsMap />} />
@@ -49,8 +56,58 @@ function Shell() {
           </div>
         </div>
       </div>
+      {needsLogin && <LoginScreen />}
       {!apiKey && <MissingKeyOverlay />}
     </>
+  );
+}
+
+function UserChip() {
+  const { username, logout } = useAuth();
+  if (!username) return null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        marginLeft: 8,
+        fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
+        fontSize: 10,
+        letterSpacing: "0.05em",
+        color: "var(--text-muted, #8a96a3)",
+      }}
+      title={`Filtering jobs for supervisor: ${username}`}
+    >
+      <span
+        style={{
+          padding: "3px 8px",
+          borderRadius: 10,
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(200,208,218,0.18)",
+          color: "var(--text, #f4f8ff)",
+          fontWeight: 700,
+        }}
+      >
+        {username}
+      </span>
+      <button
+        type="button"
+        onClick={logout}
+        style={{
+          background: "transparent",
+          border: "none",
+          color: "var(--text-muted, #8a96a3)",
+          fontFamily: "inherit",
+          fontSize: 10,
+          cursor: "pointer",
+          textDecoration: "underline",
+          padding: 0,
+        }}
+      >
+        Log out
+      </button>
+    </div>
   );
 }
 

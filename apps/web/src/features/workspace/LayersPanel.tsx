@@ -469,6 +469,9 @@ export default function LayersPanel() {
         </div>
       </div>
 
+      {/* Phase 9: MyMaps-style layer list */}
+      <MyMapsLayers onPanTo={panToObject} />
+
       {/* Object groups */}
       <div className="layers-panel__body">
         <GroupSection category="cable_placed" label="Cable – Placed" objects={grouped.cable_placed} onPanTo={panToObject} />
@@ -484,6 +487,164 @@ export default function LayersPanel() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Phase 9: MyMaps-style per-job layers ─────────────────────────────────────
+
+function MyMapsLayers({ onPanTo: _onPanTo }: { onPanTo: (obj: DrawingObject) => void }) {
+  const {
+    state,
+    addLayer,
+    renameLayer,
+    deleteLayer,
+    toggleLayerVisibility,
+    setActiveLayer,
+    moveObjectsToLayer,
+  } = useDrawing();
+
+  const layers = state.layers;
+  const activeId = state.activeLayerId;
+  const today = new Date();
+  const dateStr = `${today.getMonth() + 1}-${today.getDate()}-${String(today.getFullYear()).slice(-2)}`;
+
+  function handleAdd() {
+    const foreman = window.prompt("Foreman name?", "");
+    if (foreman === null) return;
+    const label = `${(foreman || "FOREMAN").toUpperCase()} // ${dateStr}`;
+    addLayer(label);
+  }
+
+  function handleRename(id: string, current: string) {
+    const next = window.prompt("Rename layer:", current);
+    if (next === null) return;
+    renameLayer(id, next);
+  }
+
+  function handleDelete(id: string, label: string) {
+    if (!window.confirm(`Delete layer "${label}"? Objects on it become unsorted.`)) return;
+    deleteLayer(id);
+  }
+
+  // Selected object count — for "move to layer" action
+  const selectedIds = state.selectedIds;
+
+  return (
+    <div style={{
+      padding: "8px 10px",
+      borderBottom: "1px solid rgba(200,208,218,0.1)",
+      fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
+        color: "#8a96a3", textTransform: "uppercase", marginBottom: 6,
+      }}>
+        <span>Layers ({layers.length})</span>
+        <button
+          type="button"
+          onClick={handleAdd}
+          title="Add layer (FOREMAN // M-D-YY)"
+          style={{
+            background: "rgba(58,167,255,0.12)",
+            border: "1px solid rgba(58,167,255,0.45)",
+            color: "#3aa7ff",
+            borderRadius: 4,
+            padding: "2px 8px",
+            fontSize: 10,
+            fontFamily: "inherit",
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          + Add layer
+        </button>
+      </div>
+
+      {layers.length === 0 && (
+        <div style={{ fontSize: 10, color: "#6a7580", padding: "4px 0" }}>
+          No layers yet. Click "+ Add layer" to start grouping objects.
+        </div>
+      )}
+
+      {layers.map((l) => {
+        const isActive = l.id === activeId;
+        const objCount = state.objects.filter((o) => o.style.layerId === l.id).length;
+        return (
+          <div
+            key={l.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 6px",
+              borderRadius: 4,
+              background: isActive ? "rgba(58,167,255,0.10)" : "transparent",
+              border: isActive ? "1px solid rgba(58,167,255,0.35)" : "1px solid transparent",
+              cursor: "pointer",
+              marginBottom: 2,
+            }}
+            onClick={() => setActiveLayer(l.id)}
+          >
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); toggleLayerVisibility(l.id); }}
+              title={l.hidden ? "Show layer" : "Hide layer"}
+              style={{
+                background: "transparent", border: "none",
+                color: l.hidden ? "#6a7580" : "#f4f8ff",
+                cursor: "pointer", padding: 0, fontSize: 13, lineHeight: 1,
+              }}
+            >
+              {l.hidden ? "🚫" : "●"}
+            </button>
+            <span style={{
+              flex: 1, fontSize: 11, fontWeight: 700,
+              color: l.hidden ? "#6a7580" : "#f4f8ff",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {l.label}
+            </span>
+            <span style={{ fontSize: 9, color: "#6a7580" }}>{objCount}</span>
+            {selectedIds.size > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  moveObjectsToLayer(Array.from(selectedIds), l.id);
+                }}
+                title={`Move ${selectedIds.size} selected to this layer`}
+                style={{
+                  background: "transparent", border: "1px solid rgba(200,208,218,0.2)",
+                  color: "#c8d0da", borderRadius: 3, padding: "1px 5px",
+                  fontFamily: "inherit", fontSize: 9, cursor: "pointer",
+                }}
+              >
+                ←
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleRename(l.id, l.label); }}
+              title="Rename"
+              style={{
+                background: "transparent", border: "none", color: "#8a96a3",
+                cursor: "pointer", padding: 0, fontSize: 10,
+              }}
+            >✎</button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleDelete(l.id, l.label); }}
+              title="Delete layer"
+              style={{
+                background: "transparent", border: "none", color: "#ff6b6b",
+                cursor: "pointer", padding: 0, fontSize: 12, lineHeight: 1,
+              }}
+            >×</button>
+          </div>
+        );
+      })}
     </div>
   );
 }
