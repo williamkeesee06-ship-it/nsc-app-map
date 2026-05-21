@@ -8,8 +8,8 @@ import { useEffect, useRef, useState } from "react";
 export interface ObjectDetailsPopupProps {
   /** Pixel position (viewport-relative) to anchor the popup near. */
   screenPos: { x: number; y: number };
-  /** True = point telecom tool → placeholder "A-TAG #", False → "Name this object" */
-  isPointTool: boolean;
+  /** Tool the pending object was drawn with — drives per-type label prompt and auto-prefix. */
+  tool: string;
   /** Pre-fill for edit mode */
   initialLabel?: string;
   /** Pre-fill for edit mode */
@@ -18,12 +18,46 @@ export interface ObjectDetailsPopupProps {
   onCancel: () => void;
 }
 
+// Per-icon-type prompt config. Only the four locked icon families (Pole, MH, HH, PED)
+// get a custom ID/tag prompt — anything else falls back to a generic name.
+type IconPrompt = {
+  placeholder: string;
+  prefix: string | null; // null = no auto-prefix (PED + generic)
+};
+
+function promptForTool(tool: string): IconPrompt {
+  // Pole (new or removed) → A-TAG
+  if (tool === "pole_new" || tool === "pole_removed") {
+    return { placeholder: "A-TAG # (e.g. A-1234)", prefix: "A-" };
+  }
+  if (tool === "mh_new" || tool === "mh_removed") {
+    return { placeholder: "MH # (e.g. MH-54)", prefix: "MH-" };
+  }
+  if (tool === "hh_new" || tool === "hh_removed") {
+    return { placeholder: "HH # (e.g. HH-1123)", prefix: "HH-" };
+  }
+  if (tool === "ped_new" || tool === "ped_removed") {
+    return { placeholder: "PED # / label (e.g. PED-1)", prefix: null };
+  }
+  // Cabinet / anchor / non-locked point tools and shape/line tools
+  return { placeholder: "Name this object (optional)", prefix: null };
+}
+
+function applyPrefix(label: string, prefix: string | null): string {
+  const trimmed = label.trim();
+  if (!trimmed) return "";
+  if (!prefix) return trimmed;
+  return trimmed.toLowerCase().startsWith(prefix.toLowerCase())
+    ? trimmed
+    : prefix + trimmed;
+}
+
 const POPUP_W = 280;
 const POPUP_H = 148; // approx height to help with viewport clamping
 
 export default function ObjectDetailsPopup({
   screenPos,
-  isPointTool,
+  tool,
   initialLabel = "",
   initialDescription = "",
   onSave,
@@ -32,6 +66,9 @@ export default function ObjectDetailsPopup({
   const [label, setLabel] = useState(initialLabel);
   const [description, setDescription] = useState(initialDescription);
   const titleRef = useRef<HTMLInputElement>(null);
+  const prompt = promptForTool(tool);
+
+  const finalize = () => onSave(applyPrefix(label, prompt.prefix), description.trim());
 
   // Autofocus title on mount
   useEffect(() => {
@@ -57,7 +94,7 @@ export default function ObjectDetailsPopup({
     // Ctrl/Cmd+Enter anywhere saves
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      onSave(label.trim(), description.trim());
+      finalize();
     }
   }
 
@@ -69,7 +106,7 @@ export default function ObjectDetailsPopup({
       if (ta) {
         ta.focus();
       } else {
-        onSave(label.trim(), description.trim());
+        finalize();
       }
     }
   }
@@ -77,7 +114,7 @@ export default function ObjectDetailsPopup({
   function handleDescKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
-      onSave(label.trim(), description.trim());
+      finalize();
     }
   }
 
@@ -114,7 +151,7 @@ export default function ObjectDetailsPopup({
         value={label}
         onChange={(e) => setLabel(e.target.value)}
         onKeyDown={handleTitleKeyDown}
-        placeholder={isPointTool ? "A-TAG # (optional)" : "Name this object (optional)"}
+        placeholder={prompt.placeholder}
         style={{
           background: "rgba(255,255,255,0.06)",
           border: "1px solid rgba(200,208,218,0.18)",
@@ -175,7 +212,7 @@ export default function ObjectDetailsPopup({
         </button>
         <button
           type="button"
-          onClick={() => onSave(label.trim(), description.trim())}
+          onClick={finalize}
           style={{
             background: "#3aa7ff",
             border: "1px solid rgba(58,167,255,0.6)",

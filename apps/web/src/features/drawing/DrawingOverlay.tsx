@@ -823,14 +823,12 @@ export default function DrawingOverlay() {
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const pendingIsPoint = pendingObject ? isPointTool(pendingObject.obj.tool) : false;
-
   return (
     <>
       {pendingObject && (
         <ObjectDetailsPopup
           screenPos={pendingObject.screenPos}
-          isPointTool={pendingIsPoint}
+          tool={pendingObject.obj.tool}
           onSave={handlePopupSave}
           onCancel={handlePopupCancel}
         />
