@@ -31,7 +31,7 @@ export const MARKER_COLORS: Record<MarkerColorKey, MarkerColor> = {
   blue:   { key: "blue",   label: "In Progress",         core: "#3aa7ff", glow: "#1f7ad6" },
   purple: { key: "purple", label: "Needs Fielding",      core: "#c44dff", glow: "#9b2bd1" },
   orange: { key: "orange", label: "Pending",             core: "#ff8a1f", glow: "#e06a00" },
-  silver: { key: "silver", label: "Completed",           core: "#A7F3A0", glow: "#86EFAC" },
+  silver: { key: "silver", label: "Completed",           core: "#39ff14", glow: "#22cc0a" },
   gray:   { key: "gray",   label: "Other / Unset",       core: "#9aa3ad", glow: "#5a6168" },
 };
 
