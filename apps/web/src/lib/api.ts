@@ -39,6 +39,10 @@ export const api = {
     }),
 
   listJobs: () => request<{ jobs: Job[]; count: number }>("/api/jobs"),
+  searchJobs: (q: string) =>
+    request<{ jobs: Job[]; count: number }>(
+      `/api/jobs/search?q=${encodeURIComponent(q)}`
+    ),
   getJob: (jobId: string) =>
     request<{ job: Job }>(`/api/jobs/${encodeURIComponent(jobId)}`),
   createJob: (body: { workOrder: string; jobName: string; address?: string; lat?: number; lng?: number }) =>

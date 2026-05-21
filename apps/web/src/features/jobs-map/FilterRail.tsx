@@ -60,6 +60,69 @@ interface Props {
   setFilters: (f: Filters) => void;
 }
 
+// Circular neon widget: animated progress ring showing shown / total jobs.
+// The arc length tracks the fraction; the center reads the live count.
+function NeonCountWidget({ shown, total }: { shown: number; total: number }) {
+  const size = 54;
+  const stroke = 4;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = total > 0 ? Math.max(0, Math.min(1, shown / total)) : 0;
+  const dash = c * pct;
+  return (
+    <span
+      className="neon-count-widget"
+      role="img"
+      aria-label={`${shown} of ${total} jobs shown`}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <defs>
+          <linearGradient id="ncw-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%"   stopColor="#1ea7ff" />
+            <stop offset="50%"  stopColor="#39ff14" />
+            <stop offset="100%" stopColor="#c44dff" />
+          </linearGradient>
+          <filter id="ncw-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2.2" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        {/* Track */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="rgba(255,255,255,0.08)"
+          strokeWidth={stroke}
+        />
+        {/* Progress arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="url(#ncw-grad)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${c}`}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          filter="url(#ncw-glow)"
+          style={{ transition: "stroke-dasharray 360ms ease" }}
+        />
+      </svg>
+      <span className="neon-count-widget__center">
+        <span className="neon-count-widget__num">{shown}</span>
+        <span className="neon-count-widget__div" />
+        <span className="neon-count-widget__den">{total}</span>
+      </span>
+    </span>
+  );
+}
+
 export default function FilterRail({ jobs, filters, setFilters }: Props) {
   // Count per bucket across all jobs
   const counts = new Map<StatusBucket, number>();
@@ -84,9 +147,7 @@ export default function FilterRail({ jobs, filters, setFilters }: Props) {
         <summary>
           <div className="filter-collapsible-header">
             <strong>STATUS FILTERS</strong>
-            <span className="filter-rail__count">
-              {filteredCount} / {jobs.length}
-            </span>
+            <NeonCountWidget shown={filteredCount} total={jobs.length} />
           </div>
           <span className="chevron">▼</span>
         </summary>

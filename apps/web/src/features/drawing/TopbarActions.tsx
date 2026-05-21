@@ -194,11 +194,11 @@ export default function TopbarActions() {
           extraClass={redoFlash ? "coin-btn--flash" : undefined}
         >↷</CoinBtn>
 
-        {/* Screenshot button */}
+        {/* Screenshot button — always usable, even with no target job */}
         <CoinBtn
           onClick={handleScreenshot}
-          disabled={screenshotting || noTarget}
-          title={noTarget ? "Select a job first" : "Download screenshot (PNG)"}
+          disabled={screenshotting}
+          title="Download screenshot (PNG)"
         >
           {screenshotting ? "⏳" : <ScreenshotIcon />}
         </CoinBtn>

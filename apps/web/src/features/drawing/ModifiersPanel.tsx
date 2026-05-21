@@ -1,7 +1,10 @@
-// ModifiersPanel — Phase 4: horizontal "modifier strip" rendered as a slim bar
+// ModifiersPanel — horizontal "modifier strip" rendered as a slim bar
 // directly below the topbar (positioned absolute at top of the map area).
-// Hidden when SELECT tool is active (shows selection count instead).
-// Hidden entirely when no drawing tool is active.
+//
+// Billy 5/21: stays VISIBLE AT ALL TIMES — even with no tool active and no
+// selection. Adjusting Width/Opacity/Color/Style/Fill/Size while no tool is
+// active updates the default style; the next tool selected starts with
+// those values.
 
 import { useDrawing } from "./drawingContext.js";
 import type { DrawingStyle } from "@nsc/types";
@@ -23,8 +26,8 @@ export default function ModifiersPanel() {
   const { state, setStyle, updateObject } = useDrawing();
   const { style, selectedIds, objects, activeTool } = state;
 
-  // Hide when no tool active
-  if (!activeTool) return null;
+  // Billy 5/21: always render — even with no tool active. Removed the
+  // early-return that used to hide the bar.
 
   const selectedObj = selectedIds.size === 1
     ? objects.find((o) => selectedIds.has(o.id))
@@ -33,7 +36,7 @@ export default function ModifiersPanel() {
   const current: DrawingStyle = selectedObj ? selectedObj.style : style;
 
   // Is a point tool active or selected?
-  const isPointTool = activeTool &&
+  const isPointTool = activeTool != null &&
     (activeTool.endsWith("_new") || activeTool.endsWith("_removed"));
   const isSelectedPoint = selectedObj && "position" in selectedObj && !("text" in selectedObj);
 

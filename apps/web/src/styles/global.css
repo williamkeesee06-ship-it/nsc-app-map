@@ -2329,3 +2329,65 @@ input:focus, textarea:focus, select:focus {
   }
   .jobs-map { flex-direction: column; }
 }
+
+
+/* ============================================================
+   NEON CIRCULAR COUNT WIDGET (Status Filters header)
+   Replaces the flat "37/196" oval with a glowing progress ring.
+   ============================================================ */
+.neon-count-widget {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(30,167,255,0.12) 0%, rgba(0,0,0,0) 65%),
+    rgba(0,0,0,0.35);
+  box-shadow:
+    inset 0 0 8px rgba(30,167,255,0.18),
+    0 0 6px rgba(30,167,255,0.25),
+    0 0 14px rgba(57,255,20,0.10);
+}
+.neon-count-widget svg {
+  position: absolute;
+  inset: 0;
+}
+.neon-count-widget__center {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: #fff;
+  text-shadow: 0 0 6px rgba(30,167,255,0.7);
+}
+.neon-count-widget__num {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #39ff14;
+  text-shadow: 0 0 6px rgba(57,255,20,0.8);
+}
+.neon-count-widget__div {
+  width: 16px;
+  height: 1px;
+  margin: 2px 0;
+  background: linear-gradient(90deg,
+    rgba(30,167,255,0) 0%,
+    rgba(30,167,255,0.7) 50%,
+    rgba(30,167,255,0) 100%);
+}
+.neon-count-widget__den {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  text-shadow: 0 0 4px rgba(255,255,255,0.4);
+}

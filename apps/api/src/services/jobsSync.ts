@@ -51,7 +51,7 @@ function splitWorkType(raw: string | null): string[] {
 }
 
 // Normalize one Smartsheet row into a Job (no geocode yet).
-function normalizeRow(
+export function normalizeRow(
   row: SmartsheetRow,
   colsById: Map<number, SmartsheetColumn>
 ): Job | null {

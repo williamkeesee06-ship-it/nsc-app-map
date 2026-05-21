@@ -277,7 +277,9 @@ function ToolsSection() {
 
   const { activeTool } = state;
   const hasSelection = state.selectedIds.size > 0;
-  const noTarget = !state.targetJobId;
+  // Billy 5/20: tools are ALWAYS usable. Drawing without a target job
+  // is allowed — at save time, SaveDrawingDialog prompts to attach to
+  // an existing job or create a new one.
 
   function toggleTool(tool: DrawingTool) {
     setTool(activeTool === tool ? null : tool);
@@ -285,15 +287,13 @@ function ToolsSection() {
 
   function renderTile({ tool, label, iconSvg }: ToolDef) {
     const isActive = activeTool === tool;
-    const isDisabled = noTarget && !isActive;
     return (
       <button
         key={tool}
         type="button"
         className={`tool-tile${isActive ? " tool-tile--active" : ""}`}
         onClick={() => toggleTool(tool)}
-        disabled={isDisabled}
-        title={isDisabled ? "Click a job marker to start drawing" : label}
+        title={label}
       >
         <span
           className="tool-tile__icon"
