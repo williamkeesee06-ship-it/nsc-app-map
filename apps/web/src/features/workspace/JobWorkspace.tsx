@@ -1,7 +1,7 @@
 // JobWorkspace — Phase 8: Native single-job editor on the same Google Map.
 // Centers + zooms to job on entry, hides other markers, full toolset active.
-import { useCallback, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Map, useMap } from "@vis.gl/react-google-maps";
 import { stylesFor, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
 import { useMapTheme } from "../map/themeContext.js";

@@ -1,7 +1,7 @@
-// Same-origin API client. In dev, Vite proxies /api to localhost:3001.
+﻿// Same-origin API client. In dev, Vite proxies /api to localhost:3001.
 // In prod, vercel.json rewrites /api/* to the serverless function.
 import type {
-  AsbuiltDoc, AsBuiltDocument, Job,
+  AsbuiltDoc, AsBuiltDocument, EngineeringPrint, Job, JobAttachment,
   LatLng, QuickReferenceGist, SyncRun,
 } from "@nsc/types";
 
@@ -56,7 +56,60 @@ export const api = {
     }),
   syncStatus: () => request<{ lastRun: SyncRun | null }>(`/api/sync/status`),
 
-  // ── Phase 7: quick reference layer ──────────────────────────────────────
+  // ΓöÇΓöÇ Phase 7: attachments ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  listAttachments: (jobId: string) =>
+    request<{ attachments: JobAttachment[]; count: number }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/attachments`
+    ),
+  uploadAttachment: (
+    jobId: string,
+    body: { filename: string; mimeType: string; size: number; dataUrl: string }
+  ) =>
+    request<{ attachment: JobAttachment }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/attachments`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
+  deleteAttachment: (jobId: string, attachmentId: string) =>
+    request<{ ok: true }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/attachments/${encodeURIComponent(attachmentId)}`,
+      { method: "DELETE" }
+    ),
+
+  // ΓöÇΓöÇ Phase 7: engineering prints ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  listPrints: (jobId: string) =>
+    request<{ prints: EngineeringPrint[]; count: number }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/prints`
+    ),
+  createPrint: (
+    jobId: string,
+    body: {
+      source: EngineeringPrint["source"];
+      corners: EngineeringPrint["corners"];
+      opacity?: number;
+      active?: boolean;
+      visible?: boolean;
+    }
+  ) =>
+    request<{ print: EngineeringPrint }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/prints`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
+  patchPrint: (
+    jobId: string,
+    printId: string,
+    body: Partial<Pick<EngineeringPrint, "corners" | "opacity" | "active" | "visible">>
+  ) =>
+    request<{ print: EngineeringPrint }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/prints/${encodeURIComponent(printId)}`,
+      { method: "PATCH", body: JSON.stringify(body) }
+    ),
+  deletePrint: (jobId: string, printId: string) =>
+    request<{ ok: true }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/prints/${encodeURIComponent(printId)}`,
+      { method: "DELETE" }
+    ),
+
+  // ΓöÇΓöÇ Phase 7: quick reference layer ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   getGist: (jobId: string) =>
     request<{ gist: QuickReferenceGist | null }>(
       `/api/jobs/${encodeURIComponent(jobId)}/quickref`
