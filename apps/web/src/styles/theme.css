@@ -1,0 +1,145 @@
+/* ============================================================
+   NSC THEME — Brushed Stainless Steel v1
+   Single source of truth for theme tokens.
+   Designed to be portable: copy/symlink to sibling
+   nsc-asbuilt-app repo.
+   ============================================================ */
+
+:root {
+  /* ── Brushed steel surface ─────────────────────────────── */
+  --steel-base:           #b9c0c8;      /* mid silver */
+  --steel-base-light:     #d8dde4;      /* highlight tone */
+  --steel-base-dark:      #8e96a0;      /* shadow tone */
+  --steel-grain:          rgba(255,255,255,0.05); /* subtle horizontal grain */
+
+  /* ── Chrome trim (panel bevel) ─────────────────────────── */
+  --chrome-trim-light:    #f4f6f8;      /* highlight edge */
+  --chrome-trim-dark:     #6e757f;      /* shadow edge */
+
+  /* ── Rivets (polished chrome circles) ──────────────────── */
+  --rivet-base:           #a8b0ba;
+  --rivet-highlight:      #f8f9fb;
+  --rivet-shadow:         rgba(0,0,0,0.45);
+
+  /* ── Accent: electric blue ─────────────────────────────── */
+  --accent-blue:          #1ea7ff;
+  --accent-blue-soft:     rgba(30,167,255,0.18);
+  --accent-blue-deep:     #0084d4;
+  --accent-blue-glow:     0 0 12px rgba(30,167,255,0.55);
+
+  /* ── Text on steel ─────────────────────────────────────── */
+  --text-primary:         #15202c;
+  --text-secondary:       #3a4654;
+  --text-muted:           #5b6776;
+
+  /* ── Panel geometry ────────────────────────────────────── */
+  --panel-radius:         10px;
+  --panel-elevation:
+    0 6px 20px rgba(0,0,0,0.28),
+    0 2px 6px  rgba(0,0,0,0.18);
+
+  /* ── Bridge tokens (legacy var names already referenced
+        throughout global.css). We re-point them at the
+        steel palette so the existing skin updates without
+        touching component code. ───────────────────────── */
+  --bg:                   #8a929c;                          /* dark steel page */
+  --surface:              var(--steel-base-light);          /* panel face */
+  --surface-glass:        rgba(216,221,228,0.78);           /* translucent steel */
+  --surface-2:            var(--steel-base);
+  --chrome-light:         var(--chrome-trim-light);
+  --chrome-dark:          var(--chrome-trim-dark);
+  --accent:               var(--accent-blue);
+  --accent-hover:         var(--accent-blue-deep);
+  --text:                 var(--text-primary);
+  --border:               #8e96a0;
+  --shadow-glass:         var(--panel-elevation);
+  --danger:               #d63333;
+  --neon-green:           #39ff7a;
+  --neon-red:             #ff2d4a;
+  --neon-cyan:            var(--accent-blue);
+}
+
+/* ── Reusable brushed-steel surface mixin ──────────────────
+   Apply via class="steel-surface" or compose with existing
+   panels by extending in global.css.
+   Uses layered linear-gradients to fake horizontal grain
+   over a cool silver base — no image assets.
+   ─────────────────────────────────────────────────────── */
+.steel-surface {
+  background-color: var(--steel-base);
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.06) 0px,
+      rgba(255,255,255,0.06) 1px,
+      rgba(0,0,0,0.04)       1px,
+      rgba(0,0,0,0.04)       2px
+    ),
+    linear-gradient(180deg,
+      var(--steel-base-light) 0%,
+      var(--steel-base)       50%,
+      var(--steel-base-dark)  100%);
+}
+
+/* ── Chrome bevel edge (1-2px highlight + shadow combo) ─── */
+.chrome-edge {
+  box-shadow:
+    inset 0 1px 0  rgba(255,255,255,0.75),
+    inset 0 -1px 0 rgba(0,0,0,0.35),
+    inset 1px 0 0  rgba(255,255,255,0.45),
+    inset -1px 0 0 rgba(0,0,0,0.25),
+    var(--panel-elevation);
+  border: 1px solid var(--chrome-trim-dark);
+  border-radius: var(--panel-radius);
+}
+
+/* ── Rivet placement helpers ──────────────────────────────
+   A panel marked .has-rivets gets four polished chrome
+   rivets in each corner via ::before / ::after layers
+   on inner wrappers. To keep the markup untouched, we use
+   background-image radial-gradients on the panel itself.
+   ─────────────────────────────────────────────────────── */
+.has-rivets {
+  position: relative;
+}
+.has-rivets::before,
+.has-rivets::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%,
+      var(--rivet-highlight) 0%,
+      #cdd4dc 38%,
+      var(--rivet-base) 70%,
+      #767e88 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.85),
+    inset 0 -1px 1px rgba(0,0,0,0.35),
+    0 1px 2px var(--rivet-shadow);
+  pointer-events: none;
+  z-index: 5;
+}
+/* Two of four corners via ::before/::after pseudo elements.
+   The remaining two corners are painted via background-image
+   on a nested utility class to avoid extra DOM. */
+.has-rivets::before { top: 6px; left: 6px; }
+.has-rivets::after  { top: 6px; right: 6px; }
+
+.has-rivets-4 {
+  position: relative;
+  /* Paint all four rivets via background-images so we don't
+     need extra DOM nodes. */
+  background-image:
+    radial-gradient(circle at 8px 8px,
+      var(--rivet-highlight) 0px, #cdd4dc 2px, var(--rivet-base) 3.5px, #767e88 4.5px, transparent 5.5px),
+    radial-gradient(circle at calc(100% - 8px) 8px,
+      var(--rivet-highlight) 0px, #cdd4dc 2px, var(--rivet-base) 3.5px, #767e88 4.5px, transparent 5.5px),
+    radial-gradient(circle at 8px calc(100% - 8px),
+      var(--rivet-highlight) 0px, #cdd4dc 2px, var(--rivet-base) 3.5px, #767e88 4.5px, transparent 5.5px),
+    radial-gradient(circle at calc(100% - 8px) calc(100% - 8px),
+      var(--rivet-highlight) 0px, #cdd4dc 2px, var(--rivet-base) 3.5px, #767e88 4.5px, transparent 5.5px);
+  background-repeat: no-repeat;
+}
