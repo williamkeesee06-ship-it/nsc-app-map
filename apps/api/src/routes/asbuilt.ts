@@ -103,6 +103,31 @@ function docRef(jobId: string) {
   return db().collection("jobs").doc(jobId).collection("asbuilt").doc("current");
 }
 
+// Return every job's asbuilt doc so the map can render ALL markups
+// simultaneously regardless of which job is selected. Used by the
+// always-visible global markups overlay.
+router.get("/asbuilt", async (_req, res, next) => {
+  try {
+    const snap = await db().collectionGroup("asbuilt").get();
+    const docs: Array<{ jobId: string; objects: unknown[]; updatedAt: number; schemaVersion: number }> = [];
+    snap.forEach((d) => {
+      if (d.id !== "current") return;
+      const data = d.data() as { jobId?: string; objects?: unknown[]; updatedAt?: number; schemaVersion?: number };
+      if (!data) return;
+      if (!Array.isArray(data.objects) || data.objects.length === 0) return;
+      docs.push({
+        jobId: data.jobId ?? d.ref.parent.parent?.id ?? "",
+        objects: data.objects,
+        updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : 0,
+        schemaVersion: typeof data.schemaVersion === "number" ? data.schemaVersion : 2,
+      });
+    });
+    res.json({ docs, count: docs.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/asbuilt/:jobId", async (req, res, next) => {
   try {
     const { jobId } = req.params;

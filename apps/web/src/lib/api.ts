@@ -32,6 +32,11 @@ export const api = {
   // Phase 3 drawing objects (schemaVersion:2)
   getDrawing: (jobId: string) =>
     request<AsBuiltDocument | AsbuiltDoc>(`/api/asbuilt/${encodeURIComponent(jobId)}`),
+  // All jobs' drawings — used by the always-visible global markups overlay
+  getAllDrawings: () =>
+    request<{ docs: Array<{ jobId: string; objects: unknown[]; updatedAt: number; schemaVersion: number }>; count: number }>(
+      `/api/asbuilt`
+    ),
   putDrawing: (jobId: string, doc: AsBuiltDocument) =>
     request<AsBuiltDocument>(`/api/asbuilt/${encodeURIComponent(jobId)}`, {
       method: "PUT",

@@ -16,6 +16,7 @@ import { MARKER_COLORS, colorKeyForJob, isJobCompleted, neonPinDataUrl } from ".
 import { api } from "../../lib/api.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
+import AllJobsMarkupsOverlay from "../drawing/AllJobsMarkupsOverlay.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import type { MapTheme } from "../map/themeContext.js";
 import { JobsProvider } from "./jobsContext.js";
@@ -180,6 +181,7 @@ function JobsMapInner({
               onSelect={handleSelect}
               allJobs={allJobs}
             />
+            <AllJobsMarkupsOverlay />
             <DrawingOverlay />
           </Map>
         </div>
