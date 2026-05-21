@@ -1,29 +1,9 @@
 /* ============================================================
-   NSC APP MAP — Phase 4: Chrome + Glass Light Theme
-   Target: Polished chrome bezels, glassmorphism, cobalt blue #1565C0
+   NSC APP MAP — Phase 5.4: Brushed Stainless Steel skin
+   Theme tokens live in theme.css. This file consumes them.
    ============================================================ */
 
 :root {
-  /* Core palette */
-  --bg:             #F0F4F8;          /* soft pearl-blue page background */
-  --surface:        #FFFFFF;          /* pure white panels */
-  --surface-glass:  rgba(255,255,255,0.72); /* frosted glass */
-  --chrome-light:   #E8ECF0;          /* light chrome highlight */
-  --chrome-dark:    #B0BAC4;          /* dark chrome shadow */
-  --accent:         #1565C0;          /* cobalt blue */
-  --accent-hover:   #0D47A1;          /* deeper cobalt on hover */
-  --text:           #1A2332;          /* near-black text */
-  --text-muted:     #5A6A7A;          /* muted label text */
-  --border:         #C8D0DA;          /* chrome edge */
-  --shadow-glass:   0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.07);
-
-  /* Legacy aliases kept for sub-components */
-  --surface-2:      #F0F4F8;
-  --danger:         #C62828;
-  --neon-green:     #39ff7a;
-  --neon-red:       #ff2d4a;
-  --neon-cyan:      #1565C0;
-
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
 }
@@ -33,7 +13,7 @@
 html, body, #root {
   margin: 0;
   height: 100%;
-  background: #b0bac4;
+  background: #6e757f;
   color: var(--text);
   overflow: hidden;
 }
@@ -1717,3 +1697,553 @@ a { color: var(--accent); }
   font-size: 11px;
   line-height: 1.5;
 }
+
+/* ============================================================
+   ░░ BRUSHED STAINLESS STEEL SKIN — overrides on existing
+      component classes. No markup changes; just texture,
+      bevel, and rivets layered onto the cobalt/chrome theme.
+   ============================================================ */
+
+/* Reusable brushed-grain background as a CSS variable so we
+   can paint it onto multiple panels without duplication. */
+:root {
+  --brushed-grain-bg:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.05) 0px,
+      rgba(255,255,255,0.05) 1px,
+      rgba(0,0,0,0.035)      1px,
+      rgba(0,0,0,0.035)      2px),
+    linear-gradient(180deg,
+      var(--steel-base-light) 0%,
+      var(--steel-base)       55%,
+      var(--steel-base-dark)  100%);
+
+  --chrome-bevel:
+    inset 0 1px 0  rgba(255,255,255,0.7),
+    inset 0 -1px 0 rgba(0,0,0,0.35),
+    inset 1px 0 0  rgba(255,255,255,0.4),
+    inset -1px 0 0 rgba(0,0,0,0.22);
+}
+
+/* ── App frame: dark steel border around everything ─────── */
+.app-frame {
+  background: var(--brushed-grain-bg);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.55),
+    inset 0 0 0 2px rgba(110,117,127,0.55),
+    inset 0 2px 6px rgba(255,255,255,0.35),
+    inset 0 -2px 6px rgba(0,0,0,0.25),
+    0 10px 36px rgba(0,0,0,0.32),
+    0 2px 8px  rgba(0,0,0,0.20);
+}
+.app-shell {
+  background: transparent;
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,0.30),
+    inset 0 1px 3px rgba(0,0,0,0.18);
+}
+
+/* ── Frame rivets (existing component) — polish them ────── */
+.rivet {
+  background: radial-gradient(circle at 35% 30%,
+    var(--rivet-highlight) 0%,
+    #cdd4dc 38%,
+    var(--rivet-base) 70%,
+    #767e88 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.85),
+    inset 0 -1px 1px rgba(0,0,0,0.35),
+    0 1px 2px var(--rivet-shadow);
+}
+
+/* ── Top header bar: brushed steel + electric blue underline */
+.topbar {
+  background: var(--brushed-grain-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid var(--chrome-trim-dark);
+  box-shadow:
+    var(--chrome-bevel),
+    0 2px 0 0 var(--accent-blue),
+    0 3px 12px rgba(0,0,0,0.35),
+    0 6px 18px rgba(30,167,255,0.12);
+  position: relative;
+}
+/* Topbar corner rivets */
+.topbar::before,
+.topbar::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%,
+    var(--rivet-highlight) 0%, #cdd4dc 38%, var(--rivet-base) 70%, #767e88 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.85),
+    inset 0 -1px 1px rgba(0,0,0,0.35),
+    0 1px 2px var(--rivet-shadow);
+  pointer-events: none;
+  z-index: 1;
+}
+.topbar::before { left: 10px; }
+.topbar::after  { right: 10px; }
+
+.topbar h1 {
+  color: var(--text-secondary);
+  border-left-color: var(--chrome-trim-dark);
+}
+.topbar nav a { color: var(--text-secondary); }
+.topbar nav a.active,
+.topbar nav a:hover {
+  color: var(--accent-blue);
+  background: var(--accent-blue-soft);
+}
+
+/* ── Coin buttons: brushed steel + electric blue accents ── */
+.coin-btn {
+  background: radial-gradient(circle at 38% 32%,
+    #f4f6f8 0%,
+    #cfd5dd 50%,
+    #8e96a0 100%);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.30),
+    inset 0 1px 2px rgba(255,255,255,0.85),
+    inset 0 -1px 2px rgba(0,0,0,0.22);
+  color: var(--text-primary);
+}
+.coin-btn:hover:not(:disabled) {
+  background: radial-gradient(circle at 38% 32%,
+    #ffffff 0%, #dde3ea 50%, #9aa3ad 100%);
+  box-shadow:
+    0 3px 10px rgba(0,0,0,0.32),
+    0 0 10px rgba(30,167,255,0.35),
+    inset 0 1px 2px rgba(255,255,255,0.9),
+    inset 0 -1px 2px rgba(0,0,0,0.22);
+}
+.coin-btn--save {
+  background: radial-gradient(circle at 38% 32%,
+    #cfe9ff 0%, #7ec1ee 50%, #1ea7ff 100%);
+}
+.coin-btn--save:hover:not(:disabled) {
+  background: radial-gradient(circle at 38% 32%,
+    #e3f3ff 0%, #97cef2 50%, #4cbcff 100%);
+}
+.coin-btn--save.saved {
+  background: radial-gradient(circle at 38% 32%,
+    #d8f5e2 0%, #82c498 50%, #2e9d54 100%);
+}
+.coin-btn--back {
+  background: radial-gradient(circle at 38% 32%,
+    #e1f0fc 0%, #a9c8e2 50%, #5d83a6 100%);
+}
+.coin-btn--back:hover:not(:disabled) {
+  background: radial-gradient(circle at 38% 32%,
+    #eef7ff 0%, #b8d4ec 50%, #6e94b8 100%);
+}
+
+/* ── Job context strip: brushed steel band ──────────────── */
+.job-context-strip {
+  background: var(--brushed-grain-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid var(--chrome-trim-dark);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.5),
+    inset 0 -1px 0 rgba(0,0,0,0.28),
+    0 1px 0 0 var(--accent-blue),
+    0 3px 10px rgba(0,0,0,0.20);
+}
+.job-context-strip__wo { color: var(--accent-blue); }
+
+/* ── Left rail: steel panel + rivets at corners ─────────── */
+.left-rail {
+  background: var(--brushed-grain-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-right: 1px solid var(--chrome-trim-dark);
+  box-shadow:
+    inset 1px 0 0 rgba(255,255,255,0.45),
+    inset -1px 0 0 rgba(0,0,0,0.30),
+    2px 0 14px rgba(0,0,0,0.22);
+}
+.left-rail::before,
+.left-rail::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  left: 6px;
+  background: radial-gradient(circle at 35% 30%,
+    var(--rivet-highlight) 0%, #cdd4dc 38%, var(--rivet-base) 70%, #767e88 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.85),
+    inset 0 -1px 1px rgba(0,0,0,0.35),
+    0 1px 2px var(--rivet-shadow);
+  pointer-events: none;
+  z-index: 5;
+}
+.left-rail::before { top: 8px; }
+.left-rail::after  { bottom: 8px; }
+
+/* ── Layers panel: matching steel + rivets ──────────────── */
+.layers-panel,
+.layers-panel--collapsed {
+  background: var(--brushed-grain-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-left: 1px solid var(--chrome-trim-dark);
+  box-shadow:
+    inset -1px 0 0 rgba(255,255,255,0.45),
+    inset 1px 0 0 rgba(0,0,0,0.30),
+    -2px 0 14px rgba(0,0,0,0.22);
+}
+.layers-panel::before,
+.layers-panel::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  right: 6px;
+  background: radial-gradient(circle at 35% 30%,
+    var(--rivet-highlight) 0%, #cdd4dc 38%, var(--rivet-base) 70%, #767e88 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.85),
+    inset 0 -1px 1px rgba(0,0,0,0.35),
+    0 1px 2px var(--rivet-shadow);
+  pointer-events: none;
+  z-index: 5;
+}
+.layers-panel::before { top: 8px; }
+.layers-panel::after  { bottom: 8px; }
+
+.layers-panel__header { border-bottom-color: var(--chrome-trim-dark); }
+.layers-totals        { border-bottom-color: var(--chrome-trim-dark); }
+.layers-group         { border-bottom-color: rgba(110,117,127,0.4); }
+.layers-row:hover     { background: var(--accent-blue-soft); }
+.layers-row--selected { background: var(--accent-blue-soft) !important; }
+.layers-group__header:hover { background: rgba(30,167,255,0.08); }
+
+/* ── Modifier strip: brushed steel band ─────────────────── */
+.modifier-strip {
+  background: var(--brushed-grain-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid var(--chrome-trim-dark);
+  border-top: 1px solid rgba(255,255,255,0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.55),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 2px 10px rgba(0,0,0,0.22);
+}
+.mod-strip-div { background: var(--chrome-trim-dark); }
+.mod-strip-slider { accent-color: var(--accent-blue); }
+.mod-strip-toggle-btn.active,
+.mod-strip-size-btn.active {
+  background: linear-gradient(180deg, #4cbcff 0%, var(--accent-blue) 50%, #0084d4 100%);
+  border-color: var(--accent-blue-deep);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.5),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 0 8px rgba(30,167,255,0.45);
+}
+.mod-strip-swatch--active {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(30,167,255,0.4);
+}
+
+/* ── Search form chrome ─────────────────────────────────── */
+.search-form {
+  background: linear-gradient(180deg, #2a3340 0%, #1c242f 100%);
+  border: 1px solid var(--chrome-trim-dark);
+  border-top-color: #0e131a;
+  border-bottom-color: #4a5564;
+  box-shadow:
+    inset 0 1px 3px rgba(0,0,0,0.55),
+    inset 0 -1px 0 rgba(255,255,255,0.08),
+    0 1px 0 rgba(255,255,255,0.45);
+}
+.search-form__input        { color: #e6edf5; }
+.search-form__input::placeholder { color: #8896a6; }
+.search-form__icon         { color: #8896a6; }
+.search-form:focus-within {
+  border-color: var(--accent-blue);
+  box-shadow:
+    inset 0 1px 3px rgba(0,0,0,0.5),
+    0 0 0 2px var(--accent-blue-soft),
+    0 0 12px rgba(30,167,255,0.35);
+}
+.search-form__submit {
+  background: linear-gradient(180deg, #4cbcff 0%, var(--accent-blue) 50%, #0084d4 100%);
+  border: 1px solid var(--accent-blue-deep);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.4),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 0 8px rgba(30,167,255,0.4);
+}
+.search-form__submit:hover:not(:disabled) {
+  background: linear-gradient(180deg, #66c8ff 0%, #2eb1ff 50%, #1095e8 100%);
+}
+
+/* Suggestions dropdown */
+.search-suggest {
+  background: var(--brushed-grain-bg);
+  border: 1px solid var(--chrome-trim-dark);
+  box-shadow: var(--chrome-bevel), var(--panel-elevation);
+}
+.search-suggest__row:hover { background: var(--accent-blue-soft); }
+.search-suggest__wo        { color: var(--accent-blue); }
+
+/* ── Buttons: brushed steel + chrome bezel ──────────────── */
+button {
+  background: linear-gradient(180deg, #e8edf2 0%, #c6cdd5 50%, #a3acb6 100%);
+  border: 1px solid var(--chrome-trim-dark);
+  color: var(--text-primary);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.65),
+    inset 0 -1px 0 rgba(0,0,0,0.20),
+    0 1px 2px rgba(0,0,0,0.22);
+}
+button:hover {
+  background: linear-gradient(180deg, #f0f4f8 0%, #d2d9e1 50%, #aeb7c1 100%);
+  border-color: var(--chrome-trim-dark);
+}
+button.primary,
+.btn--primary {
+  background: linear-gradient(180deg, #4cbcff 0%, var(--accent-blue) 50%, #0084d4 100%);
+  border: 1px solid var(--accent-blue-deep);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.45),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 0 10px rgba(30,167,255,0.40),
+    0 1px 3px rgba(0,0,0,0.25);
+}
+button.primary:hover,
+.btn--primary:hover {
+  background: linear-gradient(180deg, #66c8ff 0%, #2eb1ff 50%, #1095e8 100%);
+}
+
+/* ── Tool tiles: brushed steel facets ───────────────────── */
+.tool-tile {
+  background: linear-gradient(180deg, #e8edf2 0%, #c6cdd5 50%, #a3acb6 100%);
+  border: 1px solid var(--chrome-trim-dark);
+  color: var(--text-primary);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.65),
+    inset 0 -1px 0 rgba(0,0,0,0.22),
+    0 1px 3px rgba(0,0,0,0.18);
+}
+.tool-tile:hover:not(:disabled) {
+  border-color: var(--accent-blue);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.7),
+    inset 0 -1px 0 rgba(0,0,0,0.22),
+    0 0 10px rgba(30,167,255,0.35),
+    0 2px 6px rgba(0,0,0,0.20);
+}
+.tool-tile--active {
+  border-color: var(--accent-blue) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.7),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 0 0 2px var(--accent-blue-soft),
+    0 0 14px rgba(30,167,255,0.55) !important;
+}
+.tool-tile__label { color: var(--text-secondary); }
+
+.tool-btn {
+  background: linear-gradient(180deg, #e8edf2 0%, #c6cdd5 50%, #a3acb6 100%);
+  border: 1px solid var(--chrome-trim-dark);
+  color: var(--text-primary);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 -1px 0 rgba(0,0,0,0.20);
+}
+.tool-btn:hover:not(:disabled) {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue-deep);
+}
+.tool-btn--active {
+  background: linear-gradient(180deg, #4cbcff 0%, var(--accent-blue) 50%, #0084d4 100%) !important;
+  border-color: var(--accent-blue-deep) !important;
+  color: #fff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.45),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 0 10px rgba(30,167,255,0.5) !important;
+}
+
+/* ── Job card: brushed steel panel + 4 rivets ───────────── */
+.job-card {
+  background: var(--brushed-grain-bg);
+  border: 1px solid var(--chrome-trim-dark);
+  border-radius: var(--panel-radius);
+  box-shadow:
+    var(--chrome-bevel),
+    var(--panel-elevation);
+  background-image:
+    radial-gradient(circle at 9px 9px,
+      var(--rivet-highlight) 0px, #cdd4dc 2px, var(--rivet-base) 3.5px, #767e88 4.5px, transparent 5.5px),
+    radial-gradient(circle at calc(100% - 9px) 9px,
+      var(--rivet-highlight) 0px, #cdd4dc 2px, var(--rivet-base) 3.5px, #767e88 4.5px, transparent 5.5px),
+    radial-gradient(circle at 9px calc(100% - 9px),
+      var(--rivet-highlight) 0px, #cdd4dc 2px, var(--rivet-base) 3.5px, #767e88 4.5px, transparent 5.5px),
+    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px),
+      var(--rivet-highlight) 0px, #cdd4dc 2px, var(--rivet-base) 3.5px, #767e88 4.5px, transparent 5.5px),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.05) 0px,
+      rgba(255,255,255,0.05) 1px,
+      rgba(0,0,0,0.035)      1px,
+      rgba(0,0,0,0.035)      2px),
+    linear-gradient(180deg,
+      var(--steel-base-light) 0%,
+      var(--steel-base)       55%,
+      var(--steel-base-dark)  100%);
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat, no-repeat;
+}
+.job-card--panel { box-shadow: none; }
+.job-card__wo { color: var(--accent-blue); }
+.job-card__notes-body {
+  background: rgba(0,0,0,0.10);
+  border: 1px solid rgba(0,0,0,0.18);
+  color: var(--text-primary);
+}
+
+/* ── Status pills ───────────────────────────────────────── */
+.status-pill {
+  background: linear-gradient(180deg, #e0e6ed 0%, #b8c0c9 100%);
+  color: var(--text-secondary);
+  border: 1px solid var(--chrome-trim-dark);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 -1px 0 rgba(0,0,0,0.18);
+}
+.status-in-progress { background: rgba(30,167,255,0.18); color: #0084d4; border-color: var(--accent-blue); }
+.status-in-review   { background: rgba(30,167,255,0.18); color: #0084d4; border-color: var(--accent-blue); }
+.status-on-hold     { background: rgba(212,160,23,0.18); color: #8a5a00; border-color: #d4a017; }
+.status-complete    { background: rgba(46,157,84,0.18);  color: #1f6b3a; border-color: #2e9d54; }
+.status-success     { background: rgba(46,157,84,0.18);  color: #1f6b3a; border-color: #2e9d54; }
+.status-running     { background: rgba(212,160,23,0.18); color: #8a5a00; border-color: #d4a017; }
+.status-in-billing  { background: rgba(122,92,209,0.18); color: #4e2eaa; border-color: #7a5cd1; }
+.status-archived    { background: rgba(214,51,51,0.14);  color: #b62020; border-color: #d63333; }
+.status-error       { background: rgba(214,51,51,0.14);  color: #b62020; border-color: #d63333; }
+
+/* ── Autosave / sync chips ──────────────────────────────── */
+.autosave-pill {
+  background: linear-gradient(180deg, #e8edf2 0%, #c6cdd5 100%);
+  border: 1px solid var(--chrome-trim-dark);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 -1px 0 rgba(0,0,0,0.18),
+    0 1px 3px rgba(0,0,0,0.22);
+}
+.autosave-pill--saved   { border-color: #2e9d54; color: #1f6b3a; }
+.autosave-pill--saving  { border-color: var(--accent-blue); color: var(--accent-blue-deep); }
+.autosave-pill--pending { border-color: #d4a017; color: #8a5a00; }
+.autosave-pill--error   { border-color: var(--danger); color: var(--danger); }
+.autosave-pill__spinner {
+  border-color: rgba(30,167,255,0.3);
+  border-top-color: var(--accent-blue);
+}
+
+/* ── Job card pill (minimized) — steel band ─────────────── */
+.job-card-pill {
+  background: var(--brushed-grain-bg);
+  border: 1px solid var(--chrome-trim-dark);
+  box-shadow:
+    var(--chrome-bevel),
+    0 2px 10px rgba(0,0,0,0.25);
+}
+.job-card-pill__wo { color: var(--accent-blue); }
+
+/* ── Status pill (floating, bottom-left in jobs map) ───── */
+.status-pill[class*='status-pill--bottom'],
+.status-pill {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ── Toolbar (legacy floating) ──────────────────────────── */
+.toolbar {
+  background: var(--brushed-grain-bg);
+  border: 1px solid var(--chrome-trim-dark);
+  box-shadow: var(--chrome-bevel), var(--panel-elevation);
+}
+
+/* ── Sync admin card ────────────────────────────────────── */
+.sync-admin__card {
+  background: var(--brushed-grain-bg);
+  border: 1px solid var(--chrome-trim-dark);
+  box-shadow: var(--chrome-bevel), var(--panel-elevation);
+}
+
+/* ── Modal / dialog containers (generic .modal, .dialog) ─ */
+.modal, .dialog,
+[role="dialog"] > div,
+.modal__panel, .dialog__panel {
+  background: var(--brushed-grain-bg);
+  border: 1px solid var(--chrome-trim-dark);
+  box-shadow: var(--chrome-bevel), var(--panel-elevation);
+  border-radius: var(--panel-radius);
+}
+
+/* ── Form fields — darker insets to feel cohesive ──────── */
+input[type="text"],
+input[type="search"],
+input[type="number"],
+textarea,
+select {
+  background: rgba(255,255,255,0.6);
+  border: 1px solid var(--chrome-trim-dark);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.18);
+}
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow:
+    inset 0 1px 2px rgba(0,0,0,0.15),
+    0 0 0 2px var(--accent-blue-soft);
+}
+
+/* ── Rail resize handle gets electric blue tinge on hover ── */
+.rail-resize-handle:hover,
+.rail-resize-handle.dragging {
+  background: linear-gradient(to right,
+    transparent, rgba(30,167,255,0.75), transparent);
+  box-shadow: 0 0 10px rgba(30,167,255,0.55);
+}
+
+/* ── WO label callouts on map: chrome bezel ─────────────── */
+.wo-label {
+  background: linear-gradient(180deg, #ffffff 0%, #e1e6ec 100%);
+  border: 1px solid var(--chrome-trim-dark);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.85),
+    inset 0 -1px 0 rgba(0,0,0,0.18),
+    0 2px 6px rgba(0,0,0,0.30);
+}
+
+/* ── Map pin chrome bezel (preserve existing pin colors) ─
+   Existing pin shapes are SVG with inline colors; we apply
+   a subtle drop-shadow filter at the leaflet marker layer
+   so colors stay but get a chrome edge look.            */
+.leaflet-marker-icon {
+  filter:
+    drop-shadow(0 0 1px rgba(255,255,255,0.6))
+    drop-shadow(0 1px 2px rgba(0,0,0,0.45));
+}
+
+/* ── "You are here" / location dot: electric blue glow ─── */
+.leaflet-marker-pane .my-location,
+.my-location-dot {
+  filter: drop-shadow(0 0 6px rgba(30,167,255,0.85));
+}
+
