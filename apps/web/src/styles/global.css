@@ -2247,3 +2247,85 @@ input:focus, textarea:focus, select:focus {
   filter: drop-shadow(0 0 6px rgba(30,167,255,0.85));
 }
 
+
+/* ============================================================
+   RIGHT-SIDE JOB DETAIL PANEL (Map view)
+   Opens when a pin is clicked. Holds JobCard on top and that
+   job's drawing LayersPanel below. Top style toolbar
+   (ModifiersPanel) stays persistent above the map.
+   ============================================================ */
+.job-right-panel {
+  flex-shrink: 0;
+  width: 340px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-glass);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border-left: 1.5px solid var(--border);
+  box-shadow: -2px 0 12px rgba(0,0,0,0.07);
+  font-size: 13px;
+  position: relative;
+  z-index: 15;
+  overflow: hidden;
+}
+
+.job-right-panel__card {
+  flex-shrink: 0;
+  padding: 12px 12px 8px;
+  border-bottom: 1.5px solid var(--border);
+  background: transparent;
+}
+
+/* Strip the floating-popup look so the card reads as a flat panel header */
+.job-right-panel__card .job-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  font-size: 12px;
+}
+
+.job-right-panel__layers {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Inside the right panel, LayersPanel should fill remaining height
+   and lose its standalone left-border + shadow (the panel handles
+   those at the outer wrap). Override the workspace defaults. */
+.job-right-panel__layers .layers-panel,
+.job-right-panel__layers .layers-panel--collapsed {
+  width: 100%;
+  min-width: 0;
+  border-left: none;
+  box-shadow: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* The LayersPanel collapse chevron sits at left:-14px relative to itself —
+   inside our right panel that would float off-screen. Hide it; the X on the
+   job card already closes the whole panel. */
+.job-right-panel__layers .layers-panel__collapse-btn,
+.job-right-panel__layers .layers-panel__expand-btn {
+  display: none;
+}
+
+/* Mobile / narrow viewports: the right panel becomes a bottom sheet so it
+   doesn't crush the map at narrow widths. */
+@media (max-width: 900px) {
+  .job-right-panel {
+    width: 100%;
+    height: 60%;
+    border-left: none;
+    border-top: 1.5px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.12);
+  }
+  .jobs-map { flex-direction: column; }
+}

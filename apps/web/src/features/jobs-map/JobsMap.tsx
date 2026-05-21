@@ -9,6 +9,7 @@ import type { Filters } from "./FilterRail.js";
 import { useFilters } from "./useFilters.js";
 import LeftRail from "./LeftRail.js";
 import JobCard from "./JobCard.js";
+import LayersPanel from "../workspace/LayersPanel.js";
 import type { Job } from "@nsc/types";
 import { useSearchFocus } from "../search/searchContext.js";
 import { MARKER_COLORS, colorKeyForJob, isJobCompleted, neonPinDataUrl } from "./markerStyle.js";
@@ -190,13 +191,26 @@ function JobsMapInner({
               ? `Error: ${jobsState.message}`
               : `${mapped.length} on map · ${unmapped} unmapped · ${allJobs.length} total`}
         </div>
-
-        {selected && (
-          <div className="job-popup-wrap">
-            <JobCard job={selected} onClose={() => setSelected(null)} />
-          </div>
-        )}
       </div>
+
+      {/* Right-side detail panel: opens when a job pin is clicked.
+          Contains the job card on top and that job's drawing layers below.
+          Top style toolbar (ModifiersPanel) is unaffected — it stays
+          pinned above the map area in .jobs-map__main. */}
+      {selected && (
+        <aside className="job-right-panel">
+          <div className="job-right-panel__card">
+            <JobCard
+              job={selected}
+              onClose={() => setSelected(null)}
+              variant="panel"
+            />
+          </div>
+          <div className="job-right-panel__layers">
+            <LayersPanel />
+          </div>
+        </aside>
+      )}
     </div>
   );
 }
