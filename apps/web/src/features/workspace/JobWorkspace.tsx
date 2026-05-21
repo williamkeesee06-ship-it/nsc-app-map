@@ -62,13 +62,14 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
     api.getDrawing(jobId)
       .then((doc) => {
         if (doc && "objects" in doc && Array.isArray(doc.objects)) {
-          loadObjects(doc.objects);
+          const layers = "layers" in doc && Array.isArray(doc.layers) ? doc.layers : [];
+          loadObjects(doc.objects, layers);
         } else {
-          loadObjects([]);
+          loadObjects([], []);
         }
       })
       .catch(() => {
-        loadObjects([]);
+        loadObjects([], []);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);

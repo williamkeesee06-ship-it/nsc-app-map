@@ -100,6 +100,66 @@ export function colorForSecondaryStatus(
   return MARKER_COLORS[colorKeyForSecondaryStatus(secondaryJobStatus)];
 }
 
+// ── Phase 9: Status bucket regrouping ────────────────────────────────────────
+// The Smartsheet has many raw status strings; we collapse to 6 user-facing buckets.
+
+export type StatusBucket =
+  | "needs_fielding"
+  | "rts"
+  | "on_hold"
+  | "pending"
+  | "in_progress"
+  | "completed";
+
+export interface StatusBucketDef {
+  key: StatusBucket;
+  label: string;
+  colorKey: MarkerColorKey;
+}
+
+export const STATUS_BUCKETS: StatusBucketDef[] = [
+  { key: "needs_fielding", label: "Needs Fielding", colorKey: "orange" },
+  { key: "rts",            label: "RTS",            colorKey: "yellow" },
+  { key: "on_hold",        label: "On Hold",        colorKey: "red" },
+  { key: "pending",        label: "Pending",        colorKey: "gray" },
+  { key: "in_progress",    label: "In Progress",    colorKey: "blue" },
+  { key: "completed",      label: "Completed",      colorKey: "silver" },
+];
+
+export function bucketForJob(job: {
+  jobStatus?: string | null;
+  secondaryJobStatus?: string | null;
+}): StatusBucket {
+  if (isJobCompleted(job)) return "completed";
+  const s = (job.secondaryJobStatus || "").trim().toLowerCase();
+  if (!s) return "pending";
+  if (s === "needs fielding") return "needs_fielding";
+  if (s === "rts" || (s.includes("fielded") && s.includes("rts"))) return "rts";
+  if (s === "on hold") return "on_hold";
+  if (
+    s === "scheduled" ||
+    s === "routed to sub" ||
+    s === "pending splicing" ||
+    s === "pending hsr"
+  )
+    return "in_progress";
+  if (
+    s === "pending" ||
+    s === "pending permit" ||
+    s === "pending engineering"
+  )
+    return "pending";
+  return "pending";
+}
+
+export function bucketLabel(b: StatusBucket): string {
+  return STATUS_BUCKETS.find((x) => x.key === b)?.label ?? b;
+}
+
+export function bucketColorKey(b: StatusBucket): MarkerColorKey {
+  return STATUS_BUCKETS.find((x) => x.key === b)?.colorKey ?? "gray";
+}
+
 // Build a neon "map pin" SVG — Phase 4: smaller (40×55 → 26×36 rendered).
 // Design retained: outline-only neon pin with inner rings.
 // Size: 40×55 viewBox, rendered at ~26px wide (roughly 60% of old 40px).

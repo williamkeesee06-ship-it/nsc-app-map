@@ -100,6 +100,18 @@ export interface DrawingStyle {
   userLabel?: string;
   /** Phase 5.1: user-assigned description/notes. */
   description?: string;
+  /** Phase 9: base64 JPG/PNG attachments (max ~5MB each). */
+  photos?: Array<{ id: string; dataUrl: string; name?: string }>;
+  /** Phase 9: layer id this object belongs to. Undefined = unsorted/default. */
+  layerId?: string;
+}
+
+// Phase 9: per-job MyMaps layers. Persisted alongside the AsBuiltDocument.
+export interface JobLayer {
+  id: string;
+  /** Format: "FOREMAN // M-D-YY" (no tracking ID). */
+  label: string;
+  hidden?: boolean;
 }
 
 export type DrawingObject =
@@ -145,6 +157,8 @@ export type DrawingObject =
 export interface AsBuiltDocument {
   jobId: string;
   objects: DrawingObject[];
+  /** Phase 9: per-job MyMaps layers. Optional for back-compat. */
+  layers?: JobLayer[];
   updatedAt: number;
   updatedBy?: string;
 }

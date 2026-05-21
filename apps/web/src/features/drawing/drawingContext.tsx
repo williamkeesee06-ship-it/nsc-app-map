@@ -12,7 +12,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from "react";
-import type { AsBuiltDocument, DrawingObject, DrawingStyle, DrawingTool } from "@nsc/types";
+import type { AsBuiltDocument, DrawingObject, DrawingStyle, DrawingTool, JobLayer } from "@nsc/types";
 import { api } from "../../lib/api.js";
 
 // ─── localStorage draft helpers ──────────────────────────────────────────────
@@ -143,6 +143,10 @@ export interface DrawingState {
   activeTool: DrawingTool | null;
   style: DrawingStyle;
   objects: DrawingObject[];
+  /** Phase 9: per-job MyMaps layers. */
+  layers: JobLayer[];
+  /** Phase 9: active layer id — new objects join this layer. */
+  activeLayerId: string | null;
   selectedIds: Set<string>;
   dirty: boolean;
   saving: boolean;
@@ -164,12 +168,14 @@ type Action =
   | { type: "UNDO" }
   | { type: "REDO" }
   | { type: "SET_OBJECTS"; objects: DrawingObject[]; markDirty?: boolean }
-  | { type: "LOAD_OBJECTS"; objects: DrawingObject[] }
+  | { type: "LOAD_OBJECTS"; objects: DrawingObject[]; layers?: JobLayer[] }
   | { type: "MARK_SAVED" }
   | { type: "SET_SAVING"; saving: boolean }
   | { type: "SET_SAVE_ERROR"; error: string | null }
   | { type: "SET_TARGET"; jobId: string | null; workOrder: string | null }
-  | { type: "SET_AUTO_SAVE_COUNTDOWN"; countdown: number | null };
+  | { type: "SET_AUTO_SAVE_COUNTDOWN"; countdown: number | null }
+  | { type: "SET_LAYERS"; layers: JobLayer[] }
+  | { type: "SET_ACTIVE_LAYER"; layerId: string | null };
 
 // ─── Undo/redo stack (outside reducer so it doesn't re-render) ────────────
 
@@ -186,6 +192,8 @@ function initState(): DrawingState {
     activeTool: null,
     style: defaultStyleForTool("line"),
     objects: [],
+    layers: [],
+    activeLayerId: null,
     selectedIds: new Set(),
     dirty: false,
     saving: false,
@@ -207,8 +215,13 @@ function reducer(state: DrawingState, action: Action): DrawingState {
     case "SET_STYLE":
       return { ...state, style: { ...state.style, ...action.patch } };
 
-    case "ADD_OBJECT":
-      return { ...state, objects: [...state.objects, action.obj], dirty: true };
+    case "ADD_OBJECT": {
+      const layerId = action.obj.style.layerId ?? state.activeLayerId ?? undefined;
+      const objWithLayer: DrawingObject = layerId
+        ? { ...action.obj, style: { ...action.obj.style, layerId } }
+        : action.obj;
+      return { ...state, objects: [...state.objects, objWithLayer], dirty: true };
+    }
 
     case "UPDATE_OBJECT": {
       const objects = state.objects.map((o) => (o.id === action.obj.id ? action.obj : o));
@@ -244,10 +257,21 @@ function reducer(state: DrawingState, action: Action): DrawingState {
       return {
         ...state,
         objects: action.objects,
+        layers: action.layers ?? state.layers,
+        activeLayerId:
+          action.layers && action.layers.length > 0
+            ? action.layers[0]!.id
+            : state.activeLayerId,
         selectedIds: new Set(),
         dirty: false,
         saveError: null,
       };
+
+    case "SET_LAYERS":
+      return { ...state, layers: action.layers, dirty: true };
+
+    case "SET_ACTIVE_LAYER":
+      return { ...state, activeLayerId: action.layerId };
 
     case "MARK_SAVED":
       return { ...state, dirty: false, saveError: null };
@@ -297,7 +321,14 @@ interface DrawingContextValue {
    * Replace the current overlay with objects loaded from the server.
    * Clears selection, resets dirty flag, and pushes onto undo history.
    */
-  loadObjects: (objects: DrawingObject[]) => void;
+  loadObjects: (objects: DrawingObject[], layers?: JobLayer[]) => void;
+  /** Phase 9: layer management. */
+  addLayer: (label: string) => string;
+  renameLayer: (id: string, label: string) => void;
+  deleteLayer: (id: string) => void;
+  toggleLayerVisibility: (id: string) => void;
+  setActiveLayer: (id: string | null) => void;
+  moveObjectsToLayer: (objIds: string[], layerId: string | null) => void;
   save: () => Promise<void>;
   /** Phase 5.2: clear the localStorage draft for the current target (or any draft) */
   clearDraft: () => void;
@@ -407,14 +438,69 @@ export function DrawingProvider({ children, mapRef }: Props) {
     dispatch({ type: "SET_TARGET", jobId, workOrder });
   }, []);
 
-  const loadObjects = useCallback((objects: DrawingObject[]) => {
+  const loadObjects = useCallback((objects: DrawingObject[], layers?: JobLayer[]) => {
     // Loading from server is a hard reset — clear undo history so the user
     // can't "undo" the server state away.
     undoStack.current = [];
     redoStack.current = [];
     bumpHistory();
-    dispatch({ type: "LOAD_OBJECTS", objects });
+    dispatch({ type: "LOAD_OBJECTS", objects, layers });
   }, [bumpHistory]);
+
+  // ─── Phase 9: layer ops ────────────────────────────────────────────────
+  const addLayer = useCallback((label: string): string => {
+    const id = `layer_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+    const layer: JobLayer = { id, label: label.trim() || "New Layer" };
+    const next = [...stateRef.current.layers, layer];
+    dispatch({ type: "SET_LAYERS", layers: next });
+    dispatch({ type: "SET_ACTIVE_LAYER", layerId: id });
+    return id;
+  }, []);
+
+  const renameLayer = useCallback((id: string, label: string) => {
+    const next = stateRef.current.layers.map((l) => (l.id === id ? { ...l, label } : l));
+    dispatch({ type: "SET_LAYERS", layers: next });
+  }, []);
+
+  const deleteLayer = useCallback((id: string) => {
+    const next = stateRef.current.layers.filter((l) => l.id !== id);
+    dispatch({ type: "SET_LAYERS", layers: next });
+    // Objects on the deleted layer become unsorted
+    const objs = stateRef.current.objects.map((o) =>
+      o.style.layerId === id ? ({ ...o, style: { ...o.style, layerId: undefined } } as DrawingObject) : o
+    );
+    dispatch({ type: "SET_OBJECTS", objects: objs });
+    if (stateRef.current.activeLayerId === id) {
+      dispatch({ type: "SET_ACTIVE_LAYER", layerId: next[0]?.id ?? null });
+    }
+  }, []);
+
+  const toggleLayerVisibility = useCallback((id: string) => {
+    const next = stateRef.current.layers.map((l) =>
+      l.id === id ? { ...l, hidden: !l.hidden } : l
+    );
+    dispatch({ type: "SET_LAYERS", layers: next });
+    // Hide/show all objects on this layer
+    const layerHidden = next.find((l) => l.id === id)?.hidden ?? false;
+    const objs = stateRef.current.objects.map((o) =>
+      o.style.layerId === id ? ({ ...o, style: { ...o.style, hidden: layerHidden } } as DrawingObject) : o
+    );
+    dispatch({ type: "SET_OBJECTS", objects: objs });
+  }, []);
+
+  const setActiveLayer = useCallback((id: string | null) => {
+    dispatch({ type: "SET_ACTIVE_LAYER", layerId: id });
+  }, []);
+
+  const moveObjectsToLayer = useCallback((objIds: string[], layerId: string | null) => {
+    const set = new Set(objIds);
+    const objs = stateRef.current.objects.map((o) =>
+      set.has(o.id)
+        ? ({ ...o, style: { ...o.style, layerId: layerId ?? undefined } } as DrawingObject)
+        : o
+    );
+    dispatch({ type: "SET_OBJECTS", objects: objs });
+  }, []);
 
   const patchObjectStyle = useCallback((id: string, stylePartial: Partial<DrawingStyle>) => {
     const obj = objectsRef.current.find((o) => o.id === id);
@@ -451,6 +537,7 @@ export function DrawingProvider({ children, mapRef }: Props) {
       const payload = {
         jobId: targetJobId,
         objects,
+        layers: stateRef.current.layers,
         updatedAt: Date.now(),
         schemaVersion: 2 as const,
       };
@@ -583,6 +670,12 @@ export function DrawingProvider({ children, mapRef }: Props) {
     canRedo: redoStack.current.length > 0,
     setTarget,
     loadObjects,
+    addLayer,
+    renameLayer,
+    deleteLayer,
+    toggleLayerVisibility,
+    setActiveLayer,
+    moveObjectsToLayer,
     save,
     clearDraft,
     mapRef,

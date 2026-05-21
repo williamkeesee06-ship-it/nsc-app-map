@@ -18,6 +18,7 @@ import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import type { MapTheme } from "../map/themeContext.js";
 import { JobsProvider } from "./jobsContext.js";
+import { useAuth } from "../auth/authContext.js";
 
 const FOCUS_ZOOM = 17;
 
@@ -25,7 +26,17 @@ export default function JobsMap() {
   const jobsState = useJobs();
   const reload = jobsState.reload;
   const { theme } = useMapTheme();
-  const allJobs = jobsState.state === "ready" ? jobsState.jobs : [];
+  const { username } = useAuth();
+  const rawJobs = jobsState.state === "ready" ? jobsState.jobs : [];
+  // Phase 9: filter by supervisor (case-insensitive). Empty/unmatched → show all.
+  const allJobs = useMemo(() => {
+    const u = (username ?? "").trim().toLowerCase();
+    if (!u) return rawJobs;
+    const matched = rawJobs.filter(
+      (j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === u
+    );
+    return matched.length > 0 ? matched : rawJobs;
+  }, [rawJobs, username]);
   const [filters, setFilters] = useFilters(allJobs);
   const [selected, setSelected] = useState<Job | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -130,12 +141,13 @@ function JobsMapInner({
       try {
         const doc = await api.getDrawing(job.jobId);
         if (doc && "objects" in doc && Array.isArray(doc.objects)) {
-          loadObjects(doc.objects);
+          const layers = "layers" in doc && Array.isArray(doc.layers) ? doc.layers : [];
+          loadObjects(doc.objects, layers);
         } else {
-          loadObjects([]);
+          loadObjects([], []);
         }
       } catch {
-        loadObjects([]);
+        loadObjects([], []);
       }
     },
     [setSelected, loadObjects, saveDrawing, drawState.dirty, drawState.objects, drawState.targetJobId]
@@ -238,7 +250,7 @@ function JobMarkers({
         map,
         title: `${job.workOrder} · ${job.secondaryJobStatus ?? job.jobStatus ?? ""}`,
         icon: {
-          url: neonPinDataUrl(color, (job.inTracker ? 1 : 0.55) * (isJobCompleted(job) ? 0.75 : 1)),
+          url: neonPinDataUrl(color, (job.inTracker ? 1 : 0.55) * (isJobCompleted(job) ? 0.6 : 1)),
           scaledSize: new google.maps.Size(26, 36),
           anchor: new google.maps.Point(13, 33),
         },

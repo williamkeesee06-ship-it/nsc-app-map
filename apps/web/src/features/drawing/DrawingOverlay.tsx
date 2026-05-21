@@ -439,6 +439,10 @@ export default function DrawingOverlay() {
     return () => window.removeEventListener("keydown", onKey);
   }, [deleteSelected, undo, redo, pendingObject, cardObj, clearSelection]);
 
+  // Stable ref so engine can call back into live object list for snap
+  const objectsForSnapRef = useRef<DrawingObject[]>([]);
+  objectsForSnapRef.current = state.objects;
+
   // ─── Activate / deactivate drawing engine ────────────────────────────────
   useEffect(() => {
     if (!map) return;
@@ -449,6 +453,22 @@ export default function DrawingOverlay() {
 
     engine.onPendingObject = (obj, screenPos) => {
       setPendingObject({ obj, screenPos });
+    };
+
+    // Phase 9: provide live snap targets (Pole / MH / HH / PED point objects)
+    engine.getSnapTargets = () => {
+      const out: Array<{ id: string; lat: number; lng: number }> = [];
+      for (const o of objectsForSnapRef.current) {
+        if (
+          o.tool !== "pole_new" && o.tool !== "pole_removed" &&
+          o.tool !== "mh_new" && o.tool !== "mh_removed" &&
+          o.tool !== "hh_new" && o.tool !== "hh_removed" &&
+          o.tool !== "ped_new" && o.tool !== "ped_removed"
+        ) continue;
+        if (!("position" in o)) continue;
+        out.push({ id: o.id, lat: o.position.lat, lng: o.position.lng });
+      }
+      return out;
     };
 
     if (state.activeTool && state.activeTool !== "select") {

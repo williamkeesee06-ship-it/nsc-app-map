@@ -9,6 +9,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { DrawingContext } from "./drawingContext.js";
 import { downloadScreenshot } from "./screenshot.js";
 import SaveDrawingDialog from "./SaveDrawingDialog.js";
+import LocateMeButton from "./LocateMe.js";
 import { useJobsContext } from "../jobs-map/jobsContext.js";
 
 export default function TopbarActions() {
@@ -177,6 +178,9 @@ export default function TopbarActions() {
         {isWorkspace && (
           <CoinBtn onClick={() => navigate("/")} title="Back to Jobs Map" variant="back">←</CoinBtn>
         )}
+
+        {/* Phase 9: Locate Me */}
+        <LocateMeButton />
 
         {/* Phase 5.3: always enabled; flash if nothing to undo */}
         <CoinBtn
