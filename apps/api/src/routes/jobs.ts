@@ -141,23 +141,83 @@ router.get("/supervisors", async (_req, res, next) => {
 // Returns all jobs. The client filters in-memory \u2014 191 records is trivial.
 // Optional query: ?inTracker=true to limit to currently-tracked jobs.
 // Optional query: ?fresh=1 to bypass the in-memory cache (used by manual Sync).
+//
+// Stale-cache fallback: if Firestore throws (quota exhausted, network error,
+// etc.) and we have ANY cached data \u2014 even expired \u2014 we serve it with
+// stale:true so the tracker stays populated instead of going blank.
 router.get("/jobs", async (req, res, next) => {
   try {
     const inTrackerFilter = req.query.inTracker;
     const bypassCache = req.query.fresh === "1" || req.query.fresh === "true";
+    const now = Date.now();
 
     let all: Job[];
-    const now = Date.now();
+    let stale = false;
+    let cacheAgeMs = 0;
+
     if (
       !bypassCache &&
       jobsCache &&
       now - jobsCache.ts < JOBS_CACHE_TTL_MS
     ) {
+      // Fresh cache hit \u2014 zero Firestore reads.
       all = jobsCache.jobs;
+      cacheAgeMs = now - jobsCache.ts;
     } else {
-      const snap = await db().collection("jobs").get();
-      all = snap.docs.map((d) => d.data() as Job);
-      jobsCache = { jobs: all, ts: now };
+      try {
+        const snap = await db().collection("jobs").get();
+        all = snap.docs.map((d) => d.data() as Job);
+        jobsCache = { jobs: all, ts: now };
+      } catch (firestoreErr) {
+        // Firestore failed (likely quota exceeded). Fallback chain:
+        //   1. Stale in-memory cache from a previous successful read.
+        //   2. Live Smartsheet read \u2014 separate quota from Firestore, so this
+        //      keeps the tracker working when Firestore is fully exhausted.
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[jobs] Firestore read failed: ${
+            firestoreErr instanceof Error ? firestoreErr.message : String(firestoreErr)
+          }`
+        );
+
+        if (jobsCache && jobsCache.jobs.length > 0) {
+          all = jobsCache.jobs;
+          stale = true;
+          cacheAgeMs = now - jobsCache.ts;
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[jobs] Serving stale in-memory cache (age=${Math.round(cacheAgeMs / 1000)}s, n=${all.length})`
+          );
+        } else {
+          // No in-memory cache \u2014 hit Smartsheet directly.
+          // eslint-disable-next-line no-console
+          console.warn("[jobs] No cache available, falling back to Smartsheet direct read");
+          try {
+            const sheet = await getSheet();
+            const colsById = buildColumnsById(sheet);
+            const fromSheet: Job[] = [];
+            for (const row of sheet.rows) {
+              const job = normalizeRow(row, colsById);
+              if (!job) continue;
+              fromSheet.push(job);
+            }
+            all = fromSheet;
+            stale = true; // pin geocodes are missing; client will fall back to address-based positioning
+            cacheAgeMs = 0;
+            // Cache the Smartsheet result so subsequent calls within 60s reuse it.
+            jobsCache = { jobs: all, ts: now };
+            // eslint-disable-next-line no-console
+            console.warn(`[jobs] Smartsheet fallback served n=${all.length} rows (no geocodes)`);
+          } catch (smartsheetErr) {
+            // eslint-disable-next-line no-console
+            console.error(
+              "[jobs] Smartsheet fallback also failed:",
+              smartsheetErr instanceof Error ? smartsheetErr.message : String(smartsheetErr)
+            );
+            throw firestoreErr; // surface the original Firestore quota error
+          }
+        }
+      }
     }
 
     const jobs =
@@ -166,7 +226,13 @@ router.get("/jobs", async (req, res, next) => {
         : inTrackerFilter === "false"
           ? all.filter((j) => !j.inTracker)
           : all;
-    res.json({ jobs, count: jobs.length, cached: !bypassCache && now - (jobsCache?.ts ?? 0) < 100 ? false : !bypassCache });
+
+    res.json({
+      jobs,
+      count: jobs.length,
+      stale,
+      cacheAgeMs,
+    });
   } catch (err) {
     next(err);
   }
