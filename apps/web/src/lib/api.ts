@@ -45,11 +45,18 @@ export const api = {
 
   listJobs: () => request<{ jobs: Job[]; count: number }>("/api/jobs"),
   listSupervisors: () =>
-    request<{ supervisors: string[]; count: number }>("/api/supervisors"),
+    request<{ supervisors: string[]; managers: string[]; count: number }>(
+      "/api/supervisors"
+    ),
   syncSupervisor: (supervisor: string) =>
     request<{ status: string; upserted: number; filteredRows: number }>(
       "/api/sync/supervisor",
       { method: "POST", body: JSON.stringify({ supervisor }) }
+    ),
+  syncAllSupervisors: (manager: string) =>
+    request<{ status: string; upserted: number; filteredRows: number }>(
+      "/api/sync/all-supervisors",
+      { method: "POST", body: JSON.stringify({ manager }) }
     ),
   searchJobs: (q: string) =>
     request<{ jobs: Job[]; count: number }>(

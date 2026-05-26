@@ -25,9 +25,19 @@ interface Props {
   mapRef: MutableRefObject<google.maps.Map | null>;
   /** Phase 5: when true, hide the FilterRail section (workspace mode) */
   hideFilters?: boolean;
+  /** Phase 9.7: manager-mode forwards to FilterRail. */
+  managerMode?: boolean;
+  availableSupervisors?: string[];
 }
 
-export default function LeftRail({ jobs, filters, setFilters, hideFilters }: Props) {
+export default function LeftRail({
+  jobs,
+  filters,
+  setFilters,
+  hideFilters,
+  managerMode,
+  availableSupervisors,
+}: Props) {
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
@@ -126,6 +136,8 @@ export default function LeftRail({ jobs, filters, setFilters, hideFilters }: Pro
               jobs={jobs}
               filters={filters}
               setFilters={setFilters}
+              managerMode={managerMode}
+              availableSupervisors={availableSupervisors}
             />
           </>
         )}

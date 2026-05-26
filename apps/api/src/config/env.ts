@@ -23,8 +23,12 @@ const Schema = z.object({
   SYNC_SUPERVISORS: z
     .string()
     .default(
-      "Billy Keesee,RJ Tudela,Rob Dautrich,Joe Watson,Jarrod Anderson,Dustin Halbert,Mike Smith,Mike Thoman,Robbie Thoman,Shawn Heenan"
+      "Billy Keesee,RJ Tudela,Rob Dautrich,Joe Watson,Jarrod Anderson,Dustin Halbert,Mike Smith,Mike Thoman,Robbie Thoman,Shawn Heenan,Jamey Beckwith"
     ),
+  // Phase 9.7: managers see ALL supervisors' jobs and use the Supervisor
+  // checkboxes as their primary filter (instead of status buckets). They
+  // still need to be in SYNC_SUPERVISORS to pass the login allowlist gate.
+  SYNC_MANAGERS: z.string().default("Robbie Thoman"),
   NODE_ENV: z.string().default("development"),
 });
 

@@ -6,7 +6,7 @@ import { useAuth } from "./authContext.js";
 import { api } from "../../lib/api.js";
 
 export default function LoginScreen() {
-  const { setUsername } = useAuth();
+  const { setUsername, setManagers } = useAuth();
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,7 +22,9 @@ export default function LoginScreen() {
     setBusy(true);
     setError(null);
     try {
-      const { supervisors } = await api.listSupervisors();
+      const { supervisors, managers } = await api.listSupervisors();
+      // Save the manager list so the rest of the app can branch on it.
+      setManagers(managers ?? []);
       const match = trimmed.toLowerCase();
       const canonical = supervisors.find(
         (s) => s.trim().toLowerCase() === match
@@ -32,12 +34,23 @@ export default function LoginScreen() {
         setBusy(false);
         return;
       }
-      // Phase 9.7: on-demand sync — pull this supervisor's jobs (and refresh
-      // geocodes) from Smartsheet before showing the map. This is the only
-      // time we hit Smartsheet for non-Billy supervisors.
-      setStatus("Loading your jobs from Smartsheet…");
+      const isManagerLogin = (managers ?? []).some(
+        (m) => m.trim().toLowerCase() === match
+      );
+      // Phase 9.7: on-demand sync — managers refresh ALL supervisors, regular
+      // supervisors refresh only their own rows. This is the only time we hit
+      // Smartsheet for non-Billy users.
+      setStatus(
+        isManagerLogin
+          ? "Loading all supervisors' jobs from Smartsheet…"
+          : "Loading your jobs from Smartsheet…"
+      );
       try {
-        await api.syncSupervisor(canonical);
+        if (isManagerLogin) {
+          await api.syncAllSupervisors(canonical);
+        } else {
+          await api.syncSupervisor(canonical);
+        }
       } catch (syncErr) {
         // Non-fatal: log in anyway with whatever is already in Firestore.
         // The user can hit Resync from the topbar to retry.

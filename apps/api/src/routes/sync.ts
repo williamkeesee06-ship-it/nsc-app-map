@@ -58,6 +58,43 @@ router.post("/sync/supervisor", async (req, res, next) => {
   }
 });
 
+// POST /api/sync/all-supervisors
+// Body: { manager: string }
+// Phase 9.7: manager-mode sync — pulls jobs for EVERY supervisor in the
+// allowlist. Used by Robbie Thoman (and any future manager) so he can see
+// every supervisor's jobs on the map. Verifies the caller is in the managers
+// list before running the (more expensive) full sync.
+router.post("/sync/all-supervisors", async (req, res, next) => {
+  try {
+    const body = (req.body ?? {}) as { manager?: unknown };
+    const manager = typeof body.manager === "string" ? body.manager.trim() : "";
+    if (!manager) {
+      res.status(400).json({ error: "manager is required" });
+      return;
+    }
+    const env = getEnv();
+    const managers = (env.SYNC_MANAGERS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const isManager = managers.some(
+      (m) => m.toLowerCase() === manager.toLowerCase()
+    );
+    if (!isManager) {
+      res.status(403).json({ error: "caller is not a manager" });
+      return;
+    }
+    const allowlist = (env.SYNC_SUPERVISORS || env.SYNC_SUPERVISOR)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const result = await runJobsSyncForSupervisors(allowlist);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/sync/status — most recent sync run.
 router.get("/sync/status", async (_req, res, next) => {
   try {

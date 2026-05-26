@@ -57,6 +57,7 @@ export function useFilters(_jobs: Job[]): [Filters, (f: Filters) => void] {
       secondaryStatuses: new Set(),
       buckets,
       workTypeTags: new Set(),
+      supervisors: new Set<string>(),
     };
   });
 

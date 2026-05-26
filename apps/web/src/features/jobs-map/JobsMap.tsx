@@ -29,19 +29,30 @@ export default function JobsMap() {
   const jobsState = useJobs();
   const reload = jobsState.reload;
   const { theme } = useMapTheme();
-  const { username } = useAuth();
+  const { username, isManager } = useAuth();
   const rawJobs = jobsState.state === "ready" ? jobsState.jobs : [];
+  // Phase 9.7 manager mode: load the supervisor allowlist once so the
+  // FilterRail can render a checkbox per name.
+  const [allSupervisors, setAllSupervisors] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isManager) return;
+    api
+      .listSupervisors()
+      .then(({ supervisors }) => setAllSupervisors(supervisors))
+      .catch(() => { /* swallow */ });
+  }, [isManager]);
   // Phase 9.7: strict filter by supervisor (case-insensitive).
-  // Login validates the name against Smartsheet, so any signed-in user
-  // will match at least one job. No username → show nothing (login modal
-  // is rendered until a valid name is entered).
+  // Managers (e.g. Robbie Thoman) see jobs for EVERY supervisor in the
+  // allowlist — their FilterRail exposes a Supervisor multi-select instead
+  // of the usual status buckets.
   const allJobs = useMemo(() => {
+    if (isManager) return rawJobs;
     const u = (username ?? "").trim().toLowerCase();
     if (!u) return [];
     return rawJobs.filter(
       (j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === u
     );
-  }, [rawJobs, username]);
+  }, [rawJobs, username, isManager]);
   const [filters, setFilters] = useFilters(allJobs);
   const [selected, setSelected] = useState<Job | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -76,6 +87,8 @@ export default function JobsMap() {
           onJobsRefresh={reload}
           mapRef={mapRef}
           theme={theme}
+          isManager={isManager}
+          allSupervisors={allSupervisors}
         />
       </DrawingProvider>
     </JobsProvider>
@@ -96,6 +109,8 @@ function JobsMapInner({
   onJobsRefresh,
   mapRef,
   theme,
+  isManager,
+  allSupervisors,
 }: {
   allJobs: Job[];
   mapped: Job[];
@@ -109,6 +124,8 @@ function JobsMapInner({
   onJobsRefresh: () => void;
   mapRef: React.MutableRefObject<google.maps.Map | null>;
   theme: MapTheme;
+  isManager: boolean;
+  allSupervisors: string[];
 }) {
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
 
@@ -166,6 +183,8 @@ function JobsMapInner({
         setFilters={setFilters}
         onResync={onResync}
         mapRef={mapRef}
+        managerMode={isManager}
+        availableSupervisors={allSupervisors}
       />
 
       <div className="jobs-map__main">

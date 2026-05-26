@@ -20,6 +20,9 @@ export interface Filters {
   /** Phase 9: active status buckets. Empty set = show all. */
   buckets: Set<StatusBucket>;
   workTypeTags: Set<string>; // kept on type for compat, no longer used in UI
+  /** Phase 9.7 (manager mode): active supervisor names (case-insensitive).
+   *  Empty set = show all supervisors. */
+  supervisors: Set<string>;
 }
 
 export function defaultFilters(): Filters {
@@ -37,15 +40,25 @@ export function defaultFilters(): Filters {
       "in_progress",
     ]),
     workTypeTags: new Set(),
+    supervisors: new Set<string>(),
   };
 }
 
 export function applyFilters(jobs: Job[], f: Filters): Job[] {
+  // Lowercase the supervisor set once for fast lookup.
+  const supSet =
+    f.supervisors && f.supervisors.size > 0
+      ? new Set(Array.from(f.supervisors).map((s) => s.trim().toLowerCase()))
+      : null;
   return jobs.filter((j) => {
     if (f.inTrackerOnly && !j.inTracker) return false;
     if (f.buckets && f.buckets.size > 0) {
       const b = bucketForJob(j);
       if (!f.buckets.has(b)) return false;
+    }
+    if (supSet) {
+      const s = (j.constructionSupervisor ?? "").trim().toLowerCase();
+      if (!supSet.has(s)) return false;
     }
     if (f.hideUnmapped) {
       if (!j.geocode || j.geocode.status !== "OK") return false;
@@ -58,6 +71,11 @@ interface Props {
   jobs: Job[];
   filters: Filters;
   setFilters: (f: Filters) => void;
+  /** Phase 9.7 (manager mode): when true, render supervisor checkboxes
+   *  instead of status buckets. */
+  managerMode?: boolean;
+  /** Available supervisor names for manager-mode checkboxes. */
+  availableSupervisors?: string[];
 }
 
 // Circular neon widget: animated progress ring showing shown / total jobs.
@@ -123,7 +141,84 @@ function NeonCountWidget({ shown, total }: { shown: number; total: number }) {
   );
 }
 
-export default function FilterRail({ jobs, filters, setFilters }: Props) {
+export default function FilterRail({
+  jobs,
+  filters,
+  setFilters,
+  managerMode = false,
+  availableSupervisors = [],
+}: Props) {
+  const filteredCount = applyFilters(jobs, filters).length;
+
+  // --- Manager mode: supervisor checkboxes -------------------------------
+  if (managerMode) {
+    const supCounts = new Map<string, number>();
+    for (const j of jobs) {
+      const s = (j.constructionSupervisor ?? "").trim();
+      if (!s) continue;
+      supCounts.set(s, (supCounts.get(s) ?? 0) + 1);
+    }
+    // Merge: any supervisor in availableSupervisors OR in jobs.
+    const supMap = new Map<string, number>();
+    for (const name of availableSupervisors) supMap.set(name, supCounts.get(name) ?? 0);
+    for (const [name, n] of supCounts) {
+      if (!supMap.has(name)) supMap.set(name, n);
+    }
+    const supList = Array.from(supMap.entries()).sort((a, b) =>
+      a[0].localeCompare(b[0])
+    );
+
+    const toggleSupervisor = (name: string) => {
+      const next = new Set(filters.supervisors);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      setFilters({ ...filters, supervisors: next });
+    };
+
+    return (
+      <section className="rail-section rail-section--filters">
+        <details className="filter-collapsible" open>
+          <summary>
+            <div className="filter-collapsible-header">
+              <strong>SUPERVISOR FILTERS</strong>
+              <NeonCountWidget shown={filteredCount} total={jobs.length} />
+            </div>
+            <span className="chevron">▼</span>
+          </summary>
+
+          <div className="filter-section">
+            <div className="filter-section__body">
+              {supList.map(([name, count]) => (
+                <label key={name} className="check check--swatch">
+                  <input
+                    type="checkbox"
+                    checked={filters.supervisors.has(name)}
+                    onChange={() => toggleSupervisor(name)}
+                  />
+                  <span className="check__label">{name}</span>
+                  <span className="check__count">{count}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {filters.supervisors.size > 0 && (
+            <button
+              className="link"
+              style={{ marginTop: 4 }}
+              onClick={() =>
+                setFilters({ ...filters, supervisors: new Set<string>() })
+              }
+            >
+              Clear supervisor filters
+            </button>
+          )}
+        </details>
+      </section>
+    );
+  }
+
+  // --- Default mode: status bucket checkboxes ----------------------------
   // Count per bucket across all jobs
   const counts = new Map<StatusBucket, number>();
   for (const j of jobs) {
@@ -138,7 +233,6 @@ export default function FilterRail({ jobs, filters, setFilters }: Props) {
     setFilters({ ...filters, buckets: next });
   };
 
-  const filteredCount = applyFilters(jobs, filters).length;
   const activeFilters = filters.buckets.size;
 
   return (

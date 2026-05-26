@@ -11,6 +11,11 @@ interface AuthCtxValue {
   username: string | null;
   setUsername: (s: string) => void;
   logout: () => void;
+  /** Phase 9.7: list of supervisor names who get manager-mode UI. */
+  managers: string[];
+  setManagers: (m: string[]) => void;
+  /** True when the signed-in user's name is in the managers list. */
+  isManager: boolean;
 }
 
 const AuthContext = createContext<AuthCtxValue | null>(null);
@@ -21,6 +26,8 @@ export function useAuth(): AuthCtxValue {
   return ctx;
 }
 
+const LS_MANAGERS = "nsc.managers";
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [username, setUsernameRaw] = useState<string | null>(() => {
     try {
@@ -29,6 +36,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
   });
+  const [managers, setManagersRaw] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(LS_MANAGERS);
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const setManagers = useCallback((m: string[]) => {
+    setManagersRaw(m);
+    try {
+      localStorage.setItem(LS_MANAGERS, JSON.stringify(m));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const isManager =
+    !!username &&
+    managers.some((m) => m.trim().toLowerCase() === username.trim().toLowerCase());
 
   const setUsername = useCallback((s: string) => {
     const trimmed = s.trim();
@@ -45,13 +73,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // On initial mount with a stored username, hydrate prefs AND refresh that
-  // supervisor's jobs from Smartsheet so the app always shows fresh data when
-  // a supervisor reopens it (no scheduled background sync for them).
+  // On initial mount with a stored username, hydrate prefs AND refresh data
+  // from Smartsheet. Managers refresh ALL supervisors; everyone else just
+  // refreshes their own rows.
   useEffect(() => {
     if (username) {
       hydratePrefs().catch(() => { /* swallow */ });
-      api.syncSupervisor(username).catch(() => { /* swallow */ });
+      const isManagerOnMount = managers.some(
+        (m) => m.trim().toLowerCase() === username.trim().toLowerCase()
+      );
+      const p = isManagerOnMount
+        ? api.syncAllSupervisors(username)
+        : api.syncSupervisor(username);
+      p.catch(() => { /* swallow */ });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -75,7 +109,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ username, setUsername, logout }}>
+    <AuthContext.Provider
+      value={{ username, setUsername, logout, managers, setManagers, isManager }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -114,7 +114,12 @@ router.get("/supervisors", async (_req, res, next) => {
       .map((s) => s.trim())
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b));
-    res.json({ supervisors, count: supervisors.length });
+    // Phase 9.7: managers see all supervisors and filter by name in the UI.
+    const managers = (env.SYNC_MANAGERS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    res.json({ supervisors, managers, count: supervisors.length });
   } catch (err) {
     next(err);
   }
