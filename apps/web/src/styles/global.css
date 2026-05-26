@@ -172,13 +172,17 @@ a { color: var(--accent); }
   border-left: 1.5px solid var(--border);
   padding-left: 12px;
 }
-.topbar nav { display: flex; gap: 6px; }
+.topbar nav { display: flex; gap: 6px; flex-shrink: 0; }
 .topbar nav a {
   color: var(--text-muted);
   text-decoration: none;
   padding: 5px 10px;
   border-radius: 4px;
   font-size: 13px;
+  /* Phase 9.7: prevent multi-word links ("Jobs Map") from wrapping onto
+     two lines and overlapping neighbouring controls when the InlineJobContext
+     pill squeezes the topbar. */
+  white-space: nowrap;
 }
 .topbar nav a.active, .topbar nav a:hover {
   color: var(--accent);
