@@ -62,7 +62,12 @@ export async function getSheet(): Promise<SmartsheetSheet> {
   if (!env.SMARTSHEET_SHEET_ID) {
     throw new Error("[smartsheet] SMARTSHEET_SHEET_ID missing");
   }
-  return ssFetch<SmartsheetSheet>(`/sheets/${env.SMARTSHEET_SHEET_ID}`);
+  // Smartsheet's GET /sheets/{id} defaults to 100 rows per page. With our
+  // tracker holding 500+ rows we MUST request the whole sheet, otherwise the
+  // sync only sees the first 100 (and off-tracker logic then flags the rest).
+  return ssFetch<SmartsheetSheet>(
+    `/sheets/${env.SMARTSHEET_SHEET_ID}?includeAll=true`
+  );
 }
 
 // Convenience: build a {columnTitle -> cellValue} record from a row.
