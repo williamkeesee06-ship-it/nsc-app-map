@@ -5,8 +5,9 @@ import {
   buildColumnsById,
   rowToRecord,
 } from "../lib/smartsheet.js";
-import { runJobsSync } from "../services/jobsSync.js";
+import { runJobsSync, runJobsSyncForSupervisors } from "../services/jobsSync.js";
 import { db } from "../lib/firestore.js";
+import { getEnv } from "../config/env.js";
 import type { SyncRun } from "@nsc/types";
 
 const router = Router();
@@ -18,6 +19,39 @@ const router = Router();
 router.post("/sync/jobs", async (_req, res, next) => {
   try {
     const result = await runJobsSync();
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/sync/supervisor
+// Body: { supervisor: string }
+// Phase 9.7: on-demand sync of a single supervisor's rows, called by the login
+// flow so we only refresh data for supervisors who actually use the app.
+// Verifies the supplied name is in the SYNC_SUPERVISORS allowlist before
+// syncing — prevents arbitrary names from forcing a sync.
+router.post("/sync/supervisor", async (req, res, next) => {
+  try {
+    const body = (req.body ?? {}) as { supervisor?: unknown };
+    const supervisor = typeof body.supervisor === "string" ? body.supervisor.trim() : "";
+    if (!supervisor) {
+      res.status(400).json({ error: "supervisor is required" });
+      return;
+    }
+    const env = getEnv();
+    const allowlist = (env.SYNC_SUPERVISORS || env.SYNC_SUPERVISOR)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const match = allowlist.find(
+      (s) => s.toLowerCase() === supervisor.toLowerCase()
+    );
+    if (!match) {
+      res.status(403).json({ error: "supervisor not in allowlist" });
+      return;
+    }
+    const result = await runJobsSyncForSupervisors([match]);
     res.json(result);
   } catch (err) {
     next(err);

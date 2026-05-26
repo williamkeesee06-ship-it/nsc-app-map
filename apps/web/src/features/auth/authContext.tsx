@@ -3,6 +3,7 @@
 // job list by the Supervisor column (case-insensitive match on the value).
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { hydratePrefs } from "../../lib/prefsSync.js";
+import { api } from "../../lib/api.js";
 
 const LS_KEY = "nsc.username";
 
@@ -44,10 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // On initial mount with a stored username, hydrate prefs from server.
+  // On initial mount with a stored username, hydrate prefs AND refresh that
+  // supervisor's jobs from Smartsheet so the app always shows fresh data when
+  // a supervisor reopens it (no scheduled background sync for them).
   useEffect(() => {
     if (username) {
       hydratePrefs().catch(() => { /* swallow */ });
+      api.syncSupervisor(username).catch(() => { /* swallow */ });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

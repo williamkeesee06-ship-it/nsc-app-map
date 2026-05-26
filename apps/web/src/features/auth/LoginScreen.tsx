@@ -10,6 +10,7 @@ export default function LoginScreen() {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string>("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,6 +31,17 @@ export default function LoginScreen() {
         setError("Name not found in Smartsheet. Check spelling or contact admin.");
         setBusy(false);
         return;
+      }
+      // Phase 9.7: on-demand sync — pull this supervisor's jobs (and refresh
+      // geocodes) from Smartsheet before showing the map. This is the only
+      // time we hit Smartsheet for non-Billy supervisors.
+      setStatus("Loading your jobs from Smartsheet…");
+      try {
+        await api.syncSupervisor(canonical);
+      } catch (syncErr) {
+        // Non-fatal: log in anyway with whatever is already in Firestore.
+        // The user can hit Resync from the topbar to retry.
+        console.warn("Sync on login failed:", syncErr);
       }
       setUsername(canonical);
     } catch (err) {
@@ -158,7 +170,7 @@ export default function LoginScreen() {
               "0 1px 0 rgba(255,255,255,0.35) inset, 0 2px 6px rgba(0,0,0,0.25)",
           }}
         >
-          {busy ? "Verifying…" : "Sign in"}
+          {busy ? (status || "Verifying…") : "Sign in"}
         </button>
       </form>
     </div>

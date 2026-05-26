@@ -105,13 +105,23 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
 
 export async function runJobsSync(): Promise<SyncRun> {
   const env = getEnv();
-  // Phase 9.7: filter by an allowlist of supervisors (case-insensitive),
-  // falling back to the single-supervisor env var for backwards compatibility.
-  const allowlist = (env.SYNC_SUPERVISORS || env.SYNC_SUPERVISOR)
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  const allowSet = new Set(allowlist);
+  // Default bulk sync uses single SYNC_SUPERVISOR (legacy behaviour).
+  return runJobsSyncForSupervisors([env.SYNC_SUPERVISOR]);
+}
+
+// Phase 9.7: sync just the rows belonging to the given supervisors.
+// Off-tracker flagging is scoped to jobs whose constructionSupervisor matches
+// this allowlist, so syncing one supervisor never affects another supervisor's
+// jobs in Firestore.
+export async function runJobsSyncForSupervisors(
+  supervisors: string[]
+): Promise<SyncRun> {
+  const allowSet = new Set(
+    supervisors.map((s) => s.trim().toLowerCase()).filter(Boolean)
+  );
+  if (allowSet.size === 0) {
+    throw new Error("runJobsSyncForSupervisors: empty supervisor list");
+  }
   const startedAt = Date.now();
   const syncId = `sync_${startedAt}`;
   const firestore = db();
@@ -206,8 +216,12 @@ export async function runJobsSync(): Promise<SyncRun> {
     }
 
     // Flag jobs that were previously on-tracker but are no longer in the sheet.
+    // Scope to the supervisors being synced — don't touch other supervisors'
+    // jobs (e.g. syncing Joe must not flag Billy's jobs off-tracker).
     let flaggedOffTracker = 0;
     for (const [jobId, prior] of existingJobs.entries()) {
+      const priorSup = (prior.constructionSupervisor ?? "").trim().toLowerCase();
+      if (!allowSet.has(priorSup)) continue;
       if (!currentJobIds.has(jobId) && prior.inTracker !== false) {
         await firestore.collection("jobs").doc(jobId).update({
           inTracker: false,
