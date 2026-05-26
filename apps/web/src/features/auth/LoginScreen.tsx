@@ -112,7 +112,7 @@ export default function LoginScreen() {
         <input
           type="text"
           autoFocus
-          placeholder="e.g. Billy Keesee"
+          placeholder="First and last name"
           value={value}
           onChange={(e) => {
             setValue(e.target.value);

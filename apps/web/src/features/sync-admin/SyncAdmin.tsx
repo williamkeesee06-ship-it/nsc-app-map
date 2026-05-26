@@ -1,9 +1,11 @@
 // Sync/Admin screen. Shows last sync run + manual "Resync now" trigger.
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api.js";
+import { useAuth } from "../auth/authContext.js";
 import type { SyncRun } from "@nsc/types";
 
 export default function SyncAdmin() {
+  const { username } = useAuth();
   const [last, setLast] = useState<SyncRun | null | "loading">("loading");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,8 +27,14 @@ export default function SyncAdmin() {
     setRunning(true);
     setError(null);
     try {
-      const result = await api.triggerSync();
-      setLast(result);
+      // Phase 9.7: scope manual resync to the signed-in supervisor.
+      // Falls back to legacy /api/sync/jobs if somehow no username is set.
+      const result = username
+        ? await api.syncSupervisor(username)
+        : await api.triggerSync();
+      // syncSupervisor returns a partial shape; reload status to get full row.
+      if (username) await refresh();
+      else setLast(result as SyncRun);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -39,9 +47,10 @@ export default function SyncAdmin() {
       <div className="sync-admin__card">
         <h2>Smartsheet Sync</h2>
         <p className="muted">
-          Pulls all rows where Construction Supervisor = Billy Keesee, normalizes
-          them, geocodes the address, and stores the result in Firestore. Jobs
-          stay in the system even if they later leave your tracker.
+          Pulls all rows where Construction Supervisor = {username ?? "(not signed in)"},
+          normalizes them, geocodes the address, and stores the result in
+          Firestore. Jobs stay in the system even if they later leave your
+          tracker.
         </p>
 
         <button
@@ -88,7 +97,7 @@ export default function SyncAdmin() {
                   <td>{last.sheetTotalRows}</td>
                 </tr>
                 <tr>
-                  <td>Filtered (Billy)</td>
+                  <td>Filtered ({username ?? "—"})</td>
                   <td>{last.filteredRows}</td>
                 </tr>
                 <tr>
