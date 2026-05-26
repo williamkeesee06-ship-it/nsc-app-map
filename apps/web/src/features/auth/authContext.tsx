@@ -85,7 +85,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const p = isManagerOnMount
         ? api.syncAllSupervisors(username)
         : api.syncSupervisor(username);
-      p.catch(() => { /* swallow */ });
+      p.then(() => {
+        // Billy 5/26: after the mount-sync finishes, ask useJobs to refetch
+        // so any Smartsheet edits made elsewhere (or just before reload)
+        // show up immediately instead of after the next manual refresh.
+        window.dispatchEvent(new Event("nsc:jobs-reload"));
+      }).catch(() => { /* swallow */ });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

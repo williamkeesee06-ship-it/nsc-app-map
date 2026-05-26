@@ -26,5 +26,16 @@ export function useJobs(): JobsState & { reload: () => void } {
       cancelled = true;
     };
   }, [nonce]);
+  // Global reload bus: anyone can dispatch `nsc:jobs-reload` and the hook
+  // refetches from Firestore. Used after Smartsheet writes and after
+  // login-time syncs to clear stale data.
+  useEffect(() => {
+    function onReload() {
+      setNonce((n) => n + 1);
+    }
+    window.addEventListener("nsc:jobs-reload", onReload);
+    return () => window.removeEventListener("nsc:jobs-reload", onReload);
+  }, []);
+
   return { ...s, reload: () => setNonce((n) => n + 1) };
 }

@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import type { Job } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
+import { api } from "../../lib/api.js";
+import { useAuth } from "../auth/authContext.js";
 
 interface Props {
   job: Job;
@@ -63,6 +65,7 @@ async function saveField(
 }
 
 export default function JobCard({ job, onClose, variant = "popup" }: Props) {
+  const { username, isManager } = useAuth();
   const [minimized, setMinimized] = useState(false);
   const wo = job.workOrder;
   const status = job.jobStatus ?? "—";
@@ -104,6 +107,21 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
     if (res.ok) {
       setSavedField(field);
       setTimeout(() => setSavedField(null), 1500);
+      // Billy 5/26: keep Firestore (and therefore the map view) in sync with
+      // what we just wrote to Smartsheet. Without this, a refresh re-reads
+      // stale Firestore data and the user's edit appears to revert.
+      try {
+        if (username) {
+          if (isManager) {
+            await api.syncAllSupervisors(username);
+          } else {
+            await api.syncSupervisor(username);
+          }
+          window.dispatchEvent(new Event("nsc:jobs-reload"));
+        }
+      } catch (err) {
+        console.warn("Post-save sync failed (UI will still show update locally):", err);
+      }
     } else {
       setErrField(field);
       console.error("Smartsheet save failed", field, res.error);
