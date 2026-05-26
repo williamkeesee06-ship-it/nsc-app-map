@@ -44,6 +44,8 @@ export const api = {
     }),
 
   listJobs: () => request<{ jobs: Job[]; count: number }>("/api/jobs"),
+  listSupervisors: () =>
+    request<{ supervisors: string[]; count: number }>("/api/supervisors"),
   searchJobs: (q: string) =>
     request<{ jobs: Job[]; count: number }>(
       `/api/jobs/search?q=${encodeURIComponent(q)}`

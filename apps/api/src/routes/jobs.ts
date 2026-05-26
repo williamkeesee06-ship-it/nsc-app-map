@@ -5,6 +5,7 @@ import { db } from "../lib/firestore.js";
 import { geocodeAddress } from "../lib/geocode.js";
 import { getSheet, buildColumnsById } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
+import { getEnv } from "../config/env.js";
 import type { Job } from "@nsc/types";
 
 const router = Router();
@@ -92,6 +93,28 @@ router.get("/jobs/search", async (req, res, next) => {
     );
 
     res.json({ jobs: hits, count: hits.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/supervisors
+// Returns the unique list of valid Construction Supervisor names directly from
+// Smartsheet. Used by the login screen to validate the entered name against
+// the full sheet (not just Billy's pre-synced Firestore subset). Pulls from
+// the column's dropdown options when available; falls back to scanning rows.
+router.get("/supervisors", async (_req, res, next) => {
+  try {
+    const env = getEnv();
+    // Source of truth: the SYNC_SUPERVISORS allowlist. We don't expose every
+    // name in Smartsheet — only the supervisors who are actually allowed to
+    // log into the app. This keeps the login gate tight.
+    const supervisors = (env.SYNC_SUPERVISORS || env.SYNC_SUPERVISOR)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+    res.json({ supervisors, count: supervisors.length });
   } catch (err) {
     next(err);
   }

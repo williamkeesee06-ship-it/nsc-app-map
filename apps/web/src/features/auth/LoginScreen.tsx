@@ -21,22 +21,16 @@ export default function LoginScreen() {
     setBusy(true);
     setError(null);
     try {
-      const { jobs } = await api.listJobs();
-      const supervisors = new Set(
-        jobs
-          .map((j) => (j.constructionSupervisor ?? "").trim().toLowerCase())
-          .filter(Boolean)
-      );
+      const { supervisors } = await api.listSupervisors();
       const match = trimmed.toLowerCase();
-      if (!supervisors.has(match)) {
+      const canonical = supervisors.find(
+        (s) => s.trim().toLowerCase() === match
+      );
+      if (!canonical) {
         setError("Name not found in Smartsheet. Check spelling or contact admin.");
         setBusy(false);
         return;
       }
-      // Save the canonical Smartsheet casing.
-      const canonical = jobs
-        .map((j) => (j.constructionSupervisor ?? "").trim())
-        .find((s) => s.toLowerCase() === match) ?? trimmed;
       setUsername(canonical);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not verify name.");

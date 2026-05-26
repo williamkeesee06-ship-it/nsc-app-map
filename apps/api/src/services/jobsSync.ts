@@ -105,7 +105,13 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
 
 export async function runJobsSync(): Promise<SyncRun> {
   const env = getEnv();
-  const supervisor = env.SYNC_SUPERVISOR;
+  // Phase 9.7: filter by an allowlist of supervisors (case-insensitive),
+  // falling back to the single-supervisor env var for backwards compatibility.
+  const allowlist = (env.SYNC_SUPERVISORS || env.SYNC_SUPERVISOR)
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const allowSet = new Set(allowlist);
   const startedAt = Date.now();
   const syncId = `sync_${startedAt}`;
   const firestore = db();
@@ -132,7 +138,8 @@ export async function runJobsSync(): Promise<SyncRun> {
     const colsById = buildColumnsById(sheet);
     const filtered = sheet.rows.filter((r) => {
       const rec = rowToRecord(r, colsById);
-      return s(rec["Construction Supervisor"]) === supervisor;
+      const v = s(rec["Construction Supervisor"]) ?? "";
+      return allowSet.has(v.trim().toLowerCase());
     });
 
     // Load all existing jobs once so we can:

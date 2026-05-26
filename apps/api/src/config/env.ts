@@ -17,6 +17,14 @@ const Schema = z.object({
   VITE_GOOGLE_MAPS_API_KEY: z.string().optional(),
   // Tracker filter — which supervisor's rows to sync. Defaults to Billy.
   SYNC_SUPERVISOR: z.string().default("Billy Keesee"),
+  // Phase 9.7: allowlist of supervisors who can log in and have their jobs
+  // synced into Firestore. Comma-separated, case-insensitive.
+  // Overrides SYNC_SUPERVISOR when present.
+  SYNC_SUPERVISORS: z
+    .string()
+    .default(
+      "Billy Keesee,RJ Tudela,Rob Dautrich,Joe Watson,Jarrod Anderson,Dustin Halbert,Mike Smith,Mike Thoman,Robbie Thoman,Shawn Heenan"
+    ),
   NODE_ENV: z.string().default("development"),
 });
 
