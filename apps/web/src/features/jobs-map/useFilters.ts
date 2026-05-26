@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { Filters } from "./FilterRail.js";
 import type { Job } from "@nsc/types";
 import type { StatusBucket } from "./markerStyle.js";
+import { queuePrefWrite } from "../../lib/prefsSync.js";
 
 const LS_KEY = "nsc.filters.v2";
 
@@ -24,6 +25,7 @@ function saveFilters(f: Filters): void {
   try {
     const data: PersistedFilters = { buckets: Array.from(f.buckets) };
     localStorage.setItem(LS_KEY, JSON.stringify(data));
+    queuePrefWrite(LS_KEY, data);
   } catch {
     // ignore
   }
@@ -66,6 +68,22 @@ export function useFilters(_jobs: Job[]): [Filters, (f: Filters) => void] {
   useEffect(() => {
     saveFilters(filters);
   }, [filters]);
+
+  // Re-load filters when server prefs hydrate (cross-device sync).
+  useEffect(() => {
+    function onHydrated() {
+      const persisted = loadPersistedFilters();
+      if (!persisted) return;
+      const buckets = new Set<StatusBucket>(persisted.buckets);
+      setFiltersRaw((prev) => ({
+        ...prev,
+        buckets,
+        hideCompleted: !buckets.has("completed"),
+      }));
+    }
+    window.addEventListener("nsc:prefs-hydrated", onHydrated as EventListener);
+    return () => window.removeEventListener("nsc:prefs-hydrated", onHydrated as EventListener);
+  }, []);
 
   return [filters, setFilters];
 }

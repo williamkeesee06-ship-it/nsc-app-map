@@ -61,4 +61,13 @@ export const api = {
       body: JSON.stringify({}),
     }),
   syncStatus: () => request<{ lastRun: SyncRun | null }>(`/api/sync/status`),
+
+  // User preferences (Billy 5/25) — cross-device sync of filters, panel widths, etc.
+  getPrefs: (username: string) =>
+    request<{ prefs: Record<string, unknown> }>(`/api/prefs/${encodeURIComponent(username)}`),
+  putPrefs: (username: string, prefs: Record<string, unknown>) =>
+    request<{ ok: boolean; prefs: Record<string, unknown> }>(`/api/prefs/${encodeURIComponent(username)}`, {
+      method: "PUT",
+      body: JSON.stringify(prefs),
+    }),
 };

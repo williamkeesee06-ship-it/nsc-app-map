@@ -2,6 +2,7 @@
 // Stored in localStorage as "nsc.username". Used to filter the Smartsheet
 // job list by the Supervisor column (case-insensitive match on the value).
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { hydratePrefs } from "../../lib/prefsSync.js";
 
 const LS_KEY = "nsc.username";
 
@@ -37,6 +38,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore
     }
+    // Pull server prefs for this user so settings follow them across devices.
+    if (trimmed) {
+      hydratePrefs().catch(() => { /* swallow */ });
+    }
+  }, []);
+
+  // On initial mount with a stored username, hydrate prefs from server.
+  useEffect(() => {
+    if (username) {
+      hydratePrefs().catch(() => { /* swallow */ });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const logout = useCallback(() => {

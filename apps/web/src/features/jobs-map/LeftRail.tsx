@@ -10,6 +10,7 @@ import { isJobCompleted } from "./markerStyle.js";
 import { useDrawing } from "../drawing/drawingContext.js";
 import type { DrawingTool } from "@nsc/types";
 import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
+import { queuePrefWrite } from "../../lib/prefsSync.js";
 
 const DEFAULT_WIDTH = 130;
 const MIN_WIDTH = 95;
@@ -33,8 +34,8 @@ export default function LeftRail({ jobs, filters, setFilters, hideFilters }: Pro
   const startWidthRef = useRef(DEFAULT_WIDTH);
   const handleRef = useRef<HTMLDivElement>(null);
 
-  // Hydrate from localStorage on mount
-  useEffect(() => {
+  // Hydrate from localStorage on mount + listen for cross-device sync.
+  const loadFromLS = useCallback(() => {
     try {
       const stored = localStorage.getItem(LS_KEY);
       if (stored !== null) {
@@ -47,6 +48,12 @@ export default function LeftRail({ jobs, filters, setFilters, hideFilters }: Pro
       // ignore
     }
   }, []);
+  useEffect(() => {
+    loadFromLS();
+    function onHydrated() { loadFromLS(); }
+    window.addEventListener("nsc:prefs-hydrated", onHydrated as EventListener);
+    return () => window.removeEventListener("nsc:prefs-hydrated", onHydrated as EventListener);
+  }, [loadFromLS]);
 
   // Drag handlers
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -63,6 +70,7 @@ export default function LeftRail({ jobs, filters, setFilters, hideFilters }: Pro
     setWidth(DEFAULT_WIDTH);
     try {
       localStorage.setItem(LS_KEY, String(DEFAULT_WIDTH));
+      queuePrefWrite(LS_KEY, DEFAULT_WIDTH);
     } catch {
       // ignore
     }
@@ -86,6 +94,7 @@ export default function LeftRail({ jobs, filters, setFilters, hideFilters }: Pro
       setWidth((w) => {
         try {
           localStorage.setItem(LS_KEY, String(w));
+          queuePrefWrite(LS_KEY, w);
         } catch {
           // ignore
         }
