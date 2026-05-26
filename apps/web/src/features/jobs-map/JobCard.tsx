@@ -558,13 +558,22 @@ function EditableRow({
           title="Click to edit"
           style={{
             cursor: "pointer",
-            borderBottom: "1px dotted rgba(147,212,255,0.35)",
             display: "inline-flex",
             alignItems: "center",
             gap: 6,
+            minWidth: value ? undefined : 110,
+            padding: value ? undefined : "3px 10px",
+            borderRadius: value ? undefined : 6,
+            border: value ? undefined : "1px dashed rgba(147,212,255,0.55)",
+            background: value ? undefined : "rgba(147,212,255,0.08)",
+            borderBottom: value ? "1px dotted rgba(147,212,255,0.35)" : undefined,
+            color: value ? undefined : "#93d4ff",
+            fontSize: value ? undefined : 10,
+            fontWeight: value ? undefined : 700,
+            letterSpacing: value ? undefined : "0.06em",
           }}
         >
-          {value || <em style={{ color: "#93d4ff", opacity: 0.6 }}>—</em>}
+          {value || "TAP TO SET ▾"}
           <SaveIndicator saving={saving} saved={saved} error={error} inline />
         </span>
       )}

@@ -12,7 +12,7 @@ export type MarkerColorKey =
   | "blue"
   | "purple"
   | "orange"
-  | "silver"   // Completed jobs
+  | "completed_green"   // Completed jobs (neon green w/ opacity applied at render)
   | "gray";
 
 export interface MarkerColor {
@@ -31,7 +31,7 @@ export const MARKER_COLORS: Record<MarkerColorKey, MarkerColor> = {
   blue:   { key: "blue",   label: "In Progress",         core: "#3aa7ff", glow: "#1f7ad6" },
   purple: { key: "purple", label: "Needs Fielding",      core: "#c44dff", glow: "#9b2bd1" },
   orange: { key: "orange", label: "Pending",             core: "#ff8a1f", glow: "#e06a00" },
-  silver: { key: "silver", label: "Completed",           core: "#39ff14", glow: "#22cc0a" },
+  completed_green: { key: "completed_green", label: "Completed", core: "#39ff14", glow: "#22cc0a" },
   gray:   { key: "gray",   label: "Other / Unset",       core: "#9aa3ad", glow: "#5a6168" },
 };
 
@@ -93,7 +93,7 @@ export function colorKeyForJob(job: {
   jobStatus?: string | null;
   secondaryJobStatus?: string | null;
 }): MarkerColorKey {
-  if (isJobCompleted(job)) return "silver";
+  if (isJobCompleted(job)) return "completed_green";
   return colorKeyForSecondaryStatus(job.secondaryJobStatus);
 }
 
@@ -126,7 +126,7 @@ export const STATUS_BUCKETS: StatusBucketDef[] = [
   { key: "on_hold",        label: "On Hold",        colorKey: "red" },
   { key: "pending",        label: "Pending",        colorKey: "orange" },
   { key: "in_progress",    label: "In Progress",    colorKey: "blue" },
-  { key: "completed",      label: "Completed",      colorKey: "silver" },
+  { key: "completed",      label: "Completed",      colorKey: "completed_green" },
 ];
 
 export function bucketForJob(job: {

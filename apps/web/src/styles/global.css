@@ -3,9 +3,40 @@
    Theme tokens live in theme.css. This file consumes them.
    ============================================================ */
 
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@500;600;700&display=swap');
+
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Bebas Neue is the headline/UI face: all-caps by design, bold, modern.
+     Inter is the fallback for places where readability matters more than
+     style (long body text, multi-line notes, date/time inputs, etc.). */
+  font-family: 'Bebas Neue', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
+  letter-spacing: 0.04em;
+}
+
+/* App-wide all-caps + bold for everything that uses the default face. */
+body {
+  font-family: 'Bebas Neue', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* Inputs/textareas/selects keep readable Inter — Bebas Neue is a display
+   face and looks broken for typed user content. */
+input, textarea, select {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  text-transform: none;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* Notes body — user-typed prose, keep readable. */
+.job-card__notes-body, .job-card__notes textarea {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 * { box-sizing: border-box; }
@@ -636,7 +667,7 @@ a { color: var(--accent); }
   border-radius: 50%;
   flex-shrink: 0;
 }
-.status-swatch--silver { border: 1px solid rgba(0,0,0,0.18); }
+.status-swatch--completed_green { border: 1px solid rgba(0,0,0,0.18); }
 .filter-section__hint {
   font-size: 11px;
   color: var(--text-muted);
