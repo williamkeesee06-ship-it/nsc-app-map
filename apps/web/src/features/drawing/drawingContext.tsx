@@ -14,6 +14,7 @@ import {
 } from "react";
 import type { AsBuiltDocument, DrawingObject, DrawingStyle, DrawingTool, JobLayer } from "@nsc/types";
 import { api } from "../../lib/api.js";
+import { useAuth } from "../auth/authContext.js";
 
 // ─── localStorage draft helpers ──────────────────────────────────────────────
 const LS_OBJECTS_KEY = "nsc.draft.objects";
@@ -355,6 +356,13 @@ interface Props {
 
 export function DrawingProvider({ children, mapRef }: Props) {
   const [state, dispatch] = useReducer(reducer, undefined, initState);
+  const { username } = useAuth();
+  // Stable ref so the `save` callback (created with empty deps) always sees
+  // the latest signed-in supervisor without being recreated.
+  const ownerRef = useRef<string>(username ?? "");
+  useEffect(() => {
+    ownerRef.current = username ?? "";
+  }, [username]);
 
   // Undo/redo managed outside React state to avoid cascading renders
   const undoStack = useRef<HistoryEntry[]>([]);
@@ -541,7 +549,7 @@ export function DrawingProvider({ children, mapRef }: Props) {
         updatedAt: Date.now(),
         schemaVersion: 2 as const,
       };
-      await api.putDrawing(targetJobId, payload as unknown as AsBuiltDocument);
+      await api.putDrawing(targetJobId, payload as unknown as AsBuiltDocument, ownerRef.current);
       dispatch({ type: "MARK_SAVED" });
       // Phase 5.2: clear localStorage draft after successful server save
       lsClearDraft(targetJobId);

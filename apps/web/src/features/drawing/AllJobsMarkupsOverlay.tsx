@@ -18,6 +18,7 @@ import { useMap } from "@vis.gl/react-google-maps";
 import type { DrawingObject } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { useDrawing } from "./drawingContext.js";
+import { useAuth } from "../auth/authContext.js";
 import { iconForTool, ICON_SIZE } from "./icons/telecomIcons.js";
 
 const PLACED_COLOR  = "#39ff7a";
@@ -252,9 +253,19 @@ export default function AllJobsMarkupsOverlay() {
     lastSavedTrigger.current = state.dirty ? lastSavedTrigger.current : lastSavedTrigger.current;
   }
 
+  // Per-supervisor markup scoping: regular users see only their own;
+  // managers (Robbie) pass owner="*" to see everyone's.
+  const { username, isManager } = useAuth();
+  const markupOwner = isManager ? "*" : (username ?? "");
   async function fetchAll() {
     try {
-      const res = await api.getAllDrawings();
+      if (!markupOwner) {
+        // No user signed in — clear and bail.
+        docsRef.current = [];
+        renderAll();
+        return;
+      }
+      const res = await api.getAllDrawings(markupOwner);
       docsRef.current = res.docs.map((d) => ({
         jobId: d.jobId,
         objects: (d.objects as DrawingObject[]) ?? [],
@@ -307,7 +318,7 @@ export default function AllJobsMarkupsOverlay() {
       clearAll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map]);
+  }, [map, markupOwner]);
 
   // Re-render when active job changes (so the active job's objects get hidden
   // from the global layer; DrawingOverlay paints them as the editable copy)

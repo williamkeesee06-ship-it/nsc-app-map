@@ -30,18 +30,28 @@ export const api = {
     }),
 
   // Phase 3 drawing objects (schemaVersion:2)
-  getDrawing: (jobId: string) =>
-    request<AsBuiltDocument | AsbuiltDoc>(`/api/asbuilt/${encodeURIComponent(jobId)}`),
+  // owner: pass the current supervisor's name to scope to their markups;
+  // pass "*" to fetch every supervisor's markups (manager mode).
+  getDrawing: (jobId: string, owner?: string) => {
+    const q = owner ? `?owner=${encodeURIComponent(owner)}` : "";
+    return request<AsBuiltDocument | AsbuiltDoc>(
+      `/api/asbuilt/${encodeURIComponent(jobId)}${q}`
+    );
+  },
   // All jobs' drawings — used by the always-visible global markups overlay
-  getAllDrawings: () =>
-    request<{ docs: Array<{ jobId: string; objects: unknown[]; updatedAt: number; schemaVersion: number }>; count: number }>(
-      `/api/asbuilt`
-    ),
-  putDrawing: (jobId: string, doc: AsBuiltDocument) =>
-    request<AsBuiltDocument>(`/api/asbuilt/${encodeURIComponent(jobId)}`, {
-      method: "PUT",
-      body: JSON.stringify(doc),
-    }),
+  getAllDrawings: (owner?: string) => {
+    const q = owner ? `?owner=${encodeURIComponent(owner)}` : "";
+    return request<{ docs: Array<{ jobId: string; objects: unknown[]; updatedAt: number; schemaVersion: number; owner?: string }>; count: number }>(
+      `/api/asbuilt${q}`
+    );
+  },
+  putDrawing: (jobId: string, doc: AsBuiltDocument, owner?: string) => {
+    const q = owner ? `?owner=${encodeURIComponent(owner)}` : "";
+    return request<AsBuiltDocument>(
+      `/api/asbuilt/${encodeURIComponent(jobId)}${q}`,
+      { method: "PUT", body: JSON.stringify(doc) }
+    );
+  },
 
   listJobs: () => request<{ jobs: Job[]; count: number }>("/api/jobs"),
   listSupervisors: () =>

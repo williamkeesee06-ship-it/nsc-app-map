@@ -99,27 +99,65 @@ const AsBuiltDocumentSchema = z.object({
   schemaVersion: z.literal(2),
 });
 
-function docRef(jobId: string) {
+// Per-supervisor scoping (Billy 5/26): each supervisor's markups live at
+// jobs/{jobId}/asbuilt/{ownerSlug}. Legacy global doc lives at .../current
+// and is treated as belonging to Billy Keesee on read.
+function slugifyOwner(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, "-");
+}
+const LEGACY_OWNER = "billy-keesee";
+const LEGACY_OWNER_NAME = "Billy Keesee";
+
+function docRef(jobId: string, owner: string) {
+  const slug = slugifyOwner(owner) || LEGACY_OWNER;
+  return db().collection("jobs").doc(jobId).collection("asbuilt").doc(slug);
+}
+function legacyDocRef(jobId: string) {
   return db().collection("jobs").doc(jobId).collection("asbuilt").doc("current");
 }
 
 // Return every job's asbuilt doc so the map can render ALL markups
 // simultaneously regardless of which job is selected. Used by the
 // always-visible global markups overlay.
-router.get("/asbuilt", async (_req, res, next) => {
+//
+// ?owner=<name>  → only that supervisor's markups (legacy `current` docs
+//                  are treated as Billy Keesee's).
+// ?owner=*       → manager mode: union of every supervisor's markups.
+// (no owner)     → defaults to legacy behaviour: legacy `current` docs only.
+router.get("/asbuilt", async (req, res, next) => {
   try {
+    const owner = typeof req.query.owner === "string" ? req.query.owner : "";
+    const wantAll = owner === "*";
+    const ownerSlug = owner && !wantAll ? slugifyOwner(owner) : "";
     const snap = await db().collectionGroup("asbuilt").get();
-    const docs: Array<{ jobId: string; objects: unknown[]; updatedAt: number; schemaVersion: number }> = [];
+    const docs: Array<{ jobId: string; objects: unknown[]; updatedAt: number; schemaVersion: number; owner?: string }> = [];
     snap.forEach((d) => {
-      if (d.id !== "current") return;
-      const data = d.data() as { jobId?: string; objects?: unknown[]; updatedAt?: number; schemaVersion?: number };
+      const id = d.id;
+      const data = d.data() as { jobId?: string; objects?: unknown[]; updatedAt?: number; schemaVersion?: number; ownerName?: string };
       if (!data) return;
       if (!Array.isArray(data.objects) || data.objects.length === 0) return;
+
+      // Decide whether this sub-doc matches the requested owner.
+      let include = false;
+      let ownerName = data.ownerName;
+      if (id === "current") {
+        // Legacy global doc — counts as Billy Keesee.
+        ownerName = ownerName ?? LEGACY_OWNER_NAME;
+        if (wantAll) include = true;
+        else if (!ownerSlug) include = true; // back-compat: no owner filter
+        else if (ownerSlug === LEGACY_OWNER) include = true;
+      } else {
+        if (wantAll) include = true;
+        else if (ownerSlug && id === ownerSlug) include = true;
+      }
+      if (!include) return;
+
       docs.push({
         jobId: data.jobId ?? d.ref.parent.parent?.id ?? "",
         objects: data.objects,
         updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : 0,
         schemaVersion: typeof data.schemaVersion === "number" ? data.schemaVersion : 2,
+        owner: ownerName,
       });
     });
     res.json({ docs, count: docs.length });
@@ -131,12 +169,33 @@ router.get("/asbuilt", async (_req, res, next) => {
 router.get("/asbuilt/:jobId", async (req, res, next) => {
   try {
     const { jobId } = req.params;
-    const snap = await docRef(jobId).get();
-    if (!snap.exists) {
-      res.json(emptyAsbuilt(jobId));
+    const owner = typeof req.query.owner === "string" ? req.query.owner : "";
+    // If no owner specified, fall back to legacy `current` (pre-scoping behaviour).
+    if (!owner) {
+      const snap = await legacyDocRef(jobId).get();
+      if (!snap.exists) {
+        res.json(emptyAsbuilt(jobId));
+        return;
+      }
+      res.json(snap.data() as AsbuiltDoc);
       return;
     }
-    res.json(snap.data() as AsbuiltDoc);
+    // Per-owner read.
+    const snap = await docRef(jobId, owner).get();
+    if (snap.exists) {
+      res.json(snap.data() as AsbuiltDoc);
+      return;
+    }
+    // Billy fallback: if Billy has no per-owner doc yet but the legacy doc
+    // exists, return that — it predates per-supervisor scoping and belongs to him.
+    if (slugifyOwner(owner) === LEGACY_OWNER) {
+      const legacy = await legacyDocRef(jobId).get();
+      if (legacy.exists) {
+        res.json(legacy.data() as AsbuiltDoc);
+        return;
+      }
+    }
+    res.json(emptyAsbuilt(jobId));
   } catch (err) {
     next(err);
   }
@@ -155,26 +214,36 @@ router.put("/asbuilt/:jobId", async (req, res, next) => {
 
     const body = req.body as Record<string, unknown>;
     const schemaVersion = body.schemaVersion;
+    const ownerRaw = typeof req.query.owner === "string" && req.query.owner
+      ? req.query.owner
+      : (typeof body.owner === "string" ? body.owner : LEGACY_OWNER_NAME);
+    const ownerName = ownerRaw.trim() || LEGACY_OWNER_NAME;
+    const target = docRef(jobId, ownerName);
 
     if (schemaVersion === 2) {
       // Phase 3 schema
-      const incoming = { ...body, jobId, updatedAt: Date.now(), schemaVersion: 2 };
+      const incoming = { ...body, jobId, updatedAt: Date.now(), schemaVersion: 2, ownerName };
+      // Strip top-level `owner` (query-only) so it doesn't break schema.
+      delete (incoming as Record<string, unknown>).owner;
       const parsed = AsBuiltDocumentSchema.safeParse(incoming);
       if (!parsed.success) {
         res.status(400).json({ error: "Invalid asbuilt payload (v2)", issues: parsed.error.issues });
         return;
       }
-      await docRef(jobId).set(parsed.data, { merge: false });
+      // Persist ownerName alongside the validated doc (not part of zod schema
+      // but Firestore is permissive — we add it as an extra field).
+      await target.set({ ...parsed.data, ownerName }, { merge: false });
       res.json(parsed.data);
     } else {
       // Phase 1/2 legacy schema — keep backward compat
       const incoming = { ...body, jobId, updatedAt: Date.now(), schemaVersion: 1 };
+      delete (incoming as Record<string, unknown>).owner;
       const parsed = AsbuiltLegacySchema.safeParse(incoming);
       if (!parsed.success) {
         res.status(400).json({ error: "Invalid asbuilt payload (v1)", issues: parsed.error.issues });
         return;
       }
-      await docRef(jobId).set(parsed.data, { merge: false });
+      await target.set({ ...parsed.data, ownerName }, { merge: false });
       res.json(parsed.data);
     }
   } catch (err) {

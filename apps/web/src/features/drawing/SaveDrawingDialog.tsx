@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Job } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { useDrawing } from "./drawingContext.js";
+import { useAuth } from "../auth/authContext.js";
 
 interface Props {
   jobs: Job[];
@@ -16,6 +17,7 @@ type Tab = "attach" | "create";
 
 export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Props) {
   const { state, dispatch, setTarget, save, clearDraft } = useDrawing();
+  const { username } = useAuth();
   const [tab, setTab] = useState<Tab>("attach");
 
   // ── Attach to existing ──────────────────────────────────────────────────
@@ -72,7 +74,7 @@ export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Prop
       updatedAt: Date.now(),
       schemaVersion: 2 as const,
     };
-    await api.putDrawing(jobId, payload as Parameters<typeof api.putDrawing>[1]);
+    await api.putDrawing(jobId, payload as Parameters<typeof api.putDrawing>[1], username ?? undefined);
     // Also update context state to reflect saved
     dispatch({ type: "MARK_SAVED" });
   }

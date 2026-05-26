@@ -30,6 +30,9 @@ export default function JobsMap() {
   const reload = jobsState.reload;
   const { theme } = useMapTheme();
   const { username, isManager } = useAuth();
+  // Per-supervisor markup scoping (Billy 5/26): each supervisor only sees
+  // their own drawings. Managers see everyone's via owner="*".
+  const drawingOwner = isManager ? "*" : (username ?? "");
   const rawJobs = jobsState.state === "ready" ? jobsState.jobs : [];
   // Phase 9.7 manager mode: load the supervisor allowlist once so the
   // FilterRail can render a checkbox per name.
@@ -89,6 +92,7 @@ export default function JobsMap() {
           theme={theme}
           isManager={isManager}
           allSupervisors={allSupervisors}
+          drawingOwner={drawingOwner}
         />
       </DrawingProvider>
     </JobsProvider>
@@ -111,6 +115,7 @@ function JobsMapInner({
   theme,
   isManager,
   allSupervisors,
+  drawingOwner,
 }: {
   allJobs: Job[];
   mapped: Job[];
@@ -126,6 +131,7 @@ function JobsMapInner({
   theme: MapTheme;
   isManager: boolean;
   allSupervisors: string[];
+  drawingOwner: string;
 }) {
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
 
@@ -161,7 +167,7 @@ function JobsMapInner({
       setSelected(job);
       // Load existing drawings for the newly-selected job into the overlay.
       try {
-        const doc = await api.getDrawing(job.jobId);
+        const doc = await api.getDrawing(job.jobId, drawingOwner);
         if (doc && "objects" in doc && Array.isArray(doc.objects)) {
           const layers = "layers" in doc && Array.isArray(doc.layers) ? doc.layers : [];
           loadObjects(doc.objects, layers);
