@@ -4,6 +4,7 @@
 // tracker; we just flip inTracker to false.
 
 import { db } from "../lib/firestore.js";
+import { invalidateJobsCache } from "../routes/jobs.js";
 import {
   getSheet,
   buildColumnsById,
@@ -244,6 +245,8 @@ export async function runJobsSyncForSupervisors(
       geocodeFailed,
     };
     await runDoc.set(finished);
+    // Sync wrote to Firestore — next /api/jobs call must read fresh data.
+    invalidateJobsCache();
     return finished;
   } catch (err) {
     const errored: SyncRun = {

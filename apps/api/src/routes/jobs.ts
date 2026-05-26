@@ -10,6 +10,18 @@ import type { Job } from "@nsc/types";
 
 const router = Router();
 
+// In-memory cache for /api/jobs to avoid hammering Firestore (free tier =
+// 50K reads/day; each /api/jobs call reads ~200 docs). Cache is invalidated
+// on every write (POST /api/jobs, sync runs) by calling invalidateJobsCache().
+// 60-second TTL is plenty: Smartsheet sync runs on supervisor login + after
+// every JobCard edit, both of which call invalidateJobsCache() directly.
+let jobsCache: { jobs: Job[]; ts: number } | null = null;
+const JOBS_CACHE_TTL_MS = 60 * 1000;
+
+export function invalidateJobsCache(): void {
+  jobsCache = null;
+}
+
 // GET /api/jobs/search?q=<term>
 // Searches the ENTIRE Smartsheet (no supervisor filter) by Work Order / address /
 // city. Use this when /api/jobs (which is supervisor-scoped to Billy) misses a
@@ -128,18 +140,33 @@ router.get("/supervisors", async (_req, res, next) => {
 // GET /api/jobs
 // Returns all jobs. The client filters in-memory \u2014 191 records is trivial.
 // Optional query: ?inTracker=true to limit to currently-tracked jobs.
+// Optional query: ?fresh=1 to bypass the in-memory cache (used by manual Sync).
 router.get("/jobs", async (req, res, next) => {
   try {
-    const snap = await db().collection("jobs").get();
-    const all = snap.docs.map((d) => d.data() as Job);
     const inTrackerFilter = req.query.inTracker;
+    const bypassCache = req.query.fresh === "1" || req.query.fresh === "true";
+
+    let all: Job[];
+    const now = Date.now();
+    if (
+      !bypassCache &&
+      jobsCache &&
+      now - jobsCache.ts < JOBS_CACHE_TTL_MS
+    ) {
+      all = jobsCache.jobs;
+    } else {
+      const snap = await db().collection("jobs").get();
+      all = snap.docs.map((d) => d.data() as Job);
+      jobsCache = { jobs: all, ts: now };
+    }
+
     const jobs =
       inTrackerFilter === "true"
         ? all.filter((j) => j.inTracker)
         : inTrackerFilter === "false"
           ? all.filter((j) => !j.inTracker)
           : all;
-    res.json({ jobs, count: jobs.length });
+    res.json({ jobs, count: jobs.length, cached: !bypassCache && now - (jobsCache?.ts ?? 0) < 100 ? false : !bypassCache });
   } catch (err) {
     next(err);
   }
@@ -233,6 +260,7 @@ router.post("/jobs", async (req, res, next) => {
     };
 
     await db().collection("jobs").doc(jobId).set(job);
+    invalidateJobsCache();
 
     res.status(201).json({ jobId, workOrder, jobName, lat, lng });
   } catch (err) {
