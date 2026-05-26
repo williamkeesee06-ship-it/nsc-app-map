@@ -24,6 +24,8 @@ const PLACED_COLOR  = "#39ff7a";
 const REMOVED_COLOR = "#ff2d4a";
 const ZOOM_REF = 17;
 const BASE_SIZE = ICON_SIZE;
+// Phase 9.5: labels visible only at this zoom or closer (must match DrawingOverlay)
+const MIN_LABEL_ZOOM = 18;
 
 type OverlayRef =
   | google.maps.Polyline
@@ -195,6 +197,46 @@ function createReadOnlyOverlay(
   return null;
 }
 
+// Get the label anchor lat/lng for an object
+function labelPositionForObj(obj: DrawingObject): { lat: number; lng: number } | null {
+  if ("position" in obj) return { lat: obj.position.lat, lng: obj.position.lng };
+  if ("vertices" in obj && obj.vertices.length > 0) {
+    const mid = obj.vertices[Math.floor(obj.vertices.length / 2)];
+    return mid ? { lat: mid.lat, lng: mid.lng } : null;
+  }
+  if ("bounds" in obj) {
+    return {
+      lat: (obj.bounds.n + obj.bounds.s) / 2,
+      lng: (obj.bounds.e + obj.bounds.w) / 2,
+    };
+  }
+  return null;
+}
+
+function createLabelMarker(
+  obj: DrawingObject,
+  map: google.maps.Map
+): google.maps.Marker | null {
+  if (!obj.style.userLabel || obj.style.hidden) return null;
+  const pos = labelPositionForObj(obj);
+  if (!pos) return null;
+  return new google.maps.Marker({
+    position: new google.maps.LatLng(pos.lat, pos.lng),
+    map,
+    label: {
+      text: obj.style.userLabel,
+      color: "#f4f8ff",
+      fontSize: "12px",
+      fontWeight: "700",
+      fontFamily: "ui-monospace, monospace",
+    },
+    icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
+    clickable: false,
+    draggable: false,
+    zIndex: 6,
+  });
+}
+
 const REFRESH_INTERVAL_MS = 60_000;
 
 export default function AllJobsMarkupsOverlay() {
@@ -232,6 +274,7 @@ export default function AllJobsMarkupsOverlay() {
     if (!map) return;
     clearAll();
     const zoom = map.getZoom() ?? ZOOM_REF;
+    const labelsVisible = zoom >= MIN_LABEL_ZOOM;
     const activeJobId = state.targetJobId;
     for (const doc of docsRef.current) {
       if (activeJobId && doc.jobId === activeJobId) continue; // active job is rendered by DrawingOverlay
@@ -239,6 +282,11 @@ export default function AllJobsMarkupsOverlay() {
         try {
           const overlay = createReadOnlyOverlay(obj, map, zoom);
           if (overlay) overlaysRef.current.set(`${doc.jobId}:${obj.id}`, overlay);
+          // Phase 9.5: render labels only when zoomed in close enough
+          if (labelsVisible) {
+            const lbl = createLabelMarker(obj, map);
+            if (lbl) overlaysRef.current.set(`${doc.jobId}:${obj.id}:label`, lbl);
+          }
         } catch {
           // skip malformed object
         }
@@ -251,8 +299,11 @@ export default function AllJobsMarkupsOverlay() {
     if (!map) return;
     void fetchAll();
     const t = setInterval(() => void fetchAll(), REFRESH_INTERVAL_MS);
+    // Re-render on zoom change so labels appear/disappear with zoom
+    const zoomListener = map.addListener("zoom_changed", () => renderAll());
     return () => {
       clearInterval(t);
+      zoomListener.remove();
       clearAll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

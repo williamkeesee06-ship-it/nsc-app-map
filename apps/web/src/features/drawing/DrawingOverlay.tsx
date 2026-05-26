@@ -108,6 +108,9 @@ function isPointTool(tool: string): boolean {
 // ── Zoom-scaled symbol size ────────────────────────────────────────────────────
 
 const ZOOM_REF = 17;
+// Phase 9.5: Labels only render at this zoom level or closer.
+// Zoomed out, only the structures show.
+const MIN_LABEL_ZOOM = 18;
 const BASE_SIZE = ICON_SIZE; // 32px
 
 function computeSymbolPx(zoom: number, pointSize: number): number {
@@ -318,12 +321,41 @@ function makeLabelMarkerAt(
   });
 }
 
+function clearAllLabels(
+  overlaysMap: globalThis.Map<string, OverlayRef>,
+  calloutMap: globalThis.Map<string, google.maps.Polyline>
+): void {
+  const labelKeys: string[] = [];
+  overlaysMap.forEach((_, key) => {
+    if (key.endsWith("_label")) labelKeys.push(key);
+  });
+  for (const k of labelKeys) {
+    const lbl = overlaysMap.get(k);
+    if (lbl) lbl.setMap(null);
+    overlaysMap.delete(k);
+  }
+  const calloutKeys: string[] = [];
+  calloutMap.forEach((_, key) => calloutKeys.push(key));
+  for (const k of calloutKeys) {
+    const c = calloutMap.get(k);
+    if (c) c.setMap(null);
+    calloutMap.delete(k);
+  }
+}
+
 function rebuildAllLabels(
   map: google.maps.Map,
   objects: DrawingObject[],
   overlaysMap: globalThis.Map<string, OverlayRef>,
   calloutMap: globalThis.Map<string, google.maps.Polyline>
 ): void {
+  // Zoom gate: hide all labels when zoomed out below threshold
+  const curZoom = map.getZoom() ?? ZOOM_REF;
+  if (curZoom < MIN_LABEL_ZOOM) {
+    clearAllLabels(overlaysMap, calloutMap);
+    return;
+  }
+
   const entries: LabelEntry[] = [];
   for (const obj of objects) {
     if (!obj.style.userLabel || obj.style.hidden) continue;
@@ -331,7 +363,10 @@ function rebuildAllLabels(
     if (!pos) continue;
     entries.push({ objId: obj.id, symbolLatLng: pos, text: obj.style.userLabel, zIndex: 6 });
   }
-  if (entries.length === 0) return;
+  if (entries.length === 0) {
+    clearAllLabels(overlaysMap, calloutMap);
+    return;
+  }
 
   const placements = computeLabelPlacements(entries, map);
 
@@ -733,8 +768,8 @@ export default function DrawingOverlay() {
         }
       }
 
-      // Create label marker
-      if (obj.style.userLabel) {
+      // Create label marker (only when zoomed in close enough)
+      if (obj.style.userLabel && zoom >= MIN_LABEL_ZOOM) {
         const pos = labelPositionForObj(obj);
         if (pos) {
           const labelLatLng = pixelOffsetToLatLng(pos, 30, 0, map);

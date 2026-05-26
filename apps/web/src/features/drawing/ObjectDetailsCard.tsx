@@ -7,7 +7,7 @@
 //   Popup = draft placement prompt (Save/Cancel, commits or discards)
 //   Card  = live editor for existing objects (Close only, every change is instant)
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DrawingObject, DrawingStyle } from "@nsc/types";
 import { useDrawing } from "./drawingContext.js";
 import { railSvgForTool } from "./icons/telecomIcons.js";
@@ -413,16 +413,66 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
-  // Clamp position to viewport
+  // Initial position derived from anchor; user can drag from there.
   const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
   const OFFSET = 18;
-  let left = anchorPos.x + OFFSET;
-  let top = anchorPos.y - CARD_H_APPROX / 2;
-  if (left + CARD_W > vw - 12) left = anchorPos.x - CARD_W - OFFSET;
-  if (left < 8) left = 8;
-  if (top < 8) top = 8;
-  if (top + CARD_H_APPROX > vh - 8) top = vh - CARD_H_APPROX - 8;
+  const initialLeft = (() => {
+    let l = anchorPos.x + OFFSET;
+    if (l + CARD_W > vw - 12) l = anchorPos.x - CARD_W - OFFSET;
+    if (l < 8) l = 8;
+    return l;
+  })();
+  const initialTop = (() => {
+    let t = anchorPos.y - CARD_H_APPROX / 2;
+    if (t < 8) t = 8;
+    if (t + CARD_H_APPROX > vh - 8) t = vh - CARD_H_APPROX - 8;
+    return t;
+  })();
+
+  // Drag-to-reposition state. Once the user drags, `pos` overrides anchor.
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
+
+  // Reset drag position when switching to a different object
+  useEffect(() => {
+    setPos(null);
+  }, [obj.id]);
+
+  const left = pos?.left ?? initialLeft;
+  const top = pos?.top ?? initialTop;
+
+  function onHeaderMouseDown(e: React.MouseEvent) {
+    // Don't drag when clicking the close button
+    const target = e.target as HTMLElement;
+    if (target.closest("button")) return;
+    e.preventDefault();
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origLeft: left,
+      origTop: top,
+    };
+    function onMove(ev: MouseEvent) {
+      const d = dragRef.current;
+      if (!d) return;
+      const newLeft = d.origLeft + (ev.clientX - d.startX);
+      const newTop = d.origTop + (ev.clientY - d.startY);
+      // Clamp to viewport with small margin so it can't be lost off-screen
+      const vw2 = window.innerWidth;
+      const vh2 = window.innerHeight;
+      const clampedLeft = Math.max(-CARD_W + 60, Math.min(vw2 - 60, newLeft));
+      const clampedTop = Math.max(0, Math.min(vh2 - 40, newTop));
+      setPos({ left: clampedLeft, top: clampedTop });
+    }
+    function onUp() {
+      dragRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
 
   const isPoint = isPointTool(obj.tool);
   const isCableOrLine = isLine(obj.tool);
@@ -476,12 +526,18 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "10px 12px 8px",
-        borderBottom: "1px solid rgba(200,208,218,0.1)",
-      }}>
+      {/* ── Header (drag handle) ────────────────────────────────────── */}
+      <div
+        onMouseDown={onHeaderMouseDown}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "10px 12px 8px",
+          borderBottom: "1px solid rgba(200,208,218,0.1)",
+          cursor: "move",
+          userSelect: "none",
+        }}
+        title="Drag to move"
+      >
         {/* Type icon */}
         <span
           style={{ width: 22, height: 22, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}

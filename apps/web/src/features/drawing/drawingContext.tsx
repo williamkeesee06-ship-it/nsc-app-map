@@ -557,10 +557,10 @@ export function DrawingProvider({ children, mapRef }: Props) {
     lsClearDraft(stateRef.current.targetJobId);
   }, []);
 
-  // Phase 5: auto-save — 10-second debounce when workspace mode is active
+  // Phase 5: auto-save — 1.5-second debounce (always-on autosave to Firestore)
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const AUTO_SAVE_DELAY = 10; // seconds
+  const AUTO_SAVE_DELAY_MS = 1500; // ms — fast enough to feel like real-time persistence
 
   const clearAutoSaveTimers = useCallback(() => {
     if (autoSaveTimerRef.current) {
@@ -582,22 +582,13 @@ export function DrawingProvider({ children, mapRef }: Props) {
 
     clearAutoSaveTimers();
 
-    let remaining = AUTO_SAVE_DELAY;
-    dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: remaining });
-
-    countdownTimerRef.current = setInterval(() => {
-      remaining -= 1;
-      if (remaining > 0) {
-        dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: remaining });
-      } else {
-        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
-      }
-    }, 1000);
+    // No visible countdown — autosave is fast and silent
+    dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: null });
 
     autoSaveTimerRef.current = setTimeout(() => {
       clearAutoSaveTimers();
       void saveRef.current();
-    }, AUTO_SAVE_DELAY * 1000);
+    }, AUTO_SAVE_DELAY_MS);
 
     return clearAutoSaveTimers;
   // eslint-disable-next-line react-hooks/exhaustive-deps
