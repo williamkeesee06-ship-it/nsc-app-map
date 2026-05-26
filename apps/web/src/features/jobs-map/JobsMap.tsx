@@ -18,6 +18,7 @@ import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import AllJobsMarkupsOverlay from "../drawing/AllJobsMarkupsOverlay.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
+import MapTypeToggle from "../map/MapTypeToggle.js";
 import type { MapTheme } from "../map/themeContext.js";
 import { JobsProvider } from "./jobsContext.js";
 import { useAuth } from "../auth/authContext.js";
@@ -183,6 +184,7 @@ function JobsMapInner({
             />
             <AllJobsMarkupsOverlay />
             <DrawingOverlay />
+            <MapTypeToggle />
           </Map>
         </div>
 

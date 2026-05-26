@@ -26,8 +26,11 @@ export default function ModifiersPanel() {
   const { state, setStyle, updateObject } = useDrawing();
   const { style, selectedIds, objects, activeTool } = state;
 
-  // Billy 5/21: always render — even with no tool active. Removed the
-  // early-return that used to hide the bar.
+  // Phase 9.6 (Billy 5/26): collapse style toolbar when no drawing tool is active
+  // (and nothing selected). This reclaims vertical space for the map during pure
+  // review/viewing. The bar slides back in the moment a tool is selected.
+  const noToolNoSelection = activeTool === null && selectedIds.size === 0;
+  if (noToolNoSelection) return null;
 
   const selectedObj = selectedIds.size === 1
     ? objects.find((o) => selectedIds.has(o.id))

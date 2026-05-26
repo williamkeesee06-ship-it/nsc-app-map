@@ -981,6 +981,17 @@ function createOverlay(
   }
 
   if ("position" in obj && "text" in obj) {
+    // Phase 9.6 fix: give text markers a real (invisible) hit target so they
+    // can be clicked/selected/deleted. The previous scale:0 icon made the
+    // marker effectively un-clickable. We use a square SVG sized to roughly
+    // match the label, fully transparent.
+    const textLen = (obj.text || "").length;
+    const hitWidth = Math.max(40, textLen * 9 + 16);
+    const hitHeight = 22;
+    const hitSvg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${hitWidth}" height="${hitHeight}">` +
+      `<rect width="${hitWidth}" height="${hitHeight}" fill="#000" fill-opacity="0.001"/>` +
+      `</svg>`;
     const marker = new google.maps.Marker({
       position: new google.maps.LatLng(obj.position.lat, obj.position.lng),
       map,
@@ -991,7 +1002,13 @@ function createOverlay(
         fontWeight: "bold",
         fontFamily: "ui-monospace, monospace",
       },
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
+      icon: {
+        url: "data:image/svg+xml;utf8," + encodeURIComponent(hitSvg),
+        size: new google.maps.Size(hitWidth, hitHeight),
+        scaledSize: new google.maps.Size(hitWidth, hitHeight),
+        anchor: new google.maps.Point(hitWidth / 2, hitHeight / 2),
+        labelOrigin: new google.maps.Point(hitWidth / 2, hitHeight / 2),
+      },
       draggable: isSelected,
       clickable: isClickable,
       zIndex: z,

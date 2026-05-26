@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate, useMatch } from "react-router-dom";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import JobsMap from "./features/jobs-map/JobsMap.js";
 import JobWorkspace from "./features/workspace/JobWorkspace.js";
@@ -6,6 +6,7 @@ import SyncAdmin from "./features/sync-admin/SyncAdmin.js";
 import { SearchFocusProvider } from "./features/search/searchContext.js";
 import SearchBar from "./features/search/SearchBar.js";
 import TopbarActions from "./features/drawing/TopbarActions.js";
+import JobContextStrip from "./features/workspace/JobContextStrip.js";
 import { AuthProvider, useAuth } from "./features/auth/authContext.js";
 import LoginScreen from "./features/auth/LoginScreen.js";
 
@@ -40,6 +41,8 @@ function Shell() {
               <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
               <h1>APP MAP</h1>
               <SearchBar />
+              {/* Phase 9.6: inline job-info strip when in workspace mode */}
+              <InlineJobContext />
               <nav>
                 <NavLink to="/" end>Jobs Map</NavLink>
                 <NavLink to="/sync">Sync</NavLink>
@@ -59,6 +62,18 @@ function Shell() {
       {needsLogin && <LoginScreen />}
       {!apiKey && <MissingKeyOverlay />}
     </>
+  );
+}
+
+// Phase 9.6: renders the JobContextStrip inline inside the topbar when on /jobs/:jobId.
+// This collapses what used to be a second row into the same row as the brand+search.
+function InlineJobContext() {
+  const match = useMatch("/jobs/:jobId");
+  if (!match || !match.params.jobId) return null;
+  return (
+    <div className="topbar-job-context">
+      <JobContextStrip jobId={match.params.jobId} />
+    </div>
   );
 }
 

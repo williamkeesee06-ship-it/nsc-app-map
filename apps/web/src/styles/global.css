@@ -142,22 +142,25 @@ a { color: var(--accent); }
 .topbar {
   display: flex;
   align-items: center;
-  padding: 0 18px;
+  padding: 0 14px;
   /* Glass + chrome */
   background: var(--surface-glass);
   backdrop-filter: blur(20px) saturate(1.5);
   -webkit-backdrop-filter: blur(20px) saturate(1.5);
   border-bottom: 1.5px solid var(--border);
   box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-  gap: 14px;
+  gap: 10px;
   position: relative;
   z-index: 50;
+  min-width: 0;
 }
 
 .logo {
-  height: 56px;
+  /* Phase 9.6: slimmed from 56px → 44px */
+  height: 44px;
   width: auto;
   display: block;
+  flex-shrink: 0;
 }
 
 .topbar h1 {
@@ -780,11 +783,12 @@ a { color: var(--accent); }
     0 2px 12px rgba(0,0,0,0.10),
     inset 0 1px 0 rgba(255,255,255,0.9),
     inset 0 -1px 0 rgba(0,0,0,0.06);
-  height: 52px;
+  /* Phase 9.6: slimmed from 52px → 40px */
+  height: 40px;
   display: flex;
   align-items: center;
-  padding: 0 16px;
-  gap: 18px;
+  padding: 0 12px;
+  gap: 12px;
   overflow: hidden;
 }
 
@@ -1271,7 +1275,86 @@ a { color: var(--accent); }
   min-height: 0;
 }
 
+/* ── Map type toggle (Map / Satellite / Hybrid) ────────────── */
+/* Floating pill in the top-right corner of the map area. Sits below the
+   slim modifier strip when it's visible. */
+.map-type-toggle {
+  position: absolute;
+  top: 50px;
+  right: 12px;
+  z-index: 35;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(248,250,252,0.92);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border: 1.5px solid rgba(192,200,208,0.9);
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.9);
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text, #1A2332);
+  cursor: pointer;
+  user-select: none;
+  transition: transform 80ms ease, box-shadow 120ms ease;
+}
+.map-type-toggle:hover {
+  box-shadow:
+    0 3px 12px rgba(0,0,0,0.24),
+    inset 0 1px 0 rgba(255,255,255,1);
+  transform: translateY(-1px);
+}
+.map-type-toggle:active {
+  transform: translateY(0);
+}
+.map-type-toggle__icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.map-type-toggle__label {
+  letter-spacing: 0.05em;
+}
+
 /* ── Job Context Strip ──────────────────────────────────────── */
+/* Phase 9.6: when rendered inline inside the topbar (App.tsx <InlineJobContext />),
+   collapse to a flush, inline pill cluster instead of a full-width bar. */
+.topbar-job-context {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
+  margin-left: 4px;
+}
+.topbar-job-context > .job-context-strip {
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  height: auto;
+  min-height: 0;
+  padding: 4px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.5);
+  gap: 6px;
+  font-size: 11px;
+}
+.topbar-job-context > .job-context-strip .job-context-strip__addr {
+  max-width: 220px;
+  font-size: 11px;
+}
+.topbar-job-context > .job-context-strip .job-context-strip__wo {
+  font-size: 12px;
+}
+
 .job-context-strip {
   display: flex;
   align-items: center;
@@ -2390,4 +2473,92 @@ input:focus, textarea:focus, select:focus {
   font-weight: 600;
   color: rgba(255,255,255,0.7);
   text-shadow: 0 0 4px rgba(255,255,255,0.4);
+}
+
+/* ============================================================
+   SMOOTH STAINLESS STEEL v2  (Billy 5/26/26)
+   Replaces the brushed-grain look with a clean polished
+   gradient. Removes rivets and the dark bottom bevel that
+   read as "scratched steel." Keeps the electric-blue accent
+   line and chrome button radials so the app still feels
+   metallic — just smooth instead of brushed.
+   ============================================================ */
+:root {
+  /* Polished gradient: highlight top → mid → soft shadow bottom.
+     No repeating-linear-gradient banding. */
+  --brushed-grain-bg:
+    linear-gradient(180deg,
+      #f0f3f8 0%,
+      #dde2e9 35%,
+      #c4cad3 70%,
+      #aeb5bf 100%);
+
+  /* Soft glassy bevel — highlight on top, NO dark bottom edge
+     (the dark edge is what makes it look brushed). */
+  --chrome-bevel:
+    inset 0 1px 0 rgba(255,255,255,0.85),
+    inset 1px 0 0 rgba(255,255,255,0.35),
+    inset -1px 0 0 rgba(0,0,0,0.10);
+}
+
+/* Hide all rivets across the app (topbar, left rail, layers panel,
+   job-context strip, etc.). */
+.topbar::before,
+.topbar::after,
+.left-rail::before,
+.left-rail::after,
+.layers-panel::before,
+.layers-panel::after,
+.layers-panel--collapsed::before,
+.layers-panel--collapsed::after,
+.has-rivets::before,
+.has-rivets::after {
+  display: none !important;
+}
+.has-rivets-4 {
+  background-image: none !important;
+}
+.rivet {
+  display: none !important;
+}
+
+/* Polished topbar: keep the blue underline, soften the shadows. */
+.topbar {
+  border-bottom: 1px solid rgba(110,117,127,0.55);
+  box-shadow:
+    var(--chrome-bevel),
+    0 2px 0 0 var(--accent-blue),
+    0 3px 10px rgba(0,0,0,0.18);
+}
+
+/* Polished left rail / layers / job-context strip:
+   remove the harsh inset dark edges. */
+.left-rail {
+  box-shadow:
+    inset 1px 0 0 rgba(255,255,255,0.55),
+    inset -1px 0 0 rgba(0,0,0,0.12),
+    2px 0 10px rgba(0,0,0,0.14);
+}
+.layers-panel,
+.layers-panel--collapsed {
+  box-shadow:
+    inset -1px 0 0 rgba(255,255,255,0.55),
+    inset 1px 0 0 rgba(0,0,0,0.12),
+    -2px 0 10px rgba(0,0,0,0.14);
+}
+.job-context-strip {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.65),
+    0 1px 0 0 var(--accent-blue),
+    0 2px 8px rgba(0,0,0,0.14);
+}
+
+/* App frame: soften the dark outer shadow so the app no longer
+   sits inside a heavy metal box. */
+.app-frame {
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.65),
+    inset 0 0 0 2px rgba(110,117,127,0.40),
+    0 8px 28px rgba(0,0,0,0.20),
+    0 2px 6px rgba(0,0,0,0.14);
 }

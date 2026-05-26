@@ -9,11 +9,11 @@ import { stylesFor, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
 import { useMapTheme } from "../map/themeContext.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
+import MapTypeToggle from "../map/MapTypeToggle.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import LeftRail from "../jobs-map/LeftRail.js";
 import { defaultFilters } from "../jobs-map/FilterRail.js";
 import { api } from "../../lib/api.js";
-import JobContextStrip from "./JobContextStrip.js";
 import LayersPanel from "./LayersPanel.js";
 import { useJob } from "./useJob.js";
 
@@ -89,8 +89,7 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
 
   return (
     <div className="workspace-layout">
-      {/* Job context strip below topbar */}
-      {jobId && <JobContextStrip jobId={jobId} />}
+      {/* Phase 9.6: JobContextStrip is now rendered inline in App.tsx topbar */}
 
       <div className="workspace-layout__body">
         {/* Left rail (tools only — no filter rail in workspace mode) */}
@@ -110,6 +109,7 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
               <MapHandle mapRef={mapRef} />
               <FitToJobGeometry job={job} jobId={jobId} />
               <DrawingOverlay />
+              <MapTypeToggle />
             </Map>
           </div>
         </div>
