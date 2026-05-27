@@ -51,8 +51,15 @@ const STATUS_TO_COLOR: Array<{ test: (s: string) => boolean; key: MarkerColorKey
   // PURPLE — Needs Fielding (Billy 5/20: needs fielding = purple)
   { test: (s) => s === "needs fielding", key: "purple" },
 
-  // YELLOW — fielded rts / rts (covers "FIELDED - RTS" and bare "RTS")
-  { test: (s) => s === "rts" || (s.includes("fielded") && s.includes("rts")), key: "yellow" },
+  // YELLOW — fielded rts / rts / fielded needs coordination
+  // Covers "FIELDED - RTS", bare "RTS", and "FIELDED - NEEDS COORDINATION".
+  {
+    test: (s) =>
+      s === "rts" ||
+      (s.includes("fielded") && s.includes("rts")) ||
+      (s.includes("fielded") && s.includes("coordination")),
+    key: "yellow",
+  },
 
   // BLUE — In Progress bucket members (scheduled, routed to sub,
   // pending splicing, pending HSR). Billy 5/20: pending splicing should
@@ -137,7 +144,12 @@ export function bucketForJob(job: {
   const s = (job.secondaryJobStatus || "").trim().toLowerCase();
   if (!s) return "pending";
   if (s === "needs fielding") return "needs_fielding";
-  if (s === "rts" || (s.includes("fielded") && s.includes("rts"))) return "rts";
+  if (
+    s === "rts" ||
+    (s.includes("fielded") && s.includes("rts")) ||
+    (s.includes("fielded") && s.includes("coordination"))
+  )
+    return "rts";
   if (s === "on hold") return "on_hold";
   if (
     s === "scheduled" ||
