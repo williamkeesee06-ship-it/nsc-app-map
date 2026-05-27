@@ -11,7 +11,7 @@ import { useMap } from "@vis.gl/react-google-maps";
 import type { DrawingObject } from "@nsc/types";
 import { useDrawing } from "./drawingContext.js";
 import { DrawingEngine } from "./DrawingEngine.js";
-import { iconForTool, ICON_SIZE } from "./icons/telecomIcons.js";
+import { iconForTool } from "./icons/telecomIcons.js";
 import ObjectDetailsPopup from "./ObjectDetailsPopup.js";
 import ObjectDetailsCard from "./ObjectDetailsCard.js";
 
@@ -108,14 +108,18 @@ function isPointTool(tool: string): boolean {
 // ── Zoom-scaled symbol size ────────────────────────────────────────────────────
 
 const ZOOM_REF = 17;
-// Phase 9.5: Labels only render at this zoom level or closer.
-// Zoomed out, only the structures show.
-const MIN_LABEL_ZOOM = 18;
-const BASE_SIZE = ICON_SIZE; // 32px
+// Phase 9.5 -> 9.7: a-tags appear at zoom ≥16 instead of 18 so Billy can
+// read pole labels at street level, not just rooftop level.
+const MIN_LABEL_ZOOM = 16;
+const BASE_SIZE = 24; // 24px at reference zoom 17 (down from 32 — less bloat)
 
+// Smoother scaling with a tight 40px cap so pole icons don't dominate the map
+// at high zoom. Min raised to 8px so they're still tappable at low zoom.
 function computeSymbolPx(zoom: number, pointSize: number): number {
-  const raw = BASE_SIZE * Math.pow(2, zoom - ZOOM_REF) * pointSize;
-  return Math.round(Math.max(4, Math.min(96, raw)));
+  // Half-octave scaling (×1.41 per zoom step) instead of doubling, so the
+  // jump from zoom 17→18 is +40% rather than +100%. Feels proportional.
+  const raw = BASE_SIZE * Math.pow(1.41, zoom - ZOOM_REF) * pointSize;
+  return Math.round(Math.max(8, Math.min(40, raw)));
 }
 
 // ── SVG label helpers ─────────────────────────────────────────────────────────

@@ -19,14 +19,14 @@ import type { DrawingObject } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { useDrawing } from "./drawingContext.js";
 import { useAuth } from "../auth/authContext.js";
-import { iconForTool, ICON_SIZE } from "./icons/telecomIcons.js";
+import { iconForTool } from "./icons/telecomIcons.js";
 
 const PLACED_COLOR  = "#39ff7a";
 const REMOVED_COLOR = "#ff2d4a";
 const ZOOM_REF = 17;
-const BASE_SIZE = ICON_SIZE;
-// Phase 9.5: labels visible only at this zoom or closer (must match DrawingOverlay)
-const MIN_LABEL_ZOOM = 18;
+const BASE_SIZE = 24; // matches DrawingOverlay (was ICON_SIZE = 32)
+// Phase 9.7: labels visible at zoom ≥16 (lowered from 18) — must match DrawingOverlay
+const MIN_LABEL_ZOOM = 16;
 
 type OverlayRef =
   | google.maps.Polyline
@@ -49,8 +49,10 @@ function isPointTool(tool: string): boolean {
 }
 
 function computeSymbolPx(zoom: number, pointSize: number): number {
-  const raw = BASE_SIZE * Math.pow(2, zoom - ZOOM_REF) * pointSize;
-  return Math.round(Math.max(4, Math.min(96, raw)));
+  // Smoother half-octave scaling, capped at 40px (was 96). Keeps poles
+  // icon-sized at all zoom levels instead of bloating to fill the screen.
+  const raw = BASE_SIZE * Math.pow(1.41, zoom - ZOOM_REF) * pointSize;
+  return Math.round(Math.max(8, Math.min(40, raw)));
 }
 
 function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partial<google.maps.PolylineOptions> {
