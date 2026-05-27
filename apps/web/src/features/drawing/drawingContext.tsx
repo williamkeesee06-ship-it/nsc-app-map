@@ -568,7 +568,11 @@ export function DrawingProvider({ children, mapRef }: Props) {
   // Phase 5: auto-save — 1.5-second debounce (always-on autosave to Firestore)
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const AUTO_SAVE_DELAY_MS = 1500; // ms — fast enough to feel like real-time persistence
+  // Very short debounce so edits are effectively saved as you make them.
+  // Coalesces rapid keystrokes/drags into a single write but never makes
+  // the user wait. Combined with the unmount-flush below, no edit can be
+  // lost when closing the workspace.
+  const AUTO_SAVE_DELAY_MS = 250;
 
   const clearAutoSaveTimers = useCallback(() => {
     if (autoSaveTimerRef.current) {
