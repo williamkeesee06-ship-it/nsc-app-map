@@ -2599,18 +2599,20 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* ── STATUS FILTER PILLS (topbar) ────────────────────────────────────────
-   Compact horizontal row of bucket toggles. Lives between InlineJobContext
-   and the nav. Each pill = colored dot + label + count. Click toggles. */
-.status-pills {
+   Renamed from .status-pill → .sf-pill to avoid collision with the
+   existing absolutely-positioned .status-pill toast/notification class. */
+.sf-pills {
   display: flex;
   align-items: center;
   gap: 5px;
   flex-wrap: nowrap;
   flex-shrink: 0;
   margin-left: 8px;
+  position: static;
 }
 
-.status-pill {
+.sf-pill {
+  position: static;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2629,31 +2631,31 @@ input:focus, textarea:focus, select:focus {
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
   flex-shrink: 0;
 }
-.status-pill:hover {
+.sf-pill:hover {
   background: rgba(255,255,255,0.08);
   color: var(--text, #f4f8ff);
 }
-.status-pill--active {
+.sf-pill--active {
   color: var(--text, #f4f8ff);
 }
-.status-pill__dot {
+.sf-pill__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   display: inline-block;
   flex-shrink: 0;
 }
-.status-pill__label {
+.sf-pill__label {
   font-size: 10px;
 }
-.status-pill__count {
+.sf-pill__count {
   font-size: 9px;
   opacity: 0.7;
   padding: 1px 5px;
   border-radius: 8px;
   background: rgba(255,255,255,0.06);
 }
-.status-pill--active .status-pill__count {
+.sf-pill--active .sf-pill__count {
   background: rgba(255,255,255,0.14);
   opacity: 1;
 }

@@ -32,7 +32,7 @@ export default function StatusFilterPills() {
   };
 
   return (
-    <div className="status-pills" role="group" aria-label="Status filters">
+    <div className="sf-pills" role="group" aria-label="Status filters">
       {STATUS_BUCKETS.map(({ key, label, colorKey }) => {
         const color = MARKER_COLORS[colorKey];
         const active = filters.buckets.has(key);
@@ -41,7 +41,7 @@ export default function StatusFilterPills() {
           <button
             key={key}
             type="button"
-            className={`status-pill${active ? " status-pill--active" : ""}`}
+            className={`sf-pill${active ? " sf-pill--active" : ""}`}
             onClick={() => toggleBucket(key)}
             title={`${label} (${count})`}
             style={
@@ -55,15 +55,15 @@ export default function StatusFilterPills() {
             }
           >
             <span
-              className="status-pill__dot"
+              className="sf-pill__dot"
               style={{
                 background: color.core,
                 boxShadow: `0 0 4px ${color.glow}`,
               }}
               aria-hidden
             />
-            <span className="status-pill__label">{label}</span>
-            <span className="status-pill__count">{count}</span>
+            <span className="sf-pill__label">{label}</span>
+            <span className="sf-pill__count">{count}</span>
           </button>
         );
       })}
