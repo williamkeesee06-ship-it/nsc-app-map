@@ -47,13 +47,13 @@ function Shell() {
               <SearchBar />
               {/* Phase 9.6: inline job-info strip when in workspace mode */}
               <InlineJobContext />
-              <StatusFilterPills />
               <nav>
                 <NavLink to="/" end>Jobs Map</NavLink>
                 <NavLink to="/sync">Sync</NavLink>
               </nav>
               <TopbarActions />
               <UserChip />
+              <StatusFilterPills />
             </header>
             <Routes>
               <Route path="/" element={<JobsMap />} />
