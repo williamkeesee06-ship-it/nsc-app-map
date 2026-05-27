@@ -617,7 +617,7 @@ function latLngToScreenPos(
 
 export default function DrawingOverlay() {
   const map = useMap();
-  const { state, addObject, updateObject, updateObjectGeometry, updateObjectPosition, deleteSelected, select, clearSelection, undo, redo, patchObjectStyle } =
+  const { state, addObject, updateObject, updateObjectGeometry, updateObjectPosition, deleteSelected, select, clearSelection, undo, redo, patchObjectStyle, setTool } =
     useDrawing();
   const engineRef = useRef<DrawingEngine | null>(null);
   const overlaysRef = useRef<globalThis.Map<string, OverlayRef>>(new globalThis.Map());
@@ -712,10 +712,11 @@ export default function DrawingOverlay() {
   // ─── clickable state per active tool ───────────────────────────────────
   useEffect(() => {
     if (!map) return;
-    const isClickable = state.activeTool === "select" || state.activeTool === null;
+    // Finished overlays stay clickable in every tool so the user can re-select
+    // and edit them. The click handler switches back to Select automatically.
     overlaysRef.current.forEach((overlay, key) => {
       if (key.endsWith("_label")) return;
-      overlay.setOptions({ clickable: isClickable });
+      overlay.setOptions({ clickable: true });
     });
   }, [map, state.activeTool]);
 
@@ -839,7 +840,10 @@ export default function DrawingOverlay() {
     if (!map) return;
 
     const isSelectTool = state.activeTool === "select" || state.activeTool === null;
-    const isClickable = isSelectTool;
+    // Finished overlays are always clickable so the user can re-select / edit
+    // them without first having to switch back to the Select tool. The click
+    // handler below will switch tools automatically when needed.
+    const isClickable = true;
     const currentIds = new Set(state.objects.map((o) => o.id));
     const renderedIds = new Set(overlaysRef.current.keys());
 
@@ -947,14 +951,16 @@ export default function DrawingOverlay() {
 
       // Create new overlay
       const overlay = createOverlay(obj, map, isSelected, isClickable, zoom, (id, additive, clickPos) => {
+        // If user clicks an object while a drawing tool is active, switch back
+        // to Select so they can re-edit the shape (drag vertices, move it, etc).
+        if (!isSelectTool) {
+          setTool("select");
+        }
         select([id], additive);
-        // Open details card if SELECT tool
-        if (isSelectTool) {
-          const live = state.objects.find((o) => o.id === id);
-          if (live) {
-            setCardObj(live);
-            setCardAnchor(clickPos);
-          }
+        const live = state.objects.find((o) => o.id === id);
+        if (live) {
+          setCardObj(live);
+          setCardAnchor(clickPos);
         }
       });
       if (overlay) {
