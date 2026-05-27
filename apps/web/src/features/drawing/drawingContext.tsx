@@ -647,6 +647,22 @@ export function DrawingProvider({ children, mapRef }: Props) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [state.dirty, state.objects.length]);
 
+  // Flush pending changes on provider unmount (e.g. closing the workspace before
+  // the 1.5 s autosave debounce fires). Without this, last-second edits like
+  // a-tag tweaks or layer additions get dropped.
+  useEffect(() => {
+    return () => {
+      clearAutoSaveTimers();
+      const { targetJobId, dirty, objects } = stateRef.current;
+      if (dirty && targetJobId && objects.length > 0) {
+        // Fire-and-forget: provider is unmounting so we can't await.
+        // saveRef points at the latest save fn which reads from stateRef.
+        void saveRef.current();
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const value: DrawingContextValue = {
     state,
     dispatch,
