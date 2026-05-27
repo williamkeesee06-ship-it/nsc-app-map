@@ -62,6 +62,9 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
 
 function fillOpacity(style: DrawingObject["style"]): number {
   if (style.fill.kind === "none") return 0;
+  // Hash uses a canvas overlay for the pattern; the polygon itself stays
+  // nearly invisible so the diagonal lines aren’t washed out by a solid tint.
+  if (style.fill.kind === "hash") return 0;
   return style.opacity * 0.35;
 }
 
@@ -69,6 +72,180 @@ function fillColor(style: DrawingObject["style"]): string {
   if (style.fill.kind === "solid") return style.fill.color;
   if (style.fill.kind === "hash") return style.fill.color;
   return "transparent";
+}
+
+// ── Hatch fill overlay ───────────────────────────────────────────────────────
+// Google Maps Polygons have no built-in pattern fills, so when the user picks
+// “Hash” we paint a canvas overlay sized to the shape and stroke diagonal
+// lines clipped to the polygon path. One HatchOverlay lives per hashed object
+// and is rebuilt whenever the geometry or style changes.
+
+interface HatchSpec {
+  vertices: Array<{ lat: number; lng: number }>; // outline in lat/lng
+  color: string;
+  opacity: number;
+  pattern: "diagonal" | "cross" | "dots";
+  density: number; // pixels between stripes (smaller → denser)
+  zIndex: number;
+}
+
+function createHatchOverlay(map: google.maps.Map, spec: HatchSpec) {
+  class HatchView extends google.maps.OverlayView {
+    public div: HTMLDivElement | null = null;
+    public canvas: HTMLCanvasElement | null = null;
+    public spec: HatchSpec = spec;
+
+    onAdd() {
+      const div = document.createElement("div");
+      div.style.position = "absolute";
+      div.style.pointerEvents = "none";
+      const canvas = document.createElement("canvas");
+      canvas.style.position = "absolute";
+      canvas.style.left = "0";
+      canvas.style.top = "0";
+      div.appendChild(canvas);
+      this.div = div;
+      this.canvas = canvas;
+      const panes = this.getPanes();
+      panes?.overlayLayer.appendChild(div);
+    }
+
+    draw() {
+      const proj = this.getProjection();
+      if (!proj || !this.div || !this.canvas) return;
+      const verts = this.spec.vertices;
+      if (verts.length < 3) return;
+
+      // Project all vertices to pixel coords; track bbox.
+      const pts: Array<{ x: number; y: number }> = [];
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const v of verts) {
+        const p = proj.fromLatLngToDivPixel(new google.maps.LatLng(v.lat, v.lng));
+        if (!p) return;
+        pts.push({ x: p.x, y: p.y });
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      // Pad so stroke isn’t clipped at the edge.
+      const PAD = 2;
+      const w = Math.max(1, Math.ceil(maxX - minX) + PAD * 2);
+      const h = Math.max(1, Math.ceil(maxY - minY) + PAD * 2);
+      this.div.style.left = `${Math.floor(minX) - PAD}px`;
+      this.div.style.top = `${Math.floor(minY) - PAD}px`;
+      this.div.style.width = `${w}px`;
+      this.div.style.height = `${h}px`;
+      this.div.style.zIndex = String(this.spec.zIndex);
+
+      const dpr = window.devicePixelRatio || 1;
+      this.canvas.width = w * dpr;
+      this.canvas.height = h * dpr;
+      this.canvas.style.width = `${w}px`;
+      this.canvas.style.height = `${h}px`;
+
+      const ctx = this.canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      // Build polygon path in canvas-local coords.
+      ctx.save();
+      ctx.beginPath();
+      for (let i = 0; i < pts.length; i++) {
+        const x = pts[i].x - (Math.floor(minX) - PAD);
+        const y = pts[i].y - (Math.floor(minY) - PAD);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.clip();
+
+      // Draw diagonal stripes across a square that covers the whole bbox
+      // regardless of orientation (use diagonal length).
+      const diag = Math.ceil(Math.sqrt(w * w + h * h));
+      const step = Math.max(2, this.spec.density);
+      ctx.strokeStyle = this.spec.color;
+      ctx.globalAlpha = Math.min(1, Math.max(0.15, this.spec.opacity));
+      ctx.lineWidth = 1.25;
+
+      // 45° stripes (top-left → bottom-right).
+      ctx.beginPath();
+      for (let d = -diag; d < diag * 2; d += step) {
+        ctx.moveTo(d, 0);
+        ctx.lineTo(d + diag, diag);
+      }
+      ctx.stroke();
+
+      if (this.spec.pattern === "cross") {
+        // 135° stripes for a cross-hatch.
+        ctx.beginPath();
+        for (let d = -diag; d < diag * 2; d += step) {
+          ctx.moveTo(d, diag);
+          ctx.lineTo(d + diag, 0);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    onRemove() {
+      if (this.div?.parentNode) this.div.parentNode.removeChild(this.div);
+      this.div = null;
+      this.canvas = null;
+    }
+
+    update(next: HatchSpec) {
+      this.spec = next;
+      this.draw();
+    }
+  }
+
+  const overlay = new HatchView();
+  overlay.setMap(map);
+  return overlay;
+}
+
+type HatchOverlay = ReturnType<typeof createHatchOverlay>;
+
+function hatchSpecForObj(obj: DrawingObject, isSelected: boolean): HatchSpec | null {
+  if (obj.style.hidden) return null;
+  if (obj.style.fill.kind !== "hash") return null;
+  const fill = obj.style.fill;
+  let verts: Array<{ lat: number; lng: number }> | null = null;
+  if ("vertices" in obj && obj.tool === "polygon") {
+    verts = obj.vertices;
+  } else if ("bounds" in obj && obj.tool === "rectangle") {
+    const b = obj.bounds;
+    verts = [
+      { lat: b.n, lng: b.w },
+      { lat: b.n, lng: b.e },
+      { lat: b.s, lng: b.e },
+      { lat: b.s, lng: b.w },
+    ];
+  } else if ("bounds" in obj && obj.tool === "circle") {
+    // Approximate circle with 64 segments.
+    const b = obj.bounds;
+    const cLat = (b.n + b.s) / 2;
+    const cLng = (b.e + b.w) / 2;
+    const rLat = (b.n - b.s) / 2;
+    const rLng = (b.e - b.w) / 2;
+    const segs = 64;
+    verts = [];
+    for (let i = 0; i < segs; i++) {
+      const t = (i / segs) * Math.PI * 2;
+      verts.push({ lat: cLat + rLat * Math.cos(t), lng: cLng + rLng * Math.sin(t) });
+    }
+  }
+  if (!verts) return null;
+  return {
+    vertices: verts,
+    color: fill.color,
+    opacity: obj.style.opacity,
+    pattern: fill.pattern,
+    density: fill.density ?? 6,
+    zIndex: isSelected ? 19 : 4,
+  };
 }
 
 type OverlayRef =
@@ -447,6 +624,8 @@ export default function DrawingOverlay() {
   const measureInfoRef = useRef<globalThis.Map<string, google.maps.InfoWindow>>(new globalThis.Map());
   const labelVersionRef = useRef<globalThis.Map<string, string | undefined>>(new globalThis.Map());
   const calloutLinesRef = useRef<globalThis.Map<string, google.maps.Polyline>>(new globalThis.Map());
+  // Hatch-fill overlays keyed by object id (one per hashed polygon/rect/circle).
+  const hatchRef = useRef<globalThis.Map<string, HatchOverlay>>(new globalThis.Map());
 
   // Phase 5.1: pending object waiting for the placement popup
   const [pendingObject, setPendingObject] = useState<{
@@ -823,6 +1002,28 @@ export default function DrawingOverlay() {
     // Full label anti-collision pass
     rebuildAllLabels(map, state.objects, overlaysRef.current, calloutLinesRef.current);
 
+    // ── Hatch fill sync ────────────────────────────────────────────────
+    // Add/update hatch overlays for hashed polygons, remove any whose object
+    // is gone or whose fill changed back to solid/none.
+    const wantHatchIds = new Set<string>();
+    state.objects.forEach((obj) => {
+      const spec = hatchSpecForObj(obj, state.selectedIds.has(obj.id));
+      if (!spec) return;
+      wantHatchIds.add(obj.id);
+      const existing = hatchRef.current.get(obj.id);
+      if (existing) {
+        existing.update(spec);
+      } else {
+        hatchRef.current.set(obj.id, createHatchOverlay(map, spec));
+      }
+    });
+    hatchRef.current.forEach((ov, id) => {
+      if (!wantHatchIds.has(id)) {
+        ov.setMap(null);
+        hatchRef.current.delete(id);
+      }
+    });
+
     return () => {
       overlaysRef.current.forEach((o) => o.setMap(null));
       overlaysRef.current.clear();
@@ -833,6 +1034,8 @@ export default function DrawingOverlay() {
       labelVersionRef.current.clear();
       geoListenersRef.current.forEach((ls) => ls.forEach((l) => l.remove()));
       geoListenersRef.current.clear();
+      hatchRef.current.forEach((o) => o.setMap(null));
+      hatchRef.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, state.objects, state.selectedIds, state.activeTool]);
