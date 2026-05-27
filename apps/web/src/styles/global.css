@@ -2597,3 +2597,67 @@ input:focus, textarea:focus, select:focus {
     0 8px 28px rgba(0,0,0,0.20),
     0 2px 6px rgba(0,0,0,0.14);
 }
+
+/* ── STATUS FILTER PILLS (topbar) ────────────────────────────────────────
+   Compact horizontal row of bucket toggles. Lives between InlineJobContext
+   and the nav. Each pill = colored dot + label + count. Click toggles. */
+.status-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+.status-pills::-webkit-scrollbar { display: none; }
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(200,208,218,0.22);
+  color: var(--text-muted, #8a96a3);
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+  flex-shrink: 0;
+}
+.status-pill:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--text, #f4f8ff);
+}
+.status-pill--active {
+  color: var(--text, #f4f8ff);
+}
+.status-pill__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.status-pill__label {
+  font-size: 10px;
+}
+.status-pill__count {
+  font-size: 9px;
+  opacity: 0.7;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+}
+.status-pill--active .status-pill__count {
+  background: rgba(255,255,255,0.14);
+  opacity: 1;
+}

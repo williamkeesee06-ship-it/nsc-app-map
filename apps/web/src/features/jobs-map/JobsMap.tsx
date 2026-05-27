@@ -6,7 +6,7 @@ import { useMapTheme } from "../map/themeContext.js";
 import { useJobs } from "./useJobs.js";
 import { applyFilters } from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
-import { useFilters } from "./useFilters.js";
+import { useFiltersContext } from "./filtersContext.js";
 import LeftRail from "./LeftRail.js";
 import JobCard from "./JobCard.js";
 import LayersPanel from "../workspace/LayersPanel.js";
@@ -57,7 +57,12 @@ export default function JobsMap() {
       (j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === u
     );
   }, [rawJobs, username, isManager]);
-  const [filters, setFilters] = useFilters(allJobs);
+  const { filters, setFilters, setJobs: setFiltersJobs } = useFiltersContext();
+  // Keep the FiltersContext jobs list in sync with the supervisor-scoped
+  // allJobs so the topbar StatusFilterPills show accurate per-bucket counts.
+  useEffect(() => {
+    setFiltersJobs(allJobs);
+  }, [allJobs, setFiltersJobs]);
   const [selected, setSelected] = useState<Job | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const filtered = useMemo(() => applyFilters(allJobs, filters), [allJobs, filters]);

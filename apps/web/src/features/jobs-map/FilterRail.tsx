@@ -3,8 +3,6 @@
 
 import type { Job } from "@nsc/types";
 import {
-  MARKER_COLORS,
-  STATUS_BUCKETS,
   bucketForJob,
   type StatusBucket,
 } from "./markerStyle.js";
@@ -218,77 +216,14 @@ export default function FilterRail({
     );
   }
 
-  // --- Default mode: status bucket checkboxes ----------------------------
-  // Count per bucket across all jobs
-  const counts = new Map<StatusBucket, number>();
-  for (const j of jobs) {
-    const b = bucketForJob(j);
-    counts.set(b, (counts.get(b) ?? 0) + 1);
-  }
-
-  const toggleBucket = (b: StatusBucket) => {
-    const next = new Set(filters.buckets);
-    if (next.has(b)) next.delete(b);
-    else next.add(b);
-    setFilters({ ...filters, buckets: next });
-  };
-
-  const activeFilters = filters.buckets.size;
-
+  // --- Default mode: status buckets now live in the topbar StatusFilterPills.
+  // Render just the live count widget here so the rail still shows shown/total.
   return (
     <section className="rail-section rail-section--filters">
-      <details className="filter-collapsible" open>
-        <summary>
-          <div className="filter-collapsible-header">
-            <strong>STATUS FILTERS</strong>
-            <NeonCountWidget shown={filteredCount} total={jobs.length} />
-          </div>
-          <span className="chevron">▼</span>
-        </summary>
-
-        <div className="filter-section">
-          <div className="filter-section__body">
-            {STATUS_BUCKETS.map(({ key, label, colorKey }) => {
-              const color = MARKER_COLORS[colorKey];
-              const count = counts.get(key) ?? 0;
-              return (
-                <label key={key} className="check check--swatch">
-                  <input
-                    type="checkbox"
-                    checked={filters.buckets.has(key)}
-                    onChange={() => toggleBucket(key)}
-                  />
-                  <span
-                    className="status-swatch"
-                    style={{
-                      background: color.core,
-                      boxShadow: `0 0 4px ${color.glow}`,
-                    }}
-                    aria-hidden
-                  />
-                  <span className="check__label">{label}</span>
-                  <span className="check__count">{count}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
-        {activeFilters > 0 && (
-          <button
-            className="link"
-            style={{ marginTop: 4 }}
-            onClick={() =>
-              setFilters({
-                ...filters,
-                buckets: new Set<StatusBucket>(),
-              })
-            }
-          >
-            Clear all filters
-          </button>
-        )}
-      </details>
+      <div className="filter-collapsible-header" style={{ padding: "4px 2px" }}>
+        <strong>JOBS SHOWN</strong>
+        <NeonCountWidget shown={filteredCount} total={jobs.length} />
+      </div>
     </section>
   );
 }

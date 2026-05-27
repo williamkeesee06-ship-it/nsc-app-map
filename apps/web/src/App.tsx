@@ -9,6 +9,8 @@ import TopbarActions from "./features/drawing/TopbarActions.js";
 import JobContextStrip from "./features/workspace/JobContextStrip.js";
 import { AuthProvider, useAuth } from "./features/auth/authContext.js";
 import LoginScreen from "./features/auth/LoginScreen.js";
+import { FiltersProvider } from "./features/jobs-map/filtersContext.js";
+import StatusFilterPills from "./features/jobs-map/StatusFilterPills.js";
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -17,7 +19,9 @@ export default function App() {
     <APIProvider apiKey={apiKey ?? ""} libraries={["geometry"]}>
       <AuthProvider>
         <SearchFocusProvider>
-          <Shell />
+          <FiltersProvider>
+            <Shell />
+          </FiltersProvider>
         </SearchFocusProvider>
       </AuthProvider>
     </APIProvider>
@@ -43,6 +47,7 @@ function Shell() {
               <SearchBar />
               {/* Phase 9.6: inline job-info strip when in workspace mode */}
               <InlineJobContext />
+              <StatusFilterPills />
               <nav>
                 <NavLink to="/" end>Jobs Map</NavLink>
                 <NavLink to="/sync">Sync</NavLink>
