@@ -99,35 +99,45 @@ function fillColor(style: DrawingObject["style"]): string {
 function createReadOnlyOverlay(
   obj: DrawingObject,
   map: google.maps.Map,
-  zoom: number
+  zoom: number,
+  onClick: (() => void) | null
 ): OverlayRef | null {
   if (obj.style.hidden) return null;
+  const clickable = onClick !== null;
+
+  // Helper to attach a click listener if the overlay is clickable.
+  function wireClick<T extends { addListener: (e: string, fn: () => void) => unknown }>(
+    overlay: T
+  ): T {
+    if (clickable && onClick) overlay.addListener("click", onClick);
+    return overlay;
+  }
 
   if ("vertices" in obj) {
     const opts = styleToPolylineOpts(obj as typeof obj & { vertices: unknown });
     if (obj.tool === "polygon") {
-      return new google.maps.Polygon({
+      return wireClick(new google.maps.Polygon({
         paths: obj.vertices.map((v) => new google.maps.LatLng(v.lat, v.lng)),
         ...opts,
         fillColor: fillColor(obj.style),
         fillOpacity: fillOpacity(obj.style),
         zIndex: 4,
-        clickable: false,
+        clickable,
         map,
-      });
+      }));
     }
-    return new google.maps.Polyline({
+    return wireClick(new google.maps.Polyline({
       path: obj.vertices.map((v) => new google.maps.LatLng(v.lat, v.lng)),
       ...opts,
       zIndex: 4,
-      clickable: false,
+      clickable,
       map,
-    });
+    }));
   }
 
   if ("bounds" in obj) {
     if (obj.tool === "rectangle") {
-      return new google.maps.Rectangle({
+      return wireClick(new google.maps.Rectangle({
         bounds: { north: obj.bounds.n, south: obj.bounds.s, east: obj.bounds.e, west: obj.bounds.w },
         strokeColor: obj.style.strokeColor,
         strokeWeight: obj.style.strokeWidth,
@@ -135,16 +145,16 @@ function createReadOnlyOverlay(
         fillColor: fillColor(obj.style),
         fillOpacity: fillOpacity(obj.style),
         zIndex: 4,
-        clickable: false,
+        clickable,
         map,
-      });
+      }));
     }
     if (obj.tool === "circle") {
       const centerLat = (obj.bounds.n + obj.bounds.s) / 2;
       const centerLng = (obj.bounds.e + obj.bounds.w) / 2;
       const latR = (obj.bounds.n - obj.bounds.s) / 2;
       const radiusM = latR * 111320;
-      return new google.maps.Circle({
+      return wireClick(new google.maps.Circle({
         center: { lat: centerLat, lng: centerLng },
         radius: radiusM,
         strokeColor: obj.style.strokeColor,
@@ -153,14 +163,14 @@ function createReadOnlyOverlay(
         fillColor: fillColor(obj.style),
         fillOpacity: fillOpacity(obj.style),
         zIndex: 4,
-        clickable: false,
+        clickable,
         map,
-      });
+      }));
     }
   }
 
   if ("position" in obj && "text" in obj) {
-    return new google.maps.Marker({
+    return wireClick(new google.maps.Marker({
       position: new google.maps.LatLng(obj.position.lat, obj.position.lng),
       map,
       label: {
@@ -171,17 +181,17 @@ function createReadOnlyOverlay(
         fontFamily: "ui-monospace, monospace",
       },
       icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
-      clickable: false,
+      clickable,
       draggable: false,
       zIndex: 4,
-    });
+    }));
   }
 
   if ("position" in obj && !("text" in obj)) {
     const pointSize = obj.style.pointSize ?? 1.0;
     const px = computeSymbolPx(zoom, pointSize);
     const baseIcon = iconForTool(obj.tool, obj.style.strokeColor, pointSize);
-    return new google.maps.Marker({
+    return wireClick(new google.maps.Marker({
       position: new google.maps.LatLng(obj.position.lat, obj.position.lng),
       map,
       icon: {
@@ -191,10 +201,10 @@ function createReadOnlyOverlay(
         anchor: new google.maps.Point(px / 2, px / 2),
       },
       title: (obj as { label?: string }).label ?? obj.tool,
-      clickable: false,
+      clickable,
       draggable: false,
       zIndex: 4,
-    });
+    }));
   }
 
   return null;
@@ -216,18 +226,31 @@ function labelPositionForObj(obj: DrawingObject): { lat: number; lng: number } |
   return null;
 }
 
+// Pick the best label text for any object:
+//   - Points (MH/HH/Pole/Ped/Cab): style.userLabel
+//   - Lines/shapes/freehand: style.description
+//   - Text tool: its own text
+function labelTextForObj(obj: DrawingObject): string | null {
+  if (obj.style.hidden) return null;
+  if (obj.style.userLabel && obj.style.userLabel.trim()) return obj.style.userLabel.trim();
+  if (obj.style.description && obj.style.description.trim()) return obj.style.description.trim();
+  if ("text" in obj && obj.text && obj.text.trim()) return obj.text.trim();
+  return null;
+}
+
 function createLabelMarker(
   obj: DrawingObject,
   map: google.maps.Map
 ): google.maps.Marker | null {
-  if (!obj.style.userLabel || obj.style.hidden) return null;
+  const text = labelTextForObj(obj);
+  if (!text) return null;
   const pos = labelPositionForObj(obj);
   if (!pos) return null;
   return new google.maps.Marker({
     position: new google.maps.LatLng(pos.lat, pos.lng),
     map,
     label: {
-      text: obj.style.userLabel,
+      text,
       color: "#f4f8ff",
       fontSize: "12px",
       fontWeight: "700",
@@ -242,7 +265,12 @@ function createLabelMarker(
 
 const REFRESH_INTERVAL_MS = 60_000;
 
-export default function AllJobsMarkupsOverlay() {
+interface AllJobsMarkupsOverlayProps {
+  /** Called when a markup is clicked. Receives the jobId it belongs to. */
+  onMarkupClick?: (jobId: string) => void;
+}
+
+export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsOverlayProps = {}) {
   const map = useMap();
   const { state } = useDrawing();
   const overlaysRef = useRef<Map<string, OverlayRef>>(new Map());
@@ -255,10 +283,11 @@ export default function AllJobsMarkupsOverlay() {
     lastSavedTrigger.current = state.dirty ? lastSavedTrigger.current : lastSavedTrigger.current;
   }
 
-  // Per-supervisor markup scoping: regular users see only their own;
-  // managers (Robbie) pass owner="*" to see everyone's.
-  const { username, isManager } = useAuth();
-  const markupOwner = isManager ? "*" : (username ?? "");
+  // Per-supervisor markup scoping: EVERYONE sees only their own markups,
+  // including managers (Robbie explicitly does not want to see other
+  // supervisors' map markups — 9.7).
+  const { username } = useAuth();
+  const markupOwner = username ?? "";
   async function fetchAll() {
     try {
       if (!markupOwner) {
@@ -291,9 +320,11 @@ export default function AllJobsMarkupsOverlay() {
     const activeJobId = state.targetJobId;
     for (const doc of docsRef.current) {
       if (activeJobId && doc.jobId === activeJobId) continue; // active job is rendered by DrawingOverlay
+      // Click on any of this job's markups jumps to its card.
+      const handler = onMarkupClick ? () => onMarkupClick(doc.jobId) : null;
       for (const obj of doc.objects) {
         try {
-          const overlay = createReadOnlyOverlay(obj, map, zoom);
+          const overlay = createReadOnlyOverlay(obj, map, zoom, handler);
           if (overlay) overlaysRef.current.set(`${doc.jobId}:${obj.id}`, overlay);
           // Phase 9.5: render labels only when zoomed in close enough
           if (labelsVisible) {

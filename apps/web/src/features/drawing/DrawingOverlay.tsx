@@ -122,6 +122,18 @@ function computeSymbolPx(zoom: number, pointSize: number): number {
   return Math.round(Math.max(8, Math.min(40, raw)));
 }
 
+// Pick the best label text for any object — used at zoom ≥ MIN_LABEL_ZOOM.
+//   - Points (MH/HH/Pole/Ped/Cab): style.userLabel (the tag the user typed)
+//   - Lines/shapes/cables/freehand: style.description (the detail-popup field)
+//   - Text tool: its own text
+function labelTextForObj(obj: DrawingObject): string | null {
+  if (obj.style.hidden) return null;
+  if (obj.style.userLabel && obj.style.userLabel.trim()) return obj.style.userLabel.trim();
+  if (obj.style.description && obj.style.description.trim()) return obj.style.description.trim();
+  if ("text" in obj && obj.text && obj.text.trim()) return obj.text.trim();
+  return null;
+}
+
 // ── SVG label helpers ─────────────────────────────────────────────────────────
 
 function escSvg(s: string): string {
@@ -362,10 +374,11 @@ function rebuildAllLabels(
 
   const entries: LabelEntry[] = [];
   for (const obj of objects) {
-    if (!obj.style.userLabel || obj.style.hidden) continue;
+    const text = labelTextForObj(obj);
+    if (!text) continue;
     const pos = labelPositionForObj(obj);
     if (!pos) continue;
-    entries.push({ objId: obj.id, symbolLatLng: pos, text: obj.style.userLabel, zIndex: 6 });
+    entries.push({ objId: obj.id, symbolLatLng: pos, text, zIndex: 6 });
   }
   if (entries.length === 0) {
     clearAllLabels(overlaysMap, calloutMap);
@@ -740,9 +753,9 @@ export default function DrawingOverlay() {
           removeGeoListeners(obj.id);
         }
 
-        // Update label marker if userLabel changed
+        // Update label marker if the displayed label changed (any source).
         const lastLabel = labelVersionRef.current.get(obj.id);
-        const currentLabel = obj.style.userLabel;
+        const currentLabel = labelTextForObj(obj) ?? undefined;
         if (lastLabel !== currentLabel) {
           const oldLbl = overlaysRef.current.get(obj.id + "_label");
           if (oldLbl) { oldLbl.setMap(null); overlaysRef.current.delete(obj.id + "_label"); }
@@ -772,13 +785,15 @@ export default function DrawingOverlay() {
         }
       }
 
-      // Create label marker (only when zoomed in close enough)
-      if (obj.style.userLabel && zoom >= MIN_LABEL_ZOOM) {
+      // Create label marker (only when zoomed in close enough). Use whatever
+      // label source the object has — userLabel / description / text.
+      const labelText = labelTextForObj(obj);
+      if (labelText && zoom >= MIN_LABEL_ZOOM) {
         const pos = labelPositionForObj(obj);
         if (pos) {
           const labelLatLng = pixelOffsetToLatLng(pos, 30, 0, map);
           if (labelLatLng) {
-            const lbl = makeLabelMarkerAt(labelLatLng, obj.style.userLabel, map, 6);
+            const lbl = makeLabelMarkerAt(labelLatLng, labelText, map, 6);
             overlaysRef.current.set(obj.id + "_label", lbl);
             const offsetMag = Math.sqrt(30 ** 2);
             if (offsetMag > CALLOUT_MIN_OFFSET_PX) {
@@ -787,7 +802,7 @@ export default function DrawingOverlay() {
           }
         }
       }
-      labelVersionRef.current.set(obj.id, obj.style.userLabel);
+      labelVersionRef.current.set(obj.id, labelText ?? undefined);
 
       // Measure distance label
       if (obj.tool === "measure" && "vertices" in obj) {

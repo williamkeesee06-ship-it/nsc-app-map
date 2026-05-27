@@ -13,7 +13,14 @@ interface Props {
   onJobsRefresh: () => void;
 }
 
-type Tab = "attach" | "create";
+type Tab = "attach" | "create" | "field";
+
+// Sentinel jobId for field findings — markups not attached to any work order.
+// Each supervisor gets one bucket doc keyed by their slug.
+function fieldFindingJobId(username: string | null | undefined): string {
+  const slug = (username ?? "unknown").trim().toLowerCase().replace(/\s+/g, "-") || "unknown";
+  return `__ff__${slug}`;
+}
 
 export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Props) {
   const { state, dispatch, setTarget, save, clearDraft } = useDrawing();
@@ -42,6 +49,9 @@ export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Prop
   const [nameInput, setNameInput] = useState("");
   const [addrInput, setAddrInput] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // ── Field finding (no job attached) ────────────────────────────────────
+  const [findingNote, setFindingNote] = useState("");
 
   // ── Shared ──────────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
@@ -85,6 +95,56 @@ export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Prop
     try {
       setTarget(selectedJob.jobId, selectedJob.workOrder);
       await saveToJob(selectedJob.jobId);
+      clearDraft();
+      onClose();
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleFieldFinding() {
+    setCreateError(null);
+    if (!username) {
+      setCreateError("Sign in required to save a field finding.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const ffJobId = fieldFindingJobId(username);
+
+      // Optionally apply the note as userLabel/description on any objects
+      // that don't already have a label, so the bucket markups read nicely.
+      const note = findingNote.trim();
+      const objects = objectsRef.current.map((o) => {
+        if (!note) return o;
+        const obj = o as unknown as Record<string, unknown>;
+        const style = (obj.style ?? {}) as Record<string, unknown>;
+        const hasLabel =
+          (typeof style.userLabel === "string" && style.userLabel.trim()) ||
+          (typeof obj.description === "string" && (obj.description as string).trim()) ||
+          (typeof obj.text === "string" && (obj.text as string).trim());
+        if (hasLabel) return o;
+        // Attach as userLabel for points, description otherwise.
+        if ("position" in obj && !("text" in obj)) {
+          return { ...obj, style: { ...style, userLabel: note } } as unknown as typeof o;
+        }
+        return { ...obj, description: note } as unknown as typeof o;
+      });
+
+      const payload = {
+        jobId: ffJobId,
+        objects,
+        updatedAt: Date.now(),
+        schemaVersion: 2 as const,
+      };
+      await api.putDrawing(
+        ffJobId,
+        payload as Parameters<typeof api.putDrawing>[1],
+        username
+      );
+      dispatch({ type: "MARK_SAVED" });
       clearDraft();
       onClose();
     } catch (e) {
@@ -179,7 +239,7 @@ export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Prop
               "1px solid var(--chrome-border, rgba(255,255,255,0.1))",
           }}
         >
-          {(["attach", "create"] as Tab[]).map((t) => (
+          {(["attach", "create", "field"] as Tab[]).map((t) => (
             <button
               key={t}
               type="button"
@@ -206,7 +266,11 @@ export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Prop
                 transition: "color 0.15s",
               }}
             >
-              {t === "attach" ? "Attach to existing" : "Create new job"}
+              {t === "attach"
+                ? "Attach to existing"
+                : t === "create"
+                  ? "Create new job"
+                  : "Field finding"}
             </button>
           ))}
         </div>
@@ -386,6 +450,40 @@ export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Prop
           </div>
         )}
 
+        {/* Tab: Field finding */}
+        {tab === "field" && (
+          <div>
+            <label style={labelStyle}>
+              Note{" "}
+              <span style={{ opacity: 0.5, fontSize: 11 }}>
+                (optional — fills in any unlabeled markups)
+              </span>
+            </label>
+            <input
+              type="text"
+              value={findingNote}
+              onChange={(e) => setFindingNote(e.target.value)}
+              placeholder="e.g. Buried HH at edge of pavement"
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              style={inputStyle}
+            />
+            <p
+              style={{
+                fontSize: 12,
+                color: "var(--text-muted, #8a9bb0)",
+                marginTop: 12,
+                marginBottom: 0,
+                lineHeight: 1.5,
+              }}
+            >
+              Saves this markup to your field-finding bucket. It will show on
+              your map with its label — no work order attached. Only you can
+              see it.
+            </p>
+          </div>
+        )}
+
         {/* Error */}
         {createError && (
           <div
@@ -427,16 +525,26 @@ export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Prop
               submitting ||
               (tab === "attach"
                 ? !selectedJob
-                : !woInput.trim() || !nameInput.trim())
+                : tab === "create"
+                  ? !woInput.trim() || !nameInput.trim()
+                  : false)
             }
-            onClick={tab === "attach" ? handleAttach : handleCreate}
+            onClick={
+              tab === "attach"
+                ? handleAttach
+                : tab === "create"
+                  ? handleCreate
+                  : handleFieldFinding
+            }
             style={{
               ...submitBtnStyle,
               opacity:
                 submitting ||
                 (tab === "attach"
                   ? !selectedJob
-                  : !woInput.trim() || !nameInput.trim())
+                  : tab === "create"
+                    ? !woInput.trim() || !nameInput.trim()
+                    : false)
                   ? 0.5
                   : 1,
               cursor: submitting ? "wait" : "pointer",
@@ -446,7 +554,9 @@ export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Prop
               ? "Saving…"
               : tab === "attach"
                 ? "Attach & Save"
-                : "Create & Save"}
+                : tab === "create"
+                  ? "Create & Save"
+                  : "Save finding"}
           </button>
         </div>
       </div>

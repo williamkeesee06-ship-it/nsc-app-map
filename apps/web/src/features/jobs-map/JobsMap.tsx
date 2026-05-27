@@ -31,8 +31,9 @@ export default function JobsMap() {
   const { theme } = useMapTheme();
   const { username, isManager } = useAuth();
   // Per-supervisor markup scoping (Billy 5/26): each supervisor only sees
-  // their own drawings. Managers see everyone's via owner="*".
-  const drawingOwner = isManager ? "*" : (username ?? "");
+  // their own drawings. Managers ALSO see only their own (Robbie explicitly
+  // does not want to see other supervisors' markups — 9.7).
+  const drawingOwner = username ?? "";
   const rawJobs = jobsState.state === "ready" ? jobsState.jobs : [];
   // Phase 9.7 manager mode: load the supervisor allowlist once so the
   // FilterRail can render a checkbox per name.
@@ -209,7 +210,12 @@ function JobsMapInner({
               onSelect={handleSelect}
               allJobs={allJobs}
             />
-            <AllJobsMarkupsOverlay />
+            <AllJobsMarkupsOverlay
+              onMarkupClick={(jobId) => {
+                const j = allJobs.find((x) => x.jobId === jobId);
+                if (j) void handleSelect(j);
+              }}
+            />
             <DrawingOverlay />
             <MapTypeToggle />
           </Map>

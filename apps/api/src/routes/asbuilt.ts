@@ -205,11 +205,17 @@ router.put("/asbuilt/:jobId", async (req, res, next) => {
   try {
     const { jobId } = req.params;
 
-    // Verify job exists
-    const jobSnap = await db().collection("jobs").doc(jobId).get();
-    if (!jobSnap.exists) {
-      res.status(404).json({ error: `Job ${jobId} not found` });
-      return;
+    // Field-finding sentinel ids (no associated job) bypass the job-exists check.
+    // These are per-supervisor labeled markups not attached to any work order.
+    const isFieldFinding = jobId.startsWith("__ff__");
+
+    // Verify job exists (unless this is a field finding)
+    if (!isFieldFinding) {
+      const jobSnap = await db().collection("jobs").doc(jobId).get();
+      if (!jobSnap.exists) {
+        res.status(404).json({ error: `Job ${jobId} not found` });
+        return;
+      }
     }
 
     const body = req.body as Record<string, unknown>;
