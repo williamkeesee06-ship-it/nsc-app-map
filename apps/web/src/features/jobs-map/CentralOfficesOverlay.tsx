@@ -15,35 +15,35 @@ const LABEL_MIN_ZOOM = 13;
 
 const NEON_CYAN = "#22D3FF";
 
-// Greek temple / courthouse SVG — neon stroke, columns, pediment, base.
-// Sized to match job pin markers (26×36 in JobMarkers.tsx).
+// Greek temple / courthouse SVG — variant F: solid cyan columns + thin neon
+// outline for pediment / architrave / base. Sized to match job pin markers.
 const TEMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
   <defs>
     <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="1.6" result="blur"/>
-      <feFlood flood-color="${NEON_CYAN}" flood-opacity="0.9"/>
+      <feGaussianBlur stdDeviation="0.8" result="blur"/>
+      <feFlood flood-color="${NEON_CYAN}" flood-opacity="0.7"/>
       <feComposite in2="blur" operator="in" result="glow"/>
       <feMerge>
-        <feMergeNode in="glow"/>
         <feMergeNode in="glow"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
   </defs>
-  <g fill="none" stroke="${NEON_CYAN}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" filter="url(#neonGlow)">
-    <!-- Pediment (triangular roof) -->
-    <polygon points="22,5 6,15 38,15" />
-    <!-- Architrave (beam under pediment) -->
-    <line x1="6" y1="17" x2="38" y2="17" />
-    <!-- 4 columns -->
-    <line x1="10" y1="18" x2="10" y2="32" />
-    <line x1="17.5" y1="18" x2="17.5" y2="32" />
-    <line x1="26.5" y1="18" x2="26.5" y2="32" />
-    <line x1="34" y1="18" x2="34" y2="32" />
-    <!-- Base / stylobate -->
-    <line x1="5" y1="33" x2="39" y2="33" />
-    <line x1="3" y1="36" x2="41" y2="36" />
-    <line x1="2" y1="39" x2="42" y2="39" />
+  <g filter="url(#neonGlow)" shape-rendering="geometricPrecision">
+    <g fill="none" stroke="${NEON_CYAN}" stroke-width="0.75" stroke-linecap="square" stroke-linejoin="miter">
+      <!-- Pediment (triangular roof) -->
+      <polygon points="22,5 6,15 38,15" />
+      <!-- Architrave (beam under pediment) -->
+      <line x1="6" y1="17" x2="38" y2="17" />
+      <!-- Base / stylobate (two thin lines) -->
+      <line x1="5" y1="33" x2="39" y2="33" />
+      <line x1="3" y1="36" x2="41" y2="36" />
+    </g>
+    <!-- 4 solid columns -->
+    <rect x="9" y="18" width="2" height="14" fill="${NEON_CYAN}"/>
+    <rect x="16.5" y="18" width="2" height="14" fill="${NEON_CYAN}"/>
+    <rect x="25.5" y="18" width="2" height="14" fill="${NEON_CYAN}"/>
+    <rect x="33" y="18" width="2" height="14" fill="${NEON_CYAN}"/>
   </g>
 </svg>`;
 
