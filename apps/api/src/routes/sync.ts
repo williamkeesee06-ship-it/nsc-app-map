@@ -109,7 +109,27 @@ router.get("/sync/status", async (_req, res, next) => {
     }
     const lastRun = snap.docs[0]!.data() as SyncRun;
     res.json({ lastRun });
-  } catch (err) {
+  } catch (err: any) {
+    if (err && err.message && err.message.includes("RESOURCE_EXHAUSTED")) {
+      // Gracefully handle Firestore daily quota exhaustion
+      res.json({
+        lastRun: {
+          id: "quota-exceeded",
+          startedAt: Date.now(),
+          finishedAt: Date.now(),
+          status: "failed",
+          sheetTotalRows: 0,
+          filteredRows: 0,
+          upserted: 0,
+          flaggedOffTracker: 0,
+          geocodedFresh: 0,
+          geocodedCached: 0,
+          geocodeFailed: 0,
+          error: "Firebase daily read quota exhausted (50,000 reads). Will reset at midnight PT.",
+        } as SyncRun,
+      });
+      return;
+    }
     next(err);
   }
 });
