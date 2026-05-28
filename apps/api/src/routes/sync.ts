@@ -114,10 +114,10 @@ router.get("/sync/status", async (_req, res, next) => {
       // Gracefully handle Firestore daily quota exhaustion
       res.json({
         lastRun: {
-          id: "quota-exceeded",
+          syncId: "quota-exceeded",
           startedAt: Date.now(),
           finishedAt: Date.now(),
-          status: "failed",
+          status: "error",
           sheetTotalRows: 0,
           filteredRows: 0,
           upserted: 0,
