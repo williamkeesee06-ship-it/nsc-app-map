@@ -3,8 +3,8 @@
 import { useShowCOs, setShowCOs } from "./centralOfficesStore.js";
 import centralOffices from "../../data/centralOffices.json";
 
-const GOLD = "#FFC107";
-const GOLD_GLOW = "rgba(255,193,7,0.55)";
+const NEON = "#22D3FF";
+const NEON_GLOW = "rgba(34,211,255,0.55)";
 
 export default function CentralOfficesPill() {
   const active = useShowCOs();
@@ -19,9 +19,9 @@ export default function CentralOfficesPill() {
         style={
           active
             ? {
-                background: `${GOLD}22`,
-                borderColor: GOLD,
-                boxShadow: `0 0 6px ${GOLD_GLOW}`,
+                background: `${NEON}22`,
+                borderColor: NEON,
+                boxShadow: `0 0 6px ${NEON_GLOW}`,
               }
             : undefined
         }
@@ -29,8 +29,8 @@ export default function CentralOfficesPill() {
         <span
           className="sf-pill__dot"
           style={{
-            background: GOLD,
-            boxShadow: `0 0 4px ${GOLD_GLOW}`,
+            background: NEON,
+            boxShadow: `0 0 4px ${NEON_GLOW}`,
           }}
           aria-hidden
         />
