@@ -294,6 +294,10 @@ function ToolsSection() {
     state,
     setTool,
     deleteSelected,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useDrawing();
 
   const { activeTool } = state;
@@ -328,6 +332,32 @@ function ToolsSection() {
 
   return (
     <section className="rail-section rail-section--tools">
+      {/* Undo / Redo row — lives at the top of the toolbox */}
+      <div className="undo-redo-row">
+        <button
+          type="button"
+          className="undo-redo-btn"
+          onClick={undo}
+          disabled={!canUndo}
+          title="Undo (Cmd+Z)"
+          aria-label="Undo"
+        >
+          <span className="undo-redo-btn__glyph">↶</span>
+          <span className="undo-redo-btn__label">UNDO</span>
+        </button>
+        <button
+          type="button"
+          className="undo-redo-btn"
+          onClick={redo}
+          disabled={!canRedo}
+          title="Redo (Cmd+Shift+Z)"
+          aria-label="Redo"
+        >
+          <span className="undo-redo-btn__glyph">↷</span>
+          <span className="undo-redo-btn__label">REDO</span>
+        </button>
+      </div>
+
       <div
         className="tool-grid"
       >

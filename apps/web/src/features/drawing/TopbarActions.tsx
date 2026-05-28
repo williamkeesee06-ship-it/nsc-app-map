@@ -21,9 +21,7 @@ export default function TopbarActions() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [screenshotting, setScreenshotting] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  // Phase 5.3: "nothing to undo" flash
-  const [undoFlash, setUndoFlash] = useState(false);
-  const [redoFlash, setRedoFlash] = useState(false);
+  // Undo/redo lives in the LeftRail toolbox now.
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -124,30 +122,12 @@ export default function TopbarActions() {
     );
   }
 
-  const { state, undo, redo, canUndo, canRedo, save } = ctx;
+  const { state, save } = ctx;
   const { dirty, saving: isSaving, saveError, targetJobId, targetWorkOrder, autoSaveCountdown } = state;
   const noTarget = !targetJobId;
   // Phase 5.2: "Save as new job" mode — no target but objects exist
   const canSaveNew = noTarget && state.objects.length > 0;
 
-  function handleUndo() {
-    if (!canUndo) {
-      // Flash "nothing to undo"
-      setUndoFlash(true);
-      setTimeout(() => setUndoFlash(false), 1200);
-      return;
-    }
-    undo();
-  }
-
-  function handleRedo() {
-    if (!canRedo) {
-      setRedoFlash(true);
-      setTimeout(() => setRedoFlash(false), 1200);
-      return;
-    }
-    redo();
-  }
 
   function handleSave() {
     if (canSaveNew) {
@@ -182,17 +162,7 @@ export default function TopbarActions() {
         {/* Phase 9: Locate Me */}
         <LocateMeButton />
 
-        {/* Phase 5.3: always enabled; flash if nothing to undo */}
-        <CoinBtn
-          onClick={handleUndo}
-          title={undoFlash ? "Nothing to undo" : "Undo (Cmd+Z)"}
-          extraClass={undoFlash ? "coin-btn--flash" : undefined}
-        >↶</CoinBtn>
-        <CoinBtn
-          onClick={handleRedo}
-          title={redoFlash ? "Nothing to redo" : "Redo (Cmd+Shift+Z)"}
-          extraClass={redoFlash ? "coin-btn--flash" : undefined}
-        >↷</CoinBtn>
+        {/* Undo/Redo moved into LeftRail toolbox — see ToolsSection. */}
 
         {/* Screenshot button — always usable, even with no target job */}
         <CoinBtn

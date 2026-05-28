@@ -2661,3 +2661,45 @@ input:focus, textarea:focus, select:focus {
   background: rgba(255,255,255,0.14);
   opacity: 1;
 }
+
+/* Undo/Redo row at top of the toolbox (LeftRail ToolsSection) */
+.undo-redo-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 2px 6px 2px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(200,208,218,0.12);
+}
+.undo-redo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(200,208,218,0.22);
+  color: var(--text, #f4f8ff);
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.undo-redo-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(200,208,218,0.45);
+}
+.undo-redo-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.undo-redo-btn__glyph {
+  font-size: 14px;
+  line-height: 1;
+}
+.undo-redo-btn__label {
+  font-size: 9px;
+}
