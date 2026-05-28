@@ -2602,18 +2602,14 @@ input:focus, textarea:focus, select:focus {
    Renamed from .status-pill → .sf-pill to avoid collision with the
    existing absolutely-positioned .status-pill toast/notification class. */
 .sf-pills {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  grid-auto-rows: auto;
+  gap: 4px 5px;
   align-items: center;
-  gap: 5px;
-  flex-wrap: nowrap;
-  flex-shrink: 1;
-  overflow-x: auto;
+  flex-shrink: 0;
   margin-left: 8px;
   position: static;
-  scrollbar-width: none;
-}
-.sf-pills::-webkit-scrollbar {
-  display: none;
 }
 
 .sf-pill {
@@ -2621,7 +2617,7 @@ input:focus, textarea:focus, select:focus {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 9px;
+  padding: 3px 8px;
   border-radius: 999px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(200,208,218,0.22);

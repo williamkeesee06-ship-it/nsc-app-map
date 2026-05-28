@@ -551,6 +551,9 @@ function rebuildAllLabels(
 
   const entries: LabelEntry[] = [];
   for (const obj of objects) {
+    // Text tool already renders its own text as the primary visual — don't
+    // double-render it as a separate label marker.
+    if (obj.tool === "text") continue;
     const text = labelTextForObj(obj);
     if (!text) continue;
     const pos = labelPositionForObj(obj);

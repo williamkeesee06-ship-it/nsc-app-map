@@ -198,7 +198,7 @@ export default function TopbarActions() {
         <CoinBtn
           onClick={handleScreenshot}
           disabled={screenshotting}
-          title="Download screenshot (PNG)"
+          title="Download full-screen screenshot (JPEG)"
         >
           {screenshotting ? "⏳" : <ScreenshotIcon />}
         </CoinBtn>

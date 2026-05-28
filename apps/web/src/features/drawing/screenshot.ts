@@ -1,155 +1,48 @@
-// screenshot.ts — composites a Static Maps base with SVG drawing overlay
-// then triggers a PNG download.
+// screenshot.ts — full-screen capture of the entire app (topbar, map, overlays,
+// drawings, UI chrome) saved as a JPEG. Uses html2canvas against document.body
+// so what you see on screen is literally what you get in the file.
 //
-// Approach:
-//   1. Fetch current map center + zoom from the google.maps.Map instance
-//   2. Request a Static Maps image (1280x800) from Google's API
-//   3. Draw it onto a hidden <canvas>
-//   4. Overlay the drawing SVG (rendered as an SVGElement) on top via canvas.drawImage
-//   5. canvas.toBlob → trigger download
+// `map` and `objects` are accepted for API compatibility but are no longer used
+// — the live DOM is what we capture.
 
 import type { DrawingObject } from "@nsc/types";
-
-const W = 1280;
-const H = 800;
-
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+import html2canvas from "html2canvas";
 
 export async function downloadScreenshot(
-  map: google.maps.Map,
-  objects: DrawingObject[]
+  _map: google.maps.Map,
+  _objects: DrawingObject[]
 ): Promise<void> {
-  if (!API_KEY) {
-    console.error("[Screenshot] VITE_GOOGLE_MAPS_API_KEY not set");
-    alert("Screenshot failed: Google Maps API key missing.");
-    return;
-  }
-
-  const center = map.getCenter();
-  const zoom = map.getZoom();
-
-  if (!center || zoom == null) {
-    alert("Map is not ready yet.");
-    return;
-  }
-
-  const lat = center.lat();
-  const lng = center.lng();
-
-  const staticUrl =
-    `https://maps.googleapis.com/maps/api/staticmap` +
-    `?center=${lat},${lng}` +
-    `&zoom=${zoom}` +
-    `&size=${W}x${H}` +
-    `&maptype=roadmap` +
-    `&style=element:geometry%7Ccolor:0x0b0f13` +
-    `&style=element:labels.text.fill%7Ccolor:0x8a95a3` +
-    `&style=element:labels.text.stroke%7Ccolor:0x0b0f13` +
-    `&style=feature:road%7Celement:geometry%7Ccolor:0x1a212a` +
-    `&style=feature:water%7Celement:geometry%7Ccolor:0x111827` +
-    `&key=${API_KEY}`;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    alert("Screenshot failed: canvas context unavailable.");
-    return;
-  }
-
-  // Fetch Static Maps image via a proxy-friendly approach
   try {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error("Static Maps image failed to load. Ensure the Static Maps API is enabled for your key."));
-      img.src = staticUrl;
+    const target = document.body;
+    const canvas = await html2canvas(target, {
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#0b0f13",
+      logging: false,
+      // Capture at the device-pixel resolution for crisp output.
+      scale: Math.min(window.devicePixelRatio || 1, 2),
+      // Skip absolutely-positioned scroll bars / fixed overlays we don't want.
+      ignoreElements: (el) => el.classList?.contains("no-screenshot") ?? false,
     });
-    ctx.drawImage(img, 0, 0, W, H);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          alert("Screenshot failed: could not create image.");
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `nsc-map-${Date.now()}.jpg`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      "image/jpeg",
+      0.92
+    );
   } catch (err) {
-    console.error("[Screenshot] Static Maps load error:", err);
-    // Fall back to a dark background
-    ctx.fillStyle = "#0b0f13";
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#8a95a3";
-    ctx.font = "14px monospace";
-    ctx.fillText("Static Maps unavailable — drawings only", 20, 30);
+    console.error("[Screenshot] capture failed:", err);
+    alert(`Screenshot failed: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  // Draw overlay objects if any exist
-  if (objects.length > 0) {
-    // Convert lat/lng to pixel using the map's projection
-    const proj = map.getProjection();
-    const bounds = map.getBounds();
-    if (proj && bounds) {
-      const ne = bounds.getNorthEast();
-      const sw = bounds.getSouthWest();
-      const scale = Math.pow(2, zoom);
-
-      function toPixel(lat: number, lng: number): { x: number; y: number } {
-        const worldPt = proj!.fromLatLngToPoint(new google.maps.LatLng(lat, lng))!;
-        const nePt = proj!.fromLatLngToPoint(ne)!;
-        const swPt = proj!.fromLatLngToPoint(sw)!;
-        const width = (nePt.x - swPt.x) * scale;
-        const height = (swPt.y - nePt.y) * scale;
-        const x = ((worldPt.x - swPt.x) * scale / width) * W;
-        const y = ((worldPt.y - nePt.y) * scale / height) * H;
-        return { x, y };
-      }
-
-      objects.forEach((obj) => {
-        ctx.save();
-        ctx.globalAlpha = obj.style.opacity;
-        ctx.strokeStyle = obj.style.strokeColor;
-        ctx.lineWidth = obj.style.strokeWidth;
-        if (obj.style.strokeStyle === "dashed") {
-          ctx.setLineDash([8, 4]);
-        }
-
-        if ("vertices" in obj && obj.vertices.length > 0) {
-          ctx.beginPath();
-          const pts = obj.vertices.map((v) => toPixel(v.lat, v.lng));
-          ctx.moveTo(pts[0]!.x, pts[0]!.y);
-          pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
-          if (obj.tool === "polygon") ctx.closePath();
-          ctx.stroke();
-        }
-
-        if ("bounds" in obj) {
-          const nw = toPixel(obj.bounds.n, obj.bounds.w);
-          const se = toPixel(obj.bounds.s, obj.bounds.e);
-          ctx.beginPath();
-          ctx.rect(nw.x, nw.y, se.x - nw.x, se.y - nw.y);
-          ctx.stroke();
-        }
-
-        if ("position" in obj && "text" in obj) {
-          const { x, y } = toPixel(obj.position.lat, obj.position.lng);
-          ctx.fillStyle = obj.style.strokeColor;
-          ctx.font = `bold 14px ui-monospace, monospace`;
-          ctx.fillText(obj.text, x, y);
-        }
-
-        ctx.restore();
-      });
-    }
-  }
-
-  // Watermark
-  ctx.fillStyle = "rgba(255,255,255,0.35)";
-  ctx.font = "11px monospace";
-  ctx.fillText(`NSC APP MAP · ${new Date().toLocaleString()} · zoom ${zoom}`, 10, H - 10);
-
-  // Trigger download
-  canvas.toBlob((blob) => {
-    if (!blob) { alert("Screenshot failed: could not create image."); return; }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `nsc-map-${Date.now()}.png`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, "image/png");
 }

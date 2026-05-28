@@ -65,14 +65,14 @@ export default function ModifiersPanel() {
     }
   }
 
-  // SELECT tool: show selection info only
+  // SELECT tool: only show the strip when something is actually selected.
+  // The empty-state hint was blocking the Map/Satellite toggle.
   if (activeTool === "select") {
+    if (selectedIds.size === 0) return null;
     return (
       <div className="modifier-strip">
         <span className="mod-strip-select-info">
-          {selectedIds.size > 0
-            ? `${selectedIds.size} object${selectedIds.size !== 1 ? "s" : ""} selected`
-            : "Click objects to select · Shift+click to multi-select"}
+          {`${selectedIds.size} object${selectedIds.size !== 1 ? "s" : ""} selected`}
         </span>
       </div>
     );
