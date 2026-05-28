@@ -54,10 +54,10 @@ function Shell() {
                 <NavLink to="/" end>Jobs Map</NavLink>
                 <NavLink to="/sync">Sync</NavLink>
               </nav>
-              <TopbarActions />
-              <UserChip />
               <StatusFilterPills />
               <CentralOfficesPill />
+              <TopbarActions />
+              <UserChip />
             </header>
             <Routes>
               <Route path="/" element={<JobsMap />} />
@@ -93,24 +93,31 @@ function UserChip() {
     <div
       style={{
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
-        gap: 6,
-        marginLeft: 8,
+        gap: 2,
+        marginLeft: 6,
         fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
-        fontSize: 10,
-        letterSpacing: "0.05em",
+        letterSpacing: "0.04em",
         color: "var(--text-muted, #8a96a3)",
+        flexShrink: 0,
       }}
       title={`Filtering jobs for supervisor: ${username}`}
     >
       <span
         style={{
-          padding: "3px 8px",
-          borderRadius: 10,
+          padding: "2px 7px",
+          borderRadius: 8,
           background: "rgba(255,255,255,0.06)",
           border: "1px solid rgba(200,208,218,0.18)",
           color: "var(--text, #f4f8ff)",
           fontWeight: 700,
+          fontSize: 9,
+          lineHeight: 1.2,
+          maxWidth: 90,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
       >
         {username}
@@ -123,10 +130,11 @@ function UserChip() {
           border: "none",
           color: "var(--text-muted, #8a96a3)",
           fontFamily: "inherit",
-          fontSize: 10,
+          fontSize: 9,
           cursor: "pointer",
           textDecoration: "underline",
           padding: 0,
+          lineHeight: 1,
         }}
       >
         Log out

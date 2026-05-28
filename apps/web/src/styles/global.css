@@ -224,20 +224,21 @@ a { color: var(--accent); }
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   margin-left: 4px;
+  flex-shrink: 0;
 }
 
 .coin-btn {
-  width: 42px;
-  height: 42px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   border: none;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 13px;
   cursor: pointer;
   /* Chrome coin gradient */
   background: radial-gradient(circle at 38% 35%, #F5F7FA 0%, #D8E0EA 45%, #B8C4D0 100%);
