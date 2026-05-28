@@ -66,9 +66,9 @@ export default function JobsMap() {
   const [selected, setSelected] = useState<Job | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const filtered = useMemo(() => applyFilters(allJobs, filters), [allJobs, filters]);
-  const mapped = filtered.filter(
+  const mapped = useMemo(() => filtered.filter(
     (j) => j.geocode?.status === "OK" && j.geocode.lat !== 0
-  );
+  ), [filtered]);
   const unmapped = filtered.length - mapped.length;
 
   const onResync = useCallback(async () => {
@@ -289,6 +289,12 @@ function JobMarkers({
   const markersRef = useRef<globalThis.Map<string, google.maps.Marker> | null>(null);
   const labelMarkersRef = useRef<google.maps.Marker[]>([]);
 
+  // Keep latest onSelect in a ref to prevent marker recreation when selection logic changes
+  const onSelectRef = useRef(onSelect);
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
   useEffect(() => {
     if (!map) return;
     const created = new globalThis.Map<string, google.maps.Marker>();
@@ -312,7 +318,7 @@ function JobMarkers({
         },
       });
       m.addListener("click", () => {
-        onSelect(job);
+        onSelectRef.current(job);
         focusMapOnLatLng(map, job.geocode!.lat, job.geocode!.lng);
       });
       created.set(job.jobId, m);
@@ -375,7 +381,7 @@ function JobMarkers({
       if (markersRef.current === created) markersRef.current = null;
       google.maps.event.removeListener(zoomListener);
     };
-  }, [map, jobs, onSelect]);
+  }, [map, jobs]); // removed onSelect from deps to prevent re-renders
 
   useEffect(() => {
     if (!map || !focus) return;
