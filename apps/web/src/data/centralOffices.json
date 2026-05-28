@@ -1,0 +1,734 @@
+[
+  {
+    "name": "Auburn",
+    "address": "10 2nd Street SE, Auburn, WA 98002",
+    "lat": 47.30532090000001,
+    "lng": -122.2295299
+  },
+  {
+    "name": "Bellevue Glencourt",
+    "address": "1020 102nd Ave NE, Bellevue, WA 98004",
+    "lat": 47.6203087,
+    "lng": -122.2039996
+  },
+  {
+    "name": "Bellevue Sherwood",
+    "address": "14808 SE 16th St, Bellevue, WA 98007",
+    "lat": 47.5966836,
+    "lng": -122.142174
+  },
+  {
+    "name": "Bellingham Regent",
+    "address": "1201 N Forest St, Bellingham, WA 98225",
+    "lat": 48.7470857,
+    "lng": -122.477528
+  },
+  {
+    "name": "Bellingham Lummi",
+    "address": "Lummi Shore & Cove St, Lummi, WA 98226",
+    "lat": 48.8004295,
+    "lng": -122.6186202
+  },
+  {
+    "name": "Black Diamond",
+    "address": "32704 Railroad Ave, Black Diamond, WA 98010",
+    "lat": 47.3083787,
+    "lng": -122.006508
+  },
+  {
+    "name": "Bonney Lake",
+    "address": "19504 Bonney Lake Blvd, Bonney Lake, WA 98390",
+    "lat": 47.1921714,
+    "lng": -122.1674112
+  },
+  {
+    "name": "Buckley",
+    "address": "350 Jefferson St, Buckley, WA 98321",
+    "lat": 47.1598508,
+    "lng": -122.0318601
+  },
+  {
+    "name": "Crystal Mountain",
+    "address": "E Side Hwy 410 Nat Pk, Crystal Mountain, WA 98022",
+    "lat": 47.1543611,
+    "lng": -121.7124368
+  },
+  {
+    "name": "Des Moines",
+    "address": "802 South 223rd, Des Moines, WA 98198",
+    "lat": 47.4022045,
+    "lng": -122.3236369
+  },
+  {
+    "name": "Enumclaw",
+    "address": "1433 Wells St, Enumclaw, WA 98022",
+    "lat": 47.202985,
+    "lng": -121.9912949
+  },
+  {
+    "name": "Federal Way",
+    "address": "1900 South 288th, Federal Way, WA 98003",
+    "lat": 47.3438241,
+    "lng": -122.3089816
+  },
+  {
+    "name": "Graham",
+    "address": "22405 38th Ave E, Spanaway, WA 98338",
+    "lat": 47.0528324,
+    "lng": -122.3788584
+  },
+  {
+    "name": "Issaquah",
+    "address": "22817 SE Issaquah Fall City Rd, Issaquah, WA 98027",
+    "lat": 47.5443337,
+    "lng": -122.0358392
+  },
+  {
+    "name": "Kent Meridian",
+    "address": "11422 South East 260th, Kent, WA 98042",
+    "lat": 47.368803,
+    "lng": -122.1405767
+  },
+  {
+    "name": "Kent O'Brien",
+    "address": "19640 68th South, Kent, WA 98032",
+    "lat": 47.4254404,
+    "lng": -122.2487745
+  },
+  {
+    "name": "Kent Ulrich",
+    "address": "206 South State, Kent, WA 98031",
+    "lat": 47.4175626,
+    "lng": -122.1891538
+  },
+  {
+    "name": "Lacey",
+    "address": "1311 College Way, Lacey, WA 98506",
+    "lat": 47.0577341,
+    "lng": -122.8230526
+  },
+  {
+    "name": "Maple Valley",
+    "address": "21622 Maxwell Ave, Maple Valley, WA 98038",
+    "lat": 47.407767,
+    "lng": -122.036551
+  },
+  {
+    "name": "Mercer Island",
+    "address": "3853 84th Ave SE, Mercer Island, WA 98040",
+    "lat": 47.575474,
+    "lng": -122.227516
+  },
+  {
+    "name": "Puyallup",
+    "address": "317 3rd SW, Puyallup, WA 98371",
+    "lat": 47.18968049999999,
+    "lng": -122.2959472
+  },
+  {
+    "name": "Renton",
+    "address": "225 Williams South, Renton, WA 98055",
+    "lat": 47.4805985,
+    "lng": -122.2069882
+  },
+  {
+    "name": "Roy",
+    "address": "288th St 1 Block East of State Rd 507, Roy, WA 98580",
+    "lat": 46.9971976,
+    "lng": -122.5455244
+  },
+  {
+    "name": "Seattle Atwater",
+    "address": "1503 3rd Ave W, Seattle, WA 98119",
+    "lat": 47.6326707,
+    "lng": -122.3615275
+  },
+  {
+    "name": "Seattle Campus",
+    "address": "801 NE 42nd Street, Seattle, WA 98105",
+    "lat": 47.6572677,
+    "lng": -122.319341
+  },
+  {
+    "name": "Seattle Cherry",
+    "address": "1122 3rd Ave, Seattle, WA 98101",
+    "lat": 47.6069728,
+    "lng": -122.3347991
+  },
+  {
+    "name": "Seattle Duwamish",
+    "address": "7000 E Marginal Way S, Seattle, WA 98108",
+    "lat": 47.5408908,
+    "lng": -122.3232092
+  },
+  {
+    "name": "Seattle East",
+    "address": "1708 E Pike, Seattle, WA 98112",
+    "lat": 47.6144383,
+    "lng": -122.309788
+  },
+  {
+    "name": "Seattle Elliot",
+    "address": "120 Lenora, Seattle, WA 98121",
+    "lat": 47.6124147,
+    "lng": -122.343728
+  },
+  {
+    "name": "Seattle Emerson",
+    "address": "1249 NE 145th St, Seattle, WA 98105",
+    "lat": 47.7336827,
+    "lng": -122.3136866
+  },
+  {
+    "name": "Seattle Lakeview",
+    "address": "1208 NE 64th, Seattle, WA 98105",
+    "lat": 47.6753246,
+    "lng": -122.3153291
+  },
+  {
+    "name": "Seattle Main HiCap",
+    "address": "1122 3rd Ave, Seattle, WA 98101",
+    "lat": 47.6069728,
+    "lng": -122.3347991
+  },
+  {
+    "name": "Seattle Main DSO",
+    "address": "1122 3rd Ave, Seattle, WA 98101",
+    "lat": 47.6069728,
+    "lng": -122.3347991
+  },
+  {
+    "name": "Seattle Parkway",
+    "address": "6315 Rainier Ave S, Seattle, WA 98109",
+    "lat": 47.5455906,
+    "lng": -122.2760436
+  },
+  {
+    "name": "Seattle Sunset",
+    "address": "1138 NW 63rd St, Seattle, WA 98107",
+    "lat": 47.674814,
+    "lng": -122.3732177
+  },
+  {
+    "name": "Seattle West",
+    "address": "4427 California Ave SW, Seattle, WA 98116",
+    "lat": 47.5639943,
+    "lng": -122.3872261
+  },
+  {
+    "name": "Sumner",
+    "address": "605 Kincaid Ave, Sumner, WA 98390",
+    "lat": 47.1989789,
+    "lng": -122.2417996
+  },
+  {
+    "name": "Tacoma Fawcett",
+    "address": "570 Fawcett, Tacoma, WA 98402",
+    "lat": 47.2582096,
+    "lng": -122.4449794
+  },
+  {
+    "name": "Tacoma Ft Lewis",
+    "address": "16th & Colorado Bldg 6070, Fort Lewis, WA 98433",
+    "lat": 47.0864833,
+    "lng": -122.5846295
+  },
+  {
+    "name": "Tacoma Greenfield",
+    "address": "4818 South J, Tacoma, WA 98408",
+    "lat": 47.2129898,
+    "lng": -122.4474005
+  },
+  {
+    "name": "Tacoma Juniper",
+    "address": "6330 111th SW, Tacoma, WA 98499",
+    "lat": 47.156583,
+    "lng": -122.522374
+  },
+  {
+    "name": "Tacoma Lenox",
+    "address": "601 S 113th Street, Tacoma, WA 98444",
+    "lat": 47.1543814,
+    "lng": -122.4399919
+  },
+  {
+    "name": "Tacoma Logan",
+    "address": "2823 Bridgeport Way, Tacoma, WA 98466",
+    "lat": 47.2337465,
+    "lng": -122.5365781
+  },
+  {
+    "name": "Tacoma Skyline",
+    "address": "2703 North Madison, Tacoma, WA 98407",
+    "lat": 47.2722847,
+    "lng": -122.4898716
+  },
+  {
+    "name": "Tacoma Waverly 2",
+    "address": "1427 62nd Ave East, Fife, WA 98422",
+    "lat": 47.2433722,
+    "lng": -122.3464811
+  },
+  {
+    "name": "Tacoma Waverly 7",
+    "address": "35520 1st Ave South, Federal Way, WA 98403",
+    "lat": 47.2829856,
+    "lng": -122.3341265
+  },
+  {
+    "name": "Aberdeen",
+    "address": "216 N 1st St, Aberdeen, WA 98520",
+    "lat": 46.977242,
+    "lng": -123.8187469
+  },
+  {
+    "name": "Bainbridge Island",
+    "address": "783 Madison Ave N, Winslow, WA 98110",
+    "lat": 47.6312773,
+    "lng": -122.5213483
+  },
+  {
+    "name": "Belfair",
+    "address": "23650 NE Hwy 3, Belfair, WA 98528",
+    "lat": 47.4496885,
+    "lng": -122.8276893
+  },
+  {
+    "name": "Bremerton Essex",
+    "address": "611 6th St, Bremerton, WA 98337",
+    "lat": 47.5670888,
+    "lng": -122.6287812
+  },
+  {
+    "name": "Centralia",
+    "address": "117 W Pine St, Centralia, WA 98531",
+    "lat": 46.7175668,
+    "lng": -122.9547777
+  },
+  {
+    "name": "Chehalis",
+    "address": "167 N Market Blvd, Chehalis, WA 98532",
+    "lat": 46.6629776,
+    "lng": -122.966698
+  },
+  {
+    "name": "Cottonwood",
+    "address": "W End of Main St, Cottonwood, ID ",
+    "lat": 46.0466555,
+    "lng": -116.3475037
+  },
+  {
+    "name": "Coulee Dam",
+    "address": "1103 Grand Ave, Coulee Dam, WA ",
+    "lat": 47.9699945,
+    "lng": -118.9786821
+  },
+  {
+    "name": "Craigmont",
+    "address": "Craigmont, Craigmont, ID 83523",
+    "lat": 46.2410641,
+    "lng": -116.4671375
+  },
+  {
+    "name": "Crosby",
+    "address": "3210 Camp Ln NW, Crosby, WA 98380",
+    "lat": 47.5933694,
+    "lng": -122.8464156
+  },
+  {
+    "name": "Castle Rock",
+    "address": "100 Cowlitz St W, Castle Rock, WA 98611",
+    "lat": 46.2755563,
+    "lng": -122.9090543
+  },
+  {
+    "name": "Colby",
+    "address": "1475 Woods Rd SE, Port Orchard, WA 98366",
+    "lat": 47.53517309999999,
+    "lng": -122.5671943
+  },
+  {
+    "name": "Colfax",
+    "address": "4400 Junction St, Colfax, WA 99111",
+    "lat": 46.8801654,
+    "lng": -117.3643495
+  },
+  {
+    "name": "Colville",
+    "address": "2659 Oak St, Colville, WA 99114",
+    "lat": 48.5397924,
+    "lng": -117.9042211
+  },
+  {
+    "name": "Cle Elum",
+    "address": "116 E 1st St, Cle Elum, WA 98922",
+    "lat": 47.19443529999999,
+    "lng": -120.9372676
+  },
+  {
+    "name": "Dayton",
+    "address": "21 Crawford St, Dayton, WA 99328",
+    "lat": 46.3237525,
+    "lng": -117.9724367
+  },
+  {
+    "name": "Deer Park",
+    "address": "South Side of St Hwy Railroad Ave, Deer Park, WA 99006",
+    "lat": 47.9562813,
+    "lng": -117.478206
+  },
+  {
+    "name": "Easton",
+    "address": "So Side St Hwy 90, Easton, WA 98925",
+    "lat": 47.2361727,
+    "lng": -121.1731001
+  },
+  {
+    "name": "Elk",
+    "address": "108 C St SW, Elk, WA 99009",
+    "lat": 48.01628609999999,
+    "lng": -117.2766032
+  },
+  {
+    "name": "Ephrata",
+    "address": "19000 South 288th, Ephrata, WA 98823",
+    "lat": 47.3176385,
+    "lng": -119.5536491
+  },
+  {
+    "name": "Greenbluff",
+    "address": "N Side of Crowley Hill Rd 600 Feet E, Greenbluff, WA 99005",
+    "lat": 47.8273947,
+    "lng": -117.2716024
+  },
+  {
+    "name": "Grangeville ID",
+    "address": "320 C St, Grangeville, ID 83530",
+    "lat": 45.9257777,
+    "lng": -116.1199559
+  },
+  {
+    "name": "Hoodsport",
+    "address": "121 Schoolhouse Hill Rd, Hoodsport, WA 98548",
+    "lat": 47.4048381,
+    "lng": -123.1433444
+  },
+  {
+    "name": "Issaquah Fall City",
+    "address": "22817 SE Issaquah Fall City Rd, Issaquah, WA 98027",
+    "lat": 47.5443337,
+    "lng": -122.0358392
+  },
+  {
+    "name": "Joyce",
+    "address": "50351 Hwy 112 W, Joyce, WA 98343",
+    "lat": 48.1359546,
+    "lng": -123.7337538
+  },
+  {
+    "name": "Kamiah",
+    "address": "6th & Oak, Kamiah, ID 83536",
+    "lat": 46.22634069999999,
+    "lng": -116.0253876
+  },
+  {
+    "name": "Kooskia",
+    "address": "South End of Main St, Kooskia, ID 83539",
+    "lat": 46.1374084,
+    "lng": -115.9787009
+  },
+  {
+    "name": "Lapwai",
+    "address": "Main St between A & B, Lapwai, ID 83540",
+    "lat": 46.3998781,
+    "lng": -116.8036862
+  },
+  {
+    "name": "Liberty Lake",
+    "address": "1100 feet East of Molkapps St, Liberty Lake, WA 99019",
+    "lat": 47.6743428,
+    "lng": -117.1124241
+  },
+  {
+    "name": "Longview",
+    "address": "1305 Washington Way, Longview, WA 98632",
+    "lat": 46.1409947,
+    "lng": -122.9343012
+  },
+  {
+    "name": "Loon Lake",
+    "address": "West Side of Pine St, Loon Lake, WA 99148",
+    "lat": 48.0627023,
+    "lng": -117.6219344
+  },
+  {
+    "name": "Milton Freewater",
+    "address": "514 N Elizabeth, Milton-Freewater, OR 97862",
+    "lat": 45.94175500000001,
+    "lng": -118.38884
+  },
+  {
+    "name": "Moses Lake AFB",
+    "address": "1304 Larsen Blvd Grant Co Airport, Moses Lake, WA 98837",
+    "lat": 47.1737622,
+    "lng": -119.328707
+  },
+  {
+    "name": "Moses Lake Alder",
+    "address": "320 S Alder St, Moses Lake, WA 98837",
+    "lat": 47.1300623,
+    "lng": -119.276409
+  },
+  {
+    "name": "Napavine",
+    "address": "Jefferson & A St, Napavine, WA 98565",
+    "lat": 46.5754211,
+    "lng": -122.9081683
+  },
+  {
+    "name": "Newman Lake",
+    "address": "West of Star Rd, Newman Lake, WA 99025",
+    "lat": 47.74404759999999,
+    "lng": -117.0689059
+  },
+  {
+    "name": "NezPerce",
+    "address": "S of Summit Ave E of 5th St, Nezperce, ID 83543",
+    "lat": 46.235021,
+    "lng": -116.2404961
+  },
+  {
+    "name": "Northport",
+    "address": "684 Pt Brown Ave NE, Northport, WA 99157",
+    "lat": 48.91602229999999,
+    "lng": -117.7816505
+  },
+  {
+    "name": "Ocean Shores",
+    "address": "684 Pt Brown Ave NE, Ocean Shores, WA 98569",
+    "lat": 47.0065393,
+    "lng": -124.1611322
+  },
+  {
+    "name": "Olympia Evergreen",
+    "address": "4111 36th NW, Olympia, WA 98502",
+    "lat": 47.0828408,
+    "lng": -122.9688306
+  },
+  {
+    "name": "Olympia Whitehall",
+    "address": "714 S Washington, Olympia, WA 98501",
+    "lat": 46.9770179,
+    "lng": -122.858419
+  },
+  {
+    "name": "Omak",
+    "address": "16 W 3rd Ave, Omak, WA 98841",
+    "lat": 48.40734399999999,
+    "lng": -119.529574
+  },
+  {
+    "name": "Orchards",
+    "address": "16W 3rd Ave, Vancouver, WA 98662",
+    "lat": 45.68944949999999,
+    "lng": -122.5829013
+  },
+  {
+    "name": "Oroville",
+    "address": "707 W Lewis St, Oroville, WA 98844",
+    "lat": 48.9392876,
+    "lng": -119.4352588
+  },
+  {
+    "name": "Othello",
+    "address": "240 Warren Ave, Othello, WA 99344",
+    "lat": 46.8259742,
+    "lng": -119.1752913
+  },
+  {
+    "name": "Pasco",
+    "address": "827 Columbia St, Pasco, WA 99301",
+    "lat": 46.2283244,
+    "lng": -119.0988882
+  },
+  {
+    "name": "Pateros",
+    "address": "165 Miles from Oak Bay Rd, Pateros, WA 98846",
+    "lat": 48.0509756,
+    "lng": -119.9034007
+  },
+  {
+    "name": "Port Angeles",
+    "address": "406 South Laurel, Port Angeles, WA 98363",
+    "lat": 48.1163014,
+    "lng": -123.436346
+  },
+  {
+    "name": "Port Ludlow",
+    "address": "65 Miles from Oak Bay Rd, Port Ludlow, WA 98365",
+    "lat": 47.9210472,
+    "lng": -122.7013055
+  },
+  {
+    "name": "Port Orchard",
+    "address": "Sidney Rd, Port Orchard, WA 98366",
+    "lat": 47.5020881,
+    "lng": -122.6528934
+  },
+  {
+    "name": "Port Townsend",
+    "address": "641 Harrison, Port Townsend, WA 98368",
+    "lat": 48.1157597,
+    "lng": -122.7639441
+  },
+  {
+    "name": "Pomeroy",
+    "address": "Pomeroy, Pomeroy, WA 99347",
+    "lat": 46.4748738,
+    "lng": -117.6026896
+  },
+  {
+    "name": "Rochester",
+    "address": "10844 SW Hwy 12, Rochester, WA 98579",
+    "lat": 46.823549,
+    "lng": -123.1113557
+  },
+  {
+    "name": "Ridgefield",
+    "address": "Pioneer Hwy near Country Rd, Ridgefield, WA 98642",
+    "lat": 45.8157927,
+    "lng": -122.7132784
+  },
+  {
+    "name": "Sequim",
+    "address": "114 W Bell, Sequim, WA 98382",
+    "lat": 48.0787469,
+    "lng": -123.1023747
+  },
+  {
+    "name": "Shelton",
+    "address": "522 Railroad Ave, Shelton, WA 98584",
+    "lat": 47.2135454,
+    "lng": -123.1055636
+  },
+  {
+    "name": "Silverdale",
+    "address": "9507 Mickleberry Rd, Silverdale, WA 98383",
+    "lat": 47.6492061,
+    "lng": -122.6829351
+  },
+  {
+    "name": "Spokane Chestnut",
+    "address": "S 1414 Craig Rd, Spokane, WA 99202",
+    "lat": 47.6674592,
+    "lng": -117.6011261
+  },
+  {
+    "name": "Spokane Fairfax",
+    "address": "N 2115 Jefferson St, Spokane, WA 99205",
+    "lat": 47.6773856,
+    "lng": -117.4301897
+  },
+  {
+    "name": "Spokane Hudson",
+    "address": "E 1011 Euclid Ave, Spokane, WA 99207",
+    "lat": 47.6864378,
+    "lng": -117.3943045
+  },
+  {
+    "name": "Spokane Keystone",
+    "address": "E 2012 3rd Ave, Spokane, WA 99202",
+    "lat": 47.65347430000001,
+    "lng": -117.3802533
+  },
+  {
+    "name": "Spokane Moran",
+    "address": "W 501 2nd Ave, Spokane, WA 99204",
+    "lat": 47.6541704,
+    "lng": -117.4199113
+  },
+  {
+    "name": "Spokane Riverside",
+    "address": "25 S Robie St, Spokane, WA 99201",
+    "lat": 47.6779952,
+    "lng": -117.241048
+  },
+  {
+    "name": "Spokane Walnut",
+    "address": "W 5 Holland, Spokane, WA 99218",
+    "lat": 47.7435943,
+    "lng": -117.4120491
+  },
+  {
+    "name": "Spokane Whitworth",
+    "address": "Corner of Ash & Harrison, Spokane, WA 99218",
+    "lat": 47.7547953,
+    "lng": -117.4045676
+  },
+  {
+    "name": "Springdale",
+    "address": "Springdale, Springdale, WA 99173",
+    "lat": 48.0573924,
+    "lng": -117.7413489
+  },
+  {
+    "name": "Sunnyslope",
+    "address": "4050 Sunnyslope SW, Wenatchee, WA 98801",
+    "lat": 47.442638,
+    "lng": -120.3244359
+  },
+  {
+    "name": "Vancouver North",
+    "address": "2411 NE 119th, Vancouver, WA 98686",
+    "lat": 45.7070786,
+    "lng": -122.6461029
+  },
+  {
+    "name": "Vancouver Oxford",
+    "address": "214 E 24th St, Vancouver, WA 98661",
+    "lat": 45.6388724,
+    "lng": -122.6695708
+  },
+  {
+    "name": "Waitsburg",
+    "address": "206 Coppei Ave, Waitsburg, WA 99361",
+    "lat": 46.2706727,
+    "lng": -118.153555
+  },
+  {
+    "name": "Walla Walla",
+    "address": "102 E Alder St, Walla Walla, WA 99362",
+    "lat": 46.0663534,
+    "lng": -118.3367424
+  },
+  {
+    "name": "Walla Walla Touchet",
+    "address": "2nd St W of Alder, Touchet, WA 99363",
+    "lat": 46.0836009,
+    "lng": -118.9067488
+  },
+  {
+    "name": "Warden",
+    "address": "1st St & Shannon St, Warden, WA 98857",
+    "lat": 46.9697599,
+    "lng": -119.0531499
+  },
+  {
+    "name": "Winlock",
+    "address": "211 NE 1st St, Winlock, WA 98596",
+    "lat": 46.4915775,
+    "lng": -122.9370246
+  },
+  {
+    "name": "Yakima Chestnut",
+    "address": "N 72nd Ave, Yakima, WA 98908",
+    "lat": 46.6023582,
+    "lng": -120.6038989
+  },
+  {
+    "name": "Yakima West",
+    "address": "N 72nd Ave, Yakima, WA 98902",
+    "lat": 46.6023582,
+    "lng": -120.6038989
+  }
+]

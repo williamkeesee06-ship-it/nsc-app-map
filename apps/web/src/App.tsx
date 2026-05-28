@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from "./features/auth/authContext.js";
 import LoginScreen from "./features/auth/LoginScreen.js";
 import { FiltersProvider } from "./features/jobs-map/filtersContext.js";
 import StatusFilterPills from "./features/jobs-map/StatusFilterPills.js";
+import CentralOfficesPill from "./features/jobs-map/CentralOfficesPill.js";
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -56,6 +57,7 @@ function Shell() {
               <TopbarActions />
               <UserChip />
               <StatusFilterPills />
+              <CentralOfficesPill />
             </header>
             <Routes>
               <Route path="/" element={<JobsMap />} />

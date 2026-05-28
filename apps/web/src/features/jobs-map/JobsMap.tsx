@@ -17,6 +17,8 @@ import { api } from "../../lib/api.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import AllJobsMarkupsOverlay from "../drawing/AllJobsMarkupsOverlay.js";
+import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
+import { useShowCOs } from "./centralOfficesStore.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import MapTypeToggle from "../map/MapTypeToggle.js";
 import type { MapTheme } from "../map/themeContext.js";
@@ -187,6 +189,9 @@ function JobsMapInner({
     [setSelected, loadObjects, saveDrawing, drawState.dirty, drawState.objects, drawState.targetJobId]
   );
 
+  // Lumen Central Offices overlay — toggled from the topbar pill.
+  const showCOs = useShowCOs();
+
   return (
     <div className="jobs-map">
       <LeftRail
@@ -221,6 +226,7 @@ function JobsMapInner({
                 if (j) void handleSelect(j);
               }}
             />
+            <CentralOfficesOverlay visible={showCOs} />
             <DrawingOverlay />
             <MapTypeToggle />
           </Map>
