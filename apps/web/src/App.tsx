@@ -14,9 +14,11 @@ import StatusFilterPills from "./features/jobs-map/StatusFilterPills.js";
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
+const LIBRARIES: ("geometry")[] = ["geometry"];
+
 export default function App() {
   return (
-    <APIProvider apiKey={apiKey ?? ""} libraries={["geometry"]}>
+    <APIProvider apiKey={apiKey ?? ""} libraries={LIBRARIES}>
       <AuthProvider>
         <SearchFocusProvider>
           <FiltersProvider>
