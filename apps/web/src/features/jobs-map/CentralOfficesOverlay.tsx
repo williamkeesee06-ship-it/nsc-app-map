@@ -1,7 +1,7 @@
 // CentralOfficesOverlay — read-only layer of Lumen WA Central Offices.
-// Neon-cyan Greek temple / courthouse icon (classic CO symbol) with matching
-// neon labels below. Markers + labels only render at zoom >= MIN_ZOOM so they
-// behave the same way as WO labels (don't crowd the map when zoomed out).
+// Neon-cyan Greek temple / courthouse icon (classic CO symbol) ALWAYS visible
+// at the same size as job pin markers. The text label appears only at zoom
+// >= LABEL_MIN_ZOOM (same threshold as WO labels in JobsMap).
 import { useEffect, useRef } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
 import centralOffices from "../../data/centralOffices.json";
@@ -10,14 +10,13 @@ interface Props {
   visible: boolean;
 }
 
-// Zoom threshold — match WO_LABEL_MIN_ZOOM in JobsMap.tsx
-const MIN_ZOOM = 11;
+// Match WO_LABEL_MIN_ZOOM in JobsMap.tsx
+const LABEL_MIN_ZOOM = 13;
 
 const NEON_CYAN = "#22D3FF";
-const NEON_CYAN_DEEP = "#0A8CC2";
 
 // Greek temple / courthouse SVG — neon stroke, columns, pediment, base.
-// 44×44 viewBox, white inner stroke + cyan glow halo via filter.
+// Sized to match job pin markers (26×36 in JobMarkers.tsx).
 const TEMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
   <defs>
     <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
@@ -99,27 +98,30 @@ export default function CentralOfficesOverlay({ visible }: Props) {
     const labels: google.maps.Marker[] = [];
 
     for (const co of centralOffices as Array<{ name: string; address: string; lat: number; lng: number }>) {
+      // CO icon — ALWAYS visible (matches job pin behavior, sized like a job pin).
       const pin = new google.maps.Marker({
         position: { lat: co.lat, lng: co.lng },
-        map: null, // toggled below by zoom
+        map,
         title: `Lumen CO · ${co.name}\n${co.address}`,
         icon: {
           url: TEMPLE_URL,
-          scaledSize: new google.maps.Size(44, 44),
-          anchor: new google.maps.Point(22, 38), // base of building
+          scaledSize: new google.maps.Size(28, 28),
+          anchor: new google.maps.Point(14, 24), // base of building
         },
         zIndex: 9999,
       });
       markers.push(pin);
 
+      // CO label — only visible at zoom >= LABEL_MIN_ZOOM, same rule as WO labels.
       const { url: labelUrl, w } = nameLabelUrl(co.name);
+      const initialZoom = map.getZoom() ?? 0;
       const label = new google.maps.Marker({
         position: { lat: co.lat, lng: co.lng },
-        map: null, // toggled below by zoom
+        map: initialZoom >= LABEL_MIN_ZOOM ? map : null,
         icon: {
           url: labelUrl,
           scaledSize: new google.maps.Size(w, 22),
-          anchor: new google.maps.Point(w / 2, -6), // sits below the temple base
+          anchor: new google.maps.Point(w / 2, -4), // sits below the temple base
         },
         clickable: false,
         zIndex: 9998,
@@ -130,16 +132,13 @@ export default function CentralOfficesOverlay({ visible }: Props) {
     markersRef.current = markers;
     labelsRef.current = labels;
 
-    // Apply current zoom visibility, then watch for zoom changes.
-    const applyZoom = () => {
+    // Watch zoom — only the labels respond to zoom; icons stay visible always.
+    const applyLabelZoom = () => {
       const z = map.getZoom() ?? 0;
-      const show = z >= MIN_ZOOM;
-      const target = show ? map : null;
-      markersRef.current.forEach((m) => m.setMap(target));
+      const target = z >= LABEL_MIN_ZOOM ? map : null;
       labelsRef.current.forEach((m) => m.setMap(target));
     };
-    applyZoom();
-    const zoomListener = map.addListener("zoom_changed", applyZoom);
+    const zoomListener = map.addListener("zoom_changed", applyLabelZoom);
 
     return () => {
       zoomListener.remove();
