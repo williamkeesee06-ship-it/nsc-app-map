@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useJobs } from "../jobs-map/useJobs.js";
 import { useSearchFocus } from "./searchContext.js";
+import { useMarkupSearchEntries, type MarkupSearchEntry } from "./markupSearchStore.js";
 import type { Job } from "@nsc/types";
 
 export default function SearchBar() {
@@ -19,6 +20,7 @@ export default function SearchBar() {
   const allJobs = jobsState.state === "ready" ? jobsState.jobs : [];
   const navigate = useNavigate();
   const { focusJob, focusLatLng } = useSearchFocus();
+  const allMarkups = useMarkupSearchEntries();
 
   const [term, setTerm] = useState("");
   const [open, setOpen] = useState(false);
@@ -49,6 +51,16 @@ export default function SearchBar() {
       .slice(0, 6);
   }, [term, allJobs]);
 
+  // Markup suggestions — anything the user typed on the map (userLabel,
+  // description, or text content). Matches on label substring.
+  const markupSuggestions = useMemo<MarkupSearchEntry[]>(() => {
+    const t = term.trim().toLowerCase();
+    if (!t) return [];
+    return allMarkups
+      .filter((m) => m.label.toLowerCase().includes(t))
+      .slice(0, 6);
+  }, [term, allMarkups]);
+
   function pickJob(job: Job) {
     setOpen(false);
     setError(null);
@@ -56,6 +68,17 @@ export default function SearchBar() {
     // Ensure we're on the Jobs Map route so the map exists to receive focus.
     navigate("/");
     focusJob(job.jobId);
+  }
+
+  function pickMarkup(m: MarkupSearchEntry) {
+    setOpen(false);
+    setError(null);
+    setTerm(m.label);
+    navigate("/");
+    // Jump the map to the markup's location. Job card will open via
+    // the existing AllJobsMarkupsOverlay click handler the next time the
+    // user clicks the markup; we just take them to the spot first.
+    focusLatLng(m.lat, m.lng, m.label);
   }
 
   // Lazy-load the Google geocoder. APIProvider already loaded the maps JS,
@@ -101,6 +124,11 @@ export default function SearchBar() {
     }
     if (suggestions.length === 1 && (suggestions[0]!.workOrder || "").toLowerCase().includes(lower)) {
       pickJob(suggestions[0]!);
+      return;
+    }
+    // If the only match is a markup, jump to it.
+    if (suggestions.length === 0 && markupSuggestions.length > 0) {
+      pickMarkup(markupSuggestions[0]!);
       return;
     }
 
@@ -161,30 +189,57 @@ export default function SearchBar() {
       {open && (term.trim().length > 0 || error) && (
         <div className="search-suggest">
           {error && <div className="search-suggest__error">{error}</div>}
+
           {suggestions.length > 0 && (
-            <ul className="search-suggest__list">
-              {suggestions.map((j) => (
-                <li key={j.jobId}>
-                  <button
-                    type="button"
-                    className="search-suggest__row"
-                    onClick={() => pickJob(j)}
-                  >
-                    <span className="search-suggest__wo">{j.workOrder}</span>
-                    <span className="search-suggest__addr">
-                      {[j.address, j.city].filter(Boolean).join(", ") || "—"}
-                    </span>
-                    {j.secondaryJobStatus && (
-                      <span className="search-suggest__status">{j.secondaryJobStatus}</span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <div className="search-suggest__heading">JOBS</div>
+              <ul className="search-suggest__list">
+                {suggestions.map((j) => (
+                  <li key={j.jobId}>
+                    <button
+                      type="button"
+                      className="search-suggest__row"
+                      onClick={() => pickJob(j)}
+                    >
+                      <span className="search-suggest__wo">{j.workOrder}</span>
+                      <span className="search-suggest__addr">
+                        {[j.address, j.city].filter(Boolean).join(", ") || "—"}
+                      </span>
+                      {j.secondaryJobStatus && (
+                        <span className="search-suggest__status">{j.secondaryJobStatus}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
-          {suggestions.length === 0 && !error && term.trim().length > 0 && (
+
+          {markupSuggestions.length > 0 && (
+            <>
+              <div className="search-suggest__heading">MAP MARKUPS</div>
+              <ul className="search-suggest__list">
+                {markupSuggestions.map((m) => (
+                  <li key={`${m.jobId}:${m.objId}`}>
+                    <button
+                      type="button"
+                      className="search-suggest__row search-suggest__row--markup"
+                      onClick={() => pickMarkup(m)}
+                    >
+                      <span className="search-suggest__wo">{m.label}</span>
+                      <span className="search-suggest__addr">
+                        {m.tool} · job {m.jobId}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {suggestions.length === 0 && markupSuggestions.length === 0 && !error && term.trim().length > 0 && (
             <div className="search-suggest__hint">
-              No job # match — press <kbd>Enter</kbd> to search this as an address.
+              No job or markup match — press <kbd>Enter</kbd> to search this as an address.
             </div>
           )}
         </div>

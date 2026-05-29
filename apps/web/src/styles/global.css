@@ -2703,3 +2703,21 @@ input:focus, textarea:focus, select:focus {
 .undo-redo-btn__label {
   font-size: 9px;
 }
+
+/* Search suggestion section heading (JOBS / MAP MARKUPS) */
+.search-suggest__heading {
+  padding: 6px 12px 4px 12px;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-muted, #8a96a3);
+  text-transform: uppercase;
+  border-top: 1px solid rgba(200,208,218,0.08);
+}
+.search-suggest__heading:first-child {
+  border-top: none;
+}
+.search-suggest__row--markup .search-suggest__wo {
+  color: #22D3FF;
+}

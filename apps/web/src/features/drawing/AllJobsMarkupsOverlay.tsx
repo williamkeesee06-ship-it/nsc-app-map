@@ -19,6 +19,7 @@ import type { DrawingObject } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { useDrawing } from "./drawingContext.js";
 import { useAuth } from "../auth/authContext.js";
+import { setMarkupSearchDocs } from "../search/markupSearchStore.js";
 import { iconForTool } from "./icons/telecomIcons.js";
 
 const PLACED_COLOR  = "#39ff7a";
@@ -293,6 +294,7 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
       if (!markupOwner) {
         // No user signed in — clear and bail.
         docsRef.current = [];
+        setMarkupSearchDocs([]);
         renderAll();
         return;
       }
@@ -301,6 +303,8 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
         jobId: d.jobId,
         objects: (d.objects as DrawingObject[]) ?? [],
       }));
+      // Publish to the global markup-search store so SearchBar can query it.
+      setMarkupSearchDocs(docsRef.current);
       renderAll();
     } catch {
       // silent — overlay is best-effort
