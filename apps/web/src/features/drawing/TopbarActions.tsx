@@ -112,8 +112,6 @@ export default function TopbarActions() {
         {isWorkspace && (
           <CoinBtn onClick={() => navigate("/")} title="Back to Jobs Map" variant="back">←</CoinBtn>
         )}
-        <CoinBtn disabled title="Undo">↶</CoinBtn>
-        <CoinBtn disabled title="Redo">↷</CoinBtn>
         <CoinBtn disabled title="Screenshot">
           <ScreenshotIcon />
         </CoinBtn>

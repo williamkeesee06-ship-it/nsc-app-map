@@ -1,53 +1,92 @@
-// Phase 9.6 (Billy 5/26): floating Map / Satellite toggle.
-// Sits in the top-right corner of the map area (below the modifier strip).
-// Cycles: Roadmap → Satellite → Hybrid → Roadmap.
-import { useEffect, useState } from "react";
+// Enhanced Map Style Control - Dark map + full label toggling
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
+import { getMapStyles } from "./mapStyles.js";
 
 type MapType = "roadmap" | "satellite" | "hybrid" | "terrain";
+
+export interface MapPreferences {
+  mapType: MapType;
+  dark: boolean;
+  showRoadLabels: boolean;
+  showPoiLabels: boolean;
+}
 
 const LABELS: Record<MapType, string> = {
   roadmap: "Map",
   satellite: "Satellite",
-  hybrid: "Hybrid",
+  hybrid: "Satellite (labels)",
   terrain: "Terrain",
 };
 
-const NEXT: Record<MapType, MapType> = {
-  roadmap: "satellite",
-  satellite: "hybrid",
-  hybrid: "terrain",
-  terrain: "roadmap",
-};
+const PREFS_KEY = "nsc:mapPrefs";
 
-const STORAGE_KEY = "nsc:mapType";
-
-function readStored(): MapType {
+function loadPrefs(): MapPreferences {
   try {
-    const v = window.localStorage.getItem(STORAGE_KEY);
-    if (v === "roadmap" || v === "satellite" || v === "hybrid") return v;
-  } catch { /* ignore */ }
-  return "roadmap";
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {
+    mapType: "roadmap",
+    dark: false,
+    showRoadLabels: true,
+    showPoiLabels: true,
+  };
+}
+
+function savePrefs(prefs: MapPreferences) {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
+}
+
+function broadcast(prefs: MapPreferences) {
+  window.dispatchEvent(new CustomEvent("nsc:map-prefs-changed", { detail: prefs }));
 }
 
 export default function MapTypeToggle() {
   const map = useMap();
-  const [mapType, setMapType] = useState<MapType>(() => readStored());
+  const [prefs, setPrefs] = useState<MapPreferences>(loadPrefs);
   const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Apply on mount and whenever it changes — ensures smooth transitions
+  const { mapType, dark, showRoadLabels, showPoiLabels } = prefs;
+
+  // Apply everything to the map
   useEffect(() => {
     if (!map) return;
+
     map.setMapTypeId(mapType);
 
-    // Re-apply custom styles when switching (especially important for satellite/hybrid + dark theme combo)
-    // Google Maps will blend our styles where possible.
-    try { window.localStorage.setItem(STORAGE_KEY, mapType); } catch { /* ignore */ }
-  }, [map, mapType]);
+    const styles = getMapStyles({
+      dark,
+      showRoadLabels,
+      showPoiLabels,
+    });
+    map.setOptions({ styles });
 
-  function selectType(type: MapType) {
-    setMapType(type);
-    setOpen(false);
+    savePrefs(prefs);
+    broadcast(prefs);
+  }, [map, prefs]);
+
+  // Sync between map instances
+  useEffect(() => {
+    const h = (e: Event) => setPrefs((e as CustomEvent<MapPreferences>).detail);
+    window.addEventListener("nsc:map-prefs-changed", h);
+    return () => window.removeEventListener("nsc:map-prefs-changed", h);
+  }, []);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  function update(update: Partial<MapPreferences>) {
+    setPrefs(prev => ({ ...prev, ...update }));
   }
 
   return (
@@ -56,59 +95,90 @@ export default function MapTypeToggle() {
         type="button"
         className="map-type-toggle"
         onClick={() => setOpen(!open)}
-        title="Change base map style"
-        aria-label="Base map options"
+        title="Map style & labels"
       >
-        <span className="map-type-toggle__icon" aria-hidden="true">
-          {mapType === "roadmap" ? "🗺" : 
-           mapType === "satellite" ? "🛰" : 
-           mapType === "hybrid" ? "🌐" : "🏔"}
+        <span className="map-type-toggle__icon">
+          {dark ? "🌙" : mapType === "roadmap" ? "🗺" : mapType === "satellite" ? "🛰" : mapType === "hybrid" ? "🌐" : "🏔"}
         </span>
-        <span className="map-type-toggle__label">{LABELS[mapType]}</span>
-        <span style={{ marginLeft: 4, fontSize: 9 }}>▼</span>
+        <span className="map-type-toggle__label">
+          {dark ? "Dark" : LABELS[mapType]}
+        </span>
+        <span style={{ fontSize: 9, marginLeft: 2 }}>▼</span>
       </button>
 
       {open && (
-        <div style={{
-          position: "absolute",
-          top: "100%",
-          right: 0,
-          marginTop: 4,
-          background: "var(--surface, #1f2836)",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          padding: 4,
-          zIndex: 200,
-          minWidth: 140,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-          fontFamily: "inherit",
-        }}>
-          {(["roadmap", "satellite", "hybrid", "terrain"] as MapType[]).map((t) => (
+        <div
+          ref={dropdownRef}
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            marginTop: 6,
+            background: "rgba(28, 33, 45, 0.97)",
+            border: "1px solid rgba(200, 208, 218, 0.3)",
+            borderRadius: 10,
+            padding: "6px 0",
+            minWidth: 215,
+            zIndex: 400,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
+            fontSize: 13,
+          }}
+        >
+          {/* Base Maps */}
+          <div style={{ padding: "4px 14px 2px", fontSize: 10, color: "#8a96a3", fontWeight: 600 }}>BASE MAP</div>
+
+          {(["roadmap", "satellite", "hybrid", "terrain"] as const).map(type => (
             <button
-              key={t}
-              onClick={() => selectType(t)}
+              key={type}
+              onClick={() => update({ mapType: type, dark: false })}
               style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                padding: "6px 10px",
-                background: t === mapType ? "rgba(58,167,255,0.15)" : "transparent",
-                border: "none",
-                color: "#f4f8ff",
-                cursor: "pointer",
-                fontSize: 12,
-                borderRadius: 4,
+                display: "flex", width: "100%", padding: "6px 14px", gap: 8, alignItems: "center",
+                background: type === mapType && !dark ? "rgba(58,167,255,0.18)" : "transparent",
+                border: "none", color: "#f4f8ff", cursor: "pointer", textAlign: "left"
               }}
             >
-              {LABELS[t]}
+              <span style={{ width: 20 }}>
+                {type === "roadmap" ? "🗺" : type === "satellite" ? "🛰" : type === "hybrid" ? "🌐" : "🏔"}
+              </span>
+              {LABELS[type]}
             </button>
           ))}
 
-          <div style={{ height: 1, background: "rgba(200,208,218,0.15)", margin: "4px 0" }} />
+          {/* Dark Map */}
+          <button
+            onClick={() => update({ dark: true, mapType: "roadmap" })}
+            style={{
+              display: "flex", width: "100%", padding: "6px 14px", gap: 8, alignItems: "center", marginTop: 2,
+              background: dark ? "rgba(58,167,255,0.18)" : "transparent",
+              border: "none", color: "#f4f8ff", cursor: "pointer", textAlign: "left"
+            }}
+          >
+            <span style={{ width: 20 }}>🌙</span>
+            <strong>Dark Map</strong>
+          </button>
 
-          <div style={{ padding: "4px 10px", fontSize: 10, color: "#8a96a3" }}>
-            Satellite + Street View works best in Hybrid
-          </div>
+          <div style={{ height: 1, background: "rgba(200,208,218,0.2)", margin: "6px 10px" }} />
+
+          {/* Label Toggles */}
+          <div style={{ padding: "2px 14px 4px", fontSize: 10, color: "#8a96a3", fontWeight: 600 }}>LABELS</div>
+
+          <label style={{ display: "flex", alignItems: "center", padding: "5px 14px", gap: 8, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={showRoadLabels}
+              onChange={e => update({ showRoadLabels: e.target.checked })}
+            />
+            Street / road names
+          </label>
+
+          <label style={{ display: "flex", alignItems: "center", padding: "5px 14px", gap: 8, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={showPoiLabels}
+              onChange={e => update({ showPoiLabels: e.target.checked })}
+            />
+            Businesses &amp; places
+          </label>
         </div>
       )}
     </div>

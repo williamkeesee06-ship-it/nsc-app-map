@@ -439,7 +439,7 @@ a { color: var(--accent); }
   border: 1px solid var(--chrome-dark);
   background: linear-gradient(160deg, var(--chrome-light) 0%, var(--surface) 60%, #E0E6EE 100%);
   cursor: pointer;
-  transition: box-shadow 120ms ease, border-color 120ms ease;
+  transition: box-shadow 120ms ease, border-color 120ms ease, background 120ms ease;
   min-height: 48px;
   min-width: 0;
   box-shadow: 0 1px 3px rgba(0,0,0,0.10), inset 0 1px 1px rgba(255,255,255,0.8);
@@ -448,16 +448,44 @@ a { color: var(--accent); }
   position: relative;
   overflow: hidden;
 }
-.tool-tile:hover:not(:disabled) {
-  border-color: var(--accent);
-  box-shadow: 0 2px 8px rgba(21,101,192,0.18), inset 0 1px 2px rgba(255,255,255,0.9);
+
+/* Blue neon glow behind the button */
+.tool-tile::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9px;
+  background: transparent;
+  box-shadow: 0 0 0 0 rgba(58, 167, 255, 0);
+  transition: box-shadow 160ms ease;
+  z-index: -1;
+  pointer-events: none;
 }
+
+.tool-tile:hover:not(:disabled)::before {
+  box-shadow: 0 0 14px rgba(58, 167, 255, 0.55);
+}
+
 .tool-tile:disabled { opacity: 0.38; cursor: not-allowed; }
 
-/* Active: cobalt ring + blue glow */
+/* Active: strong neon blue glow + whole icon turns neon blue */
 .tool-tile--active {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(21,101,192,0.28), 0 2px 8px rgba(21,101,192,0.25), inset 0 1px 2px rgba(255,255,255,0.9) !important;
+  border-color: #3aa7ff !important;
+  background: linear-gradient(160deg, #1a2a44 0%, #162033 60%, #1f2f4a 100%) !important;
+}
+
+.tool-tile--active::before {
+  box-shadow: 0 0 20px rgba(58, 167, 255, 0.85), 0 0 36px rgba(58, 167, 255, 0.45);
+}
+
+/* Make the icon neon blue when active */
+.tool-tile--active .tool-tile__icon {
+  filter: brightness(1.15) saturate(1.8);
+  color: #3aa7ff;
+}
+
+.tool-tile--active .tool-tile__icon svg {
+  stroke: #3aa7ff !important;
 }
 
 .tool-tile__icon {
@@ -1324,28 +1352,25 @@ a { color: var(--accent); }
   gap: 6px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(248,250,252,0.92);
+  background: rgba(30, 36, 48, 0.92);
   backdrop-filter: blur(12px) saturate(1.4);
   -webkit-backdrop-filter: blur(12px) saturate(1.4);
-  border: 1.5px solid rgba(192,200,208,0.9);
-  box-shadow:
-    0 2px 8px rgba(0,0,0,0.18),
-    inset 0 1px 0 rgba(255,255,255,0.9);
+  border: 1.5px solid rgba(200, 208, 218, 0.35);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
   font-family: ui-monospace, 'SF Mono', Consolas, monospace;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text, #1A2332);
+  color: #f4f8ff;
   cursor: pointer;
   user-select: none;
   transition: transform 80ms ease, box-shadow 120ms ease;
 }
 .map-type-toggle:hover {
-  box-shadow:
-    0 3px 12px rgba(0,0,0,0.24),
-    inset 0 1px 0 rgba(255,255,255,1);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
   transform: translateY(-1px);
+  border-color: rgba(200, 208, 218, 0.5);
 }
 .map-type-toggle:active {
   transform: translateY(0);
@@ -2712,15 +2737,40 @@ input:focus, textarea:focus, select:focus {
   font-weight: 700;
   letter-spacing: 0.06em;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 160ms ease;
+  position: relative;
 }
+
+/* Neon glow for undo/redo buttons */
+.undo-redo-btn::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: 0 0 0 0 rgba(58, 167, 255, 0);
+  transition: box-shadow 160ms ease;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.undo-redo-btn:hover:not(:disabled)::before {
+  box-shadow: 0 0 12px rgba(58, 167, 255, 0.5);
+}
+
 .undo-redo-btn:hover:not(:disabled) {
   background: rgba(255,255,255,0.10);
   border-color: rgba(200,208,218,0.45);
 }
+
 .undo-redo-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+/* Active glow when not disabled */
+.undo-redo-btn:not(:disabled):active {
+  box-shadow: 0 0 16px rgba(58, 167, 255, 0.7);
 }
 .undo-redo-btn__glyph {
   font-size: 14px;
