@@ -630,6 +630,9 @@ export default function DrawingOverlay() {
   // Hatch-fill overlays keyed by object id (one per hashed polygon/rect/circle).
   const hatchRef = useRef<globalThis.Map<string, HatchOverlay>>(new globalThis.Map());
 
+  // Track selection click listeners so we can reliably attach them when entering Select mode
+  const selectionListenersRef = useRef<globalThis.Map<string, google.maps.MapsEventListener>>(new globalThis.Map());
+
   // Phase 5.1: pending object waiting for the placement popup
   const [pendingObject, setPendingObject] = useState<{
     obj: DrawingObject;
@@ -722,6 +725,8 @@ export default function DrawingOverlay() {
       overlay.setOptions({ clickable: true });
     });
   }, [map, state.activeTool]);
+
+
 
   // ─── Phase 5.3: zoom_changed → rescale symbols + re-place labels ─────────
   useEffect(() => {
@@ -879,6 +884,13 @@ export default function DrawingOverlay() {
         const prevCallout = calloutLinesRef.current.get(obj.id + "_callout");
         if (prevCallout) { prevCallout.setMap(null); calloutLinesRef.current.delete(obj.id + "_callout"); }
         removeGeoListeners(obj.id);
+
+        // Remove selection listener if present
+        const selListener = selectionListenersRef.current.get(obj.id);
+        if (selListener) {
+          selListener.remove();
+          selectionListenersRef.current.delete(obj.id);
+        }
         return;
       }
 
@@ -942,6 +954,28 @@ export default function DrawingOverlay() {
           attachGeoListeners(obj.id, existing);
         } else {
           removeGeoListeners(obj.id);
+        }
+
+        // Make sure selection click listener is present when in Select tool
+        if (isSelectTool && !selectionListenersRef.current.has(obj.id)) {
+          const selListener = existing.addListener("click", (e: google.maps.MapMouseEvent) => {
+            const domEvent = (e as any).domEvent as MouseEvent | undefined;
+            const pos = domEvent ? { x: domEvent.clientX, y: domEvent.clientY } : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+            const additive = domEvent?.shiftKey ?? false;
+
+            select([obj.id], additive);
+
+            const live = state.objects.find((o) => o.id === obj.id);
+            if (live) {
+              setCardObj(live);
+              setCardAnchor(pos);
+            }
+
+            if (state.activeTool !== "select") {
+              setTool("select");
+            }
+          });
+          selectionListenersRef.current.set(obj.id, selListener);
         }
 
         // Update label marker if the displayed label changed (any source).
@@ -1078,6 +1112,10 @@ export default function DrawingOverlay() {
       calloutLinesRef.current.clear();
       measureInfoRef.current.forEach((iw) => iw.close());
       measureInfoRef.current.clear();
+
+      // Clean up selection listeners
+      selectionListenersRef.current.forEach((l) => l.remove());
+      selectionListenersRef.current.clear();
       labelVersionRef.current.clear();
       geoListenersRef.current.forEach((ls) => ls.forEach((l) => l.remove()));
       geoListenersRef.current.clear();
@@ -1086,6 +1124,47 @@ export default function DrawingOverlay() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, state.objects, state.selectedIds, state.activeTool]);
+
+  // Dedicated effect: ensure selection click listeners exist on all overlays when in Select mode.
+  // This is the main fix for "clicking existing markups does nothing".
+  useEffect(() => {
+    const isSelectTool = state.activeTool === "select" || state.activeTool === null;
+    if (!isSelectTool || !map) {
+      // Clean up if we leave select mode
+      selectionListenersRef.current.forEach((l) => l.remove());
+      selectionListenersRef.current.clear();
+      return;
+    }
+
+    overlaysRef.current.forEach((overlay, key) => {
+      if (key.endsWith("_label") || key.includes("_leader") || key.includes("_callout")) return;
+      if (selectionListenersRef.current.has(key)) return;
+
+      const listener = overlay.addListener("click", (e: google.maps.MapMouseEvent) => {
+        const domEvent = (e as any).domEvent as MouseEvent | undefined;
+        const pos = domEvent 
+          ? { x: domEvent.clientX, y: domEvent.clientY } 
+          : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+        const objId = key.split("_")[0];
+        const additive = domEvent?.shiftKey ?? false;
+
+        select([objId], additive);
+
+        const live = state.objects.find((o) => o.id === objId);
+        if (live) {
+          setCardObj(live);
+          setCardAnchor(pos);
+        }
+
+        if (state.activeTool !== "select") {
+          setTool("select");
+        }
+      });
+
+      selectionListenersRef.current.set(key, listener);
+    });
+  }, [state.activeTool, state.objects, map, select, setCardObj, setCardAnchor, setTool]);
 
   // Click on map background → clear selection + close card
   useEffect(() => {
