@@ -34,6 +34,17 @@ const AsbuiltLegacySchema = z.object({
   schemaVersion: z.literal(1),
 });
 
+// Layer schema (elevated My Maps style for personal desktop use)
+const JobLayerSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  hidden: z.boolean().optional(),
+  color: z.string().optional(),
+  icon: z.string().optional(),
+  opacity: z.number().min(0).max(1).optional(),
+  description: z.string().optional(),
+});
+
 // ---- Phase 3 schema (AsBuiltDocument — schemaVersion:2) ----
 const DrawingStyleSchema = z.object({
   strokeColor: z.string(),
@@ -50,6 +61,13 @@ const DrawingStyleSchema = z.object({
     }),
   ]),
   opacity: z.number().min(0).max(1),
+  pointSize: z.number().min(0.5).max(2).optional(),
+  icon: z.string().optional(),
+  hidden: z.boolean().optional(),
+  locked: z.boolean().optional(),
+  userLabel: z.string().optional(),
+  description: z.string().optional(),
+  layerId: z.string().optional(),
 });
 
 const VertexSchema = z.object({ lat: z.number(), lng: z.number() });
@@ -94,6 +112,7 @@ const DrawingObjectSchema = z.discriminatedUnion("tool", [
 const AsBuiltDocumentSchema = z.object({
   jobId: z.string().min(1),
   objects: z.array(DrawingObjectSchema),
+  layers: z.array(JobLayerSchema).optional(),
   updatedAt: z.number(),
   updatedBy: z.string().optional(),
   schemaVersion: z.literal(2),

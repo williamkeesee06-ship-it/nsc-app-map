@@ -4,6 +4,8 @@ import { useState, useRef, useCallback } from "react";
 import type { DrawingObject } from "@nsc/types";
 import { useDrawing } from "../drawing/drawingContext.js";
 import ObjectDetailsCard from "../drawing/ObjectDetailsCard.js";
+import IconPicker from "../drawing/IconPicker.js";
+import { getIconByKey, type IconKey } from "../drawing/icons/iconRegistry.js";
 
 
 const FEET_PER_METER = 3.28084;
@@ -502,6 +504,8 @@ function MyMapsLayers({ onPanTo: _onPanTo }: { onPanTo: (obj: DrawingObject) => 
     toggleLayerVisibility,
     setActiveLayer,
     moveObjectsToLayer,
+    updateLayer,
+    reorderLayers,
   } = useDrawing();
 
   const layers = state.layers;
@@ -510,10 +514,11 @@ function MyMapsLayers({ onPanTo: _onPanTo }: { onPanTo: (obj: DrawingObject) => 
   const dateStr = `${today.getMonth() + 1}-${today.getDate()}-${String(today.getFullYear()).slice(-2)}`;
 
   function handleAdd() {
-    const foreman = window.prompt("Foreman name?", "");
-    if (foreman === null) return;
-    const label = `${(foreman || "FOREMAN").toUpperCase()} // ${dateStr}`;
-    addLayer(label);
+    const label = window.prompt("Layer name (e.g. 'East Side - Placed 2025' or 'Field Findings - Damage')", "");
+    if (label === null) return;
+    const id = addLayer(label.trim() || `Layer ${dateStr}`);
+    // Auto-open icon picker feel by setting a sensible default icon
+    setTimeout(() => updateLayer(id, { icon: "pin" }), 0);
   }
 
   function handleRename(id: string, current: string) {
@@ -529,6 +534,12 @@ function MyMapsLayers({ onPanTo: _onPanTo }: { onPanTo: (obj: DrawingObject) => 
 
   // Selected object count — for "move to layer" action
   const selectedIds = state.selectedIds;
+
+  // Icon picker popover state (My Maps style)
+  const [iconPickerForLayer, setIconPickerForLayer] = useState<string | null>(null);
+
+  // Drag reorder state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   return (
     <div style={{
@@ -568,71 +579,207 @@ function MyMapsLayers({ onPanTo: _onPanTo }: { onPanTo: (obj: DrawingObject) => 
         </div>
       )}
 
-      {layers.map((l) => {
+      {layers.map((l, index) => {
         const isActive = l.id === activeId;
         const objCount = state.objects.filter((o) => o.style.layerId === l.id).length;
+        const iconDef = getIconByKey(l.icon);
+        const layerColor = l.color || "#3aa7ff";
+
+        const handleDragStart = (e: React.DragEvent) => {
+          setDraggedIndex(index);
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", index.toString());
+        };
+
+        const handleDragOver = (e: React.DragEvent) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+        };
+
+        const handleDrop = (e: React.DragEvent) => {
+          e.preventDefault();
+          const from = draggedIndex;
+          if (from !== null && from !== index) {
+            reorderLayers(from, index);
+          }
+          setDraggedIndex(null);
+        };
+
+        const handleDragEnd = () => {
+          setDraggedIndex(null);
+        };
+
         return (
           <div
             key={l.id}
+            draggable
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onDragEnd={handleDragEnd}
             style={{
               display: "flex",
               alignItems: "center",
               gap: 6,
-              padding: "4px 6px",
-              borderRadius: 4,
-              background: isActive ? "rgba(58,167,255,0.10)" : "transparent",
-              border: isActive ? "1px solid rgba(58,167,255,0.35)" : "1px solid transparent",
-              cursor: "pointer",
-              marginBottom: 2,
+              padding: "5px 6px",
+              borderRadius: 6,
+              background: isActive ? "rgba(58,167,255,0.12)" : "rgba(255,255,255,0.02)",
+              border: draggedIndex === index 
+                ? "2px dashed #39ff7a" 
+                : (isActive ? "1.5px solid #3aa7ff" : "1px solid rgba(200,208,218,0.15)"),
+              cursor: "grab",
+              marginBottom: 4,
+              opacity: draggedIndex === index ? 0.6 : 1,
             }}
             onClick={() => setActiveLayer(l.id)}
+            title={l.description || "Click to make this the active layer for new drawings. Drag to reorder (My Maps style)."}
           >
+            {/* Drag handle + Visibility toggle */}
+            <span 
+              style={{ 
+                cursor: "grab", 
+                color: "#6a7580", 
+                fontSize: 12, 
+                userSelect: "none",
+                paddingRight: 2 
+              }}
+              title="Drag to reorder layers"
+            >
+              ≡
+            </span>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); toggleLayerVisibility(l.id); }}
-              title={l.hidden ? "Show layer" : "Hide layer"}
-              style={{
-                background: "transparent", border: "none",
-                color: l.hidden ? "#6a7580" : "#f4f8ff",
-                cursor: "pointer", padding: 0, fontSize: 13, lineHeight: 1,
-              }}
+              title={l.hidden ? "Show layer (like My Maps)" : "Hide layer"}
+              style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 14, padding: 0 }}
             >
-              {l.hidden ? "🚫" : "●"}
+              {l.hidden ? "👁️‍🗨️" : "👁️"}
             </button>
-            <span style={{
-              flex: 1, fontSize: 11, fontWeight: 700,
-              color: l.hidden ? "#6a7580" : "#f4f8ff",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>
-              {l.label}
-            </span>
-            <span style={{ fontSize: 9, color: "#6a7580" }}>{objCount}</span>
-            {selectedIds.size > 0 && (
+
+            {/* Icon + Color (My Maps style customization) */}
+            <div
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                background: "rgba(0,0,0,0.25)",
+                padding: "1px 5px",
+                borderRadius: 4,
+                fontSize: 13,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span style={{ color: layerColor }}>{iconDef.emoji}</span>
+
+              {/* Icon picker button (My Maps style) */}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  moveObjectsToLayer(Array.from(selectedIds), l.id);
+                  setIconPickerForLayer(iconPickerForLayer === l.id ? null : l.id);
                 }}
-                title={`Move ${selectedIds.size} selected to this layer`}
-                style={{
-                  background: "transparent", border: "1px solid rgba(200,208,218,0.2)",
-                  color: "#c8d0da", borderRadius: 3, padding: "1px 5px",
-                  fontFamily: "inherit", fontSize: 9, cursor: "pointer",
+                title="Change layer icon (like Google My Maps)"
+                style={{ 
+                  background: "transparent", 
+                  border: "1px solid rgba(200,208,218,0.3)", 
+                  borderRadius: 3, 
+                  padding: "0 4px", 
+                  fontSize: 12, 
+                  cursor: "pointer",
+                  color: "#f4f8ff"
                 }}
               >
-                ←
+                {iconDef.emoji}
+              </button>
+
+              {/* Icon Picker Popover */}
+              {iconPickerForLayer === l.id && (
+                <div
+                  style={{
+                    position: "absolute",
+                    zIndex: 100,
+                    marginTop: "28px",
+                    background: "var(--surface, #1f2836)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    padding: 8,
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ fontSize: 9, color: "#8a96a3", marginBottom: 4, textTransform: "uppercase" }}>
+                    Choose icon for this layer
+                  </div>
+                  <IconPicker
+                    value={l.icon}
+                    onChange={(newIcon: IconKey) => {
+                      updateLayer(l.id, { icon: newIcon });
+                      setIconPickerForLayer(null);
+                    }}
+                    compact
+                  />
+                  <button
+                    onClick={() => setIconPickerForLayer(null)}
+                    style={{ 
+                      marginTop: 6, 
+                      fontSize: 10, 
+                      color: "#8a96a3", 
+                      background: "transparent", 
+                      border: "none", 
+                      cursor: "pointer" 
+                    }}
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+
+              <input
+                type="color"
+                value={layerColor}
+                onChange={(e) => updateLayer(l.id, { color: e.target.value })}
+                style={{ width: 18, height: 18, border: "none", background: "transparent", padding: 0, cursor: "pointer" }}
+                title="Layer color"
+              />
+            </div>
+
+            <span
+              style={{
+                flex: 1,
+                fontSize: 11,
+                fontWeight: 700,
+                color: l.hidden ? "#6a7580" : "#f4f8ff",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {l.label}
+            </span>
+
+            <span style={{ fontSize: 9, color: "#6a7580", minWidth: 18, textAlign: "right" }}>{objCount}</span>
+
+            {selectedIds.size > 0 && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); moveObjectsToLayer(Array.from(selectedIds), l.id); }}
+                title={`Move ${selectedIds.size} selected to this layer`}
+                style={{ background: "transparent", border: "1px solid rgba(200,208,218,0.25)", color: "#c8d0da", borderRadius: 3, padding: "0 4px", fontSize: 9, cursor: "pointer" }}
+              >
+                move
               </button>
             )}
+
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleRename(l.id, l.label); }}
-              title="Rename"
-              style={{
-                background: "transparent", border: "none", color: "#8a96a3",
-                cursor: "pointer", padding: 0, fontSize: 10,
-              }}
-            >✎</button>
+              title="Rename layer"
+              style={{ background: "transparent", border: "none", color: "#8a96a3", cursor: "pointer", fontSize: 11, padding: 0 }}
+            >
+              ✎
+            </button>
+
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleDelete(l.id, l.label); }}

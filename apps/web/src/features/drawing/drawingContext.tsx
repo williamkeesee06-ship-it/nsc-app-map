@@ -330,6 +330,10 @@ interface DrawingContextValue {
   toggleLayerVisibility: (id: string) => void;
   setActiveLayer: (id: string | null) => void;
   moveObjectsToLayer: (objIds: string[], layerId: string | null) => void;
+  /** Update layer properties (color, icon, visibility, etc.) */
+  updateLayer: (id: string, patch: Partial<JobLayer>) => void;
+  /** Drag to reorder layers (Google My Maps style) */
+  reorderLayers: (fromIndex: number, toIndex: number) => void;
   save: () => Promise<void>;
   /** Phase 5.2: clear the localStorage draft for the current target (or any draft) */
   clearDraft: () => void;
@@ -391,6 +395,30 @@ export function DrawingProvider({ children, mapRef }: Props) {
   const addObject = useCallback(
     (obj: DrawingObject) => {
       pushHistory();
+
+      // Apply active layer defaults (color, icon) like Google My Maps layer styling
+      const activeLayer = stateRef.current.layers.find(l => l.id === stateRef.current.activeLayerId);
+      if (activeLayer) {
+        const enhancedStyle = { ...obj.style };
+
+        if (activeLayer.color && !enhancedStyle.strokeColor) {
+          enhancedStyle.strokeColor = activeLayer.color;
+        }
+        if (activeLayer.icon && !enhancedStyle.icon) {
+          enhancedStyle.icon = activeLayer.icon;
+        }
+        if (activeLayer.opacity !== undefined) {
+          enhancedStyle.opacity = activeLayer.opacity;
+        }
+
+        // Attach to layer if not already
+        if (!enhancedStyle.layerId) {
+          enhancedStyle.layerId = activeLayer.id;
+        }
+
+        obj = { ...obj, style: enhancedStyle } as DrawingObject;
+      }
+
       dispatch({ type: "ADD_OBJECT", obj });
     },
     [pushHistory]
@@ -510,6 +538,27 @@ export function DrawingProvider({ children, mapRef }: Props) {
     dispatch({ type: "SET_OBJECTS", objects: objs });
   }, []);
 
+  // New: Update layer properties (color, icon, etc.) — key for My Maps style customization
+  const updateLayer = useCallback((id: string, patch: Partial<JobLayer>) => {
+    const current = stateRef.current.layers.find(l => l.id === id);
+    if (!current) return;
+    const next = stateRef.current.layers.map(l =>
+      l.id === id ? { ...l, ...patch } : l
+    );
+    dispatch({ type: "SET_LAYERS", layers: next });
+  }, []);
+
+  // Drag to reorder layers (My Maps style)
+  const reorderLayers = useCallback((fromIndex: number, toIndex: number) => {
+    const layers = [...stateRef.current.layers];
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= layers.length || toIndex >= layers.length) return;
+
+    const [moved] = layers.splice(fromIndex, 1);
+    layers.splice(toIndex, 0, moved);
+
+    dispatch({ type: "SET_LAYERS", layers });
+  }, []);
+
   const patchObjectStyle = useCallback((id: string, stylePartial: Partial<DrawingStyle>) => {
     const obj = objectsRef.current.find((o) => o.id === id);
     if (!obj) return;
@@ -553,6 +602,12 @@ export function DrawingProvider({ children, mapRef }: Props) {
       dispatch({ type: "MARK_SAVED" });
       // Phase 5.2: clear localStorage draft after successful server save
       lsClearDraft(targetJobId);
+
+      // Notify global overlays (AllJobsMarkupsOverlay) that fresh data is available
+      // This is more reliable than dirty-flag watching for cross-component updates.
+      window.dispatchEvent(new CustomEvent("nsc:markups-saved", {
+        detail: { jobId: targetJobId }
+      }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       dispatch({ type: "SET_SAVE_ERROR", error: msg });
@@ -695,6 +750,8 @@ export function DrawingProvider({ children, mapRef }: Props) {
     toggleLayerVisibility,
     setActiveLayer,
     moveObjectsToLayer,
+    updateLayer,
+    reorderLayers,
     save,
     clearDraft,
     mapRef,

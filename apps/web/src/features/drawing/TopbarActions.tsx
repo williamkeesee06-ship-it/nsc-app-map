@@ -217,6 +217,26 @@ export default function TopbarActions() {
             >
               {saveLabel()}
             </CoinBtn>
+
+            {/* Quick access to Field Findings — core use case: document cut cables,
+                damage, or anything seen in the field not tied to a specific work order. */}
+            {!isWorkspace && (
+              <CoinBtn
+                onClick={() => {
+                  // Best experience: let the user draw immediately as a field finding.
+                  // We set a synthetic target so autosave + tools work, then the Save
+                  // button will offer to persist it as a proper Field Finding.
+                  const ffId = `__ff__quick-${Date.now().toString(36)}`;
+                  if (ctx && typeof ctx.setTarget === "function") {
+                    ctx.setTarget(ffId, "Field Finding (unsaved)");
+                  }
+                  setShowSaveDialog(true);
+                }}
+                title="Start documenting something seen in the field (cut cables, damage, unmarked infrastructure, etc.). Draw now — it will save as a Field Finding visible on the main Jobs Map."
+              >
+                📍
+              </CoinBtn>
+            )}
           </>
         )}
       </div>
@@ -285,7 +305,7 @@ function AutoSavePill({ dirty, saving, saveError, autoSaveCountdown, savedFlash,
     return (
       <div className={`autosave-pill autosave-pill--saved${savedFlash ? " autosave-pill--flash" : ""}`}>
         <span className="autosave-pill__dot" />
-        <span className="autosave-pill__text">Saved</span>
+        <span className="autosave-pill__text" title="Visible on the main Jobs Map for this job">Saved ✓ on map</span>
       </div>
     );
   }

@@ -90,28 +90,37 @@ export interface DrawingStyle {
     | { kind: "solid"; color: string }
     | { kind: "hash"; pattern: "diagonal" | "cross" | "dots"; color: string; density: number };
   opacity: number; // 0..1
-  /** Phase 4: size multiplier for point symbols (0.5–2.0). Default 1.0. */
+
+  /** Size multiplier for point symbols (0.5–2.0). */
   pointSize?: number;
-  /** Phase 5: hide object from map overlay (still in list). */
+
+  /** Per-object icon override (takes precedence over layer icon). */
+  icon?: string;
+
   hidden?: boolean;
-  /** Phase 5: lock object — prevents selection/editing. */
   locked?: boolean;
-  /** Phase 5: user-assigned display label override. */
   userLabel?: string;
-  /** Phase 5.1: user-assigned description/notes. */
   description?: string;
-  /** Phase 9: base64 JPG/PNG attachments (max ~5MB each). */
   photos?: Array<{ id: string; dataUrl: string; name?: string }>;
-  /** Phase 9: layer id this object belongs to. Undefined = unsorted/default. */
   layerId?: string;
 }
 
-// Phase 9: per-job MyMaps layers. Persisted alongside the AsBuiltDocument.
+// Phase 9+: per-job MyMaps-style layers (elevated for personal desktop use).
+// Inspired by Google My Maps layers: users can organize, style, and toggle groups of markups.
 export interface JobLayer {
   id: string;
-  /** Format: "FOREMAN // M-D-YY" (no tracking ID). */
   label: string;
+
+  // Visibility
   hidden?: boolean;
+
+  // Layer-level styling (like My Maps)
+  color?: string;           // Default stroke/fill color for objects in this layer
+  icon?: string;            // Icon key for point objects (e.g. "mh", "custom-pin", "warning", etc.)
+
+  // Future-friendly
+  opacity?: number;         // 0-1, default 1
+  description?: string;     // Optional notes about what this layer represents
 }
 
 export type DrawingObject =

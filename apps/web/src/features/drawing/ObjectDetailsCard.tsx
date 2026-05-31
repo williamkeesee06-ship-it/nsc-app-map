@@ -11,6 +11,8 @@ import { useEffect, useRef, useState } from "react";
 import type { DrawingObject, DrawingStyle } from "@nsc/types";
 import { useDrawing } from "./drawingContext.js";
 import { railSvgForTool } from "./icons/telecomIcons.js";
+import IconPicker from "./IconPicker.js";
+import { type IconKey } from "./icons/iconRegistry.js";
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
 
@@ -339,7 +341,8 @@ const CARD_W = 300;
 const CARD_H_APPROX = 360;
 
 export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDetailsCardProps) {
-  const { patchObjectStyle, updateObject, deleteSelected, select, dispatch, addObject } = useDrawing();
+  const { state: drawState, patchObjectStyle, updateObject, deleteSelected, select, dispatch, addObject } = useDrawing();
+  const isSelectTool = drawState.activeTool === "select";
 
   const [label, setLabel] = useState(obj.style.userLabel ?? "");
   const [description, setDescription] = useState(obj.style.description ?? "");
@@ -560,6 +563,9 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
         <span style={{ flex: 1, fontSize: 10, fontWeight: 700, color: "#f4f8ff", letterSpacing: "0.05em", textTransform: "uppercase" }}>
           {typeName}
         </span>
+        {isSelectTool && (
+          <span style={{ fontSize: 9, color: "#39ff7a", opacity: 0.8 }}>• Drag handles to resize</span>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -684,27 +690,33 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
             </div>
           )}
 
-          {/* Point size — telecom symbols only */}
+          {/* Point size — telecom symbols only (fully resizable) */}
           {isPoint && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", width: 52, flexShrink: 0 }}>Size</span>
-              <div style={{ display: "flex", gap: 4 }}>
-                {(["S", "M", "L"] as PointSize[]).map((sz) => (
-                  <button
-                    key={sz}
-                    type="button"
-                    onClick={() => patchStyle({ pointSize: SIZE_MAP[sz] })}
-                    style={{
-                      padding: "3px 10px", borderRadius: 4, cursor: "pointer",
-                      background: curSizeKey === sz ? "#1565C0" : "rgba(255,255,255,0.06)",
-                      border: curSizeKey === sz ? "1px solid #3aa7ff" : "1px solid rgba(200,208,218,0.18)",
-                      color: curSizeKey === sz ? "#fff" : "#c8d0da",
-                      fontFamily: "inherit", fontSize: 11, fontWeight: 700,
-                    }}
-                  >{sz}</button>
-                ))}
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", width: 52, flexShrink: 0 }}>Size</span>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={2.0}
+                  step={0.1}
+                  value={currentPointSize}
+                  onChange={(e) => patchStyle({ pointSize: Number(e.target.value) })}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 10, color: "#8a96a3", width: 32, textAlign: "right" }}>{currentPointSize.toFixed(1)}x</span>
               </div>
-            </div>
+
+              {/* Icon customization per object (My Maps style) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>Icon</span>
+                <IconPicker
+                  value={obj.style.icon}
+                  onChange={(newIcon: IconKey) => patchStyle({ icon: newIcon })}
+                  compact
+                />
+              </div>
+            </>
           )}
 
           {/* Fill — closed shapes only */}

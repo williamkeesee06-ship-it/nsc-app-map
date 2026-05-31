@@ -2449,6 +2449,32 @@ input:focus, textarea:focus, select:focus {
   .jobs-map { flex-direction: column; }
 }
 
+/* ============================================================
+   SOLO DESKTOP PERSONAL RECORDS BANNER
+   This is the most important UI element for the user's goal:
+   "a map of my work area... markups that always stay visible"
+   ============================================================ */
+.records-banner {
+  background: rgba(57, 255, 122, 0.08);
+  border-color: rgba(57, 255, 122, 0.35);
+  color: #d4ffdf;
+  font-weight: 500;
+  padding: 5px 14px;
+  bottom: 52px; /* sits above the count pill */
+  max-width: 520px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.records-banner strong {
+  color: #39ff7a;
+  font-weight: 700;
+}
+
+.job-count-pill {
+  bottom: 14px;
+  opacity: 0.9;
+}
 
 /* ============================================================
    NEON CIRCULAR COUNT WIDGET (Status Filters header)

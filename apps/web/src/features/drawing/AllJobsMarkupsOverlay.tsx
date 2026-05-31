@@ -264,7 +264,7 @@ function createLabelMarker(
   });
 }
 
-const REFRESH_INTERVAL_MS = 60_000;
+const REFRESH_INTERVAL_MS = 15_000; // Solo desktop use: very frequent refresh so markups feel instantly persistent after saving. Network cost is tiny for personal use.
 
 interface AllJobsMarkupsOverlayProps {
   /** Called when a markup is clicked. Receives the jobId it belongs to. */
@@ -277,12 +277,8 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
   const overlaysRef = useRef<Map<string, OverlayRef>>(new Map());
   const docsRef = useRef<Array<{ jobId: string; objects: DrawingObject[] }>>([]);
 
-  // Track when the active job was last saved so we re-fetch fresh data
-  const lastSavedTrigger = useRef(0);
-  if (!state.dirty && !state.saving && state.targetJobId) {
-    // bump on transitions to clean state — best-effort
-    lastSavedTrigger.current = state.dirty ? lastSavedTrigger.current : lastSavedTrigger.current;
-  }
+  // (lastSavedTrigger ref kept for potential future use; currently we rely on the
+  // "nsc:markups-saved" event + dirty transition + periodic refresh)
 
   // Per-supervisor markup scoping: EVERYONE sees only their own markups,
   // including managers (Robbie explicitly does not want to see other
@@ -374,6 +370,21 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     wasDirtyRef.current = state.dirty;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.dirty, state.saving]);
+
+  // Robust cross-component notification: when any save (workspace, main map, or field finding)
+  // succeeds, immediately refresh the global markups so they appear on the main Jobs Map.
+  useEffect(() => {
+    const handler = () => {
+      void fetchAll();
+    };
+    window.addEventListener("nsc:markups-saved", handler);
+    // Also refresh when jobs are reloaded (login, manual resync) — keeps markups in sync
+    window.addEventListener("nsc:jobs-reload", handler);
+    return () => {
+      window.removeEventListener("nsc:markups-saved", handler);
+      window.removeEventListener("nsc:jobs-reload", handler);
+    };
+  }, []);
 
   return null;
 }

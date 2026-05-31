@@ -147,6 +147,11 @@ export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Prop
       dispatch({ type: "MARK_SAVED" });
       clearDraft();
       onClose();
+
+      // Notify global markups overlay so the new field finding appears immediately
+      window.dispatchEvent(new CustomEvent("nsc:markups-saved", {
+        detail: { jobId: ffJobId }
+      }));
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -477,9 +482,8 @@ export default function SaveDrawingDialog({ jobs, onClose, onJobsRefresh }: Prop
                 lineHeight: 1.5,
               }}
             >
-              Saves this markup to your field-finding bucket. It will show on
-              your map with its label — no work order attached. Only you can
-              see it.
+              <strong>This is the best way to document things you find in the field</strong> (cut cables, damaged pedestals, unmarked vaults, etc.) that are not part of a specific work order.
+              These will appear as persistent overlays on the main Jobs Map under your name.
             </p>
           </div>
         )}

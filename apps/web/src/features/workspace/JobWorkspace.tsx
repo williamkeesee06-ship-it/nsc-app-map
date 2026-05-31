@@ -105,6 +105,8 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
               styles={stylesFor(theme)}
               gestureHandling="greedy"
               disableDefaultUI={false}
+              streetViewControl={true}
+              mapTypeControl={false}
             >
               <MapHandle mapRef={mapRef} />
               <FitToJobGeometry job={job} jobId={jobId} />

@@ -213,6 +213,8 @@ function JobsMapInner({
             styles={stylesFor(theme)}
             gestureHandling="greedy"
             disableDefaultUI={false}
+            streetViewControl={true}
+            mapTypeControl={false} // We use our custom MapTypeToggle instead
           >
             <MapHandle mapRef={mapRef} />
             <JobMarkers
@@ -232,7 +234,20 @@ function JobsMapInner({
           </Map>
         </div>
 
-        <div className="status-pill status-pill--bottom">
+        {/* Solo desktop personal records indicator — this is the heart of the tool for the user */}
+        <div className="status-pill status-pill--bottom records-banner">
+          {selected ? (
+            <span>
+              Editing <strong>{selected.workOrder}</strong> — markups will stay visible on your map after you close this
+            </span>
+          ) : (
+            <span>
+              <strong>🗺️ Your Permanent As-Built Records</strong> — everything you draw stays visible here as your personal map
+            </span>
+          )}
+        </div>
+
+        <div className="status-pill status-pill--bottom job-count-pill">
           {jobsState.state === "loading"
             ? "Loading jobs…"
             : jobsState.state === "error"
@@ -250,7 +265,12 @@ function JobsMapInner({
           <div className="job-right-panel__card">
             <JobCard
               job={selected}
-              onClose={() => setSelected(null)}
+              onClose={() => {
+                setSelected(null);
+                // Force the permanent records layer to update immediately after finishing edits on a job.
+                // This guarantees the user's new markups appear on the main map right away.
+                window.dispatchEvent(new Event("nsc:markups-saved"));
+              }}
               variant="panel"
             />
           </div>
