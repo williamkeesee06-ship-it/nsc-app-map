@@ -553,7 +553,7 @@ function rebuildAllLabels(
   for (const obj of objects) {
     // Text tool already renders its own text as the primary visual — don't
     // double-render it as a separate label marker.
-    if (obj.tool === "text") continue;
+    if (obj.tool === "text" || obj.tool === "callout") continue;
     const text = labelTextForObj(obj);
     if (!text) continue;
     const pos = labelPositionForObj(obj);
@@ -620,7 +620,7 @@ function latLngToScreenPos(
 
 export default function DrawingOverlay() {
   const map = useMap();
-  const { state, addObject, updateObject, updateObjectGeometry, updateObjectPosition, deleteSelected, select, clearSelection, undo, redo, patchObjectStyle, setTool } =
+  const { state, addObject, updateObject, updateObjectGeometry, updateObjectPosition, deleteSelected, deleteObjects, select, clearSelection, undo, redo, patchObjectStyle, setTool } =
     useDrawing();
   const engineRef = useRef<DrawingEngine | null>(null);
   const overlaysRef = useRef<globalThis.Map<string, OverlayRef>>(new globalThis.Map());
@@ -895,6 +895,7 @@ export default function DrawingOverlay() {
           existing.setOptions({
             ...opts,
             strokeOpacity: isSelected ? 1 : obj.style.opacity,
+            strokeWeight: isSelected ? Math.max(obj.style.strokeWidth + 1.5, 3) : obj.style.strokeWidth,
             zIndex: isSelected ? 20 : 5,
             clickable: isClickable,
             editable: isEditable,
@@ -902,11 +903,11 @@ export default function DrawingOverlay() {
           });
         } else if (existing instanceof google.maps.Rectangle || existing instanceof google.maps.Circle) {
           existing.setOptions({
-            strokeColor: obj.style.strokeColor,
-            strokeWeight: obj.style.strokeWidth,
+            strokeColor: isSelected ? "#3aa7ff" : obj.style.strokeColor,
+            strokeWeight: isSelected ? Math.max(obj.style.strokeWidth + 2, 4) : obj.style.strokeWidth,
             strokeOpacity: isSelected ? 1 : obj.style.opacity,
             fillColor: fillColor(obj.style),
-            fillOpacity: fillOpacity(obj.style),
+            fillOpacity: isSelected ? Math.min(fillOpacity(obj.style) + 0.15, 0.6) : fillOpacity(obj.style),
             zIndex: isSelected ? 20 : 5,
             clickable: isClickable,
             editable: isEditable,
@@ -917,6 +918,10 @@ export default function DrawingOverlay() {
             zIndex: isSelected ? 20 : 5,
             clickable: isClickable,
             draggable: isEditable,
+            // Make selected points more prominent (neon ring effect via icon scaling)
+            icon: isSelected ? {
+              ...iconForTool(obj.tool, "#3aa7ff", (obj.style.pointSize ?? 1) * 1.15),
+            } : undefined,
           });
           // Rescale point symbols
           if (isPointTool(obj.tool)) {
@@ -954,6 +959,12 @@ export default function DrawingOverlay() {
 
       // Create new overlay
       const overlay = createOverlay(obj, map, isSelected, isClickable, zoom, (id, additive, clickPos) => {
+        // Eraser mode: delete the clicked object
+        if (state.activeTool === "eraser") {
+          deleteObjects([id]);
+          return;
+        }
+
         // If user clicks an object while a drawing tool is active, switch back
         // to Select so they can re-edit the shape (drag vertices, move it, etc).
         if (!isSelectTool) {
@@ -970,6 +981,33 @@ export default function DrawingOverlay() {
         overlaysRef.current.set(obj.id, overlay);
         if (isEditable) {
           attachGeoListeners(obj.id, overlay);
+        }
+      }
+
+      // Special Callout rendering: draw leader line from anchor to text position
+      if (obj.tool === "callout" && "anchor" in obj) {
+        const anchor = (obj as any).anchor as { lat: number; lng: number };
+        const textPos = "position" in obj ? (obj as any).position : anchor;
+
+        const leaderKey = obj.id + "_callout_leader";
+        let leader = overlaysRef.current.get(leaderKey) as google.maps.Polyline | undefined;
+
+        if (!leader) {
+          leader = new google.maps.Polyline({
+            path: [anchor, textPos],
+            strokeColor: obj.style.strokeColor || "#3aa7ff",
+            strokeWeight: (obj.style.strokeWidth || 2) + (isSelected ? 1 : 0),
+            strokeOpacity: obj.style.opacity ?? 0.9,
+            map,
+            zIndex: isSelected ? 18 : 4,
+          });
+          overlaysRef.current.set(leaderKey, leader);
+        } else {
+          leader.setPath([anchor, textPos]);
+          leader.setOptions({
+            strokeWeight: (obj.style.strokeWidth || 2) + (isSelected ? 1 : 0),
+            zIndex: isSelected ? 18 : 4,
+          });
         }
       }
 

@@ -341,7 +341,16 @@ const CARD_W = 300;
 const CARD_H_APPROX = 360;
 
 export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDetailsCardProps) {
-  const { state: drawState, patchObjectStyle, updateObject, deleteSelected, select, dispatch, addObject } = useDrawing();
+  const { 
+    state: drawState, 
+    patchObjectStyle, 
+    updateObject, 
+    deleteSelected, 
+    select, 
+    dispatch, 
+    addObject,
+    rotateSelected 
+  } = useDrawing();
   const isSelectTool = drawState.activeTool === "select";
 
   const [label, setLabel] = useState(obj.style.userLabel ?? "");
@@ -718,6 +727,37 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
               </div>
             </>
           )}
+
+          {/* Transform controls for all selected objects (PDF editor style) */}
+          <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 8, marginTop: 4 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", marginBottom: 4 }}>
+              Transform
+            </div>
+
+            {/* Rotation - uses the real rotateSelected action */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", width: 52, flexShrink: 0 }}>Rotate</span>
+              <button onClick={() => rotateSelected(-15)} style={{ fontSize: 11, padding: "1px 5px" }}>-15°</button>
+              <button onClick={() => rotateSelected(15)} style={{ fontSize: 11, padding: "1px 5px" }}>+15°</button>
+              <button onClick={() => rotateSelected(90)} style={{ fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>90°</button>
+              <button onClick={() => rotateSelected(-90)} style={{ fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>-90°</button>
+            </div>
+
+            {/* Scale for all objects */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", width: 52, flexShrink: 0 }}>Scale</span>
+              <input
+                type="range"
+                min={0.5}
+                max={3}
+                step={0.1}
+                value={obj.style.pointSize ?? 1}
+                onChange={(e) => patchStyle({ pointSize: Number(e.target.value) })}
+                style={{ flex: 1 }}
+              />
+              <span style={{ fontSize: 10, color: "#8a96a3", width: 28 }}>{((obj.style.pointSize ?? 1) * 100).toFixed(0)}%</span>
+            </div>
+          </div>
 
           {/* Fill — closed shapes only */}
           {isClosedShape && !isPoint && (

@@ -79,7 +79,13 @@ export type DrawingTool =
   | "polygon"
   | "freehand"
   | "measure"
-  | "select";
+  | "select"
+  | "eraser"
+  | "highlighter"
+  | "callout"
+  | "lasso"
+  | "rotate"
+  | "stamp";
 
 export interface DrawingStyle {
   strokeColor: string;
@@ -103,6 +109,8 @@ export interface DrawingStyle {
   description?: string;
   photos?: Array<{ id: string; dataUrl: string; name?: string }>;
   layerId?: string;
+  /** PDF editor style grouping */
+  groupId?: string;
 }
 
 // Phase 9+: per-job MyMaps-style layers (elevated for personal desktop use).
@@ -139,6 +147,14 @@ export type DrawingObject =
   | {
       id: string;
       tool: "text";
+      position: { lat: number; lng: number };
+      text: string;
+      style: DrawingStyle;
+    }
+  | {
+      id: string;
+      tool: "callout";
+      anchor: { lat: number; lng: number };
       position: { lat: number; lng: number };
       text: string;
       style: DrawingStyle;

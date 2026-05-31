@@ -87,8 +87,12 @@ export class DrawingEngine {
 
     if (this.isPolylineTool(tool) || tool === "polygon" || tool === "measure") {
       this.setupPolylineTool();
-    } else if (tool === "freehand") {
+    } else if (tool === "freehand" || tool === "highlighter") {
       this.setupFreehandTool();
+    } else if (tool === "eraser") {
+      this.setupEraserTool();
+    } else if (tool === "callout") {
+      this.setupCalloutTool();
     } else if (tool === "rectangle") {
       this.setupRectTool();
     } else if (tool === "circle") {
@@ -213,6 +217,8 @@ export class DrawingEngine {
 
   private cursorFor(tool: DrawingTool): string {
     if (this.isPointTool(tool) || tool === "text") return "crosshair";
+    if (tool === "eraser") return "not-allowed";
+    if (tool === "callout") return "crosshair";
     return "crosshair";
   }
 
@@ -543,6 +549,44 @@ export class DrawingEngine {
         text: "\u200b", // zero-width space as placeholder; overlay replaces with label on save
         style,
       };
+      this.deactivate();
+      this.commitOrPend(obj, pt.lat, pt.lng);
+    });
+
+    this.listeners.push(click);
+  }
+
+  // ─── Eraser tool ────────────────────────────────────────────────────────────
+
+  private setupEraserTool(): void {
+    // Eraser works primarily through hit testing in DrawingOverlay.
+    // We just set the cursor and listen for clicks as a signal.
+    const click = this.map.addListener("click", () => {
+      // The actual deletion logic lives in DrawingOverlay when tool === "eraser"
+      // This keeps the engine lightweight.
+    });
+    this.listeners.push(click);
+  }
+
+  // ─── Callout tool ───────────────────────────────────────────────────────────
+
+  private setupCalloutTool(): void {
+    const style = this.style!;
+
+    const click = this.map.addListener("click", (e: google.maps.MapMouseEvent) => {
+      const pt = latLng(e);
+      if (!pt) return;
+
+      // Create a pending callout object
+      const obj: any = {
+        id: genId(),
+        tool: "callout",
+        anchor: pt,
+        position: pt,
+        text: "\u200b",
+        style,
+      };
+
       this.deactivate();
       this.commitOrPend(obj, pt.lat, pt.lng);
     });

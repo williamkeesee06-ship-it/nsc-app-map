@@ -1,6 +1,4 @@
-// Left rail — Phase 4.2: resizable drag handle + adaptive 1/2-col grid + localStorage persistence
-// Phase 4.1: 2-col grid, standard tools first, TELECOM divider, telecom below.
-// Undo/Redo/Save moved to topbar. Screenshot/fit/recenter removed.
+// Left rail — now tabbed: Layers | Telecom | Annotate (PDF-style tools)
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Job } from "@nsc/types";
 import type { MutableRefObject } from "react";
@@ -8,9 +6,10 @@ import FilterRail from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
 import { isJobCompleted } from "./markerStyle.js";
 import { useDrawing } from "../drawing/drawingContext.js";
-import type { DrawingTool } from "@nsc/types";
+import type { DrawingTool, JobLayer } from "@nsc/types";
 import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 import { queuePrefWrite } from "../../lib/prefsSync.js";
+import { getIconByKey } from "../drawing/icons/iconRegistry.js";
 
 const DEFAULT_WIDTH = 130;
 const MIN_WIDTH = 95;
@@ -30,6 +29,8 @@ interface Props {
   availableSupervisors?: string[];
 }
 
+type TabId = 'layers' | 'telecom' | 'annotate';
+
 export default function LeftRail({
   jobs,
   filters,
@@ -39,6 +40,7 @@ export default function LeftRail({
   availableSupervisors,
 }: Props) {
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
+  const [activeTab, setActiveTab] = useState<TabId>('telecom'); // Default to tools
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(DEFAULT_WIDTH);
@@ -122,14 +124,41 @@ export default function LeftRail({
 
   // Always 2 columns — tiles shrink to fit
 
+  const tabs: { id: TabId; label: string; icon: string }[] = [
+    { id: 'layers', label: 'Layers', icon: '📁' },
+    { id: 'telecom', label: 'Telecom', icon: '🔧' },
+    { id: 'annotate', label: 'Annotate', icon: '✏️' },
+  ];
+
   return (
     <aside
       className="left-rail"
       style={{ width, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH, position: "relative", flexShrink: 0 }}
     >
       <div className="left-rail__scroll">
-        <ToolsSection />
-        {!hideFilters && (
+        {/* Vertical Tabs */}
+        <div className="left-rail-tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              className={`left-rail-tab ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+              title={tab.label}
+            >
+              <span className="tab-icon">{tab.icon}</span>
+              <span className="tab-label">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Content */}
+        <div className="left-rail-tab-content">
+          {activeTab === 'layers' && <LayersTab />}
+          {activeTab === 'telecom' && <TelecomTab />}
+          {activeTab === 'annotate' && <AnnotateTab />}
+        </div>
+
+        {!hideFilters && activeTab !== 'layers' && (
           <>
             <div className="rail-section__divider" />
             <FilterRail
@@ -287,104 +316,234 @@ const TELECOM_TOOL_DEFS: ToolDef[] = [
   },
 ];
 
-// ─── Tools Section ────────────────────────────────────────────────────────────
+// ─── Tab Components ────────────────────────────────────────────────────────────
 
-function ToolsSection() {
-  const {
-    state,
-    setTool,
-    deleteSelected,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-  } = useDrawing();
+function LayersTab() {
+  const { state, addLayer, updateLayer, reorderLayers, setActiveLayer } = useDrawing();
+  const layers = state.layers || [];
+  const activeLayerId = state.activeLayerId;
 
+  const handleAddLayer = () => {
+    const name = prompt("Layer name:", "New Layer") || "New Layer";
+    const id = addLayer(name);
+    setActiveLayer(id);
+  };
+
+  return (
+    <section className="rail-section">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <strong style={{ fontSize: 11 }}>Job Layers</strong>
+        <button onClick={handleAddLayer} className="tool-btn" style={{ fontSize: 11, padding: '2px 8px' }}>+ Add</button>
+      </div>
+
+      {layers.length === 0 && (
+        <div style={{ fontSize: 11, color: '#8a96a3', padding: '8px 0' }}>
+          No layers yet. Add one to organize your markups.
+        </div>
+      )}
+
+      {layers.map((layer, index) => {
+        const isActive = layer.id === activeLayerId;
+        const icon = getIconByKey(layer.icon);
+        return (
+          <div
+            key={layer.id}
+            className={`layer-row ${isActive ? 'active' : ''}`}
+            onClick={() => setActiveLayer(layer.id)}
+            draggable
+            onDragStart={(e) => e.dataTransfer.setData('text/plain', index.toString())}
+            onDrop={(e) => {
+              const from = parseInt(e.dataTransfer.getData('text/plain'));
+              if (from !== index) reorderLayers(from, index);
+            }}
+            onDragOver={(e) => e.preventDefault()}
+          >
+            <span style={{ color: layer.color || '#3aa7ff' }}>{icon.emoji}</span>
+            <span style={{ flex: 1, fontSize: 11 }}>{layer.label}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { hidden: !layer.hidden }); }}
+              style={{ background: 'none', border: 'none', fontSize: 12, opacity: layer.hidden ? 0.4 : 1 }}
+            >
+              {layer.hidden ? '🙈' : '👁️'}
+            </button>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function TelecomTab() {
+  const { state, setTool, deleteSelected, undo, redo, canUndo, canRedo } = useDrawing();
   const { activeTool } = state;
   const hasSelection = state.selectedIds.size > 0;
-  // Billy 5/20: tools are ALWAYS usable. Drawing without a target job
-  // is allowed — at save time, SaveDrawingDialog prompts to attach to
-  // an existing job or create a new one.
 
-  function toggleTool(tool: DrawingTool) {
+  const toggleTool = (tool: DrawingTool) => {
     setTool(activeTool === tool ? null : tool);
-  }
+  };
 
-  function renderTile({ tool, label, iconSvg }: ToolDef) {
+  const renderTile = ({ tool, label, iconSvg }: ToolDef) => {
     const isActive = activeTool === tool;
     return (
       <button
         key={tool}
-        type="button"
         className={`tool-tile${isActive ? " tool-tile--active" : ""}`}
         onClick={() => toggleTool(tool)}
         title={label}
       >
-        <span
-          className="tool-tile__icon"
-          // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }}
-        />
+        <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
         <span className="tool-tile__label">{label}</span>
       </button>
     );
-  }
+  };
 
   return (
     <section className="rail-section rail-section--tools">
-      {/* Undo / Redo row — lives at the top of the toolbox */}
       <div className="undo-redo-row">
-        <button
-          type="button"
-          className="undo-redo-btn"
-          onClick={undo}
-          disabled={!canUndo}
-          title="Undo (Cmd+Z)"
-          aria-label="Undo"
-        >
-          <span className="undo-redo-btn__glyph">↶</span>
-          <span className="undo-redo-btn__label">UNDO</span>
-        </button>
-        <button
-          type="button"
-          className="undo-redo-btn"
-          onClick={redo}
-          disabled={!canRedo}
-          title="Redo (Cmd+Shift+Z)"
-          aria-label="Redo"
-        >
-          <span className="undo-redo-btn__glyph">↷</span>
-          <span className="undo-redo-btn__label">REDO</span>
-        </button>
+        <button className="undo-redo-btn" onClick={undo} disabled={!canUndo}>↶ UNDO</button>
+        <button className="undo-redo-btn" onClick={redo} disabled={!canRedo}>↷ REDO</button>
       </div>
 
-      <div
-        className="tool-grid"
-      >
-        {/* Standard drawing tools */}
+      <div className="tool-grid">
         {STANDARD_TOOL_DEFS.map(renderTile)}
-
-        {/* TELECOM category divider */}
         <div className="telecom-divider">TELECOM</div>
-
-        {/* Telecom tools */}
         {TELECOM_TOOL_DEFS.map(renderTile)}
       </div>
 
-      {/* Delete selected */}
       {hasSelection && (
-        <div style={{ marginTop: 6 }}>
-          <button
-            type="button"
-            className="tool-btn tool-btn--danger"
-            style={{ width: "100%", fontSize: 11 }}
-            onClick={deleteSelected}
-            title="Delete selected objects (Del)"
-          >
-            🗑 Delete ({state.selectedIds.size})
-          </button>
-        </div>
+        <button className="tool-btn tool-btn--danger" style={{ width: '100%', marginTop: 6 }} onClick={deleteSelected}>
+          Delete ({state.selectedIds.size})
+        </button>
       )}
+    </section>
+  );
+}
+
+function AnnotateTab() {
+  const { state, setTool, undo, redo, canUndo, canRedo } = useDrawing();
+  const { activeTool } = state;
+
+  // Full PDF-editor style annotation toolbox
+  const selectionTools: ToolDef[] = [
+    { tool: "select", label: "SELECT", iconSvg: () => "➤" },
+    { tool: "lasso", label: "LASSO", iconSvg: () => "⌒" },
+  ];
+
+  const drawingTools: ToolDef[] = [
+    { tool: "freehand", label: "FREEHAND", iconSvg: () => "〰" },
+    { tool: "highlighter", label: "HIGHLIGHT", iconSvg: () => "🖍" },
+    { tool: "eraser", label: "ERASER", iconSvg: () => "🧽" },
+  ];
+
+  const markupTools: ToolDef[] = [
+    { tool: "text", label: "TEXT", iconSvg: () => "T" },
+    { tool: "callout", label: "CALLOUT", iconSvg: () => "💬" },
+    { tool: "arrow", label: "ARROW", iconSvg: () => "→" },
+    { tool: "rectangle", label: "RECT", iconSvg: () => "▭" },
+    { tool: "circle", label: "CIRCLE", iconSvg: () => "○" },
+    { tool: "polygon", label: "POLYGON", iconSvg: () => "⬡" },
+    { tool: "stamp", label: "STAMP", iconSvg: () => "📌" },
+  ];
+
+  const transformTools = [
+    { action: "rotate", label: "ROTATE", icon: "↻" },
+    { action: "group", label: "GROUP", icon: "📦" },
+    { action: "ungroup", label: "UNGROUP", icon: "📦" },
+    { action: "bring-front", label: "FRONT", icon: "↑" },
+    { action: "send-back", label: "BACK", icon: "↓" },
+    { action: "align-left", label: "ALIGN L", icon: "⫷" },
+    { action: "align-center", label: "CENTER", icon: "⫸" },
+    { action: "distribute", label: "DISTRIB", icon: "⟷" },
+  ];
+
+  const {
+    bringToFront,
+    sendToBack,
+    rotateSelected,
+    groupSelected,
+    ungroupSelected,
+    alignSelected,
+  } = useDrawing();
+
+  const handleAction = (action: string) => {
+    switch (action) {
+      case 'bring-front': bringToFront(); break;
+      case 'send-back': sendToBack(); break;
+      case 'rotate': rotateSelected(90); break;
+      case 'group': groupSelected(); break;
+      case 'ungroup': ungroupSelected(); break;
+      case 'align-left': alignSelected('left'); break;
+      case 'align-center': alignSelected('center'); break;
+      case 'distribute': alignSelected('distribute-h'); break;
+      default: console.log('Action:', action);
+    }
+  };
+
+  return (
+    <section className="rail-section annotate-tab">
+      {/* Quick Undo/Redo */}
+      <div className="undo-redo-row" style={{ marginBottom: 8 }}>
+        <button className="undo-redo-btn" onClick={undo} disabled={!canUndo}>↶ UNDO</button>
+        <button className="undo-redo-btn" onClick={redo} disabled={!canRedo}>↷ REDO</button>
+      </div>
+
+      <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 4, color: '#8a96a3' }}>SELECTION</div>
+      <div className="tool-grid">
+        {selectionTools.map(({ tool, label, iconSvg }) => {
+          const isActive = activeTool === tool;
+          return (
+            <button key={tool} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)}>
+              <span className="tool-tile__icon">{iconSvg(isActive)}</span>
+              <span className="tool-tile__label">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>DRAWING</div>
+      <div className="tool-grid">
+        {drawingTools.map(({ tool, label, iconSvg }) => {
+          const isActive = activeTool === tool;
+          return (
+            <button key={tool} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)}>
+              <span className="tool-tile__icon">{iconSvg(isActive)}</span>
+              <span className="tool-tile__label">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>MARKUP</div>
+      <div className="tool-grid">
+        {markupTools.map(({ tool, label, iconSvg }) => {
+          const isActive = activeTool === tool;
+          return (
+            <button key={tool} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)}>
+              <span className="tool-tile__icon">{iconSvg(isActive)}</span>
+              <span className="tool-tile__label">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>TRANSFORM &amp; ORDER</div>
+      <div className="tool-grid">
+        {transformTools.map((t) => (
+          <button
+            key={t.action}
+            className="tool-tile"
+            onClick={() => handleAction(t.action)}
+            title={t.label}
+          >
+            <span className="tool-tile__icon">{t.icon}</span>
+            <span className="tool-tile__label">{t.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 9, color: '#6a7580', marginTop: 12, lineHeight: 1.3 }}>
+        Full implementations (real eraser, callouts, rotate, grouping, align, lasso, stamps) coming in the next updates.
+      </div>
     </section>
   );
 }

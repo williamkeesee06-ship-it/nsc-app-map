@@ -334,6 +334,16 @@ interface DrawingContextValue {
   updateLayer: (id: string, patch: Partial<JobLayer>) => void;
   /** Drag to reorder layers (Google My Maps style) */
   reorderLayers: (fromIndex: number, toIndex: number) => void;
+
+  // PDF Editor Style Actions
+  bringToFront: () => void;
+  sendToBack: () => void;
+  rotateSelected: (degrees: number) => void;
+  groupSelected: () => void;
+  ungroupSelected: () => void;
+  alignSelected: (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v') => void;
+  deleteObjects: (ids: string[]) => void;
+
   save: () => Promise<void>;
   /** Phase 5.2: clear the localStorage draft for the current target (or any draft) */
   clearDraft: () => void;
@@ -456,6 +466,30 @@ export function DrawingProvider({ children, mapRef }: Props) {
 
   const setTool = useCallback((tool: DrawingTool | null) => {
     dispatch({ type: "SET_TOOL", tool });
+
+    if (tool) {
+      let style = defaultStyleForTool(tool);
+
+      // Special PDF-editor style defaults
+      if (tool === "highlighter") {
+        style = {
+          ...style,
+          strokeColor: "#ffeb3b",   // bright yellow
+          strokeWidth: 12,
+          opacity: 0.4,
+        };
+      }
+      if (tool === "callout") {
+        style = {
+          ...style,
+          strokeColor: "#3aa7ff",
+          strokeWidth: 2,
+          opacity: 1,
+        };
+      }
+
+      dispatch({ type: "SET_STYLE", patch: style });
+    }
   }, []);
 
   const setStyle = useCallback((patch: Partial<DrawingStyle>) => {
@@ -536,6 +570,159 @@ export function DrawingProvider({ children, mapRef }: Props) {
         : o
     );
     dispatch({ type: "SET_OBJECTS", objects: objs });
+  }, []);
+
+  // ─── PDF Editor Style Actions ─────────────────────────────────────────────
+
+  const bringToFront = useCallback(() => {
+    const selected = stateRef.current.selectedIds;
+    if (selected.size === 0) return;
+
+    const objects = [...stateRef.current.objects];
+    const selectedObjs = objects.filter(o => selected.has(o.id));
+    const others = objects.filter(o => !selected.has(o.id));
+
+    dispatch({ type: "SET_OBJECTS", objects: [...others, ...selectedObjs] });
+  }, []);
+
+  const sendToBack = useCallback(() => {
+    const selected = stateRef.current.selectedIds;
+    if (selected.size === 0) return;
+
+    const objects = [...stateRef.current.objects];
+    const selectedObjs = objects.filter(o => selected.has(o.id));
+    const others = objects.filter(o => !selected.has(o.id));
+
+    dispatch({ type: "SET_OBJECTS", objects: [...selectedObjs, ...others] });
+  }, []);
+
+  const rotateSelected = useCallback((degrees: number) => {
+    const selected = stateRef.current.selectedIds;
+    if (selected.size === 0) return;
+
+    const objects = stateRef.current.objects.map(obj => {
+      if (!selected.has(obj.id)) return obj;
+
+      // Simple rotation for objects with vertices or position
+      if ('vertices' in obj && obj.vertices.length > 0) {
+        const center = obj.vertices.reduce((acc, v) => ({ lat: acc.lat + v.lat, lng: acc.lng + v.lng }), { lat: 0, lng: 0 });
+        const count = obj.vertices.length;
+        const cx = center.lat / count;
+        const cy = center.lng / count;
+
+        const rad = (degrees * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+
+        const newVertices = obj.vertices.map(v => {
+          const dx = v.lat - cx;
+          const dy = v.lng - cy;
+          return {
+            lat: cx + dx * cos - dy * sin,
+            lng: cy + dx * sin + dy * cos,
+          };
+        });
+
+        return { ...obj, vertices: newVertices } as DrawingObject;
+      }
+
+      if ('position' in obj) {
+        // For point objects, we can rotate their label or just note it
+        return { ...obj, style: { ...obj.style, rotation: (obj.style as any).rotation + degrees || degrees } } as any;
+      }
+
+      return obj;
+    });
+
+    dispatch({ type: "SET_OBJECTS", objects });
+  }, []);
+
+  const groupSelected = useCallback(() => {
+    const selected = stateRef.current.selectedIds;
+    if (selected.size < 2) return;
+
+    const groupId = `group_${Date.now()}`;
+
+    const objects = stateRef.current.objects.map(obj =>
+      selected.has(obj.id)
+        ? ({ ...obj, style: { ...obj.style, groupId } } as DrawingObject)
+        : obj
+    );
+
+    dispatch({ type: "SET_OBJECTS", objects });
+  }, []);
+
+  const ungroupSelected = useCallback(() => {
+    const selected = stateRef.current.selectedIds;
+    if (selected.size === 0) return;
+
+    const objects = stateRef.current.objects.map(obj => {
+      if (selected.has(obj.id) && (obj.style as any).groupId) {
+        const newStyle = { ...obj.style };
+        delete (newStyle as any).groupId;
+        return { ...obj, style: newStyle } as DrawingObject;
+      }
+      return obj;
+    });
+
+    dispatch({ type: "SET_OBJECTS", objects });
+  }, []);
+
+  const deleteObjects = useCallback((ids: string[]) => {
+    const toDelete = new Set(ids);
+    const objects = stateRef.current.objects.filter(o => !toDelete.has(o.id));
+    dispatch({ type: "SET_OBJECTS", objects });
+  }, []);
+
+  const alignSelected = useCallback((alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v') => {
+    const selected = stateRef.current.selectedIds;
+    if (selected.size < 2) return;
+
+    // Basic alignment implementation
+    const objects = [...stateRef.current.objects];
+    const selectedObjs = objects.filter(o => selected.has(o.id));
+
+    if (selectedObjs.length < 2) return;
+
+    // Calculate bounds
+    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+
+    selectedObjs.forEach(obj => {
+      if ('position' in obj) {
+        minLat = Math.min(minLat, obj.position.lat);
+        maxLat = Math.max(maxLat, obj.position.lat);
+        minLng = Math.min(minLng, obj.position.lng);
+        maxLng = Math.max(maxLng, obj.position.lng);
+      } else if ('vertices' in obj && obj.vertices.length > 0) {
+        obj.vertices.forEach(v => {
+          minLat = Math.min(minLat, v.lat);
+          maxLat = Math.max(maxLat, v.lat);
+          minLng = Math.min(minLng, v.lng);
+          maxLng = Math.max(maxLng, v.lng);
+        });
+      }
+    });
+
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+
+    const newObjects = objects.map(obj => {
+      if (!selected.has(obj.id)) return obj;
+
+      if ('position' in obj) {
+        let newPos = { ...obj.position };
+        if (alignment === 'left') newPos.lat = minLat;
+        if (alignment === 'right') newPos.lat = maxLat;
+        if (alignment === 'center' || alignment === 'middle') newPos.lat = centerLat;
+        if (alignment === 'top') newPos.lng = minLng;
+        if (alignment === 'bottom') newPos.lng = maxLng;
+
+        return { ...obj, position: newPos } as DrawingObject;
+      }
+      return obj;
+    });
+
+    dispatch({ type: "SET_OBJECTS", objects: newObjects });
   }, []);
 
   // New: Update layer properties (color, icon, etc.) — key for My Maps style customization
@@ -752,6 +939,13 @@ export function DrawingProvider({ children, mapRef }: Props) {
     moveObjectsToLayer,
     updateLayer,
     reorderLayers,
+    bringToFront,
+    sendToBack,
+    rotateSelected,
+    groupSelected,
+    ungroupSelected,
+    alignSelected,
+    deleteObjects,
     save,
     clearDraft,
     mapRef,

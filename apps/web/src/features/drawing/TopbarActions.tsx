@@ -1,9 +1,8 @@
-// TopbarActions — Undo / Redo / Screenshot / Save "polished metal coin" buttons in the topbar.
-// Phase 5: workspace mode shows auto-save status pill instead of the manual save coin.
-// Phase 5.2: when noTarget && dirty, Save opens SaveDrawingDialog instead of calling save().
-// Phase 5.3: Save/Undo/Redo always enabled; Cmd+Z / Cmd+Shift+Z shortcuts.
-// Lives outside the DrawingProvider on routes like /sync, so it must gracefully
-// handle the case where DrawingContext is absent.
+// TopbarActions — Screenshot + Save buttons in the topbar.
+// - Screenshot: always available, captures entire visible app as JPEG
+// - Shortcut: Ctrl/Cmd + Shift + S
+// - Save: Ctrl/Cmd + S (or opens Save dialog when no target)
+// Lives outside the DrawingProvider on routes like /sync.
 import { useContext, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { DrawingContext } from "./drawingContext.js";
@@ -58,6 +57,13 @@ export default function TopbarActions() {
         return;
       }
 
+      // Screenshot shortcut: Ctrl/Cmd + Shift + S
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void handleScreenshot();
+        return;
+      }
+
       // Undo / Redo shortcuts — don't fire inside text inputs
       if (!inInput && (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "z") {
         e.preventDefault();
@@ -89,15 +95,13 @@ export default function TopbarActions() {
   }, [saving]);
 
   async function handleScreenshot() {
-    if (!ctx) return;
-    const map = ctx.mapRef?.current;
-    if (!map) {
-      alert("Map is not ready.");
-      return;
-    }
     setScreenshotting(true);
     try {
-      await downloadScreenshot(map, ctx.state.objects);
+      // The underlying function captures document.body (entire visible app),
+      // so we don't strictly need the map ref anymore.
+      const map = ctx?.mapRef?.current ?? null;
+      const objects = ctx?.state.objects ?? [];
+      await downloadScreenshot(map as any, objects);
     } catch (err) {
       alert(`Screenshot failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -106,15 +110,22 @@ export default function TopbarActions() {
   }
 
   if (!ctx) {
-    // Outside DrawingProvider — render disabled coin buttons as placeholders
+    // Outside DrawingProvider — still allow full-screen screenshot
     return (
       <div className="topbar-actions">
         {isWorkspace && (
           <CoinBtn onClick={() => navigate("/")} title="Back to Jobs Map" variant="back">←</CoinBtn>
         )}
-        <CoinBtn disabled title="Screenshot">
-          <ScreenshotIcon />
-        </CoinBtn>
+        <button
+          type="button"
+          className="screenshot-btn"
+          onClick={handleScreenshot}
+          disabled={screenshotting}
+          title="Screenshot entire screen (JPEG) — Ctrl/Cmd + Shift + S"
+          aria-label="Take full screen screenshot"
+        >
+          {screenshotting ? "⏳" : <ScreenshotIcon />}
+        </button>
         <CoinBtn disabled title="Save" variant="save">💾</CoinBtn>
       </div>
     );
@@ -163,13 +174,16 @@ export default function TopbarActions() {
         {/* Undo/Redo moved into LeftRail toolbox — see ToolsSection. */}
 
         {/* Screenshot button — always usable, even with no target job */}
-        <CoinBtn
+        <button
+          type="button"
+          className="screenshot-btn"
           onClick={handleScreenshot}
           disabled={screenshotting}
-          title="Download full-screen screenshot (JPEG)"
+          title="Screenshot entire screen (JPEG) — Ctrl/Cmd + Shift + S"
+          aria-label="Take full screen screenshot"
         >
           {screenshotting ? "⏳" : <ScreenshotIcon />}
-        </CoinBtn>
+        </button>
 
         {/* Phase 5: workspace mode shows auto-save status pill */}
         {isWorkspace ? (
@@ -320,8 +334,13 @@ function AutoSavePill({ dirty, saving, saveError, autoSaveCountdown, savedFlash,
 function ScreenshotIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-      <circle cx="12" cy="13" r="4"/>
+      {/* Modern high-tech camera icon */}
+      <rect x="3" y="5" width="18" height="14" rx="2" ry="2"/>
+      <circle cx="12" cy="12" r="3.5"/>
+      <path d="M8 2v3"/>
+      <path d="M16 2v3"/>
+      {/* Small tech accent line */}
+      <line x1="19" y1="8" x2="21" y2="8" strokeWidth="1.5"/>
     </svg>
   );
 }

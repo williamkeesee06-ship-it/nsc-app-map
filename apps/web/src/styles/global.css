@@ -267,6 +267,49 @@ a { color: var(--accent); }
 }
 .coin-btn:disabled { opacity: 0.38; cursor: not-allowed; transform: none; }
 
+/* ── High-tech modern Screenshot button ─────────────────────── */
+.screenshot-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(58, 167, 255, 0.35);
+  background: rgba(20, 26, 38, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #3aa7ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 120ms ease;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.screenshot-btn:hover:not(:disabled) {
+  border-color: #3aa7ff;
+  background: rgba(25, 32, 48, 0.85);
+  box-shadow: 
+    0 0 0 1px rgba(58, 167, 255, 0.3),
+    0 4px 14px rgba(0, 0, 0, 0.35),
+    0 0 12px rgba(58, 167, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.screenshot-btn:active:not(:disabled) {
+  transform: scale(0.96);
+  box-shadow: 
+    0 1px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.screenshot-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .coin-btn--save {
   background: radial-gradient(circle at 38% 35%, #E3F0FF 0%, #BBCFEE 45%, #98B8E0 100%);
 }
@@ -396,6 +439,84 @@ a { color: var(--accent); }
   height: 1.5px;
   background: linear-gradient(90deg, transparent, var(--border), transparent);
   margin: 10px 0;
+}
+
+/* ── Vertical Tabs in Left Rail ───────────────────────────── */
+.left-rail-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid rgba(200,208,218,0.15);
+  margin-bottom: 6px;
+}
+
+.left-rail-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #8a96a3;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.left-rail-tab:hover {
+  background: rgba(255,255,255,0.06);
+  color: #c8d0da;
+}
+
+.left-rail-tab.active {
+  background: rgba(58,167,255,0.12);
+  border-color: rgba(58,167,255,0.4);
+  color: #3aa7ff;
+}
+
+.left-rail-tab .tab-icon {
+  font-size: 14px;
+  width: 18px;
+}
+
+.left-rail-tab .tab-label {
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* Layer rows */
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.layer-row:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.layer-row.active {
+  background: rgba(58,167,255,0.15);
+  color: #3aa7ff;
+}
+
+/* Annotate tab specific */
+.annotate-tab .tool-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.annotate-tab .tool-tile {
+  min-height: 42px;
+  font-size: 10px;
 }
 
 /* ── Uniform Icon+Label tool buttons ────────────────────────── */
