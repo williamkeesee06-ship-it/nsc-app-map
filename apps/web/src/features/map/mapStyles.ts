@@ -9,10 +9,16 @@ export interface MapStyleOptions {
   dark?: boolean;
   showRoadLabels?: boolean;
   showPoiLabels?: boolean;
+  showCityLabels?: boolean;
 }
 
 export function getMapStyles(options: MapStyleOptions = {}): google.maps.MapTypeStyle[] {
-  const { dark = false, showRoadLabels = true, showPoiLabels = true } = options;
+  const {
+    dark = false,
+    showRoadLabels = true,
+    showPoiLabels = true,
+    showCityLabels = true,
+  } = options;
 
   const styles: google.maps.MapTypeStyle[] = [];
 
@@ -27,6 +33,15 @@ export function getMapStyles(options: MapStyleOptions = {}): google.maps.MapType
       { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#2a3540" }] },
       { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#2a3540" }] },
       { featureType: "transit", elementType: "geometry", stylers: [{ color: "#11161c" }] },
+      { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#2a3540" }] },
+    );
+  }
+
+  // City / Locality labels
+  if (!showCityLabels) {
+    styles.push(
+      { featureType: "administrative.locality", elementType: "labels.text", stylers: [{ visibility: "off" }] },
+      { featureType: "administrative.neighborhood", elementType: "labels.text", stylers: [{ visibility: "off" }] },
     );
   }
 

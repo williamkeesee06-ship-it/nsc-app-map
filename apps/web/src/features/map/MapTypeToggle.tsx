@@ -10,12 +10,13 @@ export interface MapPreferences {
   dark: boolean;
   showRoadLabels: boolean;
   showPoiLabels: boolean;
+  showCityLabels: boolean;
 }
 
 const LABELS: Record<MapType, string> = {
-  roadmap: "Map",
+  roadmap: "Classic",
   satellite: "Satellite",
-  hybrid: "Satellite (labels)",
+  hybrid: "Satellite",
   terrain: "Terrain",
 };
 
@@ -31,6 +32,7 @@ function loadPrefs(): MapPreferences {
     dark: false,
     showRoadLabels: true,
     showPoiLabels: true,
+    showCityLabels: true,
   };
 }
 
@@ -48,7 +50,7 @@ export default function MapTypeToggle() {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { mapType, dark, showRoadLabels, showPoiLabels } = prefs;
+  const { mapType, dark, showRoadLabels, showPoiLabels, showCityLabels } = prefs;
 
   // Apply everything to the map
   useEffect(() => {
@@ -60,6 +62,7 @@ export default function MapTypeToggle() {
       dark,
       showRoadLabels,
       showPoiLabels,
+      showCityLabels,
     });
     map.setOptions({ styles });
 
@@ -127,40 +130,55 @@ export default function MapTypeToggle() {
           {/* Base Maps */}
           <div style={{ padding: "4px 14px 2px", fontSize: 10, color: "#8a96a3", fontWeight: 600 }}>BASE MAP</div>
 
-          {(["roadmap", "satellite", "hybrid", "terrain"] as const).map(type => (
-            <button
-              key={type}
-              onClick={() => update({ mapType: type, dark: false })}
-              style={{
-                display: "flex", width: "100%", padding: "6px 14px", gap: 8, alignItems: "center",
-                background: type === mapType && !dark ? "rgba(58,167,255,0.18)" : "transparent",
-                border: "none", color: "#f4f8ff", cursor: "pointer", textAlign: "left"
-              }}
-            >
-              <span style={{ width: 20 }}>
-                {type === "roadmap" ? "🗺" : type === "satellite" ? "🛰" : type === "hybrid" ? "🌐" : "🏔"}
-              </span>
-              {LABELS[type]}
-            </button>
-          ))}
+          <button
+            onClick={() => update({ mapType: "roadmap", dark: false })}
+            style={{
+              display: "flex", width: "100%", padding: "6px 14px", gap: 8, alignItems: "center",
+              background: mapType === "roadmap" && !dark ? "rgba(58,167,255,0.18)" : "transparent",
+              border: "none", color: "#f4f8ff", cursor: "pointer", textAlign: "left"
+            }}
+          >
+            <span style={{ width: 20 }}>🗺</span>
+            Classic
+          </button>
 
-          {/* Dark Map */}
+          <button
+            onClick={() => update({ mapType: "hybrid", dark: false })}
+            style={{
+              display: "flex", width: "100%", padding: "6px 14px", gap: 8, alignItems: "center",
+              background: mapType === "hybrid" && !dark ? "rgba(58,167,255,0.18)" : "transparent",
+              border: "none", color: "#f4f8ff", cursor: "pointer", textAlign: "left"
+            }}
+          >
+            <span style={{ width: 20 }}>🛰</span>
+            Satellite
+          </button>
+
           <button
             onClick={() => update({ dark: true, mapType: "roadmap" })}
             style={{
-              display: "flex", width: "100%", padding: "6px 14px", gap: 8, alignItems: "center", marginTop: 2,
+              display: "flex", width: "100%", padding: "6px 14px", gap: 8, alignItems: "center",
               background: dark ? "rgba(58,167,255,0.18)" : "transparent",
               border: "none", color: "#f4f8ff", cursor: "pointer", textAlign: "left"
             }}
           >
             <span style={{ width: 20 }}>🌙</span>
-            <strong>Dark Map</strong>
+            Dark
           </button>
 
           <div style={{ height: 1, background: "rgba(200,208,218,0.2)", margin: "6px 10px" }} />
 
           {/* Label Toggles */}
           <div style={{ padding: "2px 14px 4px", fontSize: 10, color: "#8a96a3", fontWeight: 600 }}>LABELS</div>
+
+          <label style={{ display: "flex", alignItems: "center", padding: "5px 14px", gap: 8, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={showCityLabels}
+              onChange={e => update({ showCityLabels: e.target.checked })}
+            />
+            City &amp; town names
+          </label>
 
           <label style={{ display: "flex", alignItems: "center", padding: "5px 14px", gap: 8, cursor: "pointer" }}>
             <input
