@@ -441,51 +441,47 @@ a { color: var(--accent); }
   margin: 10px 0;
 }
 
-/* ── Vertical Tabs in Left Rail ───────────────────────────── */
-.left-rail-tabs {
+/* ── Vertical Tab Strip in Left Rail — AsBuilt-style ───────── */
+/* Mirrors the AsBuilt app's #tab-strip + .tab-btn: 44px solid blue strip on
+   the left edge, with sideways-rotated uppercase labels. Active tab gets a
+   white background with blue text. */
+.left-rail-tabstrip {
+  width: 44px;
+  flex-shrink: 0;
+  background: #0052cc;
   display: flex;
   flex-direction: column;
+  padding-top: 8px;
   gap: 2px;
-  padding: 4px 4px 8px;
-  border-bottom: 1px solid rgba(200,208,218,0.15);
-  margin-bottom: 6px;
+  border-right: 1px solid rgba(0,0,0,0.15);
 }
 
 .left-rail-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: 6px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  padding: 16px 6px;
+  border: none;
   background: transparent;
-  border: 1px solid transparent;
-  color: #8a96a3;
+  color: rgba(255,255,255,0.78);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   cursor: pointer;
-  transition: all 120ms ease;
+  text-transform: uppercase;
+  transition: background 120ms ease, color 120ms ease;
+  white-space: nowrap;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
 }
 
 .left-rail-tab:hover {
-  background: rgba(255,255,255,0.06);
-  color: #c8d0da;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
 }
 
 .left-rail-tab.active {
-  background: rgba(58,167,255,0.12);
-  border-color: rgba(58,167,255,0.4);
-  color: #3aa7ff;
-}
-
-.left-rail-tab .tab-icon {
-  font-size: 14px;
-  width: 18px;
-}
-
-.left-rail-tab .tab-label {
-  font-size: 10px;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
+  background: #ffffff;
+  color: #0052cc;
 }
 
 /* Layer rows */

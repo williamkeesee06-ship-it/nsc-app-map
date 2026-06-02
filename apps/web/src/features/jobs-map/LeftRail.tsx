@@ -11,9 +11,11 @@ import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 import { queuePrefWrite } from "../../lib/prefsSync.js";
 import { getIconByKey } from "../drawing/icons/iconRegistry.js";
 
-const DEFAULT_WIDTH = 130;
-const MIN_WIDTH = 95;
-const MAX_WIDTH = 320;
+// Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
+// the left while keeping plenty of room for tool tiles to the right.
+const DEFAULT_WIDTH = 180;
+const MIN_WIDTH = 150;
+const MAX_WIDTH = 380;
 const LS_KEY = "nsc.leftRailWidth";
 
 interface Props {
@@ -124,10 +126,10 @@ export default function LeftRail({
 
   // Always 2 columns — tiles shrink to fit
 
-  const tabs: { id: TabId; label: string; icon: string }[] = [
-    { id: 'layers', label: 'Layers', icon: '📁' },
-    { id: 'telecom', label: 'Telecom', icon: '🔧' },
-    { id: 'annotate', label: 'Annotate', icon: '✏️' },
+  const tabs: { id: TabId; label: string }[] = [
+    { id: 'layers', label: 'LAYERS' },
+    { id: 'telecom', label: 'TELECOM' },
+    { id: 'annotate', label: 'ANNOTATE' },
   ];
 
   return (
@@ -135,22 +137,21 @@ export default function LeftRail({
       className="left-rail"
       style={{ width, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH, position: "relative", flexShrink: 0 }}
     >
-      <div className="left-rail__scroll">
-        {/* Vertical Tabs */}
-        <div className="left-rail-tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`left-rail-tab ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-              title={tab.label}
-            >
-              <span className="tab-icon">{tab.icon}</span>
-              <span className="tab-label">{tab.label}</span>
-            </button>
-          ))}
-        </div>
+      {/* Vertical tab strip (sideways labels) — AsBuilt-style */}
+      <div className="left-rail-tabstrip">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            className={`left-rail-tab ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+            title={tab.label}
+          >
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
 
+      <div className="left-rail__scroll">
         {/* Tab Content */}
         <div className="left-rail-tab-content">
           {activeTab === 'layers' && <LayersTab />}
