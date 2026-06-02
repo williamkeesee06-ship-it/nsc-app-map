@@ -93,12 +93,13 @@ export default function MapTypeToggle() {
   }
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "absolute", top: 14, right: 14, zIndex: 50 }}>
       <button
         type="button"
         className="map-type-toggle"
         onClick={() => setOpen(!open)}
         title="Map style & labels"
+        style={{ position: "static" }}
       >
         <span className="map-type-toggle__icon">
           {dark ? "🌙" : mapType === "roadmap" ? "🗺" : mapType === "satellite" ? "🛰" : mapType === "hybrid" ? "🌐" : "🏔"}

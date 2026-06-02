@@ -1,5 +1,5 @@
 // CentralOfficesOverlay — read-only layer of Lumen WA Central Offices.
-// Neon-cyan Greek temple / courthouse icon (classic CO symbol) ALWAYS visible
+// Neon-orange Greek temple / courthouse icon (classic CO symbol) ALWAYS visible
 // at the same size as job pin markers. The text label appears only at zoom
 // >= LABEL_MIN_ZOOM (same threshold as WO labels in JobsMap).
 import { useEffect, useRef } from "react";
@@ -13,7 +13,7 @@ interface Props {
 // Match WO_LABEL_MIN_ZOOM in JobsMap.tsx
 const LABEL_MIN_ZOOM = 13;
 
-const NEON_CYAN = "#22D3FF";
+const NEON_ORANGE = "#FF7A00";
 
 // Greek temple / courthouse SVG — variant F: solid cyan columns + thin neon
 // outline for pediment / architrave / base. Sized to match job pin markers.
@@ -21,7 +21,7 @@ const TEMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="4
   <defs>
     <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="0.8" result="blur"/>
-      <feFlood flood-color="${NEON_CYAN}" flood-opacity="0.7"/>
+      <feFlood flood-color="${NEON_ORANGE}" flood-opacity="0.85"/>
       <feComposite in2="blur" operator="in" result="glow"/>
       <feMerge>
         <feMergeNode in="glow"/>
@@ -30,7 +30,7 @@ const TEMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="4
     </filter>
   </defs>
   <g filter="url(#neonGlow)" shape-rendering="geometricPrecision">
-    <g fill="none" stroke="${NEON_CYAN}" stroke-width="0.75" stroke-linecap="square" stroke-linejoin="miter">
+    <g fill="none" stroke="${NEON_ORANGE}" stroke-width="0.75" stroke-linecap="square" stroke-linejoin="miter">
       <!-- Pediment (triangular roof) -->
       <polygon points="22,5 6,15 38,15" />
       <!-- Architrave (beam under pediment) -->
@@ -40,10 +40,10 @@ const TEMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="4
       <line x1="3" y1="36" x2="41" y2="36" />
     </g>
     <!-- 4 solid columns -->
-    <rect x="9" y="18" width="2" height="14" fill="${NEON_CYAN}"/>
-    <rect x="16.5" y="18" width="2" height="14" fill="${NEON_CYAN}"/>
-    <rect x="25.5" y="18" width="2" height="14" fill="${NEON_CYAN}"/>
-    <rect x="33" y="18" width="2" height="14" fill="${NEON_CYAN}"/>
+    <rect x="9" y="18" width="2" height="14" fill="${NEON_ORANGE}"/>
+    <rect x="16.5" y="18" width="2" height="14" fill="${NEON_ORANGE}"/>
+    <rect x="25.5" y="18" width="2" height="14" fill="${NEON_ORANGE}"/>
+    <rect x="33" y="18" width="2" height="14" fill="${NEON_ORANGE}"/>
   </g>
 </svg>`;
 
@@ -56,7 +56,7 @@ function nameLabelUrl(name: string): { url: string; w: number } {
   <defs>
     <filter id="lblGlow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="1.2" result="blur"/>
-      <feFlood flood-color="${NEON_CYAN}" flood-opacity="0.7"/>
+      <feFlood flood-color="${NEON_ORANGE}" flood-opacity="0.85"/>
       <feComposite in2="blur" operator="in" result="glow"/>
       <feMerge>
         <feMergeNode in="glow"/>
@@ -65,9 +65,9 @@ function nameLabelUrl(name: string): { url: string; w: number } {
     </filter>
   </defs>
   <rect x="1.5" y="1.5" width="${w - 3}" height="19" rx="9.5"
-    fill="rgba(8,18,28,0.92)" stroke="${NEON_CYAN}" stroke-width="1.5" filter="url(#lblGlow)"/>
+    fill="rgba(8,18,28,0.92)" stroke="${NEON_ORANGE}" stroke-width="1.5" filter="url(#lblGlow)"/>
   <text x="${w / 2}" y="15" text-anchor="middle" font-size="10" font-weight="700"
-    fill="${NEON_CYAN}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
+    fill="${NEON_ORANGE}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
     style="letter-spacing:0.04em">${name.toUpperCase()}</text>
 </svg>`;
   return { url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, w };

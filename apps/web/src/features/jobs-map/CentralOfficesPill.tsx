@@ -3,8 +3,8 @@
 import { useShowCOs, setShowCOs } from "./centralOfficesStore.js";
 import centralOffices from "../../data/centralOffices.json";
 
-const NEON = "#22D3FF";
-const NEON_GLOW = "rgba(34,211,255,0.55)";
+const NEON = "#FF7A00";
+const NEON_GLOW = "rgba(255,122,0,0.65)";
 
 export default function CentralOfficesPill() {
   const active = useShowCOs();
