@@ -43,6 +43,18 @@ export default function LeftRail({
 }: Props) {
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
   const [activeTab, setActiveTab] = useState<TabId>('telecom'); // Default to tools
+  const [collapsed, setCollapsed] = useState<boolean>(false);
+
+  // Click an active tab to collapse the rail; click a different tab to switch
+  // to it (and uncollapse if currently collapsed).
+  const onTabClick = useCallback((id: TabId) => {
+    if (id === activeTab) {
+      setCollapsed(c => !c);
+    } else {
+      setActiveTab(id);
+      setCollapsed(false);
+    }
+  }, [activeTab]);
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(DEFAULT_WIDTH);
@@ -132,55 +144,64 @@ export default function LeftRail({
     { id: 'annotate', label: 'ANNOTATE' },
   ];
 
+  // When collapsed, only the 52px tab strip is visible (no content panel,
+  // no resize handle). Click the same tab again to expand back.
+  const effectiveWidth = collapsed ? 52 : width;
+
   return (
     <aside
-      className="left-rail"
-      style={{ width, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH, position: "relative", flexShrink: 0 }}
+      className={`left-rail ${collapsed ? 'left-rail--collapsed' : ''}`}
+      style={{ width: effectiveWidth, minWidth: collapsed ? 52 : MIN_WIDTH, maxWidth: collapsed ? 52 : MAX_WIDTH, position: "relative", flexShrink: 0 }}
     >
-      {/* Vertical tab strip (sideways labels) — AsBuilt-style */}
+      {/* Vertical tab strip (sideways labels) — AsBuilt-style. Tabs fill the
+          full height of the rail so each label is large and readable. */}
       <div className="left-rail-tabstrip">
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            className={`left-rail-tab ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-            title={tab.label}
+            className={`left-rail-tab ${activeTab === tab.id && !collapsed ? 'active' : ''}`}
+            onClick={() => onTabClick(tab.id)}
+            title={`${tab.label} — click again to ${collapsed ? 'expand' : 'collapse'}`}
           >
             <span>{tab.label}</span>
           </button>
         ))}
       </div>
 
-      <div className="left-rail__scroll">
-        {/* Tab Content */}
-        <div className="left-rail-tab-content">
-          {activeTab === 'layers' && <LayersTab />}
-          {activeTab === 'telecom' && <TelecomTab />}
-          {activeTab === 'annotate' && <AnnotateTab />}
-        </div>
+      {!collapsed && (
+        <>
+          <div className="left-rail__scroll">
+            {/* Tab Content */}
+            <div className="left-rail-tab-content">
+              {activeTab === 'layers' && <LayersTab />}
+              {activeTab === 'telecom' && <TelecomTab />}
+              {activeTab === 'annotate' && <AnnotateTab />}
+            </div>
 
-        {!hideFilters && activeTab !== 'layers' && (
-          <>
-            <div className="rail-section__divider" />
-            <FilterRail
-              jobs={jobs}
-              filters={filters}
-              setFilters={setFilters}
-              managerMode={managerMode}
-              availableSupervisors={availableSupervisors}
-            />
-          </>
-        )}
-      </div>
+            {!hideFilters && activeTab !== 'layers' && (
+              <>
+                <div className="rail-section__divider" />
+                <FilterRail
+                  jobs={jobs}
+                  filters={filters}
+                  setFilters={setFilters}
+                  managerMode={managerMode}
+                  availableSupervisors={availableSupervisors}
+                />
+              </>
+            )}
+          </div>
 
-      {/* Resize handle */}
-      <div
-        ref={handleRef}
-        className="rail-resize-handle"
-        onMouseDown={onMouseDown}
-        onDoubleClick={onDoubleClick}
-        title="Drag to resize · Double-click to reset"
-      />
+          {/* Resize handle */}
+          <div
+            ref={handleRef}
+            className="rail-resize-handle"
+            onMouseDown={onMouseDown}
+            onDoubleClick={onDoubleClick}
+            title="Drag to resize · Double-click to reset"
+          />
+        </>
+      )}
     </aside>
   );
 }
