@@ -332,15 +332,16 @@ function AutoSavePill({ dirty, saving, saveError, autoSaveCountdown, savedFlash,
 }
 
 function ScreenshotIcon() {
+  // Clear, bold camera icon — obvious at small sizes on dark buttons.
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      {/* Modern high-tech camera icon */}
-      <rect x="3" y="5" width="18" height="14" rx="2" ry="2"/>
-      <circle cx="12" cy="12" r="3.5"/>
-      <path d="M8 2v3"/>
-      <path d="M16 2v3"/>
-      {/* Small tech accent line */}
-      <line x1="19" y1="8" x2="21" y2="8" strokeWidth="1.5"/>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      {/* Camera body */}
+      <path d="M9 4 L7.5 6 L4 6 a2 2 0 0 0 -2 2 v10 a2 2 0 0 0 2 2 h16 a2 2 0 0 0 2 -2 V8 a2 2 0 0 0 -2 -2 h-3.5 L15 4 Z" />
+      {/* Lens cutout (knock-out via fill rule using a second path) */}
+      <circle cx="12" cy="13" r="4" fill="#0b1220" />
+      <circle cx="12" cy="13" r="2.4" fill="currentColor" />
+      {/* Flash dot */}
+      <circle cx="18.5" cy="9" r="0.9" fill="#0b1220" />
     </svg>
   );
 }

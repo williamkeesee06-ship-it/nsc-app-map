@@ -10,6 +10,8 @@ import type { DrawingTool, JobLayer } from "@nsc/types";
 import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 import { queuePrefWrite } from "../../lib/prefsSync.js";
 import { getIconByKey } from "../drawing/icons/iconRegistry.js";
+import StatusFilterPills from "./StatusFilterPills.js";
+import CentralOfficesPill from "./CentralOfficesPill.js";
 
 // Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
 // the left while keeping plenty of room for tool tiles to the right.
@@ -31,7 +33,7 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'layers' | 'telecom' | 'annotate';
+type TabId = 'filters' | 'telecom' | 'annotate' | 'layers';
 
 export default function LeftRail({
   jobs,
@@ -42,7 +44,7 @@ export default function LeftRail({
   availableSupervisors,
 }: Props) {
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
-  const [activeTab, setActiveTab] = useState<TabId>('telecom'); // Default to tools
+  const [activeTab, setActiveTab] = useState<TabId>('filters'); // Default to filters (top tab)
   const [collapsed, setCollapsed] = useState<boolean>(false);
 
   // Click an active tab to collapse the rail; click a different tab to switch
@@ -139,9 +141,10 @@ export default function LeftRail({
   // Always 2 columns — tiles shrink to fit
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: 'layers', label: 'LAYERS' },
+    { id: 'filters', label: 'FILTERS' },
     { id: 'telecom', label: 'TELECOM' },
     { id: 'annotate', label: 'ANNOTATE' },
+    { id: 'layers', label: 'LAYERS' },
   ];
 
   // When collapsed, only the 52px tab strip is visible (no content panel,
@@ -173,23 +176,20 @@ export default function LeftRail({
           <div className="left-rail__scroll">
             {/* Tab Content */}
             <div className="left-rail-tab-content">
-              {activeTab === 'layers' && <LayersTab />}
-              {activeTab === 'telecom' && <TelecomTab />}
-              {activeTab === 'annotate' && <AnnotateTab />}
-            </div>
-
-            {!hideFilters && activeTab !== 'layers' && (
-              <>
-                <div className="rail-section__divider" />
-                <FilterRail
+              {activeTab === 'filters' && (
+                <FiltersTab
                   jobs={jobs}
                   filters={filters}
                   setFilters={setFilters}
+                  hideFilters={hideFilters}
                   managerMode={managerMode}
                   availableSupervisors={availableSupervisors}
                 />
-              </>
-            )}
+              )}
+              {activeTab === 'telecom' && <TelecomTab />}
+              {activeTab === 'annotate' && <AnnotateTab />}
+              {activeTab === 'layers' && <LayersTab />}
+            </div>
           </div>
 
           {/* Resize handle */}
@@ -339,6 +339,49 @@ const TELECOM_TOOL_DEFS: ToolDef[] = [
 ];
 
 // ─── Tab Components ────────────────────────────────────────────────────────────
+
+function FiltersTab({
+  jobs,
+  filters,
+  setFilters,
+  hideFilters,
+  managerMode,
+  availableSupervisors,
+}: {
+  jobs: Job[];
+  filters: Filters;
+  setFilters: (f: Filters) => void;
+  hideFilters?: boolean;
+  managerMode?: boolean;
+  availableSupervisors?: string[];
+}) {
+  return (
+    <section className="rail-section filters-tab">
+      <div className="filters-tab__group">
+        <div className="filters-tab__heading">STATUS</div>
+        <StatusFilterPills />
+      </div>
+
+      <div className="filters-tab__group">
+        <div className="filters-tab__heading">OVERLAYS</div>
+        <CentralOfficesPill />
+      </div>
+
+      {!hideFilters && (
+        <div className="filters-tab__group">
+          <div className="rail-section__divider" />
+          <FilterRail
+            jobs={jobs}
+            filters={filters}
+            setFilters={setFilters}
+            managerMode={managerMode}
+            availableSupervisors={availableSupervisors}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
 
 function LayersTab() {
   const { state, addLayer, updateLayer, reorderLayers, setActiveLayer } = useDrawing();
@@ -515,7 +558,7 @@ function AnnotateTab() {
           const isActive = activeTool === tool;
           return (
             <button key={tool} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)}>
-              <span className="tool-tile__icon">{iconSvg(isActive)}</span>
+              <span className="tool-tile__icon tool-tile__icon--glyph">{iconSvg(isActive)}</span>
               <span className="tool-tile__label">{label}</span>
             </button>
           );
@@ -528,7 +571,7 @@ function AnnotateTab() {
           const isActive = activeTool === tool;
           return (
             <button key={tool} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)}>
-              <span className="tool-tile__icon">{iconSvg(isActive)}</span>
+              <span className="tool-tile__icon tool-tile__icon--glyph">{iconSvg(isActive)}</span>
               <span className="tool-tile__label">{label}</span>
             </button>
           );
@@ -541,7 +584,7 @@ function AnnotateTab() {
           const isActive = activeTool === tool;
           return (
             <button key={tool} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)}>
-              <span className="tool-tile__icon">{iconSvg(isActive)}</span>
+              <span className="tool-tile__icon tool-tile__icon--glyph">{iconSvg(isActive)}</span>
               <span className="tool-tile__label">{label}</span>
             </button>
           );
@@ -557,7 +600,7 @@ function AnnotateTab() {
             onClick={() => handleAction(t.action)}
             title={t.label}
           >
-            <span className="tool-tile__icon">{t.icon}</span>
+            <span className="tool-tile__icon tool-tile__icon--glyph">{t.icon}</span>
             <span className="tool-tile__label">{t.label}</span>
           </button>
         ))}

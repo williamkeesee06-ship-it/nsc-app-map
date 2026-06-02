@@ -15,8 +15,12 @@ export type FocusRequest =
 
 interface SearchCtx {
   focus: FocusRequest | null;
+  /** Currently selected job id — drives the topbar info boxes.
+   *  Written by SearchBar pickJob and by JobsMap pin clicks. */
+  selectedJobId: string | null;
   focusJob: (jobId: string) => void;
   focusLatLng: (lat: number, lng: number, label?: string) => void;
+  setSelectedJobId: (jobId: string | null) => void;
   clearFocus: () => void;
 }
 
@@ -24,16 +28,22 @@ const Ctx = createContext<SearchCtx | null>(null);
 
 export function SearchFocusProvider({ children }: { children: ReactNode }) {
   const [focus, setFocus] = useState<FocusRequest | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const value = useMemo<SearchCtx>(
     () => ({
       focus,
-      focusJob: (jobId) => setFocus({ kind: "job", jobId, requestedAt: Date.now() }),
+      selectedJobId,
+      focusJob: (jobId) => {
+        setSelectedJobId(jobId);
+        setFocus({ kind: "job", jobId, requestedAt: Date.now() });
+      },
       focusLatLng: (lat, lng, label) =>
         setFocus({ kind: "latLng", lat, lng, label, requestedAt: Date.now() }),
+      setSelectedJobId,
       clearFocus: () => setFocus(null),
     }),
-    [focus]
+    [focus, selectedJobId]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

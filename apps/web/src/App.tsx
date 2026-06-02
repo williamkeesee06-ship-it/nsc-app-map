@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, Navigate, useMatch } from "react-router-dom";
+import { Routes, Route, Navigate, useMatch } from "react-router-dom";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import JobsMap from "./features/jobs-map/JobsMap.js";
 import JobWorkspace from "./features/workspace/JobWorkspace.js";
@@ -10,12 +10,11 @@ import JobContextStrip from "./features/workspace/JobContextStrip.js";
 import { AuthProvider, useAuth } from "./features/auth/authContext.js";
 import LoginScreen from "./features/auth/LoginScreen.js";
 import { FiltersProvider } from "./features/jobs-map/filtersContext.js";
-import StatusFilterPills from "./features/jobs-map/StatusFilterPills.js";
-import CentralOfficesPill from "./features/jobs-map/CentralOfficesPill.js";
+import JobInfoBoxes from "./features/jobs-map/JobInfoBoxes.js";
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
-const LIBRARIES: ("geometry")[] = ["geometry"];
+const LIBRARIES: ("geometry" | "places")[] = ["geometry", "places"];
 
 export default function App() {
   return (
@@ -46,16 +45,12 @@ function Shell() {
           <div className="shell">
             <header className="topbar">
               <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
-              <h1>APP MAP</h1>
               <SearchBar />
+              {/* AsBuilt-style info row: 7 boxes that auto-fill when a job is
+                  selected via search or by clicking a pin. Empty otherwise. */}
+              <JobInfoBoxes />
               {/* Phase 9.6: inline job-info strip when in workspace mode */}
               <InlineJobContext />
-              <nav>
-                <NavLink to="/" end>Jobs Map</NavLink>
-                <NavLink to="/sync">Sync</NavLink>
-              </nav>
-              <StatusFilterPills />
-              <CentralOfficesPill />
               <TopbarActions />
               <UserChip />
             </header>

@@ -15,6 +15,14 @@ import { useSearchFocus } from "./searchContext.js";
 import { useMarkupSearchEntries, type MarkupSearchEntry } from "./markupSearchStore.js";
 import type { Job } from "@nsc/types";
 
+// Google Places Autocomplete prediction — the subset we render.
+interface PlacePrediction {
+  placeId: string;
+  description: string;
+  main: string;
+  secondary: string;
+}
+
 export default function SearchBar() {
   const jobsState = useJobs();
   const allJobs = jobsState.state === "ready" ? jobsState.jobs : [];
@@ -26,7 +34,11 @@ export default function SearchBar() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [placePreds, setPlacePreds] = useState<PlacePrediction[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Lazy-initialized Google AutocompleteService + session token.
+  const autocompleteRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
 
   // Click-outside to close suggestion panel.
   useEffect(() => {
@@ -37,6 +49,74 @@ export default function SearchBar() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Google Places Autocomplete — debounced address predictions biased to WA.
+  useEffect(() => {
+    const t = term.trim();
+    if (t.length < 3) {
+      setPlacePreds([]);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      const g = (window as unknown as { google?: { maps?: { places?: typeof google.maps.places } } }).google;
+      if (!g?.maps?.places) {
+        // Places lib not loaded yet — silently skip; user can still press Enter to geocode.
+        return;
+      }
+      if (!autocompleteRef.current) {
+        autocompleteRef.current = new g.maps.places.AutocompleteService();
+      }
+      if (!sessionTokenRef.current) {
+        sessionTokenRef.current = new g.maps.places.AutocompleteSessionToken();
+      }
+      const bounds = new google.maps.LatLngBounds(
+        { lat: 45.5, lng: -124.8 },
+        { lat: 49.0, lng: -116.9 },
+      );
+      autocompleteRef.current.getPlacePredictions(
+        {
+          input: t,
+          bounds,
+          componentRestrictions: { country: "us" },
+          sessionToken: sessionTokenRef.current,
+        },
+        (preds, status) => {
+          if (status !== google.maps.places.PlacesServiceStatus.OK || !preds) {
+            setPlacePreds([]);
+            return;
+          }
+          setPlacePreds(
+            preds.slice(0, 5).map((p) => ({
+              placeId: p.place_id,
+              description: p.description,
+              main: p.structured_formatting?.main_text ?? p.description,
+              secondary: p.structured_formatting?.secondary_text ?? "",
+            })),
+          );
+        },
+      );
+    }, 200);
+    return () => window.clearTimeout(handle);
+  }, [term]);
+
+  async function pickPlace(p: PlacePrediction) {
+    setOpen(false);
+    setError(null);
+    setTerm(p.description);
+    navigate("/");
+    // Geocode the place_id to get lat/lng (cheaper than PlacesService.getDetails).
+    const g = (window as unknown as { google?: { maps?: { Geocoder?: new () => google.maps.Geocoder } } }).google;
+    if (!g?.maps?.Geocoder) return;
+    const geocoder = new g.maps.Geocoder();
+    geocoder.geocode({ placeId: p.placeId }, (results, status) => {
+      if (status === "OK" && results && results[0]) {
+        const loc = results[0].geometry.location;
+        focusLatLng(loc.lat(), loc.lng(), p.description);
+      }
+      // Reset session token after a pick — starts a new billing session.
+      sessionTokenRef.current = null;
+    });
+  }
 
   const suggestions = useMemo<Job[]>(() => {
     const t = term.trim().toLowerCase();
@@ -237,9 +317,29 @@ export default function SearchBar() {
             </>
           )}
 
-          {suggestions.length === 0 && markupSuggestions.length === 0 && !error && term.trim().length > 0 && (
+          {placePreds.length > 0 && (
+            <>
+              <div className="search-suggest__heading">ADDRESSES</div>
+              <ul className="search-suggest__list">
+                {placePreds.map((p) => (
+                  <li key={p.placeId}>
+                    <button
+                      type="button"
+                      className="search-suggest__row search-suggest__row--place"
+                      onClick={() => void pickPlace(p)}
+                    >
+                      <span className="search-suggest__wo">{p.main}</span>
+                      <span className="search-suggest__addr">{p.secondary}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {suggestions.length === 0 && markupSuggestions.length === 0 && placePreds.length === 0 && !error && term.trim().length > 0 && (
             <div className="search-suggest__hint">
-              No job or markup match — press <kbd>Enter</kbd> to search this as an address.
+              No match yet — press <kbd>Enter</kbd> to search this as an address.
             </div>
           )}
         </div>

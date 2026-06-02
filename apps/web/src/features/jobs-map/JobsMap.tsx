@@ -67,6 +67,14 @@ export default function JobsMap() {
   }, [allJobs, setFiltersJobs]);
   const [selected, setSelected] = useState<Job | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
+
+  // Mirror the locally-tracked `selected` job into the global search context
+  // so the topbar job-info boxes (rendered outside this component) can read it.
+  // Cleared when the JobCard closes.
+  const { setSelectedJobId } = useSearchFocus();
+  useEffect(() => {
+    setSelectedJobId(selected?.jobId ?? null);
+  }, [selected, setSelectedJobId]);
   const filtered = useMemo(() => applyFilters(allJobs, filters), [allJobs, filters]);
   const mapped = useMemo(() => filtered.filter(
     (j) => j.geocode?.status === "OK" && j.geocode.lat !== 0
