@@ -430,8 +430,42 @@ function makeCalloutLine(
 // ── Label position helpers ────────────────────────────────────────────────────
 
 function midpointOfVertices(vertices: Array<{ lat: number; lng: number }>): { lat: number; lng: number } {
-  const mid = vertices[Math.floor(vertices.length / 2)];
-  return mid ?? vertices[0]!;
+  // Compute the true geometric midpoint along the polyline path (half total length).
+  // For a 2-point line this is the exact midpoint between the two endpoints.
+  // For multi-segment lines this is the point at 50% of cumulative arc length.
+  if (vertices.length === 0) return { lat: 0, lng: 0 };
+  if (vertices.length === 1) return vertices[0]!;
+  if (vertices.length === 2) {
+    return {
+      lat: (vertices[0]!.lat + vertices[1]!.lat) / 2,
+      lng: (vertices[0]!.lng + vertices[1]!.lng) / 2,
+    };
+  }
+  // Multi-segment: find point at half total cumulative length.
+  const segLens: number[] = [];
+  let total = 0;
+  for (let i = 0; i < vertices.length - 1; i++) {
+    const dLat = vertices[i + 1]!.lat - vertices[i]!.lat;
+    const dLng = vertices[i + 1]!.lng - vertices[i]!.lng;
+    const len = Math.sqrt(dLat * dLat + dLng * dLng);
+    segLens.push(len);
+    total += len;
+  }
+  if (total === 0) return vertices[0]!;
+  const half = total / 2;
+  let acc = 0;
+  for (let i = 0; i < segLens.length; i++) {
+    const next = acc + segLens[i]!;
+    if (next >= half) {
+      const t = (half - acc) / (segLens[i]! || 1);
+      return {
+        lat: vertices[i]!.lat + (vertices[i + 1]!.lat - vertices[i]!.lat) * t,
+        lng: vertices[i]!.lng + (vertices[i + 1]!.lng - vertices[i]!.lng) * t,
+      };
+    }
+    acc = next;
+  }
+  return vertices[vertices.length - 1]!;
 }
 
 function centerOfBounds(bounds: { n: number; s: number; e: number; w: number }): { lat: number; lng: number } {
@@ -904,15 +938,24 @@ export default function DrawingOverlay() {
           const opts = "tool" in obj && "vertices" in obj
             ? styleToPolylineOpts(obj as typeof obj & { vertices: unknown })
             : {};
+          // Selected lines/polygons are ALWAYS editable + draggable so the user
+          // can reshape them right after clicking, regardless of what tool was
+          // active before. The geometry listeners below sync changes back.
+          const allowEdit = isSelected && !obj.style.locked;
           existing.setOptions({
             ...opts,
             strokeOpacity: isSelected ? 1 : obj.style.opacity,
             strokeWeight: isSelected ? Math.max(obj.style.strokeWidth + 1.5, 3) : obj.style.strokeWidth,
             zIndex: isSelected ? 20 : 5,
             clickable: isClickable,
-            editable: isEditable,
-            draggable: isEditable,
+            editable: allowEdit,
+            draggable: allowEdit,
           });
+          if (allowEdit) {
+            attachGeoListeners(obj.id, existing);
+          } else {
+            removeGeoListeners(obj.id);
+          }
         } else if (existing instanceof google.maps.Rectangle || existing instanceof google.maps.Circle) {
           existing.setOptions({
             strokeColor: isSelected ? "#3aa7ff" : obj.style.strokeColor,
@@ -949,11 +992,14 @@ export default function DrawingOverlay() {
           }
         }
 
-        // Attach / detach geometry listeners based on editable state
-        if (isEditable) {
-          attachGeoListeners(obj.id, existing);
-        } else {
-          removeGeoListeners(obj.id);
+        // Attach / detach geometry listeners based on editable state (points/shapes;
+        // Polylines/Polygons handled in their own branch above).
+        if (!(existing instanceof google.maps.Polyline) && !(existing instanceof google.maps.Polygon)) {
+          if (isEditable) {
+            attachGeoListeners(obj.id, existing);
+          } else {
+            removeGeoListeners(obj.id);
+          }
         }
 
         // Make sure selection click listener is present when in Select tool
@@ -1051,13 +1097,23 @@ export default function DrawingOverlay() {
       if (labelText && zoom >= MIN_LABEL_ZOOM) {
         const pos = labelPositionForObj(obj);
         if (pos) {
-          const labelLatLng = pixelOffsetToLatLng(pos, 30, 0, map);
+          // Line-like tools (cables, lines, freehand, measure) want the label
+          // sitting ON the midpoint of the line, no pixel offset and no leader.
+          const isLineLike =
+            obj.tool === "placed_cable" ||
+            obj.tool === "removed_cable" ||
+            obj.tool === "line" ||
+            obj.tool === "freehand" ||
+            obj.tool === "measure";
+          const labelLatLng = isLineLike ? pos : pixelOffsetToLatLng(pos, 30, 0, map);
           if (labelLatLng) {
             const lbl = makeLabelMarkerAt(labelLatLng, labelText, map, 6);
             overlaysRef.current.set(obj.id + "_label", lbl);
-            const offsetMag = Math.sqrt(30 ** 2);
-            if (offsetMag > CALLOUT_MIN_OFFSET_PX) {
-              calloutLinesRef.current.set(obj.id + "_callout", makeCalloutLine(pos, labelLatLng, map, 5));
+            if (!isLineLike) {
+              const offsetMag = Math.sqrt(30 ** 2);
+              if (offsetMag > CALLOUT_MIN_OFFSET_PX) {
+                calloutLinesRef.current.set(obj.id + "_callout", makeCalloutLine(pos, labelLatLng, map, 5));
+              }
             }
           }
         }
@@ -1067,7 +1123,7 @@ export default function DrawingOverlay() {
       // Measure distance label
       if (obj.tool === "measure" && "vertices" in obj) {
         const ft = distanceFeet(obj.vertices);
-        const mid = obj.vertices[Math.floor(obj.vertices.length / 2)];
+        const mid = midpointOfVertices(obj.vertices);
         if (mid) {
           const iw = new google.maps.InfoWindow({
             content: `<div style="color:#1A2332;background:#fff;padding:4px 8px;border-radius:4px;font-size:12px;font-family:monospace;border:1px solid #C8D0DA;">${ft.toFixed(0)} ft</div>`,
