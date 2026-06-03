@@ -83,6 +83,8 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
     icons:
       style.strokeStyle === "dashed"
         ? [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: style.strokeWidth }, offset: "0", repeat: "12px" }]
+        : style.strokeStyle === "dotted"
+        ? [{ icon: { path: "M 0,0 0,0.01", strokeOpacity: 1, scale: style.strokeWidth }, offset: "0", repeat: "6px" }]
         : undefined,
   };
 }

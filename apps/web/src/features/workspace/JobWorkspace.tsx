@@ -111,7 +111,7 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
               <MapHandle mapRef={mapRef} />
               <FitToJobGeometry job={job} jobId={jobId} />
               <DrawingOverlay />
-              <MapTypeToggle />
+              {/* MapTypeToggle lives in the topbar now. */}
             </Map>
           </div>
         </div>

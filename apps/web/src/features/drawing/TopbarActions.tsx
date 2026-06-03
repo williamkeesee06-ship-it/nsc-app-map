@@ -10,6 +10,7 @@ import { downloadScreenshot } from "./screenshot.js";
 import SaveDrawingDialog from "./SaveDrawingDialog.js";
 import LocateMeButton from "./LocateMe.js";
 import { useJobsContext } from "../jobs-map/jobsContext.js";
+import MapTypeToggle from "../map/MapTypeToggle.js";
 
 export default function TopbarActions() {
   // Gracefully consume the context — may be null outside DrawingProvider routes
@@ -173,6 +174,20 @@ export default function TopbarActions() {
 
         {/* Undo/Redo moved into LeftRail toolbox — see ToolsSection. */}
 
+        {/* Measure tool button — moved from LeftRail to topbar per design.
+            Toggles the measure drawing tool when context is available. */}
+        {ctx && (
+          <button
+            type="button"
+            className={`screenshot-btn${ctx.state.activeTool === "measure" ? " screenshot-btn--active" : ""}`}
+            onClick={() => ctx.setTool(ctx.state.activeTool === "measure" ? null : "measure")}
+            title="Measure distance on the map"
+            aria-label="Measure tool"
+          >
+            <MeasureIcon />
+          </button>
+        )}
+
         {/* Screenshot button — always usable, even with no target job */}
         <button
           type="button"
@@ -185,8 +200,13 @@ export default function TopbarActions() {
           {screenshotting ? "⏳" : <ScreenshotIcon />}
         </button>
 
-        {/* Phase 5: workspace mode shows auto-save status pill */}
-        {isWorkspace ? (
+        {/* Map style toggle — moved from floating map widget into the topbar so
+            the editor toolbar doesn't cover it. */}
+        <MapTypeToggle />
+
+        {/* Phase 5: workspace mode shows auto-save status pill (gives confirmation that
+            autosave is working, since the explicit save button was removed). */}
+        {isWorkspace && (
           <AutoSavePill
             dirty={dirty}
             saving={isSaving}
@@ -196,60 +216,22 @@ export default function TopbarActions() {
             workOrder={targetWorkOrder ?? targetJobId}
             onRetry={() => void save()}
           />
-        ) : (
-          <>
-            {/* Save target badge */}
-            <div className="save-target-badge">
-              {noTarget ? (
-                <span className="save-target-badge__hint">
-                  {canSaveNew ? "Unsaved drawing" : "No job selected"}
-                </span>
-              ) : (
-                <>
-                  <span className="save-target-badge__hint">Saving to:</span>
-                  <span className="save-target-badge__wo">{targetWorkOrder ?? targetJobId}</span>
-                </>
-              )}
-              {saveError && (
-                <span
-                  style={{ fontSize: 9, color: "var(--danger)", cursor: "pointer" }}
-                  title={saveError}
-                  onClick={() => window.alert(`Save failed:\n\n${saveError}`)}
-                >⚠ Failed (click for details)</span>
-              )}
-            </div>
+        )}
 
-            {/* Phase 5.3: always enabled save button */}
-            <CoinBtn
-              onClick={handleSave}
-              disabled={isSaving}
-              title={saveBtnTitle()}
-              variant="save"
-              extraClass={isSaving ? "saving" : savedFlash ? "saved" : undefined}
-            >
-              {saveLabel()}
-            </CoinBtn>
-
-            {/* Quick access to Field Findings — core use case: document cut cables,
-                damage, or anything seen in the field not tied to a specific work order. */}
-            {!isWorkspace && (
-              <CoinBtn
-                onClick={() => {
-                  // Best experience: let the user draw immediately as a field finding.
-                  // We set a synthetic target so autosave + tools work, then the Save
-                  // button will offer to persist it as a proper Field Finding.
-                  const ffId = `__ff__quick-${Date.now().toString(36)}`;
-                  if (ctx && typeof ctx.setTarget === "function") {
-                    ctx.setTarget(ffId, "Field Finding (unsaved)");
-                  }
-                  setShowSaveDialog(true);
-                }}
-                title="Start documenting something seen in the field (cut cables, damage, unmarked infrastructure, etc.). Draw now — it will save as a Field Finding visible on the main Jobs Map."
-              >
-                📍
-              </CoinBtn>
-            )}
-          </>
+        {/* Field Findings quick-add — only outside workspace mode. */}
+        {!isWorkspace && (
+          <CoinBtn
+            onClick={() => {
+              const ffId = `__ff__quick-${Date.now().toString(36)}`;
+              if (ctx && typeof ctx.setTarget === "function") {
+                ctx.setTarget(ffId, "Field Finding (unsaved)");
+              }
+              setShowSaveDialog(true);
+            }}
+            title="Document something seen in the field (cut cables, damage, unmarked infrastructure). Draw now — it autosaves as a Field Finding."
+          >
+            📍
+          </CoinBtn>
         )}
       </div>
 
@@ -328,6 +310,22 @@ function AutoSavePill({ dirty, saving, saveError, autoSaveCountdown, savedFlash,
       <span className="autosave-pill__dot" />
       <span className="autosave-pill__text">Unsaved…</span>
     </div>
+  );
+}
+
+function MeasureIcon() {
+  // Ruler / tape measure — matches the camera icon's flat, bold style.
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      {/* Angled ruler body */}
+      <path d="M3 14.5 L9.5 21 L21 9.5 L14.5 3 Z" />
+      {/* Tick marks knocked out */}
+      <rect x="5.2" y="13.8" width="1.5" height="3.5" transform="rotate(-45 6 15.5)" fill="#0b1220" />
+      <rect x="7.5" y="11.3" width="1.5" height="4.5" transform="rotate(-45 8.2 13.5)" fill="#0b1220" />
+      <rect x="10" y="8.8" width="1.5" height="3.5" transform="rotate(-45 10.6 10.5)" fill="#0b1220" />
+      <rect x="12.3" y="6.5" width="1.5" height="4.5" transform="rotate(-45 13 8.5)" fill="#0b1220" />
+      <rect x="14.8" y="4" width="1.5" height="3.5" transform="rotate(-45 15.4 5.5)" fill="#0b1220" />
+    </svg>
   );
 }
 

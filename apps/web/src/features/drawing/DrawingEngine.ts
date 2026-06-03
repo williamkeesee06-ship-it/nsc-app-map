@@ -207,12 +207,28 @@ export class DrawingEngine {
 
   /** Commit the object immediately OR hand off to popup handler if registered. */
   private commitOrPend(obj: DrawingObject, centerLat: number, centerLng: number): void {
-    if (this.onPendingObject) {
+    // Annotate tools (text/shapes/freehand/etc.) don't need the label popup —
+    // they commit immediately. Only telecom tools that need a user label/description
+    // open the popup. Callout has its own inline text editor.
+    if (this.onPendingObject && this.needsLabelPopup(obj.tool)) {
       const screenPos = this.latLngToScreenPoint(centerLat, centerLng);
       this.onPendingObject(obj, screenPos);
     } else {
       this.commit(obj);
     }
+  }
+
+  /** Telecom-style tools that need user-supplied label/description on creation. */
+  private needsLabelPopup(tool: DrawingTool): boolean {
+    return [
+      "placed_cable", "removed_cable",
+      "mh_new", "mh_removed",
+      "hh_new", "hh_removed",
+      "ped_new", "ped_removed",
+      "pole_new", "pole_removed",
+      "vault_new", "vault_removed",
+      "splice", "terminal", "drop",
+    ].includes(tool);
   }
 
   private cursorFor(tool: DrawingTool): string {
@@ -248,7 +264,10 @@ export class DrawingEngine {
       strokeColor: style.strokeColor,
       strokeWeight: style.strokeWidth,
       strokeOpacity: style.opacity,
-      strokeDashArray: style.strokeStyle === "dashed" ? "8 4" : undefined,
+      strokeDashArray:
+        style.strokeStyle === "dashed" ? "8 4"
+        : style.strokeStyle === "dotted" ? "2 4"
+        : undefined,
       map: this.map,
       clickable: false,
       zIndex: 10,

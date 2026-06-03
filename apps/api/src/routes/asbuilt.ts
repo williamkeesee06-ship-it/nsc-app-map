@@ -49,7 +49,7 @@ const JobLayerSchema = z.object({
 const DrawingStyleSchema = z.object({
   strokeColor: z.string(),
   strokeWidth: z.number().min(1).max(10),
-  strokeStyle: z.enum(["solid", "dashed"]),
+  strokeStyle: z.enum(["solid", "dashed", "dotted"]),
   fill: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("none") }),
     z.object({ kind: z.literal("solid"), color: z.string() }),

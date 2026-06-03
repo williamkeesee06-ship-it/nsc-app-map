@@ -217,13 +217,7 @@ export default function FilterRail({
   }
 
   // --- Default mode: status buckets now live in the topbar StatusFilterPills.
-  // Render just the live count widget here so the rail still shows shown/total.
-  return (
-    <section className="rail-section rail-section--filters">
-      <div className="filter-collapsible-header" style={{ padding: "4px 2px" }}>
-        <strong>JOBS SHOWN</strong>
-        <NeonCountWidget shown={filteredCount} total={jobs.length} />
-      </div>
-    </section>
-  );
+  // Jobs-shown count widget hidden until the redesign is approved.
+  void filteredCount;
+  return null;
 }

@@ -90,7 +90,7 @@ export type DrawingTool =
 export interface DrawingStyle {
   strokeColor: string;
   strokeWidth: number;
-  strokeStyle: "solid" | "dashed";
+  strokeStyle: "solid" | "dashed" | "dotted";
   fill:
     | { kind: "none" }
     | { kind: "solid"; color: string }
@@ -111,6 +111,22 @@ export interface DrawingStyle {
   layerId?: string;
   /** PDF editor style grouping */
   groupId?: string;
+
+  // ── Text formatting (text + callout tools) ───────────────────────────
+  /** Font family for text/callout tools. */
+  fontFamily?: string;
+  /** Font size in px for text/callout tools. */
+  fontSize?: number;
+  /** Bold weight for text/callout tools. */
+  bold?: boolean;
+  /** Italic for text/callout tools. */
+  italic?: boolean;
+  /** Underline for text/callout tools. */
+  underline?: boolean;
+  /** Text alignment for text/callout tools. */
+  textAlign?: "left" | "center" | "right";
+  /** Text color (separate from strokeColor) for text/callout tools. */
+  textColor?: string;
 }
 
 // Phase 9+: per-job MyMaps-style layers (elevated for personal desktop use).

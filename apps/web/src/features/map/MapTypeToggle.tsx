@@ -93,7 +93,7 @@ export default function MapTypeToggle() {
   }
 
   return (
-    <div style={{ position: "absolute", top: 14, right: 14, zIndex: 50 }}>
+    <div style={{ position: "relative", zIndex: 50 }}>
       <button
         type="button"
         className="map-type-toggle"

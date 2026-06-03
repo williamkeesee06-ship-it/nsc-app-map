@@ -20,6 +20,7 @@ import AllJobsMarkupsOverlay from "../drawing/AllJobsMarkupsOverlay.js";
 import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
 import { useShowCOs } from "./centralOfficesStore.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
+import JobsShownPill from "./JobsShownPill.js";
 import MapTypeToggle from "../map/MapTypeToggle.js";
 import type { MapTheme } from "../map/themeContext.js";
 import { JobsProvider } from "./jobsContext.js";
@@ -214,6 +215,7 @@ function JobsMapInner({
 
       <div className="jobs-map__main">
         <ModifiersPanel />
+        <JobsShownPill shown={mapped.length} total={allJobs.length} />
         <div className="map-host" style={{ position: "absolute", inset: 0, top: 0 }}>
           <Map
             defaultCenter={DEFAULT_CENTER}
@@ -238,22 +240,12 @@ function JobsMapInner({
             />
             <CentralOfficesOverlay visible={showCOs} />
             <DrawingOverlay />
-            <MapTypeToggle />
+            {/* MapTypeToggle moved to topbar so the editor toolbar can't cover it. */}
           </Map>
         </div>
 
-        {/* Solo desktop personal records indicator — this is the heart of the tool for the user */}
-        <div className="status-pill status-pill--bottom records-banner">
-          {selected ? (
-            <span>
-              Editing <strong>{selected.workOrder}</strong> — markups will stay visible on your map after you close this
-            </span>
-          ) : (
-            <span>
-              <strong>🗺️ Your Permanent As-Built Records</strong> — everything you draw stays visible here as your personal map
-            </span>
-          )}
-        </div>
+        {/* Records banner removed per redesign — the topbar info boxes show the
+            selected job; no banner needed. */}
 
         <div className="status-pill status-pill--bottom job-count-pill">
           {jobsState.state === "loading"
