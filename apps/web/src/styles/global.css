@@ -2894,10 +2894,11 @@ input:focus, textarea:focus, select:focus {
 .job-info-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 .job-info-field {
@@ -2907,10 +2908,12 @@ input:focus, textarea:focus, select:focus {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(200, 208, 218, 0.18);
   border-radius: 4px;
-  padding: 3px 8px;
+  padding: 3px 6px;
   min-height: 32px;
+  min-width: 0;
   justify-content: center;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  overflow: hidden;
 }
 
 .job-info-field__label {
@@ -3071,11 +3074,24 @@ input:focus, textarea:focus, select:focus {
   box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.35);
 }
 
-/* MapTypeToggle compact size when sitting in the topbar */
+/* MapTypeToggle compact size when sitting in the topbar.
+   IMPORTANT: force position:static so it doesn't fall back to the
+   absolute (top:50px/right:12px) base rule and get pushed off-screen. */
 .topbar .map-type-toggle {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
   height: 34px;
   padding: 4px 10px;
   font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* Make sure the topbar action cluster always stays visible on the right,
+   even when the info-boxes try to consume all available space. */
+.topbar .topbar-actions {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* If the records-banner pill is hidden (removed in JSX), this is a no-op,

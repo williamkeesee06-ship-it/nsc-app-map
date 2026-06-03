@@ -94,4 +94,16 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(prefs),
     }),
+
+  // Personal scratchpad (Billy 6/3) — markups drawn on the main map (no job
+  // selected) auto-save here so they follow the user across devices.
+  getScratchpad: (owner: string) =>
+    request<{ objects: unknown[]; updatedAt: number; ownerName: string }>(
+      `/api/scratchpad/${encodeURIComponent(owner)}`
+    ),
+  putScratchpad: (owner: string, objects: unknown[]) =>
+    request<{ objects: unknown[]; updatedAt: number; ownerName: string }>(
+      `/api/scratchpad/${encodeURIComponent(owner)}`,
+      { method: "PUT", body: JSON.stringify({ objects }) }
+    ),
 };

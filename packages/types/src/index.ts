@@ -170,8 +170,12 @@ export type DrawingObject =
   | {
       id: string;
       tool: "callout";
+      /** First click — arrow tip (this is where the arrowhead points). */
       anchor: { lat: number; lng: number };
+      /** Final point — where the editable text box sits (end of line). */
       position: { lat: number; lng: number };
+      /** Optional intermediate bend points between anchor and position. */
+      path?: Array<{ lat: number; lng: number }>;
       text: string;
       style: DrawingStyle;
     }

@@ -5,6 +5,7 @@ import asbuiltRouter from "./routes/asbuilt.js";
 import prefsRouter from "./routes/prefs.js";
 import syncRouter from "./routes/sync.js";
 import jobsRouter from "./routes/jobs.js";
+import scratchpadRouter from "./routes/scratchpad.js";
 
 export function createApp() {
   const app = express();
@@ -17,6 +18,7 @@ export function createApp() {
   app.use("/api", syncRouter);
   app.use("/api", jobsRouter);
   app.use("/api", prefsRouter);
+  app.use("/api", scratchpadRouter);
 
   // Catch-all error handler — never let an uncaught error crash the function.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

@@ -1066,28 +1066,51 @@ export default function DrawingOverlay() {
         }
       }
 
-      // Special Callout rendering: draw leader line from anchor to text position
+      // Special Callout rendering: draw leader polyline through optional bend
+      // points, with an arrowhead pointing at the anchor (the "tip").
+      //   path order on screen:  text-box position → bends (reversed) → anchor (tip)
+      // We put the arrow on the LAST vertex of the polyline so the head sits on
+      // the anchor (arrow points at the thing you're calling out).
       if (obj.tool === "callout" && "anchor" in obj) {
         const anchor = (obj as any).anchor as { lat: number; lng: number };
         const textPos = "position" in obj ? (obj as any).position : anchor;
+        const bends: Array<{ lat: number; lng: number }> =
+          ("path" in obj && Array.isArray((obj as any).path)) ? (obj as any).path : [];
+
+        // Draw from text-box → bends (reversed) → anchor so the arrowhead
+        // ends up at the anchor.
+        const polylinePath = [textPos, ...[...bends].reverse(), anchor];
 
         const leaderKey = obj.id + "_callout_leader";
         let leader = overlaysRef.current.get(leaderKey) as google.maps.Polyline | undefined;
 
+        const arrowSymbol: google.maps.IconSequence = {
+          icon: {
+            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 3.5,
+            strokeColor: obj.style.strokeColor || "#3aa7ff",
+            fillColor: obj.style.strokeColor || "#3aa7ff",
+            fillOpacity: 1,
+          },
+          offset: "100%",
+        };
+
         if (!leader) {
           leader = new google.maps.Polyline({
-            path: [anchor, textPos],
+            path: polylinePath,
             strokeColor: obj.style.strokeColor || "#3aa7ff",
             strokeWeight: (obj.style.strokeWidth || 2) + (isSelected ? 1 : 0),
             strokeOpacity: obj.style.opacity ?? 0.9,
+            icons: [arrowSymbol],
             map,
             zIndex: isSelected ? 18 : 4,
           });
           overlaysRef.current.set(leaderKey, leader);
         } else {
-          leader.setPath([anchor, textPos]);
+          leader.setPath(polylinePath);
           leader.setOptions({
             strokeWeight: (obj.style.strokeWidth || 2) + (isSelected ? 1 : 0),
+            icons: [arrowSymbol],
             zIndex: isSelected ? 18 : 4,
           });
         }
@@ -1242,10 +1265,10 @@ export default function DrawingOverlay() {
     if (!pendingObject) return;
     const { obj } = pendingObject;
     let finalObj: DrawingObject;
-    if (obj.tool === "text") {
+    if (obj.tool === "text" || obj.tool === "callout") {
       finalObj = {
         ...obj,
-        text: label || "Text",
+        text: label || "",
         style: { ...obj.style, userLabel: label || undefined, description: description || undefined },
       };
     } else {

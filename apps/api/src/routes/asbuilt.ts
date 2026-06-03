@@ -95,6 +95,15 @@ const DrawingObjectSchema = z.discriminatedUnion("tool", [
   }),
   z.object({
     id: z.string(),
+    tool: z.literal("callout"),
+    anchor: VertexSchema,
+    position: VertexSchema,
+    path: z.array(VertexSchema).optional(),
+    text: z.string(),
+    style: DrawingStyleSchema,
+  }),
+  z.object({
+    id: z.string(),
     tool: z.enum([
       "mh_new", "mh_removed",
       "hh_new", "hh_removed",

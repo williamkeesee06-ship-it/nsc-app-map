@@ -218,16 +218,21 @@ export class DrawingEngine {
     }
   }
 
-  /** Telecom-style tools that need user-supplied label/description on creation. */
+  /** Tools that need user-supplied label/description on creation. */
   private needsLabelPopup(tool: DrawingTool): boolean {
     return [
+      // Telecom
       "placed_cable", "removed_cable",
       "mh_new", "mh_removed",
       "hh_new", "hh_removed",
       "ped_new", "ped_removed",
       "pole_new", "pole_removed",
       "vault_new", "vault_removed",
+      "cabinet_new", "cabinet_removed",
+      "anchor_new", "anchor_removed",
       "splice", "terminal", "drop",
+      // Text-bearing markups also use the popup to capture the user's typed text/notes
+      "text", "callout",
     ].includes(tool);
   }
 
@@ -588,28 +593,116 @@ export class DrawingEngine {
   }
 
   // ─── Callout tool ───────────────────────────────────────────────────────────
+  //
+  // Multi-point flow:
+  //   click 1     → arrow tip (anchor)
+  //   click 2..n  → bend points
+  //   double-click→ end line; final tail position becomes the text box.
+  //                 Then the label popup opens to capture the text content.
 
   private setupCalloutTool(): void {
     const style = this.style!;
 
+    // Live points: anchor is points[0]; bends are points[1..n-2]; tail is the
+    // last point, which moves with the mouse until the next click.
+    const points: Array<{ lat: number; lng: number }> = [];
+    let lastClick = 0;
+    let previewLine: google.maps.Polyline | null = null;
+    let anchorMarker: google.maps.Marker | null = null;
+
+    const ensurePreview = () => {
+      if (previewLine) return;
+      previewLine = new google.maps.Polyline({
+        path: [],
+        strokeColor: style.strokeColor,
+        strokeWeight: style.strokeWidth,
+        strokeOpacity: style.opacity,
+        map: this.map,
+        clickable: false,
+        zIndex: 15,
+      });
+    };
+
+    const clearPreview = () => {
+      previewLine?.setMap(null);
+      previewLine = null;
+      anchorMarker?.setMap(null);
+      anchorMarker = null;
+    };
+
+    const updatePreview = (hoverPt?: { lat: number; lng: number }) => {
+      if (!previewLine || points.length === 0) return;
+      const path = hoverPt ? [...points, hoverPt] : [...points];
+      previewLine.setPath(path.map(p => new google.maps.LatLng(p.lat, p.lng)));
+    };
+
+    // Track mouse so the line follows the cursor between clicks
+    const move = this.map.addListener("mousemove", (e: google.maps.MapMouseEvent) => {
+      const pt = latLng(e);
+      if (!pt || points.length === 0) return;
+      updatePreview(pt);
+    });
+    this.listeners.push(move);
+
     const click = this.map.addListener("click", (e: google.maps.MapMouseEvent) => {
       const pt = latLng(e);
       if (!pt) return;
+      const now = Date.now();
+      const isDouble = now - lastClick < 300 && points.length >= 1;
+      lastClick = now;
 
-      // Create a pending callout object
-      const obj: any = {
-        id: genId(),
-        tool: "callout",
-        anchor: pt,
-        position: pt,
-        text: "\u200b",
-        style,
-      };
+      if (isDouble) {
+        // Drop the duplicate point Google fires on the second half of a double-click.
+        // Use the previous tail as the text-box location.
+        if (points.length < 1) return;
+        const anchor = points[0];
+        const tail = points[points.length - 1];
+        const bends = points.slice(1, points.length - 1);
 
-      this.deactivate();
-      this.commitOrPend(obj, pt.lat, pt.lng);
+        const obj: any = {
+          id: genId(),
+          tool: "callout",
+          anchor,
+          position: tail,
+          path: bends.length > 0 ? bends : undefined,
+          text: "\u200b",
+          style,
+        };
+        clearPreview();
+        points.length = 0;
+        this.deactivate();
+        this.commitOrPend(obj, tail.lat, tail.lng);
+        return;
+      }
+
+      if (points.length === 0) {
+        // First click — set the anchor (arrow tip). Drop a small visual marker
+        // so the user sees where the arrow will point.
+        ensurePreview();
+        anchorMarker = new google.maps.Marker({
+          position: pt,
+          map: this.map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 4,
+            fillColor: style.strokeColor,
+            fillOpacity: 1,
+            strokeColor: "#fff",
+            strokeWeight: 1.5,
+          },
+          clickable: false,
+          zIndex: 16,
+        });
+      }
+
+      points.push(pt);
+      updatePreview(pt);
     });
-
     this.listeners.push(click);
+
+    // If the user switches tools mid-draw, clean up. We piggyback on the
+    // listeners array (already cleared by deactivate()) by pushing a fake
+    // MapsEventListener whose remove() runs our cleanup.
+    this.listeners.push({ remove: clearPreview } as google.maps.MapsEventListener);
   }
 }

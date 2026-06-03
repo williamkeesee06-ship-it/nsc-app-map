@@ -103,7 +103,10 @@ function createReadOnlyOverlay(
   obj: DrawingObject,
   map: google.maps.Map,
   zoom: number,
-  onClick: (() => void) | null
+  onClick: (() => void) | null,
+  /** Callback to register auxiliary overlays (e.g. callout leader polyline)
+   *  so the parent can dispose them on clear/unmount. */
+  registerAux?: (overlay: OverlayRef) => void
 ): OverlayRef | null {
   if (obj.style.hidden) return null;
   const clickable = onClick !== null;
@@ -170,6 +173,56 @@ function createReadOnlyOverlay(
         map,
       }));
     }
+  }
+
+  // Callout: text + arrow-headed leader polyline through optional bend points.
+  // The leader's last vertex is the anchor (arrow tip), so the arrowhead
+  // points AT the thing being called out.
+  if (obj.tool === "callout" && "position" in obj && "anchor" in obj && "text" in obj) {
+    const anchor = (obj as any).anchor as { lat: number; lng: number };
+    const textPos = obj.position;
+    const bends: Array<{ lat: number; lng: number }> =
+      Array.isArray((obj as any).path) ? (obj as any).path : [];
+    const color = obj.style.strokeColor || "#3aa7ff";
+
+    // text-box -> bends (reversed) -> anchor, arrow on last vertex
+    const path = [textPos, ...[...bends].reverse(), anchor];
+    const leader = new google.maps.Polyline({
+      path,
+      strokeColor: color,
+      strokeWeight: obj.style.strokeWidth || 2,
+      strokeOpacity: obj.style.opacity ?? 0.9,
+      icons: [{
+        icon: {
+          path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+          scale: 3.5,
+          strokeColor: color,
+          fillColor: color,
+          fillOpacity: 1,
+        },
+        offset: "100%",
+      }],
+      clickable: false,
+      zIndex: 3,
+      map,
+    });
+    registerAux?.(leader);
+
+    return wireClick(new google.maps.Marker({
+      position: new google.maps.LatLng(textPos.lat, textPos.lng),
+      map,
+      label: {
+        text: obj.text || " ",
+        color,
+        fontSize: "13px",
+        fontWeight: "bold",
+        fontFamily: "ui-monospace, monospace",
+      },
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
+      clickable,
+      draggable: false,
+      zIndex: 4,
+    }));
   }
 
   if ("position" in obj && "text" in obj) {
@@ -326,7 +379,11 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
       const handler = onMarkupClick ? () => onMarkupClick(doc.jobId) : null;
       for (const obj of doc.objects) {
         try {
-          const overlay = createReadOnlyOverlay(obj, map, zoom, handler);
+          let auxIdx = 0;
+          const registerAux = (extra: OverlayRef) => {
+            overlaysRef.current.set(`${doc.jobId}:${obj.id}:aux${auxIdx++}`, extra);
+          };
+          const overlay = createReadOnlyOverlay(obj, map, zoom, handler, registerAux);
           if (overlay) overlaysRef.current.set(`${doc.jobId}:${obj.id}`, overlay);
           // Phase 9.5: render labels only when zoomed in close enough
           if (labelsVisible) {

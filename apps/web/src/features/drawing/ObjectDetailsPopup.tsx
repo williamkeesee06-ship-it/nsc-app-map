@@ -39,7 +39,19 @@ function promptForTool(tool: string): IconPrompt {
   if (tool === "ped_new" || tool === "ped_removed") {
     return { placeholder: "PED # / label (e.g. PED-1)", prefix: null };
   }
-  // Cabinet / anchor / non-locked point tools and shape/line tools
+  if (tool === "cabinet_new" || tool === "cabinet_removed") {
+    return { placeholder: "Cabinet # / label (e.g. CAB-7)", prefix: null };
+  }
+  if (tool === "anchor_new" || tool === "anchor_removed") {
+    return { placeholder: "Anchor # / label (optional)", prefix: null };
+  }
+  if (tool === "text") {
+    return { placeholder: "Type the text to show on the map\u2026", prefix: null };
+  }
+  if (tool === "callout") {
+    return { placeholder: "Callout text\u2026", prefix: null };
+  }
+  // Non-locked point tools and shape/line tools
   return { placeholder: "Name this object (optional)", prefix: null };
 }
 

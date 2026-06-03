@@ -767,13 +767,37 @@ export function DrawingProvider({ children, mapRef }: Props) {
 
   const save = useCallback(async () => {
     const { targetJobId, objects } = stateRef.current;
+    const owner = ownerRef.current;
+
+    // No job selected → save to per-user scratchpad so main-map markups
+    // follow Billy across devices (Billy 6/3).
     if (!targetJobId) {
-      dispatch({
-        type: "SET_SAVE_ERROR",
-        error: "No job selected. Click a pin on the map first, then save.",
-      });
+      if (!owner) {
+        dispatch({
+          type: "SET_SAVE_ERROR",
+          error: "Sign in to save markups across devices.",
+        });
+        return;
+      }
+      dispatch({ type: "SET_SAVING", saving: true });
+      dispatch({ type: "SET_SAVE_ERROR", error: null });
+      dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: null });
+      try {
+        await api.putScratchpad(owner, objects as unknown[]);
+        dispatch({ type: "MARK_SAVED" });
+        lsClearDraft(null);
+        window.dispatchEvent(new CustomEvent("nsc:markups-saved", {
+          detail: { scratchpad: true, owner }
+        }));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        dispatch({ type: "SET_SAVE_ERROR", error: msg });
+      } finally {
+        dispatch({ type: "SET_SAVING", saving: false });
+      }
       return;
     }
+
     dispatch({ type: "SET_SAVING", saving: true });
     dispatch({ type: "SET_SAVE_ERROR", error: null });
     dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: null });
@@ -785,7 +809,7 @@ export function DrawingProvider({ children, mapRef }: Props) {
         updatedAt: Date.now(),
         schemaVersion: 2 as const,
       };
-      await api.putDrawing(targetJobId, payload as unknown as AsBuiltDocument, ownerRef.current);
+      await api.putDrawing(targetJobId, payload as unknown as AsBuiltDocument, owner);
       dispatch({ type: "MARK_SAVED" });
       // Phase 5.2: clear localStorage draft after successful server save
       lsClearDraft(targetJobId);
@@ -831,8 +855,13 @@ export function DrawingProvider({ children, mapRef }: Props) {
   saveRef.current = save;
 
   useEffect(() => {
-    // Auto-save when a target job is set (workspace or main map) and there are unsaved changes
-    if (!state.targetJobId || !state.dirty || state.saving) return;
+    // Auto-save whenever there are unsaved changes. Two paths:
+    //   - targetJobId set   → PUT /api/asbuilt/:jobId (workspace/field-finding)
+    //   - no target         → PUT /api/scratchpad/:owner (personal scratchpad)
+    // Both flow through save() which picks the right endpoint.
+    if (!state.dirty || state.saving) return;
+    // Need either a target job OR a signed-in user (for scratchpad).
+    if (!state.targetJobId && !ownerRef.current) return;
 
     clearAutoSaveTimers();
 
@@ -879,6 +908,33 @@ export function DrawingProvider({ children, mapRef }: Props) {
   // Run once on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Billy 6/3: hydrate the per-user scratchpad on login so main-map markups
+  // drawn on another device show up here. We only do this when no target job
+  // is set (workspace edits are owned by their job's doc, not the scratchpad)
+  // and when local state is essentially empty so we don't blow away unsaved
+  // edits the user just made.
+  const scratchpadHydratedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!username) return;
+    if (scratchpadHydratedRef.current === username) return;
+    scratchpadHydratedRef.current = username;
+    if (state.targetJobId) return;          // workspace mode — don't touch
+    if (state.objects.length > 0) return;   // unsaved local work — don't touch
+    void api.getScratchpad(username)
+      .then((res) => {
+        if (!Array.isArray(res.objects) || res.objects.length === 0) return;
+        dispatch({
+          type: "SET_OBJECTS",
+          objects: res.objects as DrawingObject[],
+          markDirty: false,
+        });
+      })
+      .catch(() => {
+        // best-effort — scratchpad hydration is silent on failure
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username]);
 
   // Warn before tab close/navigation when there are unsaved drawings
   useEffect(() => {
