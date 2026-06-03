@@ -22,6 +22,7 @@ import { useShowCOs } from "./centralOfficesStore.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import JobsShownPill from "./JobsShownPill.js";
 import MapTypeToggle from "../map/MapTypeToggle.js";
+import MapTypeApplier from "../map/MapTypeApplier.js";
 import type { MapTheme } from "../map/themeContext.js";
 import { JobsProvider } from "./jobsContext.js";
 import { useAuth } from "../auth/authContext.js";
@@ -240,7 +241,9 @@ function JobsMapInner({
             />
             <CentralOfficesOverlay visible={showCOs} />
             <DrawingOverlay />
-            {/* MapTypeToggle moved to topbar so the editor toolbar can't cover it. */}
+            {/* MapTypeToggle is in the topbar; this applier (inside the Map
+                context) actually applies the chosen style to the live map. */}
+            <MapTypeApplier />
           </Map>
         </div>
 

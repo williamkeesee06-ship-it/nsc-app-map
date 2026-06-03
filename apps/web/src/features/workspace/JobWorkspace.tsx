@@ -10,6 +10,7 @@ import { useMapTheme } from "../map/themeContext.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import MapTypeToggle from "../map/MapTypeToggle.js";
+import MapTypeApplier from "../map/MapTypeApplier.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import LeftRail from "../jobs-map/LeftRail.js";
 import { defaultFilters } from "../jobs-map/FilterRail.js";
@@ -111,7 +112,8 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
               <MapHandle mapRef={mapRef} />
               <FitToJobGeometry job={job} jobId={jobId} />
               <DrawingOverlay />
-              {/* MapTypeToggle lives in the topbar now. */}
+              {/* MapTypeToggle lives in the topbar; this applier wires it to the map. */}
+              <MapTypeApplier />
             </Map>
           </div>
         </div>

@@ -1,7 +1,10 @@
-// Enhanced Map Style Control - Dark map + full label toggling
-import { useEffect, useState, useRef, useCallback } from "react";
-import { useMap } from "@vis.gl/react-google-maps";
-import { getMapStyles } from "./mapStyles.js";
+// Enhanced Map Style Control - Dark map + full label toggling.
+// IMPORTANT: this component lives in the topbar, OUTSIDE the <Map> component,
+// so it cannot call useMap() (would return null and never apply). Instead it
+// only manages its own dropdown UI + persists prefs + broadcasts an event.
+// A sibling <MapTypeApplier /> mounted INSIDE the <Map> actually applies the
+// styles to the live map instance.
+import { useEffect, useState, useRef } from "react";
 
 type MapType = "roadmap" | "satellite" | "hybrid" | "terrain";
 
@@ -45,37 +48,18 @@ function broadcast(prefs: MapPreferences) {
 }
 
 export default function MapTypeToggle() {
-  const map = useMap();
   const [prefs, setPrefs] = useState<MapPreferences>(loadPrefs);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { mapType, dark, showRoadLabels, showPoiLabels, showCityLabels } = prefs;
 
-  // Apply everything to the map
+  // Persist + broadcast whenever prefs change. The actual map.setOptions
+  // call happens in <MapTypeApplier /> which lives inside the <Map>.
   useEffect(() => {
-    if (!map) return;
-
-    map.setMapTypeId(mapType);
-
-    const styles = getMapStyles({
-      dark,
-      showRoadLabels,
-      showPoiLabels,
-      showCityLabels,
-    });
-    map.setOptions({ styles });
-
     savePrefs(prefs);
     broadcast(prefs);
-  }, [map, prefs]);
-
-  // Sync between map instances
-  useEffect(() => {
-    const h = (e: Event) => setPrefs((e as CustomEvent<MapPreferences>).detail);
-    window.addEventListener("nsc:map-prefs-changed", h);
-    return () => window.removeEventListener("nsc:map-prefs-changed", h);
-  }, []);
+  }, [prefs]);
 
   // Close on outside click
   useEffect(() => {

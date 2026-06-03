@@ -174,20 +174,6 @@ export default function TopbarActions() {
 
         {/* Undo/Redo moved into LeftRail toolbox — see ToolsSection. */}
 
-        {/* Measure tool button — moved from LeftRail to topbar per design.
-            Toggles the measure drawing tool when context is available. */}
-        {ctx && (
-          <button
-            type="button"
-            className={`screenshot-btn${ctx.state.activeTool === "measure" ? " screenshot-btn--active" : ""}`}
-            onClick={() => ctx.setTool(ctx.state.activeTool === "measure" ? null : "measure")}
-            title="Measure distance on the map"
-            aria-label="Measure tool"
-          >
-            <MeasureIcon />
-          </button>
-        )}
-
         {/* Screenshot button — always usable, even with no target job */}
         <button
           type="button"
@@ -314,32 +300,34 @@ function AutoSavePill({ dirty, saving, saveError, autoSaveCountdown, savedFlash,
 }
 
 function MeasureIcon() {
-  // Ruler / tape measure — matches the camera icon's flat, bold style.
+  // Ruler — stroke-only so it reads cleanly at small sizes on any background.
+  // No knockouts; uses currentColor strokes only.
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      {/* Angled ruler body */}
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {/* Angled ruler outline */}
       <path d="M3 14.5 L9.5 21 L21 9.5 L14.5 3 Z" />
-      {/* Tick marks knocked out */}
-      <rect x="5.2" y="13.8" width="1.5" height="3.5" transform="rotate(-45 6 15.5)" fill="#0b1220" />
-      <rect x="7.5" y="11.3" width="1.5" height="4.5" transform="rotate(-45 8.2 13.5)" fill="#0b1220" />
-      <rect x="10" y="8.8" width="1.5" height="3.5" transform="rotate(-45 10.6 10.5)" fill="#0b1220" />
-      <rect x="12.3" y="6.5" width="1.5" height="4.5" transform="rotate(-45 13 8.5)" fill="#0b1220" />
-      <rect x="14.8" y="4" width="1.5" height="3.5" transform="rotate(-45 15.4 5.5)" fill="#0b1220" />
+      {/* Tick marks as short lines, not knockouts */}
+      <line x1="6.5"  y1="15.5" x2="8"  y2="17" />
+      <line x1="9"    y1="13"   x2="11" y2="15" />
+      <line x1="11.5" y1="10.5" x2="13" y2="12" />
+      <line x1="14"   y1="8"    x2="16" y2="10" />
+      <line x1="16.5" y1="5.5"  x2="18" y2="7"  />
     </svg>
   );
 }
 
 function ScreenshotIcon() {
-  // Clear, bold camera icon — obvious at small sizes on dark buttons.
+  // Camera — stroke-only outline so the lens reads as a circle, not a blob.
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       {/* Camera body */}
-      <path d="M9 4 L7.5 6 L4 6 a2 2 0 0 0 -2 2 v10 a2 2 0 0 0 2 2 h16 a2 2 0 0 0 2 -2 V8 a2 2 0 0 0 -2 -2 h-3.5 L15 4 Z" />
-      {/* Lens cutout (knock-out via fill rule using a second path) */}
-      <circle cx="12" cy="13" r="4" fill="#0b1220" />
-      <circle cx="12" cy="13" r="2.4" fill="currentColor" />
-      {/* Flash dot */}
-      <circle cx="18.5" cy="9" r="0.9" fill="#0b1220" />
+      <path d="M4 8 h3.5 L9 6 h6 l1.5 2 H20 a1.5 1.5 0 0 1 1.5 1.5 V18 a1.5 1.5 0 0 1 -1.5 1.5 H4 A1.5 1.5 0 0 1 2.5 18 V9.5 A1.5 1.5 0 0 1 4 8 Z" />
+      {/* Lens */}
+      <circle cx="12" cy="13.5" r="3.5" />
+      {/* Flash dot — filled so it stands out */}
+      <circle cx="18.5" cy="10" r="0.9" fill="currentColor" />
     </svg>
   );
 }
