@@ -1,16 +1,61 @@
 // Dynamic map styling system
 // Supports:
-// - Dark / Light base
-// - Toggle road labels (street names)
+// - Multiple base themes: classic / dark / silver(light) / retro / night-tactical
+// - Toggle road / street labels
 // - Toggle POI / Business labels
+// - Toggle city / town labels
+// - Toggle transit lines
 // - Good dark map for field work at night
 
+export type MapTheme = "classic" | "dark" | "silver" | "retro";
+
 export interface MapStyleOptions {
+  /** Deprecated boolean kept for back-compat; maps to theme "dark". */
   dark?: boolean;
+  theme?: MapTheme;
   showRoadLabels?: boolean;
   showPoiLabels?: boolean;
   showCityLabels?: boolean;
+  showTransit?: boolean;
 }
+
+// ─── Base theme geometry palettes ──────────────────────────────────────────
+
+const DARK_THEME: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#0b0f13" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#0b0f13" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#8a95a3" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0a2226" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#1a212a" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#2a3540" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#2a3540" }] },
+  { featureType: "transit", elementType: "geometry", stylers: [{ color: "#11161c" }] },
+  { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#2a3540" }] },
+];
+
+const SILVER_THEME: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#f5f5f5" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#f5f5f5" }] },
+  { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#bdbdbd" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#dadada" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#e5e5e5" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9e6f2" }] },
+];
+
+const RETRO_THEME: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#ebe3cd" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#523735" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#f5f1e6" }] },
+  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#c9b2a6" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#dfd2ae" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#f5f1e6" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#fdfcf8" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#f8c967" }] },
+  { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#e9bc62" }] },
+  { featureType: "water", elementType: "geometry.fill", stylers: [{ color: "#b9d3c2" }] },
+];
 
 export function getMapStyles(options: MapStyleOptions = {}): google.maps.MapTypeStyle[] {
   const {
@@ -18,24 +63,19 @@ export function getMapStyles(options: MapStyleOptions = {}): google.maps.MapType
     showRoadLabels = true,
     showPoiLabels = true,
     showCityLabels = true,
+    showTransit = true,
   } = options;
+
+  // Resolve theme — `dark: true` still maps to the dark theme for back-compat.
+  const theme: MapTheme = options.theme ?? (dark ? "dark" : "classic");
+  const isDark = theme === "dark";
 
   const styles: google.maps.MapTypeStyle[] = [];
 
-  if (dark) {
-    // Base dark tactical theme
-    styles.push(
-      { elementType: "geometry", stylers: [{ color: "#0b0f13" }] },
-      { elementType: "labels.text.stroke", stylers: [{ color: "#0b0f13" }] },
-      { elementType: "labels.text.fill", stylers: [{ color: "#8a95a3" }] },
-      { featureType: "water", elementType: "geometry", stylers: [{ color: "#0a2226" }] },
-      { featureType: "road", elementType: "geometry", stylers: [{ color: "#1a212a" }] },
-      { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#2a3540" }] },
-      { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#2a3540" }] },
-      { featureType: "transit", elementType: "geometry", stylers: [{ color: "#11161c" }] },
-      { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#2a3540" }] },
-    );
-  }
+  if (theme === "dark") styles.push(...DARK_THEME);
+  else if (theme === "silver") styles.push(...SILVER_THEME);
+  else if (theme === "retro") styles.push(...RETRO_THEME);
+  // "classic" => no geometry overrides (default Google look)
 
   // City / Locality labels
   if (!showCityLabels) {
@@ -52,7 +92,7 @@ export function getMapStyles(options: MapStyleOptions = {}): google.maps.MapType
       { featureType: "road.highway", elementType: "labels.text", stylers: [{ visibility: "off" }] },
       { featureType: "road.local", elementType: "labels.text", stylers: [{ visibility: "off" }] },
     );
-  } else if (dark) {
+  } else if (isDark) {
     styles.push(
       { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ba6b3" }] },
     );
@@ -66,9 +106,16 @@ export function getMapStyles(options: MapStyleOptions = {}): google.maps.MapType
       { featureType: "poi.medical", elementType: "labels.text", stylers: [{ visibility: "off" }] },
       { featureType: "poi.park", elementType: "labels.text", stylers: [{ visibility: "off" }] },
     );
-  } else if (dark) {
+  } else if (isDark) {
     styles.push(
       { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#6b7785" }] },
+    );
+  }
+
+  // Transit lines / stations
+  if (!showTransit) {
+    styles.push(
+      { featureType: "transit", elementType: "all", stylers: [{ visibility: "off" }] },
     );
   }
 

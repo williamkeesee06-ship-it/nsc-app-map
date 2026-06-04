@@ -318,16 +318,25 @@ function MeasureIcon() {
 }
 
 function ScreenshotIcon() {
-  // Camera — stroke-only outline so the lens reads as a circle, not a blob.
+  // Snip / screenshot — a rounded square capture frame (gray) with a pair of
+  // scissors (cyan blades + two ring handles) crossing inside it. Stroke-only,
+  // no knockouts, so it reads cleanly on any background.
+  const FRAME = "#7a7f88";   // neutral gray frame
+  const CYAN = "#0a99ff";    // cyan scissors to match the brand accent
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      {/* Camera body */}
-      <path d="M4 8 h3.5 L9 6 h6 l1.5 2 H20 a1.5 1.5 0 0 1 1.5 1.5 V18 a1.5 1.5 0 0 1 -1.5 1.5 H4 A1.5 1.5 0 0 1 2.5 18 V9.5 A1.5 1.5 0 0 1 4 8 Z" />
-      {/* Lens */}
-      <circle cx="12" cy="13.5" r="3.5" />
-      {/* Flash dot — filled so it stands out */}
-      <circle cx="18.5" cy="10" r="0.9" fill="currentColor" />
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {/* Capture frame — bracket corners, not a full box, so it reads as a snip */}
+      <path
+        d="M5 8.5 V7 A2 2 0 0 1 7 5 H8.5 M15.5 5 H17 A2 2 0 0 1 19 7 V8.5 M19 15.5 V17 A2 2 0 0 1 17 19 H15.5 M8.5 19 H7 A2 2 0 0 1 5 17 V15.5"
+        stroke={FRAME} strokeWidth="1.8"
+      />
+      {/* Scissors blades — two strokes crossing from the handles up to the tips */}
+      <path d="M8.4 16.2 L15.6 9.0" stroke={CYAN} strokeWidth="1.8" />
+      <path d="M15.6 16.2 L8.4 9.0" stroke={CYAN} strokeWidth="1.8" />
+      {/* Two ring handles at the bottom */}
+      <circle cx="8.0" cy="16.6" r="1.55" stroke={CYAN} strokeWidth="1.6" />
+      <circle cx="16.0" cy="16.6" r="1.55" stroke={CYAN} strokeWidth="1.6" />
     </svg>
   );
 }
