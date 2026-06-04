@@ -73,10 +73,6 @@ export class DrawingEngine {
   onDrawEnd?: () => void;
   /** Phase 5.1: intercept completed objects — show details popup before committing */
   onPendingObject?: PendingObjectFn;
-  /** Billy 6/4: hard rule for his profile only — every markup commits instantly
-   *  to the backend, no popup gate, no pending state, no waiting. When this is
-   *  true, commitOrPend() bypasses the popup path entirely. */
-  instantCommit = false;
 
   constructor(map: google.maps.Map, commit: CommitFn) {
     this.map = map;
@@ -211,12 +207,6 @@ export class DrawingEngine {
 
   /** Commit the object immediately OR hand off to popup handler if registered. */
   private commitOrPend(obj: DrawingObject, centerLat: number, centerLng: number): void {
-    // Billy 6/4 hard rule: when instantCommit is on (his profile), every
-    // markup commits to state + backend immediately. No popup gate.
-    if (this.instantCommit) {
-      this.commit(obj);
-      return;
-    }
     // Annotate tools (text/shapes/freehand/etc.) don't need the label popup —
     // they commit immediately. Only telecom tools that need a user label/description
     // open the popup. Callout has its own inline text editor.
