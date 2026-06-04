@@ -3635,3 +3635,81 @@ input:focus, textarea:focus, select:focus {
   background: rgba(0, 212, 255, 0.06);
   border-left: 2px solid #00d4ff;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Billy 6/4: White topbar with North Sky blue (#0052cc) info
+   boxes, to match the LeftRail tabstrip. Single override block
+   so we don't have to fight the three earlier .topbar rules.
+   ───────────────────────────────────────────────────────────── */
+.topbar {
+  background: #ffffff !important;
+  background-image: none !important;
+  border-bottom: 1px solid rgba(0, 82, 204, 0.25) !important;
+  box-shadow:
+    inset 0 -1px 0 rgba(0, 82, 204, 0.15),
+    0 2px 0 0 #0052cc,
+    0 3px 10px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Remove the dark accent bars on the topbar edges */
+.topbar::before,
+.topbar::after { display: none !important; }
+
+/* User chip + nav text on the white topbar */
+.topbar h1,
+.topbar nav a {
+  color: #0052cc !important;
+}
+
+/* Smartsheet job info boxes — blue text on white tinted card */
+.topbar .job-info-field,
+.topbar .job-info-tc,
+.topbar .job-info-status {
+  background: rgba(0, 82, 204, 0.04) !important;
+  border: 1px solid rgba(0, 82, 204, 0.35) !important;
+}
+
+.topbar .job-info-field__label,
+.topbar .job-info-status__label {
+  color: #0052cc !important;
+}
+
+.topbar .job-info-field__value,
+.topbar .job-info-tc__text {
+  color: #0052cc !important;
+}
+
+.topbar .job-info-field__value--empty {
+  color: rgba(0, 82, 204, 0.45) !important;
+}
+
+/* TC REQ checkbox box uses the same blue */
+.topbar .job-info-tc input[type="checkbox"] {
+  accent-color: #0052cc;
+}
+
+/* STATUS pill — blue outline on white */
+.topbar .job-info-status__pill {
+  background: rgba(0, 82, 204, 0.08) !important;
+  border: 1px solid rgba(0, 82, 204, 0.55) !important;
+  color: #0052cc !important;
+}
+
+/* Search bar pill on the white topbar — keep it readable */
+.topbar .topbar-search-input,
+.topbar .topbar-search {
+  background: rgba(0, 82, 204, 0.06) !important;
+  border-color: rgba(0, 82, 204, 0.35) !important;
+  color: #0052cc !important;
+}
+.topbar .topbar-search-input::placeholder {
+  color: rgba(0, 82, 204, 0.55) !important;
+}
+
+/* User chip / log out link on the right edge */
+.topbar .user-chip,
+.topbar .user-chip a,
+.topbar .topbar-user,
+.topbar .topbar-user a {
+  color: #0052cc !important;
+}
