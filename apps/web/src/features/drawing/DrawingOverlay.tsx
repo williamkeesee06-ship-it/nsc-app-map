@@ -725,13 +725,6 @@ export default function DrawingOverlay() {
     const engine = engineRef.current;
 
     engine.onPendingObject = (obj, screenPos) => {
-      // Billy's profile HARD RULE 6/4: commit immediately so the marker is
-      // saved no matter what. Popup still opens on top for optional label —
-      // closing it without typing keeps the marker as-is.
-      const u = (localStorage.getItem("nsc.username") || "").trim().toLowerCase();
-      if (u === "billy keesee") {
-        addObject(obj);
-      }
       setPendingObject({ obj, screenPos });
     };
 
@@ -1284,14 +1277,7 @@ export default function DrawingOverlay() {
         style: { ...obj.style, userLabel: label || undefined, description: description || undefined },
       };
     }
-    // Billy's profile: object was already committed when popup opened, so
-    // update in place instead of adding a duplicate.
-    const u = (localStorage.getItem("nsc.username") || "").trim().toLowerCase();
-    if (u === "billy keesee") {
-      updateObject(finalObj);
-    } else {
-      addObject(finalObj);
-    }
+    addObject(finalObj);
     setPendingObject(null);
   }
 
