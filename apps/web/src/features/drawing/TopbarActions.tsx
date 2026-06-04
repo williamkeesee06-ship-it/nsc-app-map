@@ -127,6 +127,8 @@ export default function TopbarActions() {
         >
           {screenshotting ? "⏳" : <ScreenshotIcon />}
         </button>
+        {/* Base Map control must be present even outside the DrawingProvider. */}
+        <MapTypeToggle />
         <CoinBtn disabled title="Save" variant="save">💾</CoinBtn>
       </div>
     );
@@ -321,22 +323,22 @@ function ScreenshotIcon() {
   // Snip / screenshot — a rounded square capture frame (gray) with a pair of
   // scissors (cyan blades + two ring handles) crossing inside it. Stroke-only,
   // no knockouts, so it reads cleanly on any background.
-  const FRAME = "#7a7f88";   // neutral gray frame
-  const CYAN = "#0a99ff";    // cyan scissors to match the brand accent
+  const FRAME = "#cdd3dc";   // bright gray frame so it pops on the dark button
+  const CYAN = "#2bb3ff";    // bright cyan scissors
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       {/* Capture frame — bracket corners, not a full box, so it reads as a snip */}
       <path
         d="M5 8.5 V7 A2 2 0 0 1 7 5 H8.5 M15.5 5 H17 A2 2 0 0 1 19 7 V8.5 M19 15.5 V17 A2 2 0 0 1 17 19 H15.5 M8.5 19 H7 A2 2 0 0 1 5 17 V15.5"
-        stroke={FRAME} strokeWidth="1.8"
+        stroke={FRAME} strokeWidth="2.1"
       />
       {/* Scissors blades — two strokes crossing from the handles up to the tips */}
-      <path d="M8.4 16.2 L15.6 9.0" stroke={CYAN} strokeWidth="1.8" />
-      <path d="M15.6 16.2 L8.4 9.0" stroke={CYAN} strokeWidth="1.8" />
+      <path d="M8.2 16.4 L15.8 8.8" stroke={CYAN} strokeWidth="2.1" />
+      <path d="M15.8 16.4 L8.2 8.8" stroke={CYAN} strokeWidth="2.1" />
       {/* Two ring handles at the bottom */}
-      <circle cx="8.0" cy="16.6" r="1.55" stroke={CYAN} strokeWidth="1.6" />
-      <circle cx="16.0" cy="16.6" r="1.55" stroke={CYAN} strokeWidth="1.6" />
+      <circle cx="7.9" cy="16.7" r="1.7" stroke={CYAN} strokeWidth="1.9" />
+      <circle cx="16.1" cy="16.7" r="1.7" stroke={CYAN} strokeWidth="1.9" />
     </svg>
   );
 }
