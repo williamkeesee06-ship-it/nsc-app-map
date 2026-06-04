@@ -14,6 +14,13 @@ import { DrawingEngine } from "./DrawingEngine.js";
 import { iconForTool } from "./icons/telecomIcons.js";
 import ObjectDetailsPopup from "./ObjectDetailsPopup.js";
 import ObjectDetailsCard from "./ObjectDetailsCard.js";
+import { useAuth } from "../auth/authContext.js";
+
+/** Billy 6/4 hard rule: his profile commits markups instantly with no popup gate. */
+function isInstantCommitUser(username: string | null | undefined): boolean {
+  if (!username) return false;
+  return username.trim().toLowerCase() === "billy keesee";
+}
 
 const FEET_PER_METER = 3.28084;
 
@@ -656,6 +663,7 @@ function latLngToScreenPos(
 
 export default function DrawingOverlay() {
   const map = useMap();
+  const { username } = useAuth();
   const { state, addObject, updateObject, updateObjectGeometry, updateObjectPosition, deleteSelected, deleteObjects, select, clearSelection, undo, redo, patchObjectStyle, setTool } =
     useDrawing();
   const engineRef = useRef<DrawingEngine | null>(null);
@@ -727,6 +735,8 @@ export default function DrawingOverlay() {
     engine.onPendingObject = (obj, screenPos) => {
       setPendingObject({ obj, screenPos });
     };
+    // Billy 6/4: instant-commit mode for his profile — bypass popup entirely.
+    engine.instantCommit = isInstantCommitUser(username);
 
     // Phase 9: provide live snap targets (Pole / MH / HH / PED point objects)
     engine.getSnapTargets = () => {
@@ -749,7 +759,7 @@ export default function DrawingOverlay() {
     } else {
       engine.deactivate();
     }
-  }, [map, state.activeTool, state.style, addObject]);
+  }, [map, state.activeTool, state.style, addObject, username]);
 
   // ─── clickable state per active tool ───────────────────────────────────
   useEffect(() => {
