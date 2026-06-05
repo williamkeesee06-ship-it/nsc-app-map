@@ -230,10 +230,9 @@ export class DrawingEngine {
       "hh_new", "hh_removed",
       "ped_new", "ped_removed",
       "pole_new", "pole_removed",
-      "vault_new", "vault_removed",
       "cabinet_new", "cabinet_removed",
       "anchor_new", "anchor_removed",
-      "splice", "terminal", "drop",
+      "splice",
       // Text-bearing markups also use the popup to capture the user's typed text/notes
       "text", "callout",
     ].includes(tool);
@@ -258,6 +257,7 @@ export class DrawingEngine {
       "pole_new", "pole_removed",
       "cabinet_new", "cabinet_removed",
       "anchor_new", "anchor_removed",
+      "splice",
     ].includes(tool);
   }
 

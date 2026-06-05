@@ -43,6 +43,8 @@ const POINT_TOOLS = new Set([
   "pole_new", "pole_removed",
   "cabinet_new", "cabinet_removed",
   "anchor_new", "anchor_removed",
+  // Edit 3: splice point — single position, diamond + SP icon.
+  "splice",
 ]);
 
 function isPointTool(tool: string): boolean {
@@ -294,6 +296,28 @@ function labelTextForObj(obj: DrawingObject): string | null {
   return null;
 }
 
+// Convert a lat/lng position back to a pixel offset from `origin`. Used when
+// the user drag-drops a label to a new spot — we store the offset in screen
+// pixels at the current zoom so the label sits at a consistent visual distance
+// from its anchor regardless of zoom (Edit 1).
+function latLngOffsetToPixels(
+  origin: { lat: number; lng: number },
+  target: { lat: number; lng: number },
+  map: google.maps.Map
+): { dx: number; dy: number } | null {
+  const proj = map.getProjection();
+  if (!proj) return null;
+  const zoom = map.getZoom() ?? 18;
+  const scale = Math.pow(2, zoom);
+  const originPt = proj.fromLatLngToPoint(new google.maps.LatLng(origin.lat, origin.lng));
+  const targetPt = proj.fromLatLngToPoint(new google.maps.LatLng(target.lat, target.lng));
+  if (!originPt || !targetPt) return null;
+  return {
+    dx: Math.round((targetPt.x - originPt.x) * scale),
+    dy: Math.round((targetPt.y - originPt.y) * scale),
+  };
+}
+
 // Convert a pixel offset (dx,dy) into a lat/lng offset from `origin`. Used to
 // push the label callout off to the side of the point symbol so the label is
 // not rendered on top of the icon (Billy 6/5 — fixes pole atag duplicate).
@@ -315,34 +339,60 @@ function pixelOffsetToLatLng(
   return { lat: targetLatLng.lat(), lng: targetLatLng.lng() };
 }
 
+// Edit 1: callback fired when the user drags a label to a new position.
+// The overlay supplies a function that persists labelOffsetPx on the object
+// (computed from the new lat/lng minus the original anchor) and re-saves
+// the parent doc to Firestore.
+type LabelDragHandler = (
+  obj: DrawingObject,
+  newPos: { lat: number; lng: number }
+) => void;
+
 function createLabelMarker(
   obj: DrawingObject,
-  map: google.maps.Map
+  map: google.maps.Map,
+  onLabelDrag?: LabelDragHandler
 ): google.maps.Marker | null {
   const text = labelTextForObj(obj);
   if (!text) return null;
   const pos = labelPositionForObj(obj);
   if (!pos) return null;
-  // Point markups: offset label 30px to the right so it sits next to the
-  // symbol (callout style), not on top of it. Lines/shapes/text/callout
-  // already render their labels in the right spot — leave those alone.
+  // Point markups: offset label 30px to the right by default so it sits next
+  // to the symbol (callout style), not on top of it. Lines/shapes/text/callout
+  // already render their labels in the right spot — leave those alone unless
+  // the user has manually dragged the label (labelOffsetPx is set).
   const isPoint = "position" in obj && !("text" in obj);
-  const labelPos = isPoint ? (pixelOffsetToLatLng(pos, 30, 0, map) ?? pos) : pos;
-  return new google.maps.Marker({
+  const off = obj.style.labelOffsetPx;
+  let labelPos = pos;
+  if (off) {
+    labelPos = pixelOffsetToLatLng(pos, off.dx, off.dy, map) ?? pos;
+  } else if (isPoint) {
+    labelPos = pixelOffsetToLatLng(pos, 30, 0, map) ?? pos;
+  }
+  const fontSize = obj.style.labelFontSize ? `${obj.style.labelFontSize}px` : "12px";
+  const marker = new google.maps.Marker({
     position: new google.maps.LatLng(labelPos.lat, labelPos.lng),
     map,
     label: {
       text,
-      color: "#f4f8ff",
-      fontSize: "12px",
+      color: obj.style.textColor ?? "#f4f8ff",
+      fontSize,
       fontWeight: "700",
       fontFamily: "ui-monospace, monospace",
     },
     icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
-    clickable: false,
-    draggable: false,
+    clickable: !!onLabelDrag,
+    draggable: !!onLabelDrag,
     zIndex: 6,
   });
+  if (onLabelDrag) {
+    marker.addListener("dragend", () => {
+      const p = marker.getPosition();
+      if (!p) return;
+      onLabelDrag(obj, { lat: p.lat(), lng: p.lng() });
+    });
+  }
+  return marker;
 }
 
 const REFRESH_INTERVAL_MS = 15_000; // Solo desktop use: very frequent refresh so markups feel instantly persistent after saving. Network cost is tiny for personal use.
@@ -422,7 +472,33 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
           if (overlay) overlaysRef.current.set(`${doc.jobId}:${obj.id}`, overlay);
           // Phase 9.5: render labels only when zoomed in close enough
           if (labelsVisible) {
-            const lbl = createLabelMarker(obj, map);
+            // Edit 1: when the user drags the label, persist a labelOffsetPx
+            // on the style and re-save the doc to Firestore so it sticks.
+            const dragHandler: LabelDragHandler = (target, newPos) => {
+              const anchor = labelPositionForObj(target);
+              if (!anchor) return;
+              const offset = latLngOffsetToPixels(anchor, newPos, map);
+              if (!offset) return;
+              const updatedObjects = doc.objects.map((o) =>
+                o.id === target.id
+                  ? ({ ...o, style: { ...o.style, labelOffsetPx: offset } } as DrawingObject)
+                  : o
+              );
+              doc.objects = updatedObjects;
+              // Persist — scratchpad is a separate endpoint.
+              if (doc.jobId === "scratchpad") {
+                void api.putScratchpad(markupOwner, updatedObjects as unknown as unknown[]).catch(() => {});
+              } else {
+                void api
+                  .putDrawing(
+                    doc.jobId,
+                    { jobId: doc.jobId, objects: updatedObjects, updatedAt: Date.now(), updatedBy: markupOwner },
+                    markupOwner
+                  )
+                  .catch(() => {});
+              }
+            };
+            const lbl = createLabelMarker(obj, map, dragHandler);
             if (lbl) overlaysRef.current.set(`${doc.jobId}:${obj.id}:label`, lbl);
           }
         } catch {

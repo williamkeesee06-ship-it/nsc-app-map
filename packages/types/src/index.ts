@@ -71,6 +71,7 @@ export type DrawingTool =
   | "cabinet_removed"
   | "anchor_new"
   | "anchor_removed"
+  | "splice"
   | "text"
   | "line"
   | "arrow"
@@ -127,6 +128,22 @@ export interface DrawingStyle {
   textAlign?: "left" | "center" | "right";
   /** Text color (separate from strokeColor) for text/callout tools. */
   textColor?: string;
+
+  // ── Label offset (Edit 1) ────────────────────────────────────────────
+  /** Pixel offset of the user-typed callout label from its anchor point.
+   *  Used so the supervisor can drag the label around without moving the
+   *  actual marker. Default = { dx: 30, dy: 0 } for point tools, { dx: 0, dy: 0 }
+   *  for shapes/text. Stored in screen-px at the current zoom; converted to
+   *  lat/lng on render via pixelOffsetToLatLng(). */
+  labelOffsetPx?: { dx: number; dy: number };
+  /** Per-label font-size override (px). Defaults to 12. */
+  labelFontSize?: number;
+  /** Per-label background color override (CSS color). Default transparent. */
+  labelBg?: string;
+  /** Per-label border color override (CSS color). Default none. */
+  labelBorder?: string;
+  /** Per-label border thickness override (px). Default 0. */
+  labelBorderWidth?: number;
 }
 
 // Phase 9+: per-job MyMaps-style layers (elevated for personal desktop use).
@@ -193,7 +210,8 @@ export type DrawingObject =
         | "cabinet_new"
         | "cabinet_removed"
         | "anchor_new"
-        | "anchor_removed";
+        | "anchor_removed"
+        | "splice";
       position: { lat: number; lng: number };
       label?: string;
       style: DrawingStyle;

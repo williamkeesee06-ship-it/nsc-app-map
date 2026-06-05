@@ -474,7 +474,7 @@ function EditableRow({
   const [editing, setEditing] = useState(false);
 
   return (
-    <div className="job-card__row" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div className="job-card__row job-card__row--editable">
       <span className="job-card__row-label">{label}</span>
       {type === "toggle" ? (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>

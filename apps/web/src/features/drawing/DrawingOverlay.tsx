@@ -27,6 +27,9 @@ const LABEL_REQUIRED_TOOLS = new Set<string>([
   "cabinet_new", "cabinet_removed",
   "placed_cable", "removed_cable",
   "text", "callout",
+  // Edit 3: Splice points open the same popup as MH/HH so user can enter a label.
+  // Empty label → just the diamond. Labeled → diamond + callout box (per render logic).
+  "splice",
 ]);
 
 // ── Cable line rendering ──────────────────────────────────────────────────────
@@ -290,6 +293,8 @@ const POINT_TOOLS = new Set([
   "pole_new", "pole_removed",
   "cabinet_new", "cabinet_removed",
   "anchor_new", "anchor_removed",
+  // Edit 3: Splice point is also a point tool (single position, diamond icon).
+  "splice",
 ]);
 
 function isPointTool(tool: string): boolean {

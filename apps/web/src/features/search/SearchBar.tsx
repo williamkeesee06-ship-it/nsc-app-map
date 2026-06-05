@@ -15,6 +15,35 @@ import { useSearchFocus } from "./searchContext.js";
 import { useMarkupSearchEntries, type MarkupSearchEntry } from "./markupSearchStore.js";
 import type { Job } from "@nsc/types";
 
+// Neon-glow magnifying glass icon. Pure SVG, cyan stroke, drop-shadow filter
+// gives it the bright "neon sign" look that matches the search-bar styling.
+function NeonMagnifier() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      style={{
+        filter:
+          "drop-shadow(0 0 2px #6ee0ff) drop-shadow(0 0 5px #1fb6ff) drop-shadow(0 0 9px #1fb6ff)",
+      }}
+    >
+      <circle cx="10.5" cy="10.5" r="6.5" stroke="#7fe5ff" strokeWidth="1.8" />
+      <line
+        x1="15.5"
+        y1="15.5"
+        x2="21"
+        y2="21"
+        stroke="#7fe5ff"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 // Google Places Autocomplete prediction — the subset we render.
 interface PlacePrediction {
   placeId: string;
@@ -231,8 +260,10 @@ export default function SearchBar() {
 
   return (
     <div className="search-wrap" ref={wrapRef}>
-      <form className="search-form" onSubmit={onSubmit} role="search">
-        <span className="search-form__icon" aria-hidden>⌕</span>
+      <form className="search-form search-form--neon" onSubmit={onSubmit} role="search">
+        <span className="search-form__icon" aria-hidden>
+          <NeonMagnifier />
+        </span>
         <input
           className="search-form__input"
           value={term}

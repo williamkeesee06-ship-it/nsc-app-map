@@ -129,7 +129,6 @@ export default function TopbarActions() {
         </button>
         {/* Base Map control must be present even outside the DrawingProvider. */}
         <MapTypeToggle />
-        <CoinBtn disabled title="Save" variant="save">💾</CoinBtn>
       </div>
     );
   }

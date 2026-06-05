@@ -79,6 +79,16 @@ function cabinetSvg(color: string): string {
   );
 }
 
+// SPLICE — diamond outline with "SP" text centered (Edit 3)
+function spliceSvg(color: string): string {
+  return wrap(
+    `<polygon points="16,4 28,16 16,28 4,16"/>
+    <text x="16" y="20" text-anchor="middle" font-size="9" font-weight="bold"
+      fill="${color}" stroke="none" font-family="system-ui, sans-serif">SP</text>`,
+    color
+  );
+}
+
 // ANCHOR — classic anchor glyph: ring + T-bar + curved hooks
 function anchorSvg(color: string): string {
   return wrap(
@@ -110,6 +120,7 @@ export function railSvgForTool(tool: string, color?: string): string {
   if (tool.startsWith("pole")) return poleSvg(c);
   if (tool.startsWith("cabinet")) return cabinetSvg(c);
   if (tool.startsWith("anchor")) return anchorSvg(c);
+  if (tool.startsWith("splice")) return spliceSvg(c);
   return mhSvg(c); // fallback
 }
 
@@ -130,6 +141,7 @@ export function iconForTool(
   else if (tool.startsWith("pole")) svg = poleSvg(color);
   else if (tool.startsWith("cabinet")) svg = cabinetSvg(color);
   else if (tool.startsWith("anchor")) svg = anchorSvg(color);
+  else if (tool.startsWith("splice")) svg = spliceSvg(color);
   else svg = pedSvg(color); // fallback
 
   return {

@@ -303,6 +303,13 @@ const STANDARD_TOOL_DEFS: ToolDef[] = [
 ];
 
 // ── Telecom tools (shown after TELECOM divider) ──
+// Edit 3: Splice Point reuses the existing `splice` tool key (already supported by
+// the engine's needsLabelPopup() list). Rendered as a diamond + SP label.
+const SPLICE_POINT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+  <polygon points="16,3 28,13 16,23 4,13" fill="#fff" stroke="#0052cc" stroke-width="2"/>
+  <text x="16" y="16" font-size="8" fill="#0052cc" font-family="sans-serif" font-weight="bold" text-anchor="middle">SP</text>
+</svg>`;
+
 const TELECOM_TOOL_DEFS: ToolDef[] = [
   {
     tool: "placed_cable",
@@ -343,6 +350,12 @@ const TELECOM_TOOL_DEFS: ToolDef[] = [
     tool: "anchor_new",
     label: "ANCHOR",
     iconSvg: (active) => railSvgForTool("anchor", blackOrActive(active)),
+  },
+  // Edit 3: Splice Point — diamond + SP, labeled, searchable.
+  {
+    tool: "splice",
+    label: "SPLICE",
+    iconSvg: () => SPLICE_POINT_SVG,
   },
 ];
 
@@ -510,16 +523,27 @@ function AnnotateTab() {
   ];
 
   const drawingTools: ToolDef[] = [
+    findStandard("line"),
     findStandard("freehand"),
     { tool: "highlighter", label: "HIGHLIGHT", iconSvg: basicSvg(`<path d="M4,22 L18,8 L24,14 L10,28 Z" stroke="STROKE" stroke-width="2" fill="none"/><line x1="16" y1="10" x2="22" y2="16" stroke="STROKE" stroke-width="2"/>`) },
     // Construction-themed eraser: a brick-mason trowel / shovel that "clears" markup.
     { tool: "eraser", label: "ERASER", iconSvg: basicSvg(`<path d="M20,4 L28,12 L14,26 L4,16 Z" stroke="STROKE" stroke-width="2" fill="none" stroke-linejoin="round"/><line x1="10" y1="22" x2="4" y2="28" stroke="STROKE" stroke-width="2.5" stroke-linecap="round"/>`) },
+    // Edit 7: Dimension Line — line with end ticks + measurement label (blueprint-style). Reuses 'line' tool under the hood; render style differs.
+    { tool: "line", label: "DIMENSION", iconSvg: basicSvg(`<line x1="4" y1="4" x2="4" y2="22" stroke="STROKE" stroke-width="2"/><line x1="28" y1="4" x2="28" y2="22" stroke="STROKE" stroke-width="2"/><line x1="4" y1="13" x2="28" y2="13" stroke="STROKE" stroke-width="2"/><text x="11" y="11" font-size="7" fill="STROKE" font-family="monospace">12'</text>`) },
+    // Edit 7: Perimeter (reuses polygon — labelled differently).
+    { tool: "polygon", label: "PERIMETER", iconSvg: basicSvg(`<polygon points="5,5 27,5 27,21 5,21" stroke="STROKE" stroke-width="2" fill="none" stroke-dasharray="3 2"/><text x="9" y="16" font-size="6" fill="STROKE" font-family="monospace">PERIM</text>`) },
+    // Edit 7: Area (reuses polygon — fill instead of stroke).
+    { tool: "polygon", label: "AREA", iconSvg: basicSvg(`<polygon points="5,5 27,5 27,21 5,21" stroke="STROKE" stroke-width="2" fill="STROKE" fill-opacity="0.25"/><text x="11" y="16" font-size="6" fill="STROKE" font-family="monospace">ft²</text>`) },
   ];
 
   const markupTools: ToolDef[] = [
     findStandard("text"),
     { tool: "callout", label: "CALLOUT", iconSvg: basicSvg(`<rect x="10" y="3" width="19" height="12" rx="2" stroke="STROKE" stroke-width="2" fill="none"/><path d="M14,15 L8,22 L17,18" stroke="STROKE" stroke-width="2" fill="none" stroke-linejoin="round"/><polygon points="6,24 11,22 9,20" fill="STROKE"/>`) },
+    // Edit 7: Cloud+ — cloud-bumpy polygon with built-in callout-style text box.
+    { tool: "callout", label: "CLOUD+", iconSvg: basicSvg(`<path d="M7,18 Q3,18 3,14 Q3,10 7,10 Q7,5 13,5 Q19,5 19,10 Q25,10 25,14 Q25,18 21,18 Z" stroke="STROKE" stroke-width="2" fill="none"/><text x="12" y="15" font-size="9" fill="STROKE" font-weight="bold">+</text>`) },
     findStandard("arrow"),
+    // Edit 7: Double Arrow — reuses arrow tool, dual arrowheads (visual variant).
+    { tool: "arrow", label: "D-ARROW", iconSvg: basicSvg(`<line x1="7" y1="13" x2="25" y2="13" stroke="STROKE" stroke-width="2" stroke-linecap="round"/><polygon points="3,13 9,9 9,17" fill="STROKE"/><polygon points="29,13 23,9 23,17" fill="STROKE"/>`) },
     findStandard("rectangle"),
     findStandard("circle"),
     findStandard("polygon"),
@@ -582,10 +606,10 @@ function AnnotateTab() {
 
       <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>DRAWING</div>
       <div className="tool-grid">
-        {drawingTools.map(({ tool, label, iconSvg }) => {
+        {drawingTools.map(({ tool, label, iconSvg }, i) => {
           const isActive = activeTool === tool;
           return (
-            <button key={tool} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)}>
+            <button key={`${tool}-${label}-${i}`} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)} title={label}>
               <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
               <span className="tool-tile__label">{label}</span>
             </button>
@@ -595,10 +619,10 @@ function AnnotateTab() {
 
       <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>MARKUP</div>
       <div className="tool-grid">
-        {markupTools.map(({ tool, label, iconSvg }) => {
+        {markupTools.map(({ tool, label, iconSvg }, i) => {
           const isActive = activeTool === tool;
           return (
-            <button key={tool} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)}>
+            <button key={`${tool}-${label}-${i}`} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)} title={label}>
               <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
               <span className="tool-tile__label">{label}</span>
             </button>
