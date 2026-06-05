@@ -13,7 +13,7 @@
 //   - All overlays are clickable:false, draggable:false, editable:false.
 //   - On unmount, clear everything.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
 import type { DrawingObject } from "@nsc/types";
 import { api } from "../../lib/api.js";
@@ -21,6 +21,7 @@ import { useDrawing } from "./drawingContext.js";
 import { useAuth } from "../auth/authContext.js";
 import { setMarkupSearchDocs } from "../search/markupSearchStore.js";
 import { iconForTool } from "./icons/telecomIcons.js";
+import LabelEditPopup, { type LabelEditValues } from "./LabelEditPopup.js";
 
 const PLACED_COLOR  = "#39ff7a";
 const REMOVED_COLOR = "#ff2d4a";
@@ -348,10 +349,17 @@ type LabelDragHandler = (
   newPos: { lat: number; lng: number }
 ) => void;
 
+// Edit 1 finish: callback when the user clicks the label — opens the edit popup.
+type LabelClickHandler = (
+  obj: DrawingObject,
+  screenPos: { x: number; y: number }
+) => void;
+
 function createLabelMarker(
   obj: DrawingObject,
   map: google.maps.Map,
-  onLabelDrag?: LabelDragHandler
+  onLabelDrag?: LabelDragHandler,
+  onLabelClick?: LabelClickHandler
 ): google.maps.Marker | null {
   const text = labelTextForObj(obj);
   if (!text) return null;
@@ -381,7 +389,7 @@ function createLabelMarker(
       fontFamily: "ui-monospace, monospace",
     },
     icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
-    clickable: !!onLabelDrag,
+    clickable: !!(onLabelDrag || onLabelClick),
     draggable: !!onLabelDrag,
     zIndex: 6,
   });
@@ -390,6 +398,14 @@ function createLabelMarker(
       const p = marker.getPosition();
       if (!p) return;
       onLabelDrag(obj, { lat: p.lat(), lng: p.lng() });
+    });
+  }
+  if (onLabelClick) {
+    marker.addListener("click", (e: google.maps.MapMouseEvent & { domEvent?: MouseEvent }) => {
+      const dom = e.domEvent as MouseEvent | undefined;
+      const x = dom?.clientX ?? window.innerWidth / 2;
+      const y = dom?.clientY ?? window.innerHeight / 2;
+      onLabelClick(obj, { x, y });
     });
   }
   return marker;
@@ -416,6 +432,18 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
   // supervisors' map markups — 9.7).
   const { username } = useAuth();
   const markupOwner = username ?? "";
+
+  // Edit 1 finish: label-edit popup state. When the user clicks a label, we
+  // open this popup near the click position to edit text/color/font/bg/border.
+  const [editing, setEditing] = useState<
+    | {
+        obj: DrawingObject;
+        jobId: string;
+        screen: { x: number; y: number };
+      }
+    | null
+  >(null);
+
   async function fetchAll() {
     try {
       if (!markupOwner) {
@@ -498,7 +526,10 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
                   .catch(() => {});
               }
             };
-            const lbl = createLabelMarker(obj, map, dragHandler);
+            const clickHandler: LabelClickHandler = (target, screen) => {
+              setEditing({ obj: target, jobId: doc.jobId, screen });
+            };
+            const lbl = createLabelMarker(obj, map, dragHandler, clickHandler);
             if (lbl) overlaysRef.current.set(`${doc.jobId}:${obj.id}:label`, lbl);
           }
         } catch {
@@ -556,5 +587,62 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     };
   }, []);
 
-  return null;
+  // Edit 1 finish: persist label edits (text/colors/font/bg/border) back to
+  // Firestore and re-render. Mirrors the dragHandler logic above.
+  function persistLabelEdit(jobId: string, target: DrawingObject, values: LabelEditValues) {
+    const doc = docsRef.current.find((d) => d.jobId === jobId);
+    if (!doc) return;
+    const updatedObjects = doc.objects.map((o) => {
+      if (o.id !== target.id) return o;
+      const next = { ...o, style: { ...o.style } } as DrawingObject;
+      next.style.textColor = values.textColor;
+      next.style.labelFontSize = values.fontSize;
+      next.style.labelBg = values.bg;
+      next.style.labelBorder = values.border;
+      next.style.labelBorderWidth = values.borderWidth;
+      if ("text" in next) {
+        (next as { text: string }).text = values.text;
+      } else if (next.style.userLabel !== undefined && next.style.userLabel !== "") {
+        next.style.userLabel = values.text;
+      } else {
+        next.style.description = values.text;
+      }
+      return next;
+    });
+    doc.objects = updatedObjects;
+    if (jobId === "scratchpad") {
+      void api.putScratchpad(markupOwner, updatedObjects as unknown as unknown[]).catch(() => {});
+    } else {
+      void api
+        .putDrawing(
+          jobId,
+          { jobId, objects: updatedObjects, updatedAt: Date.now(), updatedBy: markupOwner },
+          markupOwner
+        )
+        .catch(() => {});
+    }
+    renderAll();
+  }
+
+  if (!editing) return null;
+  const initialText = labelTextForObj(editing.obj) ?? "";
+  return (
+    <LabelEditPopup
+      x={editing.screen.x}
+      y={editing.screen.y}
+      initial={{
+        text: initialText,
+        textColor: editing.obj.style.textColor ?? "#f4f8ff",
+        fontSize: editing.obj.style.labelFontSize ?? 12,
+        bg: editing.obj.style.labelBg ?? "",
+        border: editing.obj.style.labelBorder ?? "",
+        borderWidth: editing.obj.style.labelBorderWidth ?? 0,
+      }}
+      onSave={(values) => {
+        persistLabelEdit(editing.jobId, editing.obj, values);
+        setEditing(null);
+      }}
+      onCancel={() => setEditing(null)}
+    />
+  );
 }
