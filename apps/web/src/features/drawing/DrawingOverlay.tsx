@@ -724,7 +724,14 @@ export default function DrawingOverlay() {
     }
     const engine = engineRef.current;
 
+    // Auto-save rule: every markup commits to state the instant it's placed.
+    // The drawing context syncs state to Firestore (asbuilt for a job, scratchpad
+    // otherwise) on a 250ms debounce, so nothing is ever stuck in local pending
+    // state. Popup is bypassed entirely.
+    engine.instantCommit = true;
+
     engine.onPendingObject = (obj, screenPos) => {
+      // Defensive fallback in case instantCommit is ever turned off in the future.
       setPendingObject({ obj, screenPos });
     };
 

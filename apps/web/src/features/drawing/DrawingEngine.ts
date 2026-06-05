@@ -73,6 +73,9 @@ export class DrawingEngine {
   onDrawEnd?: () => void;
   /** Phase 5.1: intercept completed objects — show details popup before committing */
   onPendingObject?: PendingObjectFn;
+  /** When true, ALL objects commit immediately and the popup is bypassed entirely.
+   *  Set per-user (see DrawingOverlay) to honor the "auto-save everything" rule. */
+  instantCommit = false;
 
   constructor(map: google.maps.Map, commit: CommitFn) {
     this.map = map;
@@ -210,7 +213,7 @@ export class DrawingEngine {
     // Annotate tools (text/shapes/freehand/etc.) don't need the label popup —
     // they commit immediately. Only telecom tools that need a user label/description
     // open the popup. Callout has its own inline text editor.
-    if (this.onPendingObject && this.needsLabelPopup(obj.tool)) {
+    if (!this.instantCommit && this.onPendingObject && this.needsLabelPopup(obj.tool)) {
       const screenPos = this.latLngToScreenPoint(centerLat, centerLng);
       this.onPendingObject(obj, screenPos);
     } else {

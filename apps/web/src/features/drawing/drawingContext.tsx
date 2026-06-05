@@ -877,36 +877,18 @@ export function DrawingProvider({ children, mapRef }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.targetJobId, state.dirty, state.objects]);
 
-  // Phase 5.2: persist to localStorage on every objects change (debounced 500ms)
-  const lsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Billy 6/5: localStorage draft persistence DISABLED. Firestore is the
+  // single source of truth — markups sync via the asbuilt PUT (for a job) or
+  // the scratchpad PUT (for the main map). Nothing is cached locally.
+  // Any stale localStorage draft from before this change is cleared on mount.
   useEffect(() => {
-    if (lsDebounceRef.current) clearTimeout(lsDebounceRef.current);
-    lsDebounceRef.current = setTimeout(() => {
-      lsSaveDraft(state.objects, state.targetJobId, state.targetWorkOrder);
-    }, 500);
-    return () => {
-      if (lsDebounceRef.current) clearTimeout(lsDebounceRef.current);
-    };
-  // We intentionally run this for every objects/target change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.objects, state.targetJobId, state.targetWorkOrder]);
-
-  // Phase 5.2: hydrate from localStorage on mount (only when in-memory state is empty)
-  const hydratedRef = useRef(false);
-  useEffect(() => {
-    if (hydratedRef.current) return;
-    hydratedRef.current = true;
-    // Only restore if we have no objects in memory yet
-    if (state.objects.length > 0) return;
-    const draft = lsReadDraft();
-    if (!draft) return;
-    // Restore the draft objects and target into the drawing state
-    dispatch({ type: "SET_OBJECTS", objects: draft.objects, markDirty: true });
-    if (draft.targetJobId) {
-      dispatch({ type: "SET_TARGET", jobId: draft.targetJobId, workOrder: draft.targetWorkOrder });
+    try {
+      localStorage.removeItem(LS_OBJECTS_KEY);
+      localStorage.removeItem(LS_JOB_KEY);
+      localStorage.removeItem(LS_WO_KEY);
+    } catch {
+      // ignore
     }
-  // Run once on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Billy 6/3: hydrate the per-user scratchpad on login so main-map markups

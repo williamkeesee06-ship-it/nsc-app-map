@@ -12,11 +12,20 @@ export default function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string>("");
 
+  // Billy 6/5: app access is restricted. Only these three users may sign in.
+  // Match is case-insensitive and whitespace-trimmed.
+  const ALLOWED_USERS = ["billy keesee", "robbie thoman", "joe watson"];
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = value.trim();
     if (!trimmed) {
       setError("Enter your name to continue.");
+      return;
+    }
+    // Hard whitelist gate — runs BEFORE any network call.
+    if (!ALLOWED_USERS.includes(trimmed.toLowerCase())) {
+      setError("Access denied. This app is restricted to authorized users only.");
       return;
     }
     setBusy(true);

@@ -7,6 +7,14 @@ import { api } from "../../lib/api.js";
 
 const LS_KEY = "nsc.username";
 
+// Billy 6/5: hard whitelist — only these users can be signed in.
+// Anyone else found in localStorage gets logged out on app load.
+const ALLOWED_USERS = ["billy keesee", "robbie thoman", "joe watson"];
+function isAllowed(name: string | null): boolean {
+  if (!name) return false;
+  return ALLOWED_USERS.includes(name.trim().toLowerCase());
+}
+
 interface AuthCtxValue {
   username: string | null;
   setUsername: (s: string) => void;
@@ -31,7 +39,15 @@ const LS_MANAGERS = "nsc.managers";
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [username, setUsernameRaw] = useState<string | null>(() => {
     try {
-      return localStorage.getItem(LS_KEY);
+      const stored = localStorage.getItem(LS_KEY);
+      // Reject any stale localStorage value for a user no longer permitted.
+      if (!isAllowed(stored)) {
+        if (stored) {
+          try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
+        }
+        return null;
+      }
+      return stored;
     } catch {
       return null;
     }
@@ -60,6 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setUsername = useCallback((s: string) => {
     const trimmed = s.trim();
+    // Defense in depth: refuse to set a non-whitelisted username.
+    if (trimmed && !isAllowed(trimmed)) {
+      return;
+    }
     setUsernameRaw(trimmed || null);
     try {
       if (trimmed) localStorage.setItem(LS_KEY, trimmed);
