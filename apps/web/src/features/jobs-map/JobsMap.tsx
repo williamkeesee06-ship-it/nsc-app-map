@@ -317,6 +317,11 @@ function JobMarkers({
   const fittedRef = useRef(false);
   const markersRef = useRef<globalThis.Map<string, google.maps.Marker> | null>(null);
   const labelMarkersRef = useRef<google.maps.Marker[]>([]);
+  // Billy 6/5: marker that pins the search result. For free-form addresses
+  // we drop a standard red Google pin; for known jobs we briefly bounce the
+  // existing neon pin so it pops visually.
+  const searchPinRef = useRef<google.maps.Marker | null>(null);
+  const searchInfoRef = useRef<google.maps.InfoWindow | null>(null);
 
   // Keep latest onSelect in a ref to prevent marker recreation when selection logic changes
   const onSelectRef = useRef(onSelect);
@@ -415,8 +420,38 @@ function JobMarkers({
   useEffect(() => {
     if (!map || !focus) return;
 
+    // Clear any prior search pin/info before placing a new one.
+    if (searchPinRef.current) {
+      searchPinRef.current.setMap(null);
+      searchPinRef.current = null;
+    }
+    if (searchInfoRef.current) {
+      searchInfoRef.current.close();
+      searchInfoRef.current = null;
+    }
+
     if (focus.kind === "latLng") {
       focusMapOnLatLng(map, focus.lat, focus.lng);
+      // Drop a standard red Google pin so the user can SEE where the address is.
+      const pin = new google.maps.Marker({
+        position: { lat: focus.lat, lng: focus.lng },
+        map,
+        animation: google.maps.Animation.DROP,
+        zIndex: 9999,
+        title: focus.label ?? "Search result",
+      });
+      if (focus.label) {
+        const info = new google.maps.InfoWindow({ content: `<div style="font:600 12px ui-sans-serif,system-ui;color:#0b1220;max-width:240px">${escapeHtml(focus.label)}</div>` });
+        info.open({ map, anchor: pin });
+        searchInfoRef.current = info;
+      }
+      pin.addListener("click", () => {
+        pin.setMap(null);
+        searchInfoRef.current?.close();
+        searchPinRef.current = null;
+        searchInfoRef.current = null;
+      });
+      searchPinRef.current = pin;
       clearFocus();
       return;
     }
@@ -430,12 +465,49 @@ function JobMarkers({
       onSelect(job);
       if (job.geocode?.status === "OK" && job.geocode.lat !== 0) {
         focusMapOnLatLng(map, job.geocode.lat, job.geocode.lng);
+        // Bounce the existing neon job marker so the user can SEE which one
+        // matched (filters may have hidden it — we also ensure it's on the map).
+        const existing = markersRef.current?.get(job.jobId);
+        if (existing) {
+          existing.setMap(map);
+          existing.setAnimation(google.maps.Animation.BOUNCE);
+          setTimeout(() => existing.setAnimation(null), 1800);
+        } else {
+          // Filtered out — drop a temporary neon pin so the user can still see it.
+          const colorKey = colorKeyForJob(job);
+          const color = MARKER_COLORS[colorKey];
+          const tempPin = new google.maps.Marker({
+            position: { lat: job.geocode.lat, lng: job.geocode.lng },
+            map,
+            animation: google.maps.Animation.DROP,
+            zIndex: 9999,
+            title: `${job.workOrder} (hidden by filter)`,
+            icon: {
+              url: neonPinDataUrl(color, 1),
+              scaledSize: new google.maps.Size(26, 36),
+              anchor: new google.maps.Point(13, 33),
+            },
+          });
+          tempPin.addListener("click", () => {
+            onSelectRef.current(job);
+          });
+          searchPinRef.current = tempPin;
+        }
       }
       clearFocus();
     }
   }, [map, focus, allJobs, onSelect, clearFocus]);
 
   return null;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function focusMapOnLatLng(map: google.maps.Map, lat: number, lng: number) {

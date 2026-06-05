@@ -48,10 +48,19 @@ export default function MapTypeApplier() {
   useEffect(() => {
     if (!map) return;
     const apply = (prefs: MapPreferences) => {
-      map.setMapTypeId(prefs.mapType);
+      // Billy 6/5: in Satellite mode honor the road-labels toggle.
+      // Google Satellite imagery has no labels at all; Hybrid is satellite +
+      // labels. So when the user picks Satellite WITH labels on, switch the
+      // tile layer to Hybrid under the hood. When labels are off, stay on
+      // pure Satellite.
+      const effectiveMapType: MapType =
+        prefs.mapType === "satellite" && prefs.showRoadLabels
+          ? "hybrid"
+          : prefs.mapType;
+      map.setMapTypeId(effectiveMapType);
       // Satellite/hybrid imagery should not be re-colored — only style
       // roadmap/terrain base layers.
-      const styleable = prefs.mapType === "roadmap" || prefs.mapType === "terrain";
+      const styleable = effectiveMapType === "roadmap" || effectiveMapType === "terrain";
       map.setOptions({
         styles: styleable
           ? getMapStyles({
