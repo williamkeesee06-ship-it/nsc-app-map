@@ -294,6 +294,27 @@ function labelTextForObj(obj: DrawingObject): string | null {
   return null;
 }
 
+// Convert a pixel offset (dx,dy) into a lat/lng offset from `origin`. Used to
+// push the label callout off to the side of the point symbol so the label is
+// not rendered on top of the icon (Billy 6/5 — fixes pole atag duplicate).
+function pixelOffsetToLatLng(
+  origin: { lat: number; lng: number },
+  dx: number,
+  dy: number,
+  map: google.maps.Map
+): { lat: number; lng: number } | null {
+  const proj = map.getProjection();
+  if (!proj) return null;
+  const zoom = map.getZoom() ?? 18;
+  const scale = Math.pow(2, zoom);
+  const originPt = proj.fromLatLngToPoint(new google.maps.LatLng(origin.lat, origin.lng));
+  if (!originPt) return null;
+  const targetPt = new google.maps.Point(originPt.x + dx / scale, originPt.y + dy / scale);
+  const targetLatLng = proj.fromPointToLatLng(targetPt);
+  if (!targetLatLng) return null;
+  return { lat: targetLatLng.lat(), lng: targetLatLng.lng() };
+}
+
 function createLabelMarker(
   obj: DrawingObject,
   map: google.maps.Map
@@ -302,8 +323,13 @@ function createLabelMarker(
   if (!text) return null;
   const pos = labelPositionForObj(obj);
   if (!pos) return null;
+  // Point markups: offset label 30px to the right so it sits next to the
+  // symbol (callout style), not on top of it. Lines/shapes/text/callout
+  // already render their labels in the right spot — leave those alone.
+  const isPoint = "position" in obj && !("text" in obj);
+  const labelPos = isPoint ? (pixelOffsetToLatLng(pos, 30, 0, map) ?? pos) : pos;
   return new google.maps.Marker({
-    position: new google.maps.LatLng(pos.lat, pos.lng),
+    position: new google.maps.LatLng(labelPos.lat, labelPos.lng),
     map,
     label: {
       text,
@@ -349,11 +375,20 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
         renderAll();
         return;
       }
-      const res = await api.getAllDrawings(markupOwner);
+      // Fetch job markups AND personal scratchpad in parallel so SearchBar
+      // can find markups dropped on the main map (no job selected) too.
+      const [res, scratch] = await Promise.all([
+        api.getAllDrawings(markupOwner),
+        api.getScratchpad(markupOwner).catch(() => ({ objects: [] as unknown[] })),
+      ]);
       docsRef.current = res.docs.map((d) => ({
         jobId: d.jobId,
         objects: (d.objects as DrawingObject[]) ?? [],
       }));
+      const scratchObjs = (scratch?.objects as DrawingObject[] | undefined) ?? [];
+      if (scratchObjs.length > 0) {
+        docsRef.current.push({ jobId: "scratchpad", objects: scratchObjs });
+      }
       // Publish to the global markup-search store so SearchBar can query it.
       setMarkupSearchDocs(docsRef.current);
       renderAll();

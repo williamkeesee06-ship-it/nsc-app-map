@@ -17,6 +17,18 @@ import ObjectDetailsCard from "./ObjectDetailsCard.js";
 
 const FEET_PER_METER = 3.28084;
 
+// Billy 6/5: tools where the user ALWAYS types a label (atag / #) — popup
+// must always open. Everything else commits instantly with no popup.
+const LABEL_REQUIRED_TOOLS = new Set<string>([
+  "mh_new", "mh_removed",
+  "hh_new", "hh_removed",
+  "ped_new", "ped_removed",
+  "pole_new", "pole_removed",
+  "cabinet_new", "cabinet_removed",
+  "placed_cable", "removed_cable",
+  "text", "callout",
+]);
+
 // ── Cable line rendering ──────────────────────────────────────────────────────
 
 const PLACED_COLOR  = "#39ff7a";
@@ -724,14 +736,18 @@ export default function DrawingOverlay() {
     }
     const engine = engineRef.current;
 
-    // Auto-save rule: every markup commits to state the instant it's placed.
-    // The drawing context syncs state to Firestore (asbuilt for a job, scratchpad
-    // otherwise) on a 250ms debounce, so nothing is ever stuck in local pending
-    // state. Popup is bypassed entirely.
-    engine.instantCommit = true;
+    // Billy 6/5: hybrid commit rule.
+    //   - MH/HH/PED/POLE/CAB/CABLE/text/callout — popup opens so the user
+    //     types the atag/# (this IS the marker's name and how it's searched).
+    //   - Anchor/splice/terminal/drop — no popup, commit instantly.
+    // Either way the object is auto-saved to Firestore.
+    engine.instantCommit = false;
 
     engine.onPendingObject = (obj, screenPos) => {
-      // Defensive fallback in case instantCommit is ever turned off in the future.
+      if (!LABEL_REQUIRED_TOOLS.has(obj.tool as string)) {
+        addObject(obj);
+        return;
+      }
       setPendingObject({ obj, screenPos });
     };
 
