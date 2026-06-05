@@ -261,9 +261,6 @@ export default function SearchBar() {
   return (
     <div className="search-wrap" ref={wrapRef}>
       <form className="search-form search-form--neon" onSubmit={onSubmit} role="search">
-        <span className="search-form__icon" aria-hidden>
-          <NeonMagnifier />
-        </span>
         <input
           className="search-form__input"
           value={term}
@@ -292,8 +289,14 @@ export default function SearchBar() {
             ×
           </button>
         )}
-        <button type="submit" className="search-form__submit" disabled={busy}>
-          {busy ? "…" : "Go"}
+        <button
+          type="submit"
+          className="search-form__submit search-form__submit--icon"
+          disabled={busy}
+          aria-label="Search"
+          title="Search"
+        >
+          {busy ? "…" : <NeonMagnifier />}
         </button>
       </form>
 

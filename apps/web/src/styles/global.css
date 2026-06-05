@@ -3783,3 +3783,13 @@ input:focus, textarea:focus, select:focus {
 .search-form--neon .search-form__submit:hover:not(:disabled) {
   background: linear-gradient(180deg, #6ee0ff 0%, #1fb6ff 100%) !important;
 }
+/* Edit 10 fix: magnifier IS the submit button (no separate Go). */
+.search-form__submit--icon {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.search-form__submit--icon svg { display: block; }
