@@ -27,12 +27,16 @@ export const MIN_LABEL_ZOOM = 16;
 
 // ── Label text resolution ────────────────────────────────────────────────────
 
-/** Pick the best label text for any object — used at zoom ≥ MIN_LABEL_ZOOM. */
+/** Pick the best label text for any object — used at zoom ≥ MIN_LABEL_ZOOM.
+ *  Single source of truth: ATAG/MH/callout/text — every label type funnels
+ *  through here so the search index and the visible white-box label agree. */
 export function labelTextForObj(obj: DrawingObject): string | null {
   if (obj.style.hidden) return null;
+  // Text/callout tools store the user-typed string in `obj.text` — prefer that
+  // so the label shown matches what the user typed when placing the callout.
+  if ("text" in obj && obj.text && obj.text.trim()) return obj.text.trim();
   if (obj.style.userLabel && obj.style.userLabel.trim()) return obj.style.userLabel.trim();
   if (obj.style.description && obj.style.description.trim()) return obj.style.description.trim();
-  if ("text" in obj && obj.text && obj.text.trim()) return obj.text.trim();
   return null;
 }
 
@@ -253,12 +257,13 @@ export function makeLabelMarkerAt(
   position: google.maps.LatLngLiteral,
   text: string,
   map: google.maps.Map,
-  zIndex: number
+  zIndex: number,
+  onClick?: (screen: { x: number; y: number }) => void
 ): google.maps.Marker {
   const svg = makeLabelSvg(text);
   const w = labelWidth(text);
   const h = LABEL_H;
-  return new google.maps.Marker({
+  const marker = new google.maps.Marker({
     position,
     map,
     icon: {
@@ -267,10 +272,22 @@ export function makeLabelMarkerAt(
       size: new google.maps.Size(w, h),
       scaledSize: new google.maps.Size(w, h),
     },
-    clickable: false,
+    // Labels are clickable when a handler is supplied so single-click on a
+    // label opens the same editor as clicking the markup itself.
+    clickable: !!onClick,
     zIndex: zIndex + 1,
     optimized: false,
   });
+  if (onClick) {
+    marker.addListener("click", (e: google.maps.MapMouseEvent) => {
+      const dom = (e as unknown as { domEvent?: MouseEvent }).domEvent;
+      const screen = dom
+        ? { x: dom.clientX, y: dom.clientY }
+        : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      onClick(screen);
+    });
+  }
+  return marker;
 }
 
 export function clearAllLabels(
@@ -299,7 +316,12 @@ export function rebuildAllLabels(
   map: google.maps.Map,
   objects: DrawingObject[],
   overlaysMap: globalThis.Map<string, OverlayRef>,
-  calloutMap: globalThis.Map<string, google.maps.Polyline>
+  calloutMap: globalThis.Map<string, google.maps.Polyline>,
+  // Billy 6/8: per-object click handler so the label opens the same editor as
+  // the markup itself. Passed as a resolver from the caller (active-job
+  // overlay uses it to open the inline editor; AllJobsMarkupsOverlay uses it
+  // to open the job card). The screen position lets the caller anchor a popup.
+  onLabelClick?: (obj: DrawingObject, screen: { x: number; y: number }) => void
 ): void {
   // Zoom gate: hide all labels when zoomed out below threshold
   const curZoom = map.getZoom() ?? ZOOM_REF;
@@ -310,9 +332,10 @@ export function rebuildAllLabels(
 
   const entries: LabelEntry[] = [];
   for (const obj of objects) {
-    // Text tool already renders its own text as the primary visual — don't
-    // double-render it as a separate label marker.
-    if (obj.tool === "text" || obj.tool === "callout") continue;
+    // Every object type — ATAG, MH#, text, callout — funnels through the same
+    // labelTextForObj() resolver so every label looks/behaves identically.
+    // For text/callout the primary visual is JUST the leader line / hit-target;
+    // the visible label text comes from this pass (anti-collision + white box).
     const text = labelTextForObj(obj);
     if (!text) continue;
     const pos = labelPositionForObj(obj);
@@ -335,7 +358,10 @@ export function rebuildAllLabels(
     const labelLatLng = pixelOffsetToLatLng(p.symbolLatLng, p.offsetDx, p.offsetDy, map);
     if (!labelLatLng) continue;
 
-    const lbl = makeLabelMarkerAt(labelLatLng, p.text, map, p.zIndex);
+    const obj = objects.find((o) => o.id === p.objId);
+    const handler =
+      onLabelClick && obj ? (screen: { x: number; y: number }) => onLabelClick(obj, screen) : undefined;
+    const lbl = makeLabelMarkerAt(labelLatLng, p.text, map, p.zIndex, handler);
     overlaysMap.set(p.objId + "_label", lbl);
 
     const offsetMag = Math.sqrt(p.offsetDx ** 2 + p.offsetDy ** 2);

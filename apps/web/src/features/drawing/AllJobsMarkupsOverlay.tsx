@@ -23,6 +23,15 @@ import { setMarkupSearchDocs } from "../search/markupSearchStore.js";
 import { iconForTool } from "./icons/telecomIcons.js";
 import LabelEditPopup, { type LabelEditValues } from "./LabelEditPopup.js";
 import MarkupPhotosPopup from "./MarkupPhotosPopup.js";
+// Billy 6/8: share the SAME label renderer used by the active-job overlay so
+// every label on the map (open job, closed job, callout, ATAG, MH#) has the
+// same white text-box look, the same MIN_LABEL_ZOOM gate, and the same anti-
+// collision placement. The search index also reads off labelTextForObj() so
+// what's searchable is exactly what's visible.
+import {
+  rebuildAllLabels as sharedRebuildAllLabels,
+  clearAllLabels as sharedClearAllLabels,
+} from "./DrawingOverlayLabels.js";
 
 const PLACED_COLOR  = "#39ff7a";
 const REMOVED_COLOR = "#ff2d4a";
@@ -446,6 +455,12 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
   const { state } = useDrawing();
   const overlaysRef = useRef<Map<string, OverlayRef>>(new Map());
   const docsRef = useRef<Array<{ jobId: string; objects: DrawingObject[] }>>([]);
+  // Billy 6/8: per-job label / callout-line containers so sharedRebuildAllLabels
+  // can use its plain (non-prefixed) `${objId}_label` keys without collisions
+  // across jobs. One bag of label markers per jobId, plus one bag of leader
+  // lines per jobId.
+  const labelsByJobRef = useRef<globalThis.Map<string, globalThis.Map<string, OverlayRef>>>(new globalThis.Map());
+  const calloutLinesByJobRef = useRef<globalThis.Map<string, globalThis.Map<string, google.maps.Polyline>>>(new globalThis.Map());
 
   // (lastSavedTrigger ref kept for potential future use; currently we rely on the
   // "nsc:markups-saved" event + dirty transition + periodic refresh)
@@ -511,13 +526,23 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
   function clearAll() {
     overlaysRef.current.forEach((o) => o.setMap(null));
     overlaysRef.current.clear();
+    // Also drop label markers + leader lines for every job.
+    labelsByJobRef.current.forEach((bag) => {
+      bag.forEach((m) => m.setMap(null));
+      bag.clear();
+    });
+    labelsByJobRef.current.clear();
+    calloutLinesByJobRef.current.forEach((bag) => {
+      bag.forEach((l) => l.setMap(null));
+      bag.clear();
+    });
+    calloutLinesByJobRef.current.clear();
   }
 
   function renderAll() {
     if (!map) return;
     clearAll();
     const zoom = map.getZoom() ?? ZOOM_REF;
-    const labelsVisible = zoom >= MIN_LABEL_ZOOM;
     const activeJobId = state.targetJobId;
     for (const doc of docsRef.current) {
       if (activeJobId && doc.jobId === activeJobId) continue; // active job is rendered by DrawingOverlay
@@ -536,45 +561,33 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
           };
           const overlay = createReadOnlyOverlay(obj, map, zoom, handler, registerAux, rightClickHandler);
           if (overlay) overlaysRef.current.set(`${doc.jobId}:${obj.id}`, overlay);
-          // Phase 9.5: render labels only when zoomed in close enough
-          if (labelsVisible) {
-            // Edit 1: when the user drags the label, persist a labelOffsetPx
-            // on the style and re-save the doc to Firestore so it sticks.
-            const dragHandler: LabelDragHandler = (target, newPos) => {
-              const anchor = labelPositionForObj(target);
-              if (!anchor) return;
-              const offset = latLngOffsetToPixels(anchor, newPos, map);
-              if (!offset) return;
-              const updatedObjects = doc.objects.map((o) =>
-                o.id === target.id
-                  ? ({ ...o, style: { ...o.style, labelOffsetPx: offset } } as DrawingObject)
-                  : o
-              );
-              doc.objects = updatedObjects;
-              // Persist — scratchpad is a separate endpoint.
-              if (doc.jobId === "scratchpad") {
-                void api.putScratchpad(markupOwner, updatedObjects as unknown as unknown[]).catch(() => {});
-              } else {
-                void api
-                  .putDrawing(
-                    doc.jobId,
-                    { jobId: doc.jobId, objects: updatedObjects, updatedAt: Date.now(), updatedBy: markupOwner },
-                    markupOwner
-                  )
-                  .catch(() => {});
-              }
-            };
-            const clickHandler: LabelClickHandler = (target, screen) => {
-              setEditing({ obj: target, jobId: doc.jobId, screen });
-            };
-            const openJobHandler = handler ?? undefined;
-            const lbl = createLabelMarker(obj, map, dragHandler, clickHandler, openJobHandler);
-            if (lbl) overlaysRef.current.set(`${doc.jobId}:${obj.id}:label`, lbl);
-          }
         } catch {
           // skip malformed object
         }
       }
+      // Billy 6/8: hand label rendering to the shared helper so closed-job
+      // labels look identical to the open job's labels (white text-box, anti-
+      // collision, zoom gated). Use a per-job container so its plain `_label`
+      // keys don't collide with other jobs' objects.
+      let labelBag = labelsByJobRef.current.get(doc.jobId);
+      if (!labelBag) {
+        labelBag = new globalThis.Map();
+        labelsByJobRef.current.set(doc.jobId, labelBag);
+      }
+      let calloutBag = calloutLinesByJobRef.current.get(doc.jobId);
+      if (!calloutBag) {
+        calloutBag = new globalThis.Map();
+        calloutLinesByJobRef.current.set(doc.jobId, calloutBag);
+      }
+      // Pass the same job-card-opening handler that the markup itself uses,
+      // so clicking a label opens that job exactly like clicking the markup.
+      sharedRebuildAllLabels(
+        map,
+        doc.objects,
+        labelBag,
+        calloutBag,
+        handler ? () => handler() : undefined
+      );
     }
   }
 

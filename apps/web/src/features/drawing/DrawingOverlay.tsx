@@ -20,6 +20,7 @@ import { useAuth } from "../auth/authContext.js";
 import {
   type OverlayRef,
   ZOOM_REF,
+  MIN_LABEL_ZOOM,
   labelTextForObj,
   clearAllLabels,
   rebuildAllLabels,
@@ -501,7 +502,33 @@ export default function DrawingOverlay() {
           anchor: new google.maps.Point(px / 2, px / 2),
         });
       });
-      rebuildAllLabels(map!, state.objects, overlaysRef.current, calloutLinesRef.current);
+      // Tear down callout leaders that fell out of the label zoom band so the
+      // arrow disappears in step with the label. They'll be recreated by the
+      // next render pass when the user zooms back in.
+      if (zoom < MIN_LABEL_ZOOM) {
+        state.objects.forEach((obj) => {
+          if (obj.tool !== "callout") return;
+          const key = obj.id + "_callout_leader";
+          const existing = overlaysRef.current.get(key);
+          if (existing) {
+            existing.setMap(null);
+            overlaysRef.current.delete(key);
+          }
+        });
+      }
+      rebuildAllLabels(
+        map!,
+        state.objects,
+        overlaysRef.current,
+        calloutLinesRef.current,
+        (obj, screen) => {
+          // Click on a label opens the same details card the markup opens.
+          const live = state.objects.find((o) => o.id === obj.id) || obj;
+          select([obj.id], false);
+          setCardObj(live);
+          setCardAnchor(screen);
+        }
+      );
     }
 
     const listener = map.addListener("zoom_changed", handleZoomChange);
@@ -793,7 +820,9 @@ export default function DrawingOverlay() {
       //   path order on screen:  text-box position → bends (reversed) → anchor (tip)
       // We put the arrow on the LAST vertex of the polyline so the head sits on
       // the anchor (arrow points at the thing you're calling out).
-      if (obj.tool === "callout" && "anchor" in obj) {
+      // Zoom gate: the leader line only makes sense when the label is visible.
+      // Below MIN_LABEL_ZOOM the label is hidden, so hide the leader too.
+      if (obj.tool === "callout" && "anchor" in obj && zoom >= MIN_LABEL_ZOOM) {
         const anchor = (obj as any).anchor as { lat: number; lng: number };
         const textPos = "position" in obj ? (obj as any).position : anchor;
         const bends: Array<{ lat: number; lng: number }> =
@@ -836,6 +865,15 @@ export default function DrawingOverlay() {
             zIndex: isSelected ? 18 : 4,
           });
         }
+      } else if (obj.tool === "callout") {
+        // Zoomed out below MIN_LABEL_ZOOM — tear down any existing leader so
+        // the arrow disappears with its label.
+        const leaderKey = obj.id + "_callout_leader";
+        const existing = overlaysRef.current.get(leaderKey);
+        if (existing) {
+          existing.setMap(null);
+          overlaysRef.current.delete(leaderKey);
+        }
       }
 
       // Label rendering is handled exclusively by rebuildAllLabels() below,
@@ -861,7 +899,19 @@ export default function DrawingOverlay() {
     });
 
     // Full label anti-collision pass
-    rebuildAllLabels(map, state.objects, overlaysRef.current, calloutLinesRef.current);
+    rebuildAllLabels(
+      map,
+      state.objects,
+      overlaysRef.current,
+      calloutLinesRef.current,
+      (obj, screen) => {
+        // Click on a label opens the same details card the markup opens.
+        const live = state.objects.find((o) => o.id === obj.id) || obj;
+        select([obj.id], false);
+        setCardObj(live);
+        setCardAnchor(screen);
+      }
+    );
 
     // ── Hatch fill sync ────────────────────────────────────────────────
     // Add/update hatch overlays for hashed polygons, remove any whose object
@@ -1138,10 +1188,12 @@ function createOverlay(
   }
 
   if ("position" in obj && "text" in obj) {
-    // Phase 9.6 fix: give text markers a real (invisible) hit target so they
-    // can be clicked/selected/deleted. The previous scale:0 icon made the
-    // marker effectively un-clickable. We use a square SVG sized to roughly
-    // match the label, fully transparent.
+    // Billy 6/8: text/callout objects no longer render their text directly as
+    // a Google Maps label here — that produced a duplicate label that ignored
+    // the zoom gate and the white text-box treatment. Instead we render only
+    // an invisible hit target. The actual visible label is drawn by
+    // rebuildAllLabels() with the same white-box style and MIN_LABEL_ZOOM gate
+    // every other label uses.
     const textLen = (obj.text || "").length;
     const hitWidth = Math.max(40, textLen * 9 + 16);
     const hitHeight = 22;
@@ -1152,19 +1204,11 @@ function createOverlay(
     const marker = new google.maps.Marker({
       position: new google.maps.LatLng(obj.position.lat, obj.position.lng),
       map,
-      label: {
-        text: obj.text,
-        color: obj.style.strokeColor,
-        fontSize: "13px",
-        fontWeight: "bold",
-        fontFamily: "ui-monospace, monospace",
-      },
       icon: {
         url: "data:image/svg+xml;utf8," + encodeURIComponent(hitSvg),
         size: new google.maps.Size(hitWidth, hitHeight),
         scaledSize: new google.maps.Size(hitWidth, hitHeight),
         anchor: new google.maps.Point(hitWidth / 2, hitHeight / 2),
-        labelOrigin: new google.maps.Point(hitWidth / 2, hitHeight / 2),
       },
       draggable: isSelected,
       clickable: isClickable,
