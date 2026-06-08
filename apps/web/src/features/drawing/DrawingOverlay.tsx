@@ -20,18 +20,10 @@ import { useAuth } from "../auth/authContext.js";
 import {
   type OverlayRef,
   ZOOM_REF,
-  MIN_LABEL_ZOOM,
   labelTextForObj,
-  labelPositionForObj,
-  makeLabelSvg,
-  labelWidth,
-  makeLabelMarkerAt,
   clearAllLabels,
   rebuildAllLabels,
-  pixelOffsetToLatLng,
-  makeCalloutLine,
   midpointOfVertices,
-  CALLOUT_MIN_OFFSET_PX,
 } from "./DrawingOverlayLabels.js";
 
 const FEET_PER_METER = 3.28084;
@@ -846,34 +838,11 @@ export default function DrawingOverlay() {
         }
       }
 
-      // Create label marker (only when zoomed in close enough). Use whatever
-      // label source the object has — userLabel / description / text.
-      const labelText = labelTextForObj(obj);
-      if (labelText && zoom >= MIN_LABEL_ZOOM) {
-        const pos = labelPositionForObj(obj);
-        if (pos) {
-          // Line-like tools (cables, lines, freehand, measure) want the label
-          // sitting ON the midpoint of the line, no pixel offset and no leader.
-          const isLineLike =
-            obj.tool === "placed_cable" ||
-            obj.tool === "removed_cable" ||
-            obj.tool === "line" ||
-            obj.tool === "freehand" ||
-            obj.tool === "measure";
-          const labelLatLng = isLineLike ? pos : pixelOffsetToLatLng(pos, 30, 0, map);
-          if (labelLatLng) {
-            const lbl = makeLabelMarkerAt(labelLatLng, labelText, map, 6);
-            overlaysRef.current.set(obj.id + "_label", lbl);
-            if (!isLineLike) {
-              const offsetMag = Math.sqrt(30 ** 2);
-              if (offsetMag > CALLOUT_MIN_OFFSET_PX) {
-                calloutLinesRef.current.set(obj.id + "_callout", makeCalloutLine(pos, labelLatLng, map, 5));
-              }
-            }
-          }
-        }
-      }
-      labelVersionRef.current.set(obj.id, labelText ?? undefined);
+      // Label rendering is handled exclusively by rebuildAllLabels() below,
+      // which runs anti-collision placement so labels never overlap. The
+      // previous per-object label creation here was duplicating every label
+      // (one fixed-offset + one anti-collision label per markup).
+      labelVersionRef.current.set(obj.id, labelTextForObj(obj) ?? undefined);
 
       // Measure distance label
       if (obj.tool === "measure" && "vertices" in obj) {
