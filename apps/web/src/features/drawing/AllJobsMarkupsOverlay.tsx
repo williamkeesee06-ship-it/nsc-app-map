@@ -359,7 +359,10 @@ function createLabelMarker(
   obj: DrawingObject,
   map: google.maps.Map,
   onLabelDrag?: LabelDragHandler,
-  onLabelClick?: LabelClickHandler
+  onLabelClick?: LabelClickHandler,
+  // Billy 6/8: single-click on a label should open the job card (like the
+  // markup itself). Double-click opens the label edit popup.
+  onLabelOpenJob?: () => void
 ): google.maps.Marker | null {
   const text = labelTextForObj(obj);
   if (!text) return null;
@@ -383,13 +386,13 @@ function createLabelMarker(
     map,
     label: {
       text,
-      color: obj.style.textColor ?? "#f4f8ff",
+      color: obj.style.textColor ?? "#1A2332",
       fontSize,
       fontWeight: "700",
       fontFamily: "ui-monospace, monospace",
     },
     icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
-    clickable: !!(onLabelDrag || onLabelClick),
+    clickable: !!(onLabelDrag || onLabelClick || onLabelOpenJob),
     draggable: !!onLabelDrag,
     zIndex: 6,
   });
@@ -400,13 +403,19 @@ function createLabelMarker(
       onLabelDrag(obj, { lat: p.lat(), lng: p.lng() });
     });
   }
-  if (onLabelClick) {
-    marker.addListener("click", (e: google.maps.MapMouseEvent & { domEvent?: MouseEvent }) => {
-      const dom = e.domEvent as MouseEvent | undefined;
-      const x = dom?.clientX ?? window.innerWidth / 2;
-      const y = dom?.clientY ?? window.innerHeight / 2;
-      onLabelClick(obj, { x, y });
+  // Single click opens the job card; double click opens the label edit popup.
+  if (onLabelOpenJob || onLabelClick) {
+    marker.addListener("click", () => {
+      if (onLabelOpenJob) onLabelOpenJob();
     });
+    if (onLabelClick) {
+      marker.addListener("dblclick", (e: google.maps.MapMouseEvent & { domEvent?: MouseEvent }) => {
+        const dom = e.domEvent as MouseEvent | undefined;
+        const x = dom?.clientX ?? window.innerWidth / 2;
+        const y = dom?.clientY ?? window.innerHeight / 2;
+        onLabelClick(obj, { x, y });
+      });
+    }
   }
   return marker;
 }
@@ -529,7 +538,8 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
             const clickHandler: LabelClickHandler = (target, screen) => {
               setEditing({ obj: target, jobId: doc.jobId, screen });
             };
-            const lbl = createLabelMarker(obj, map, dragHandler, clickHandler);
+            const openJobHandler = handler ?? undefined;
+            const lbl = createLabelMarker(obj, map, dragHandler, clickHandler, openJobHandler);
             if (lbl) overlaysRef.current.set(`${doc.jobId}:${obj.id}:label`, lbl);
           }
         } catch {
@@ -632,7 +642,7 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
       y={editing.screen.y}
       initial={{
         text: initialText,
-        textColor: editing.obj.style.textColor ?? "#f4f8ff",
+        textColor: editing.obj.style.textColor ?? "#1A2332",
         fontSize: editing.obj.style.labelFontSize ?? 12,
         bg: editing.obj.style.labelBg ?? "",
         border: editing.obj.style.labelBorder ?? "",
