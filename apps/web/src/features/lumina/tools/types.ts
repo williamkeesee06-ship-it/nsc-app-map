@@ -71,8 +71,9 @@ export interface LuminaMapBridge {
   clearPins(): void;
   /** Trigger Option-C neon ring sweep from orb to a target screen position. */
   triggerArrivalGlow(target: { lat: number; lng: number }): void;
-  /** Briefly glow a markup object after a write was Applied. */
-  triggerWriteGlow(args: { jobId: string; objectId: string }): void;
+  /** Briefly glow a target lat/lng after a write was Applied. Caller supplies
+   *  the coordinates (looked up from the just-saved drawing doc). */
+  triggerWriteGlow(args: { lat: number; lng: number }): void;
   /** Open the job card (same as clicking the job pin). */
   selectJob(jobId: string): void;
   /** Apply a non-default filter to the job list (crew/status/age/city). */

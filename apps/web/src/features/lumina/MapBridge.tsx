@@ -167,9 +167,57 @@ export default function MapBridge() {
         pinsRef.current = [];
       },
       triggerArrivalGlow: triggerArrivalGlowImpl,
-      triggerWriteGlow: (_args) => {
-        // Phase 4 wires this end-to-end with the markup overlay.
-        // For now we just trigger the arrival ring at a no-op point.
+      triggerWriteGlow: ({ lat, lng }) => {
+        // Phase 4 write-glow: emerald pulse at the markup's screen position.
+        // Distinct from arrival glow (blue orb-to-target sweep) — fires after
+        // a propose-* APPLY succeeds, signaling "committed to Firestore".
+        if (!map) return;
+        const projection = map.getProjection();
+        if (!projection) return;
+        const targetLatLng = new google.maps.LatLng(lat, lng);
+        const targetWorld = projection.fromLatLngToPoint(targetLatLng);
+        if (!targetWorld) return;
+        const zoom = map.getZoom() ?? 17;
+        const scale = Math.pow(2, zoom);
+        const bounds = map.getBounds();
+        if (!bounds) return;
+        const nw = projection.fromLatLngToPoint(
+          new google.maps.LatLng(bounds.getNorthEast().lat(), bounds.getSouthWest().lng())
+        );
+        if (!nw) return;
+        const div = (map as unknown as { getDiv?: () => HTMLElement }).getDiv?.();
+        if (!div) return;
+        const rect = div.getBoundingClientRect();
+        const targetX = rect.left + (targetWorld.x - nw.x) * scale;
+        const targetY = rect.top + (targetWorld.y - nw.y) * scale;
+
+        // Two pulses, staggered, so the eye lands on the change.
+        for (let i = 0; i < 2; i++) {
+          window.setTimeout(() => {
+            const pulse = document.createElement("div");
+            Object.assign(pulse.style, {
+              position: "fixed",
+              left: `${targetX}px`,
+              top: `${targetY}px`,
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              border: "2px solid #3cffd2",
+              boxShadow: "0 0 22px rgba(60,255,210,0.9), 0 0 44px rgba(60,255,210,0.5)",
+              transform: "translate(-50%, -50%) scale(0.4)",
+              transition: "transform 700ms ease-out, opacity 700ms ease-out",
+              pointerEvents: "none",
+              zIndex: "9999",
+              opacity: "1",
+            } as CSSStyleDeclaration);
+            document.body.appendChild(pulse);
+            requestAnimationFrame(() => {
+              pulse.style.transform = "translate(-50%, -50%) scale(2.8)";
+              pulse.style.opacity = "0";
+            });
+            window.setTimeout(() => pulse.remove(), 800);
+          }, i * 180);
+        }
       },
       selectJob: (jobId) => {
         // Same path as SearchBar pickJob — sets selectedJobId, opens JobCard,

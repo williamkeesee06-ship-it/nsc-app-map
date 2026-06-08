@@ -21,6 +21,25 @@ import { useEffect, useRef, useState } from "react";
 import { useLumina, type ChatMessage } from "./store/luminaStore.js";
 import { runUserTurn } from "./engine/chatEngine.js";
 import { useAuth } from "../auth/authContext.js";
+import { api } from "../../lib/api.js";
+import type { AsBuiltDocument, AsbuiltDoc, DrawingObject } from "@nsc/types";
+import type { PendingAction } from "./tools/types.js";
+
+// V2 drawing doc has an `objects` array; legacy v1 doesn't. We can only edit v2.
+function isV2(doc: AsBuiltDocument | AsbuiltDoc): doc is AsBuiltDocument {
+  return Array.isArray((doc as AsBuiltDocument).objects);
+}
+
+function objectCenter(o: DrawingObject): { lat: number; lng: number } | null {
+  if ("position" in o) return { lat: o.position.lat, lng: o.position.lng };
+  if ("vertices" in o && o.vertices.length > 0) {
+    return { lat: o.vertices[0].lat, lng: o.vertices[0].lng };
+  }
+  if ("bounds" in o) {
+    return { lat: (o.bounds.n + o.bounds.s) / 2, lng: (o.bounds.e + o.bounds.w) / 2 };
+  }
+  return null;
+}
 
 export default function ChatPanel() {
   const {
@@ -29,6 +48,7 @@ export default function ChatPanel() {
     appendTrace,
     updateMessageText,
     pendingActions,
+    resolveAction,
     dismissAction,
     liveOn,
     setLiveOn,
@@ -39,11 +59,85 @@ export default function ChatPanel() {
     enqueueAction,
   } = useLumina();
   const { username } = useAuth();
+  const [applyingId, setApplyingId] = useState<string | null>(null);
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // ── APPLY a queued action — the only real write path in Phase 4. ────────
+  // Currently supports markupLabel; notes/status return ok:false from their
+  // propose tools so they never make it to a card.
+  async function applyAction(action: PendingAction) {
+    if (applyingId) return;
+    setApplyingId(action.id);
+    try {
+      if (action.kind === "markupLabel") {
+        // 1. Pull the current drawing doc (owner-scoped to this supervisor).
+        const doc = await api.getDrawing(action.jobId, username || undefined);
+        if (!isV2(doc)) {
+          throw new Error("Job has a legacy drawing doc \u2014 can't edit labels here.");
+        }
+        // 2. Find the object and mutate its label.
+        const idx = doc.objects.findIndex((o) => o.id === action.objectId);
+        if (idx === -1) {
+          throw new Error("Markup object not found \u2014 it may have been deleted.");
+        }
+        const target = doc.objects[idx];
+        // Only point-tool variants carry a top-level `label` field. Text +
+        // callout use `text`. The propose tool is contracted for label-typed
+        // markups; refuse if we got handed a text/callout/line/shape.
+        if (!("label" in target)) {
+          throw new Error(
+            "This object type doesn't have a label field (try editing it directly)."
+          );
+        }
+        const updatedObjects = [...doc.objects];
+        updatedObjects[idx] = { ...target, label: action.label } as DrawingObject;
+        const updatedDoc: AsBuiltDocument = {
+          ...doc,
+          objects: updatedObjects,
+          updatedAt: Date.now(),
+          updatedBy: username || "Lumina",
+        };
+        // 3. Write back. The endpoint already persists to Firestore — Billy's
+        //    "everything saved online" rule holds.
+        await api.putDrawing(action.jobId, updatedDoc, username || undefined);
+        // 4. Write-glow at the markup's screen position.
+        const center = objectCenter(target);
+        if (center && mapBridgeRef.current) {
+          mapBridgeRef.current.triggerWriteGlow(center);
+        }
+        // 5. Announce in chat.
+        appendMessage({
+          id: crypto.randomUUID(),
+          role: "lumina",
+          text: `Applied. Label set to "${action.label}" on markup ${action.objectId.slice(0, 8)}.`,
+          at: Date.now(),
+        });
+        // 6. Fire the existing markups-saved bus so AllJobsMarkupsOverlay
+        //    refetches and the new label renders without a page reload.
+        try {
+          window.dispatchEvent(new Event("nsc:markups-saved"));
+        } catch {
+          /* non-browser env */
+        }
+      }
+      resolveAction(action.id);
+    } catch (err) {
+      // Surface the failure as a Lumina message so Billy can see what broke.
+      appendMessage({
+        id: crypto.randomUUID(),
+        role: "lumina",
+        text: `Apply failed: ${err instanceof Error ? err.message : String(err)}`,
+        at: Date.now(),
+      });
+      setOrbState("error");
+    } finally {
+      setApplyingId(null);
+    }
+  }
 
   // Auto-scroll on new message.
   useEffect(() => {
@@ -200,17 +294,16 @@ export default function ChatPanel() {
               <div className="lx-flex lx-gap-2">
                 <button
                   type="button"
-                  className="lx-px-3 lx-py-1 lx-rounded lx-bg-neon lx-text-ink-900 lx-text-xs lx-font-bold lx-tracking-wider"
-                  onClick={() => {
-                    // Phase 4 will wire the real API call here.
-                    dismissAction(a.id);
-                  }}
+                  disabled={applyingId === a.id}
+                  className="lx-px-3 lx-py-1 lx-rounded lx-bg-neon lx-text-ink-900 lx-text-xs lx-font-bold lx-tracking-wider disabled:lx-opacity-60 disabled:lx-cursor-not-allowed"
+                  onClick={() => applyAction(a)}
                 >
-                  APPLY
+                  {applyingId === a.id ? "APPLYING\u2026" : "APPLY"}
                 </button>
                 <button
                   type="button"
-                  className="lx-px-3 lx-py-1 lx-rounded lx-bg-ink-800 lx-text-xs lx-tracking-wider"
+                  disabled={applyingId === a.id}
+                  className="lx-px-3 lx-py-1 lx-rounded lx-bg-ink-800 lx-text-xs lx-tracking-wider disabled:lx-opacity-60"
                   style={{ color: "var(--text-muted)" }}
                   onClick={() => dismissAction(a.id)}
                 >
