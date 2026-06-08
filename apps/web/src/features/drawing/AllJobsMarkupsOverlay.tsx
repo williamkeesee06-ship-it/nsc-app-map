@@ -22,6 +22,7 @@ import { useAuth } from "../auth/authContext.js";
 import { setMarkupSearchDocs } from "../search/markupSearchStore.js";
 import { iconForTool } from "./icons/telecomIcons.js";
 import LabelEditPopup, { type LabelEditValues } from "./LabelEditPopup.js";
+import MarkupPhotosPopup from "./MarkupPhotosPopup.js";
 
 const PLACED_COLOR  = "#39ff7a";
 const REMOVED_COLOR = "#ff2d4a";
@@ -102,6 +103,9 @@ function fillColor(style: DrawingObject["style"]): string {
   return "transparent";
 }
 
+// Billy 6/8: right-click on a markup opens the photos popup.
+type RightClickHandler = (obj: DrawingObject, screen: { x: number; y: number }) => void;
+
 function createReadOnlyOverlay(
   obj: DrawingObject,
   map: google.maps.Map,
@@ -109,16 +113,26 @@ function createReadOnlyOverlay(
   onClick: (() => void) | null,
   /** Callback to register auxiliary overlays (e.g. callout leader polyline)
    *  so the parent can dispose them on clear/unmount. */
-  registerAux?: (overlay: OverlayRef) => void
+  registerAux?: (overlay: OverlayRef) => void,
+  onRightClick?: RightClickHandler
 ): OverlayRef | null {
   if (obj.style.hidden) return null;
   const clickable = onClick !== null;
 
   // Helper to attach a click listener if the overlay is clickable.
-  function wireClick<T extends { addListener: (e: string, fn: () => void) => unknown }>(
+  function wireClick<T extends { addListener: (e: string, fn: ((e?: google.maps.MapMouseEvent) => void)) => unknown }>(
     overlay: T
   ): T {
-    if (clickable && onClick) overlay.addListener("click", onClick);
+    if (clickable && onClick) overlay.addListener("click", () => onClick());
+    if (onRightClick) {
+      overlay.addListener("rightclick", (e?: google.maps.MapMouseEvent) => {
+        // Google Maps types declare domEvent as a wide union; cast on read.
+        const dom = (e as (google.maps.MapMouseEvent & { domEvent?: MouseEvent }) | undefined)?.domEvent;
+        const x = dom?.clientX ?? window.innerWidth / 2;
+        const y = dom?.clientY ?? window.innerHeight / 2;
+        onRightClick(obj, { x, y });
+      });
+    }
     return overlay;
   }
 
@@ -453,6 +467,16 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     | null
   >(null);
 
+  // Billy 6/8: photos popup state. Right-click a markup → opens this.
+  const [photos, setPhotos] = useState<
+    | {
+        obj: DrawingObject;
+        jobId: string;
+        screen: { x: number; y: number };
+      }
+    | null
+  >(null);
+
   async function fetchAll() {
     try {
       if (!markupOwner) {
@@ -505,7 +529,12 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
           const registerAux = (extra: OverlayRef) => {
             overlaysRef.current.set(`${doc.jobId}:${obj.id}:aux${auxIdx++}`, extra);
           };
-          const overlay = createReadOnlyOverlay(obj, map, zoom, handler, registerAux);
+          const rightClickHandler: RightClickHandler = (target, screen) => {
+            // Only allow photos on objects that have a meaningful identity
+            // (skip text-tool labels for now — photos belong on assets).
+            setPhotos({ obj: target, jobId: doc.jobId, screen });
+          };
+          const overlay = createReadOnlyOverlay(obj, map, zoom, handler, registerAux, rightClickHandler);
           if (overlay) overlaysRef.current.set(`${doc.jobId}:${obj.id}`, overlay);
           // Phase 9.5: render labels only when zoomed in close enough
           if (labelsVisible) {
@@ -632,6 +661,22 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
         .catch(() => {});
     }
     renderAll();
+  }
+
+  // Render whichever popup is open. Photos popup takes precedence if both
+  // would somehow be set at once.
+  if (photos) {
+    return (
+      <MarkupPhotosPopup
+        jobId={photos.jobId}
+        objectId={photos.obj.id}
+        markupLabel={labelTextForObj(photos.obj) ?? photos.obj.tool}
+        takenBy={markupOwner}
+        x={photos.screen.x}
+        y={photos.screen.y}
+        onClose={() => setPhotos(null)}
+      />
+    );
   }
 
   if (!editing) return null;

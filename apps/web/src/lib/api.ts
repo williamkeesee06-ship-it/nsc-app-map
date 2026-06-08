@@ -106,4 +106,22 @@ export const api = {
       `/api/scratchpad/${encodeURIComponent(owner)}`,
       { method: "PUT", body: JSON.stringify({ objects }) }
     ),
+
+  // Per-markup photos (Billy 6/8) — photos attached to specific drawing
+  // objects (poles, MHs, splices, etc.). Stored as base64 data URLs in
+  // Firestore at jobs/{jobId}/photos/{photoId}.
+  listPhotos: (jobId: string) =>
+    request<{ photos: Array<{ id: string; objectId: string; dataUrl: string; takenAt: number; takenBy: string }>; count: number }>(
+      `/api/photos/${encodeURIComponent(jobId)}`
+    ),
+  addPhoto: (jobId: string, body: { objectId: string; dataUrl: string; takenBy: string }) =>
+    request<{ id: string; objectId: string; dataUrl: string; takenAt: number; takenBy: string }>(
+      `/api/photos/${encodeURIComponent(jobId)}`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
+  deletePhoto: (jobId: string, photoId: string) =>
+    request<{ ok: boolean }>(
+      `/api/photos/${encodeURIComponent(jobId)}/${encodeURIComponent(photoId)}`,
+      { method: "DELETE" }
+    ),
 };

@@ -12,6 +12,7 @@ import { queuePrefWrite } from "../../lib/prefsSync.js";
 import { getIconByKey } from "../drawing/icons/iconRegistry.js";
 import StatusFilterPills from "./StatusFilterPills.js";
 import CentralOfficesPill from "./CentralOfficesPill.js";
+import RouteBuilderTab from "./RouteBuilderTab.js";
 
 // Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
 // the left while keeping plenty of room for tool tiles to the right.
@@ -33,7 +34,7 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'filters' | 'telecom' | 'tools' | 'library' | 'layers';
+type TabId = 'filters' | 'telecom' | 'tools' | 'library' | 'layers' | 'route';
 
 export default function LeftRail({
   jobs,
@@ -145,6 +146,7 @@ export default function LeftRail({
     { id: 'filters', label: 'FILTERS' },
     { id: 'telecom', label: 'TELECOM' },
     { id: 'tools', label: 'TOOLS' },
+    { id: 'route', label: 'ROUTE' },
     { id: 'library', label: 'LIBRARY' },
     { id: 'layers', label: 'LAYERS' },
   ];
@@ -190,6 +192,7 @@ export default function LeftRail({
               )}
               {activeTab === 'telecom' && <TelecomTab />}
               {activeTab === 'tools' && <AnnotateTab />}
+              {activeTab === 'route' && <RouteBuilderTab />}
               {activeTab === 'library' && <LibraryTab />}
               {activeTab === 'layers' && <LayersTab />}
             </div>

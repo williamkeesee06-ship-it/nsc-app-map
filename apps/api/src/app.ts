@@ -6,10 +6,13 @@ import prefsRouter from "./routes/prefs.js";
 import syncRouter from "./routes/sync.js";
 import jobsRouter from "./routes/jobs.js";
 import scratchpadRouter from "./routes/scratchpad.js";
+import photosRouter from "./routes/photos.js";
 
 export function createApp() {
   const app = express();
-  app.use(express.json({ limit: "1mb" }));
+  // Photos can push the payload up to ~200KB — raise the body limit so the
+  // photo upload route isn't rejected as 413 before reaching the handler.
+  app.use(express.json({ limit: "4mb" }));
 
   // All routes mount under /api (the Vercel rewrite already strips the prefix
   // at the platform level, but we keep it explicit so local dev matches prod).
@@ -19,6 +22,7 @@ export function createApp() {
   app.use("/api", jobsRouter);
   app.use("/api", prefsRouter);
   app.use("/api", scratchpadRouter);
+  app.use("/api", photosRouter);
 
   // Catch-all error handler — never let an uncaught error crash the function.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
