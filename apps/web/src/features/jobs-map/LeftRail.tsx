@@ -179,27 +179,44 @@ export default function LeftRail({
 
       {!collapsed && (
         <>
-          <div className="left-rail__scroll">
-            {/* Tab Content */}
-            <div className="left-rail-tab-content">
-              {activeTab === 'filters' && (
-                <FiltersTab
-                  jobs={jobs}
-                  filters={filters}
-                  setFilters={setFilters}
-                  hideFilters={hideFilters}
-                  managerMode={managerMode}
-                  availableSupervisors={availableSupervisors}
-                />
-              )}
-              {activeTab === 'telecom' && <TelecomTab />}
-              {activeTab === 'tools' && <AnnotateTab />}
-              {activeTab === 'route' && <RouteBuilderTab />}
-              {activeTab === 'lumina' && <LuminaTab width={width} />}
-              {activeTab === 'library' && <LibraryTab />}
-              {activeTab === 'layers' && <LayersTab />}
+          {activeTab === 'lumina' ? (
+            // Lumina owns the full content area (no padding, no scroll wrapper)
+            // so the chat header + composer reach edge-to-edge and the message
+            // list claims all remaining vertical space.
+            <div
+              className="left-rail-lumina-content"
+              style={{
+                flex: "1 1 auto",
+                minWidth: 0,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <LuminaTab width={width} />
             </div>
-          </div>
+          ) : (
+            <div className="left-rail__scroll">
+              {/* Tab Content */}
+              <div className="left-rail-tab-content">
+                {activeTab === 'filters' && (
+                  <FiltersTab
+                    jobs={jobs}
+                    filters={filters}
+                    setFilters={setFilters}
+                    hideFilters={hideFilters}
+                    managerMode={managerMode}
+                    availableSupervisors={availableSupervisors}
+                  />
+                )}
+                {activeTab === 'telecom' && <TelecomTab />}
+                {activeTab === 'tools' && <AnnotateTab />}
+                {activeTab === 'route' && <RouteBuilderTab />}
+                {activeTab === 'library' && <LibraryTab />}
+                {activeTab === 'layers' && <LayersTab />}
+              </div>
+            </div>
+          )}
 
           {/* Resize handle */}
           <div

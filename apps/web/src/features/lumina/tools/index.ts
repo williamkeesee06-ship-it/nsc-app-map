@@ -5,8 +5,10 @@
  * (geminiLive.ts onToolCall callback) route through dispatchTool(). This
  * is the SINGLE choke point where Lumina interacts with North Sky data.
  *
- * Phase 3 registers all 19 tools: 5 read + 12 map nav + 3 propose-write
- * (write stubs land in Phase 4 — they currently aren't registered).
+ * Phase 4 registers all 22 tools: 5 read + 12 map nav + 3 propose-write
+ * (proposeMarkupLabel is fully wired; proposeNotesUpdate / proposeStatus
+ * Change are registered as "not yet available" stubs so the model gives a
+ * coherent refusal instead of calling an undefined tool).
  */
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
@@ -16,6 +18,7 @@ import { listMarkupsTool } from "./listMarkups.js";
 import { listPhotosTool } from "./listPhotos.js";
 import { searchAddressTool } from "./searchAddress.js";
 import { mapNavTools } from "./mapNav.js";
+import { writeTools } from "./writeTools.js";
 
 const ALL_TOOLS: LuminaTool<any, any>[] = [
   listJobsTool,
@@ -24,6 +27,7 @@ const ALL_TOOLS: LuminaTool<any, any>[] = [
   listPhotosTool,
   searchAddressTool,
   ...mapNavTools,
+  ...writeTools,
 ];
 
 const REGISTRY: Record<string, LuminaTool<any, any>> = Object.fromEntries(

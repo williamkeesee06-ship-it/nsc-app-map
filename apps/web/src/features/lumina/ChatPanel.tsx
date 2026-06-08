@@ -22,11 +22,7 @@ import { useLumina, type ChatMessage } from "./store/luminaStore.js";
 import { runUserTurn } from "./engine/chatEngine.js";
 import { useAuth } from "../auth/authContext.js";
 
-interface Props {
-  width: number;
-}
-
-export default function ChatPanel({ width }: Props) {
+export default function ChatPanel() {
   const {
     messages,
     appendMessage,
@@ -112,8 +108,8 @@ export default function ChatPanel({ width }: Props) {
 
   return (
     <div
-      className="lx-flex lx-flex-col lx-h-full lx-text-sm"
-      style={{ width, color: "#d6e4f5" }}
+      className="lx-flex lx-flex-col lx-h-full lx-w-full lx-text-sm"
+      style={{ color: "#d6e4f5", minHeight: 0, minWidth: 0 }}
     >
       {/* ── Header — steel frame ─────────────────────────────────────── */}
       <div
