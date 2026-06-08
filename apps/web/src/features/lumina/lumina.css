@@ -1,0 +1,17 @@
+/* Lumina — Tailwind entry. Imported by Lumina components only.
+   Generates the prefixed `lx-*` utility classes scoped to this folder. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Local component layer — reusable presets that build on the tokens. */
+@layer components {
+  .lumina-panel {
+    @apply lx-bg-gradient-to-b lx-from-steel-light lx-to-steel-base
+           lx-border lx-border-chrome-dark lx-rounded-[10px]
+           lx-shadow-[0_6px_20px_rgba(0,0,0,0.28),0_2px_6px_rgba(0,0,0,0.18)];
+  }
+  .lumina-neon-rim {
+    @apply lx-ring-1 lx-ring-neon lx-shadow-neon-sm;
+  }
+}

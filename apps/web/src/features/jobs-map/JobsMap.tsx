@@ -26,6 +26,8 @@ import MapTypeApplier from "../map/MapTypeApplier.js";
 import type { MapTheme } from "../map/themeContext.js";
 import { JobsProvider } from "./jobsContext.js";
 import { useAuth } from "../auth/authContext.js";
+import LuminaOrb from "../lumina/Orb.js";
+import LuminaMapBridge from "../lumina/MapBridge.js";
 
 const FOCUS_ZOOM = 17;
 
@@ -244,7 +246,12 @@ function JobsMapInner({
             {/* MapTypeToggle is in the topbar; this applier (inside the Map
                 context) actually applies the chosen style to the live map. */}
             <MapTypeApplier />
+            {/* Lumina map bridge — registers an imperative handle the
+                navigation tools call into. Renders nothing. */}
+            <LuminaMapBridge />
           </Map>
+          {/* Lumina orb — floats above Google's pan/Pegman controls. */}
+          <LuminaOrb />
         </div>
 
         {/* Records banner removed per redesign — the topbar info boxes show the

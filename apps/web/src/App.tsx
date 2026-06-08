@@ -11,6 +11,9 @@ import { AuthProvider, useAuth } from "./features/auth/authContext.js";
 import LoginScreen from "./features/auth/LoginScreen.js";
 import { FiltersProvider } from "./features/jobs-map/filtersContext.js";
 import JobInfoBoxes from "./features/jobs-map/JobInfoBoxes.js";
+import { LuminaProvider } from "./features/lumina/store/luminaStore.js";
+import "./features/lumina/lumina.css";
+import "./features/lumina/pegmanTint.css";
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -22,7 +25,9 @@ export default function App() {
       <AuthProvider>
         <SearchFocusProvider>
           <FiltersProvider>
-            <Shell />
+            <LuminaProvider>
+              <Shell />
+            </LuminaProvider>
           </FiltersProvider>
         </SearchFocusProvider>
       </AuthProvider>
