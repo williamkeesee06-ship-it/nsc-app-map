@@ -72,9 +72,10 @@ export default function MapBridge() {
     const targetX = rect.left + (targetWorld.x - nw.x) * scale;
     const targetY = rect.top + (targetWorld.y - nw.y) * scale;
 
-    // Orb screen position (matches Orb.tsx — bottom-right, 16/140 px).
-    const orbX = window.innerWidth - 16 - 40;
-    const orbY = window.innerHeight - 140 - 40;
+    // Orb screen position (matches Orb.tsx — bottom-right, right:16 / bottom:16,
+    // frame = size(40) + 28 = 68 → center = 16 + 34).
+    const orbX = window.innerWidth - 16 - 34;
+    const orbY = window.innerHeight - 16 - 34;
 
     const ring = document.createElement("div");
     Object.assign(ring.style, {

@@ -97,7 +97,7 @@ interface OrbProps {
   size?: number;
 }
 
-export default function Orb({ size = 44 }: OrbProps) {
+export default function Orb({ size = 40 }: OrbProps) {
   const { orbState, toggleTab } = useLumina();
   const { rim, glow, halo } = PALETTE[orbState];
 
@@ -117,7 +117,7 @@ export default function Orb({ size = 44 }: OrbProps) {
         style={{
           position: "absolute",
           right: 16,
-          bottom: 140, // above Google's pan diamond + Pegman
+          bottom: 16, // bottom-right corner — owns the slot where Google's gamepad used to be
           width: frame,
           height: frame,
           padding: 0,
@@ -125,7 +125,7 @@ export default function Orb({ size = 44 }: OrbProps) {
           background: "transparent",
           borderRadius: "9999px",
           cursor: "pointer",
-          zIndex: 50,
+          zIndex: 999999, // above every Google Maps internal layer so clicks always hit the orb
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -159,11 +159,14 @@ export default function Orb({ size = 44 }: OrbProps) {
           }}
         >
           <defs>
+            {/* Gradient is now an *accent* on top of the black core, not a fill replacement.
+                Center is mostly transparent so the black reads through; the rim color
+                bleeds in near the edge to halo the particles. */}
             <radialGradient id={`lx-orb-core-${orbState}`} cx="50%" cy="50%" r="50%">
-              <stop offset="0%"   stopColor={glow} stopOpacity="0.95" />
-              <stop offset="35%"  stopColor={rim}  stopOpacity="0.55" />
-              <stop offset="70%"  stopColor={rim}  stopOpacity="0.18" />
-              <stop offset="100%" stopColor={rim}  stopOpacity="0" />
+              <stop offset="0%"   stopColor={glow} stopOpacity="0"    />
+              <stop offset="55%"  stopColor={glow} stopOpacity="0.15" />
+              <stop offset="85%"  stopColor={rim}  stopOpacity="0.35" />
+              <stop offset="100%" stopColor={rim}  stopOpacity="0"    />
             </radialGradient>
           </defs>
 
@@ -172,7 +175,10 @@ export default function Orb({ size = 44 }: OrbProps) {
           <circle cx={50} cy={50} r={40} fill="none" stroke={glow} strokeOpacity={0.3}  strokeWidth={1}   strokeDasharray="4 4"
             style={{ transformOrigin: "50px 50px", animation: "lx-orb-spin-reverse 20s linear infinite" }} />
 
-          {/* Inner glow fill — quantum plasma core */}
+          {/* Solid black core — makes the colored rim, particles, and glow pop */}
+          <circle cx={50} cy={50} r={36} fill="#000000" />
+
+          {/* Inner glow fill — quantum plasma core layered over the black */}
           <circle cx={50} cy={50} r={36} fill={`url(#lx-orb-core-${orbState})`} />
 
           {/* THICK BRIGHT RIM RING — the defining outer boundary */}

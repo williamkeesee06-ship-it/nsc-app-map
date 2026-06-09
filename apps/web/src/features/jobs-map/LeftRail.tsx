@@ -6,10 +6,9 @@ import FilterRail from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
 import { isJobCompleted } from "./markerStyle.js";
 import { useDrawing } from "../drawing/drawingContext.js";
-import type { DrawingTool, JobLayer } from "@nsc/types";
+import type { DrawingTool } from "@nsc/types";
 import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 import { queuePrefWrite } from "../../lib/prefsSync.js";
-import { getIconByKey } from "../drawing/icons/iconRegistry.js";
 import StatusFilterPills from "./StatusFilterPills.js";
 import CentralOfficesPill from "./CentralOfficesPill.js";
 import RouteBuilderTab from "./RouteBuilderTab.js";
@@ -35,7 +34,7 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'filters' | 'telecom' | 'tools' | 'library' | 'layers' | 'route' | 'lumina';
+type TabId = 'filters' | 'telecom' | 'tools' | 'route' | 'lumina';
 
 export default function LeftRail({
   jobs,
@@ -149,8 +148,6 @@ export default function LeftRail({
     { id: 'tools', label: 'TOOLS' },
     { id: 'route', label: 'ROUTE' },
     { id: 'lumina', label: 'LUMINA' },
-    { id: 'library', label: 'LIBRARY' },
-    { id: 'layers', label: 'LAYERS' },
   ];
 
   // When collapsed, only the 52px tab strip is visible (no content panel,
@@ -212,8 +209,6 @@ export default function LeftRail({
                 {activeTab === 'telecom' && <TelecomTab />}
                 {activeTab === 'tools' && <AnnotateTab />}
                 {activeTab === 'route' && <RouteBuilderTab />}
-                {activeTab === 'library' && <LibraryTab />}
-                {activeTab === 'layers' && <LayersTab />}
               </div>
             </div>
           )}
@@ -427,61 +422,6 @@ function FiltersTab({
   );
 }
 
-function LayersTab() {
-  const { state, addLayer, updateLayer, reorderLayers, setActiveLayer } = useDrawing();
-  const layers = state.layers || [];
-  const activeLayerId = state.activeLayerId;
-
-  const handleAddLayer = () => {
-    const name = prompt("Layer name:", "New Layer") || "New Layer";
-    const id = addLayer(name);
-    setActiveLayer(id);
-  };
-
-  return (
-    <section className="rail-section">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <strong style={{ fontSize: 11 }}>Job Layers</strong>
-        <button onClick={handleAddLayer} className="tool-btn" style={{ fontSize: 11, padding: '2px 8px' }}>+ Add</button>
-      </div>
-
-      {layers.length === 0 && (
-        <div style={{ fontSize: 11, color: '#8a96a3', padding: '8px 0' }}>
-          No layers yet. Add one to organize your markups.
-        </div>
-      )}
-
-      {layers.map((layer, index) => {
-        const isActive = layer.id === activeLayerId;
-        const icon = getIconByKey(layer.icon);
-        return (
-          <div
-            key={layer.id}
-            className={`layer-row ${isActive ? 'active' : ''}`}
-            onClick={() => setActiveLayer(layer.id)}
-            draggable
-            onDragStart={(e) => e.dataTransfer.setData('text/plain', index.toString())}
-            onDrop={(e) => {
-              const from = parseInt(e.dataTransfer.getData('text/plain'));
-              if (from !== index) reorderLayers(from, index);
-            }}
-            onDragOver={(e) => e.preventDefault()}
-          >
-            <span style={{ color: layer.color || '#3aa7ff' }}>{icon.emoji}</span>
-            <span style={{ flex: 1, fontSize: 11 }}>{layer.label}</span>
-            <button
-              onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { hidden: !layer.hidden }); }}
-              style={{ background: 'none', border: 'none', fontSize: 12, opacity: layer.hidden ? 0.4 : 1 }}
-            >
-              {layer.hidden ? '🙈' : '👁️'}
-            </button>
-          </div>
-        );
-      })}
-    </section>
-  );
-}
-
 function TelecomTab() {
   const { state, setTool, deleteSelected, undo, redo, canUndo, canRedo } = useDrawing();
   const { activeTool } = state;
@@ -677,73 +617,3 @@ function AnnotateTab() {
 
 // Convenience export
 export { isJobCompleted };
-
-// ─── Library Tab (Phase 2 stub) ────────────────────────────────────
-// Full icon library lands in a follow-up commit. This stub shows the
-// final UI shape (search + category chips + 3 sections) so Billy can
-// see where the icons will live. Each section displays a placeholder
-// grid that says "coming soon" until the SVG packs are authored.
-function LibraryTab() {
-  const [category, setCategory] = useState<"telecom" | "utilities" | "traffic">("telecom");
-  const [query, setQuery] = useState("");
-
-  const categories: { id: typeof category; label: string }[] = [
-    { id: "telecom", label: "TELECOM" },
-    { id: "utilities", label: "UTILITIES" },
-    { id: "traffic", label: "TRAFFIC" },
-  ];
-
-  return (
-    <section className="rail-section library-tab">
-      {/* Search */}
-      <div className="library-search">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Search library…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search library"
-        />
-      </div>
-
-      {/* Category chips */}
-      <div className="library-chips">
-        {categories.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            className={`library-chip${category === c.id ? " library-chip--active" : ""}`}
-            onClick={() => setCategory(c.id)}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Placeholder section per category */}
-      <div className="library-section-header">
-        {category === "telecom" && "TELECOM INFRA"}
-        {category === "utilities" && "UTILITIES & HAZARDS"}
-        {category === "traffic" && "TRAFFIC & CONSTRUCTION"}
-      </div>
-      <div className="library-grid library-grid--placeholder">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="library-tile library-tile--ghost">
-            <div className="library-tile__ghost-icon" />
-            <span className="library-tile__label">—</span>
-          </div>
-        ))}
-      </div>
-
-      <p className="library-coming-soon">
-        Icon packs coming soon: MUTCD construction & traffic-control signs,
-        Google My Maps full POI set, telecom infra, utilities & hazards.
-        Drag-and-drop placement is in progress.
-      </p>
-    </section>
-  );
-}

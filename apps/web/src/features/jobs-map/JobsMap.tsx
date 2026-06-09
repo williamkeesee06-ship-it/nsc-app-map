@@ -228,6 +228,10 @@ function JobsMapInner({
             disableDefaultUI={false}
             streetViewControl={true}
             mapTypeControl={false} // We use our custom MapTypeToggle instead
+            zoomControl={false}     // Hide Google's gamepad — Lumina orb owns the bottom-right corner
+            fullscreenControl={false}
+            rotateControl={false}
+            scaleControl={false}
           >
             <MapHandle mapRef={mapRef} />
             <JobMarkers
