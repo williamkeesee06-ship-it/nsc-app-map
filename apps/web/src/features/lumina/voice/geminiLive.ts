@@ -36,6 +36,10 @@ export interface LuminaLiveToolResult {
 
 export interface LuminaLiveCallbacks {
   onStatus?: (status: LuminaLiveStatus) => void;
+  /** Optional hook so the session can pass the operator's username when
+   *  requesting an ephemeral token — lets the server inject memories
+   *  into the Live system prompt. */
+  getUsername?: () => string;
   onUserTranscript?: (text: string, isFinal: boolean) => void;
   onModelTranscript?: (text: string, isFinal: boolean) => void;
   onError?: (message: string) => void;
@@ -107,10 +111,14 @@ export class LuminaLiveSession {
     // 1. Get ephemeral token from our backend
     let token: TokenResponse;
     try {
+      // Pass username so the server can inject Lumina's saved memories
+      // into the Live system prompt (Phase 5c). Optional — server tolerates
+      // missing username and skips memory injection.
+      const username = this.cb.getUsername?.() || "";
       const res = await fetch("/api/lumina-live-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "{}",
+        body: JSON.stringify({ username }),
       });
       if (!res.ok) {
         const err = await res.text();

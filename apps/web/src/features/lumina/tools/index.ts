@@ -19,6 +19,7 @@ import { listPhotosTool } from "./listPhotos.js";
 import { searchAddressTool } from "./searchAddress.js";
 import { mapNavTools } from "./mapNav.js";
 import { writeTools } from "./writeTools.js";
+import { memoryTools } from "./memoryTools.js";
 
 const ALL_TOOLS: LuminaTool<any, any>[] = [
   listJobsTool,
@@ -28,6 +29,7 @@ const ALL_TOOLS: LuminaTool<any, any>[] = [
   searchAddressTool,
   ...mapNavTools,
   ...writeTools,
+  ...memoryTools,
 ];
 
 const REGISTRY: Record<string, LuminaTool<any, any>> = Object.fromEntries(

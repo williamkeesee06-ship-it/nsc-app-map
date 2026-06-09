@@ -122,4 +122,21 @@ export interface PendingMarkupLabel extends PendingActionBase {
   label: string;
 }
 
-export type PendingAction = PendingNotesUpdate | PendingStatusChange | PendingMarkupLabel;
+/**
+ * Phase 5 — propose to save a durable memory item for this user.
+ * Lumina drafts the text she heard; Billy approves the card before it lands
+ * in Firestore. Memories injected into every future system prompt.
+ */
+export interface PendingMemorySave extends PendingActionBase {
+  kind: "memorySave";
+  /** What Lumina wants to remember. Verbatim from the proposal. */
+  text: string;
+  /** Bucket — "fact" | "pref" | "shortcut". Free-form; server clamps. */
+  memoryKind: string;
+}
+
+export type PendingAction =
+  | PendingNotesUpdate
+  | PendingStatusChange
+  | PendingMarkupLabel
+  | PendingMemorySave;

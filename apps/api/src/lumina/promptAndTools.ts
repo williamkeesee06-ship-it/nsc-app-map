@@ -77,9 +77,26 @@ have that".
 - proposeNotesUpdate(jobId, notes): draft a notes update.
 - proposeStatusChange(jobId, status): draft a status change.
 - proposeMarkupLabel(jobId, objectId, label): draft a markup label change.
+- proposeMemorySave(text, kind?): queue a durable memory for Lumina to
+  keep about Billy. Use when Billy says "remember that…", "don't forget…",
+  or states a durable preference. kind defaults to "fact"; valid buckets:
+  "fact" | "pref" | "shortcut". Quote the memory text verbatim from what
+  Billy said — don't paraphrase.
 
 For every propose* tool: tell Billy verbally that it's queued and ask
 him to approve on screen. NEVER say it's done.
+
+=====================================================================
+  MEMORY (durable per-user knowledge)
+=====================================================================
+- Memories Lumina has already saved about Billy appear in a STORED
+  MEMORIES block below (if any exist). Treat them as ground truth
+  about Billy's preferences, shortcuts, and durable facts — NOT as
+  data about jobs (job data still requires a tool call).
+- recallMemory(query?, kind?): list memories. Call ONLY when Billy
+  explicitly asks "what do you remember" or you need to filter to a
+  specific bucket. The full set is already in your system prompt.
+- proposeMemorySave: see WRITE TOOLS above.
 
 =====================================================================
   STYLE
@@ -297,6 +314,36 @@ export const LUMINA_TOOLS = [
             label: { type: "STRING" },
           },
           required: ["jobId", "objectId", "label"],
+        },
+      },
+
+      // ── Memory tools (Phase 5) ──────────────────────────────────────
+      {
+        name: "recallMemory",
+        description:
+          "List durable memories Lumina has stored about Billy (facts, preferences, shortcuts). Memories are also auto-loaded into your system prompt every turn — only call this when Billy explicitly asks 'what do you remember' or you need to filter by query/kind.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: { type: "STRING", description: "Optional substring filter, case-insensitive." },
+            kind: { type: "STRING", description: "Optional kind filter: fact | pref | shortcut." },
+          },
+        },
+      },
+      {
+        name: "proposeMemorySave",
+        description:
+          "Queue a durable memory for Lumina to keep about Billy. Use when Billy says 'remember that…', 'don't forget…', or states a lasting preference. Quote his words verbatim. Does NOT write — produces a confirmation card Billy must approve.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            text: { type: "STRING", description: "What to remember, verbatim from Billy." },
+            kind: {
+              type: "STRING",
+              description: "Bucket: fact | pref | shortcut. Defaults to 'fact'.",
+            },
+          },
+          required: ["text"],
         },
       },
     ],

@@ -24,6 +24,7 @@ import { useAuth } from "../auth/authContext.js";
 import { api } from "../../lib/api.js";
 import type { AsBuiltDocument, AsbuiltDoc, DrawingObject } from "@nsc/types";
 import type { PendingAction } from "./tools/types.js";
+import MemoryPanel from "./MemoryPanel.js";
 
 // V2 drawing doc has an `objects` array; legacy v1 doesn't. We can only edit v2.
 function isV2(doc: AsBuiltDocument | AsbuiltDoc): doc is AsBuiltDocument {
@@ -63,6 +64,8 @@ export default function ChatPanel() {
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  // Memory panel — collapsed by default to preserve chat real estate.
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -120,6 +123,22 @@ export default function ChatPanel() {
         //    refetches and the new label renders without a page reload.
         try {
           window.dispatchEvent(new Event("nsc:markups-saved"));
+        } catch {
+          /* non-browser env */
+        }
+      } else if (action.kind === "memorySave") {
+        // Phase 5b APPLY — actually persist the memory to Firestore.
+        if (!username) throw new Error("No operator username — can't save memory.");
+        await api.addMemory(username, { text: action.text, kind: action.memoryKind });
+        appendMessage({
+          id: crypto.randomUUID(),
+          role: "lumina",
+          text: `Saved. I'll remember: "${action.text}".`,
+          at: Date.now(),
+        });
+        // Let the Memory panel (Phase 5d) refresh without polling.
+        try {
+          window.dispatchEvent(new Event("nsc:memory-saved"));
         } catch {
           /* non-browser env */
         }
@@ -243,6 +262,18 @@ export default function ChatPanel() {
         <div className="lx-flex lx-items-center lx-gap-2">
           <button
             type="button"
+            onClick={() => setMemoryOpen((v) => !v)}
+            className={`lx-px-2 lx-py-1 lx-rounded lx-text-xs lx-font-bold lx-tracking-wider lx-uppercase ${
+              memoryOpen
+                ? "lx-bg-neon lx-text-ink-900 lx-shadow-neon-sm"
+                : "lx-bg-ink-800 lx-text-neon lx-ring-1 lx-ring-neon/40"
+            }`}
+            title={memoryOpen ? "Hide memory panel" : "Show memory panel"}
+          >
+            Mem
+          </button>
+          <button
+            type="button"
             onClick={() => setLiveOn(!liveOn)}
             className={`lx-px-2 lx-py-1 lx-rounded lx-text-xs lx-font-bold lx-tracking-wider lx-uppercase ${
               liveOn
@@ -264,6 +295,9 @@ export default function ChatPanel() {
           </button>
         </div>
       </div>
+
+      {/* ── Memory panel (Phase 5d) ────────────────────────────────── */}
+      <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} />
 
       {/* ── Pending actions — confirmation cards ─────────────────────── */}
       {pendingActions.length > 0 && (

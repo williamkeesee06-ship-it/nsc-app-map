@@ -124,4 +124,40 @@ export const api = {
       `/api/photos/${encodeURIComponent(jobId)}/${encodeURIComponent(photoId)}`,
       { method: "DELETE" }
     ),
+
+  // Lumina memory layer (Phase 5) — per-user durable facts/prefs/shortcuts.
+  // Read on every chat turn (server injects into the system prompt); written
+  // via the proposeMemorySave → APPLY card flow.
+  listMemories: (username: string) =>
+    request<{ items: LuminaMemoryItem[] }>(
+      `/api/lumina/memories/${encodeURIComponent(username)}`
+    ),
+  addMemory: (username: string, body: { text: string; kind?: string }) =>
+    request<{ ok: true; item: LuminaMemoryItem; items: LuminaMemoryItem[] }>(
+      `/api/lumina/memories/${encodeURIComponent(username)}`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
+  updateMemory: (
+    username: string,
+    id: string,
+    body: { text?: string; pinned?: boolean }
+  ) =>
+    request<{ ok: true; item: LuminaMemoryItem; items: LuminaMemoryItem[] }>(
+      `/api/lumina/memories/${encodeURIComponent(username)}/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(body) }
+    ),
+  deleteMemory: (username: string, id: string) =>
+    request<{ ok: true; items: LuminaMemoryItem[] }>(
+      `/api/lumina/memories/${encodeURIComponent(username)}/${encodeURIComponent(id)}`,
+      { method: "DELETE" }
+    ),
 };
+
+export interface LuminaMemoryItem {
+  id: string;
+  text: string;
+  kind: string;
+  createdAt: number;
+  updatedAt: number;
+  pinned: boolean;
+}

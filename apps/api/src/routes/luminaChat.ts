@@ -29,6 +29,7 @@ import {
   LUMINA_SYSTEM_INSTRUCTION,
   LUMINA_FUNCTION_DECLARATIONS,
 } from "../lumina/promptAndTools.js";
+import { loadMemoriesForPrompt, type MemoryItem } from "./luminaMemories.js";
 
 const router = Router();
 
@@ -166,10 +167,27 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
     const genai = new GoogleGenerativeAI(apiKey);
 
     // System prompt — same locks as Live mode, with username swapped in.
-    const sys = LUMINA_SYSTEM_INSTRUCTION.replace(
+    const baseSys = LUMINA_SYSTEM_INSTRUCTION.replace(
       "Billy Keesee",
       body.username ? `${body.username}` : "Billy Keesee"
     );
+
+    // Phase 5c — inject any durable memories Lumina has saved for this user.
+    // We sort pinned-first, recently-updated next in loadMemoriesForPrompt.
+    // Failure to load memories is non-fatal: chat must still work if the
+    // Firestore call hiccups.
+    let memories: MemoryItem[] = [];
+    if (body.username) {
+      try {
+        memories = await loadMemoriesForPrompt(body.username, 100);
+      } catch (memErr) {
+        // eslint-disable-next-line no-console
+        console.warn("[lumina/chat] memory load failed, continuing:", memErr);
+      }
+    }
+    const sys = memories.length === 0
+      ? baseSys
+      : `${baseSys}\n\n${formatMemoryBlock(memories)}`;
 
     const tools: Tool[] = [
       { functionDeclarations: normalizeToolDeclarations(LUMINA_FUNCTION_DECLARATIONS) },
@@ -230,6 +248,29 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
     });
   }
 });
+
+/**
+ * Render the stored-memories block appended to the system prompt. Pinned
+ * items are visually highlighted with a ☆ so the model can weight them.
+ * Kept short — model context dollar value is real.
+ */
+function formatMemoryBlock(items: MemoryItem[]): string {
+  const lines = items.map((m) => {
+    const star = m.pinned ? "\u2606 " : "";
+    const kind = m.kind && m.kind !== "fact" ? `[${m.kind}] ` : "";
+    return `• ${star}${kind}${m.text}`;
+  });
+  return [
+    "=====================================================================",
+    "  STORED MEMORIES (durable facts Lumina has saved about Billy)",
+    "=====================================================================",
+    "These are persistent across sessions. Treat as ground truth about",
+    "Billy himself, his preferences, and his shortcuts — NOT as job data.",
+    "(Job/markup/photo data still requires a tool call.)",
+    "",
+    ...lines,
+  ].join("\n");
+}
 
 function cryptoRandomId(): string {
   // No `crypto.randomUUID` polyfill needed on Node 18+, but be defensive.

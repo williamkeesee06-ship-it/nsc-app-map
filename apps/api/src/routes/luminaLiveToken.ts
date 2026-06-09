@@ -14,11 +14,33 @@ import {
   LUMINA_SYSTEM_INSTRUCTION,
   LUMINA_TOOLS,
 } from "../lumina/promptAndTools.js";
+import { loadMemoriesForPrompt, type MemoryItem } from "./luminaMemories.js";
 
 const router = Router();
 
+/** Render the same stored-memories block as luminaChat uses. Kept inline
+ *  to avoid a tiny shared module just for this string. Any divergence would
+ *  cause voice and text to behave differently — watch this if you edit one. */
+function formatMemoryBlock(items: MemoryItem[]): string {
+  const lines = items.map((m) => {
+    const star = m.pinned ? "\u2606 " : "";
+    const kind = m.kind && m.kind !== "fact" ? `[${m.kind}] ` : "";
+    return `• ${star}${kind}${m.text}`;
+  });
+  return [
+    "=====================================================================",
+    "  STORED MEMORIES (durable facts Lumina has saved about Billy)",
+    "=====================================================================",
+    "These are persistent across sessions. Treat as ground truth about",
+    "Billy himself, his preferences, and his shortcuts — NOT as job data.",
+    "(Job/markup/photo data still requires a tool call.)",
+    "",
+    ...lines,
+  ].join("\n");
+}
+
 router.post("/lumina/live-token", async (req: Request, res: Response) => {
-  void req; // body unused for now
+  const username = typeof req.body?.username === "string" ? req.body.username : "";
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     res.status(503).json({
@@ -37,6 +59,21 @@ router.post("/lumina/live-token", async (req: Request, res: Response) => {
   const MODEL = "gemini-3.1-flash-live-preview";
   const VOICE = "Aoede"; // composed, warm — fits Lumina
 
+  // Phase 5c — inject saved memories into the Live mode system prompt so
+  // voice and text behave identically. Failure is non-fatal.
+  let memories: MemoryItem[] = [];
+  if (username) {
+    try {
+      memories = await loadMemoriesForPrompt(username, 100);
+    } catch (memErr) {
+      // eslint-disable-next-line no-console
+      console.warn("[lumina-live-token] memory load failed, continuing:", memErr);
+    }
+  }
+  const sysInstruction = memories.length === 0
+    ? LUMINA_SYSTEM_INSTRUCTION
+    : `${LUMINA_SYSTEM_INSTRUCTION}\n\n${formatMemoryBlock(memories)}`;
+
   const body = {
     uses: 1,
     expireTime,
@@ -54,7 +91,7 @@ router.post("/lumina/live-token", async (req: Request, res: Response) => {
           languageCode: "en-US",
         },
       },
-      systemInstruction: { parts: [{ text: LUMINA_SYSTEM_INSTRUCTION }] },
+      systemInstruction: { parts: [{ text: sysInstruction }] },
       tools: LUMINA_TOOLS,
       inputAudioTranscription: {},
       outputAudioTranscription: {},

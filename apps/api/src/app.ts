@@ -10,6 +10,7 @@ import photosRouter from "./routes/photos.js";
 import luminaLiveTokenRouter from "./routes/luminaLiveToken.js";
 import luminaChatRouter from "./routes/luminaChat.js";
 import luminaGeocodeRouter from "./routes/luminaGeocode.js";
+import luminaMemoriesRouter from "./routes/luminaMemories.js";
 
 export function createApp() {
   const app = express();
@@ -29,6 +30,7 @@ export function createApp() {
   app.use("/api", luminaLiveTokenRouter);
   app.use("/api", luminaChatRouter);
   app.use("/api", luminaGeocodeRouter);
+  app.use("/api", luminaMemoriesRouter);
 
   // Catch-all error handler — never let an uncaught error crash the function.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
