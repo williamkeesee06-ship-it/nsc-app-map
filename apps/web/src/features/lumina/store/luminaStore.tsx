@@ -24,6 +24,7 @@ import {
   type ReactNode,
 } from "react";
 import type { LuminaMapBridge, PendingAction } from "../tools/types.js";
+import { useLuminaLive } from "../voice/useLuminaLive.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -185,7 +186,23 @@ export function LuminaProvider({ children }: { children: ReactNode }) {
     ]
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      <LuminaLiveDriver />
+      {children}
+    </Ctx.Provider>
+  );
+}
+
+/**
+ * Invisible component that owns the Gemini Live session lifecycle.
+ * Mounted inside the provider so it consumes the same context that
+ * components below use — keeps the orb, ChatPanel, and Live session
+ * all reading/writing the same store. Survives Lumina tab open/close.
+ */
+function LuminaLiveDriver() {
+  useLuminaLive();
+  return null;
 }
 
 export function useLumina(): LuminaContextValue {

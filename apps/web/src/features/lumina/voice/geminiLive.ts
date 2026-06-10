@@ -2,7 +2,7 @@
  * LUMINA — Gemini Live API client.
  *
  * Real-time bidirectional voice with Gemini's native-audio model. Browser opens
- * WSS directly using a short-lived ephemeral token issued by /api/lumina-live-token.
+ * WSS directly using a short-lived ephemeral token issued by /api/lumina/live-token.
  *
  * Audio I/O:
  *   - Capture mic at 16kHz mono PCM16 (a dedicated AudioContext at sampleRate=16000)
@@ -115,7 +115,9 @@ export class LuminaLiveSession {
       // into the Live system prompt (Phase 5c). Optional — server tolerates
       // missing username and skips memory injection.
       const username = this.cb.getUsername?.() || "";
-      const res = await fetch("/api/lumina-live-token", {
+      // NOTE: path is /api/lumina/live-token (with slash). The dash variant
+      // was the old monorepo path and does NOT exist on this server.
+      const res = await fetch("/api/lumina/live-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),

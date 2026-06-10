@@ -98,8 +98,15 @@ interface OrbProps {
 }
 
 export default function Orb({ size = 40 }: OrbProps) {
-  const { orbState, toggleTab } = useLumina();
+  // Orb is the Live-mode hardware switch. Clicking it ONLY flips voice on/off
+  // — it never opens or closes the Lumina tab. This lets Billy fire up voice
+  // while he's deep in Tools/Filters without his workspace getting yanked away.
+  const { orbState, liveOn, setLiveOn } = useLumina();
   const { rim, glow, halo } = PALETTE[orbState];
+
+  const handleClick = () => {
+    setLiveOn(!liveOn);
+  };
 
   // The original component used `frame = size + 28` to give the breathing
   // halo room outside the orb body. Keep the same ratio so the visual
@@ -111,9 +118,9 @@ export default function Orb({ size = 40 }: OrbProps) {
       <style>{KEYFRAMES_CSS}</style>
       <button
         type="button"
-        aria-label={`Lumina — ${orbState}`}
-        title="LUMINA"
-        onClick={toggleTab}
+        aria-label={`Lumina Live — ${liveOn ? "on" : "off"} — ${orbState}`}
+        title={liveOn ? "LUMINA Live — click to mute" : "LUMINA — click to start Live"}
+        onClick={handleClick}
         style={{
           position: "absolute",
           right: 16,
