@@ -223,7 +223,10 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 1024,
+        // 1024 was too tight — with a 14k-char system prompt + 23 tool
+        // declarations, the model sometimes hits MAX_TOKENS while still
+        // emitting its hidden thought tokens, leaving no visible text.
+        maxOutputTokens: 4096,
       },
     });
 
@@ -242,6 +245,19 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
     // Pull out either text or function calls.
     const candidates = response.candidates ?? [];
     const parts = candidates[0]?.content?.parts ?? [];
+    const finishReason = candidates[0]?.finishReason;
+
+    // eslint-disable-next-line no-console
+    console.log("[lumina/chat] turn complete", {
+      finishReason,
+      partCount: parts.length,
+      partKinds: parts.map((p) => {
+        if ((p as { functionCall?: unknown }).functionCall) return "call";
+        if ((p as { text?: string }).text) return "text";
+        return "other";
+      }),
+      promptFeedback: response.promptFeedback,
+    });
 
     const fnCalls = parts
       .filter((p): p is { functionCall: { name: string; args: Record<string, unknown>; thoughtSignature?: string } } =>
@@ -271,8 +287,26 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
     const text =
       typeof response.text === "function" ? response.text() : (parts[0] as { text?: string } | undefined)?.text ?? "";
 
+    // If the model returned absolutely nothing, surface a useful explanation
+    // instead of the silent "(no reply)". Common causes: MAX_TOKENS,
+    // SAFETY, RECITATION, or empty candidates from a malformed turn.
+    let finalText = text || "";
+    if (!finalText) {
+      if (finishReason === "MAX_TOKENS") {
+        finalText = "I ran out of room mid-reply (token limit). Try a shorter question or ask me to be brief.";
+      } else if (finishReason === "SAFETY") {
+        finalText = "My safety filter blocked that reply. Try rephrasing.";
+      } else if (finishReason === "RECITATION") {
+        finalText = "Reply blocked due to recitation filter.";
+      } else if (finishReason && finishReason !== "STOP") {
+        finalText = `No reply produced (finish reason: ${finishReason}).`;
+      } else {
+        finalText = "(empty reply from model)";
+      }
+    }
+
     const out: ChatResponseBody = {
-      text: text || "",
+      text: finalText,
       modelTurnAt: Date.now(),
     };
     return res.json(out);
