@@ -32,6 +32,9 @@ interface ToolCall {
   id: string;
   name: string;
   args: Record<string, unknown>;
+  /** Opaque signature from Gemini 3.x thinking models. Echo back unchanged
+   *  on the next request — without it the API rejects the followup. */
+  thoughtSignature?: string;
 }
 
 interface ToolResult {

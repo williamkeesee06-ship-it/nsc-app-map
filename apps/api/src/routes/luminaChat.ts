@@ -1,5 +1,5 @@
 /**
- * LUMINA CHAT — server-side proxy for text-mode chat with Gemini 3.5 Flash.
+ * LUMINA CHAT — server-side proxy for text-mode chat with Gemini 2.5 Flash.
  *
  * Why server-side: the Gemini API key (GEMINI_API_KEY) must NEVER reach the
  * browser. The client posts a transcript + user message, this route runs one
@@ -49,6 +49,15 @@ interface ClientToolCall {
   id: string;
   name: string;
   args: Record<string, unknown>;
+  /**
+   * Gemini 3.x "thinking" models attach a thoughtSignature to each
+   * functionCall part. When we re-send the call back on the next turn
+   * (so the model sees its own prior intent), we MUST include this
+   * signature or the API rejects the request with:
+   *   "Function call is missing a thought_signature in functionCall parts"
+   * Treat as opaque base64 — pass through unchanged.
+   */
+  thoughtSignature?: string;
 }
 
 interface ClientToolResult {
@@ -97,12 +106,19 @@ function toGeminiContents(body: ChatRequestBody): Content[] {
       });
     } else if (turn.kind === "call") {
       // Model previously emitted function calls — re-encode them so the
-      // model sees its own prior intent on the next turn.
+      // model sees its own prior intent on the next turn. Preserve
+      // thoughtSignature (required by Gemini 3.x thinking models).
       out.push({
         role: "model",
-        parts: turn.calls.map((c) => ({
-          functionCall: { name: c.name, args: c.args },
-        })),
+        parts: turn.calls.map((c) => {
+          const fc: Record<string, unknown> = { name: c.name, args: c.args };
+          if (c.thoughtSignature) {
+            fc.thoughtSignature = c.thoughtSignature;
+          }
+          return { functionCall: fc } as unknown as {
+            functionCall: { name: string; args: Record<string, unknown> };
+          };
+        }),
       });
     } else if (turn.kind === "result") {
       // Client executed the tools — feed the responses back to the model.
@@ -194,7 +210,12 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
     ];
 
     const model = genai.getGenerativeModel({
-      model: "gemini-3.5-flash",
+      // Using 2.5-flash intentionally — the deprecated @google/generative-ai
+      // SDK does not surface/forward thoughtSignature, which Gemini 3.x
+      // thinking models REQUIRE on follow-up requests after a functionCall.
+      // Migrating to @google/genai is the proper fix — tracked separately.
+      // 2.5-flash still has excellent tool-calling and no signature needed.
+      model: "gemini-2.5-flash",
       systemInstruction: { role: "system", parts: [{ text: sys }] },
       tools,
       // No automatic function calling — we do roundtrips through the client
@@ -215,14 +236,21 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
     const parts = candidates[0]?.content?.parts ?? [];
 
     const fnCalls = parts
-      .filter((p): p is { functionCall: { name: string; args: Record<string, unknown> } } =>
+      .filter((p): p is { functionCall: { name: string; args: Record<string, unknown>; thoughtSignature?: string } } =>
         Boolean((p as { functionCall?: unknown }).functionCall)
       )
-      .map((p) => ({
-        id: cryptoRandomId(),
-        name: p.functionCall.name,
-        args: (p.functionCall.args ?? {}) as Record<string, unknown>,
-      }));
+      .map((p) => {
+        const fc = p.functionCall;
+        // Capture thoughtSignature so the client can echo it back next turn.
+        // Required by Gemini 3.x — without it, the follow-up request 400s.
+        const out: ClientToolCall = {
+          id: cryptoRandomId(),
+          name: fc.name,
+          args: (fc.args ?? {}) as Record<string, unknown>,
+        };
+        if (fc.thoughtSignature) out.thoughtSignature = fc.thoughtSignature;
+        return out;
+      });
 
     if (fnCalls.length > 0) {
       const out: ChatResponseBody = {
