@@ -70,6 +70,13 @@ function messagesToHistory(messages: ChatMessage[]): HistoryEntry[] {
       text: m.text,
     });
   }
+  // Gemini requires history to start with a user turn (a model turn first
+  // throws "function call turn must come immediately after a user turn"
+  // once a tool call lands). Strip any leading model entries so a previous
+  // error-message reply doesn't poison the next turn.
+  while (out.length > 0 && out[0].kind === "text" && out[0].role === "model") {
+    out.shift();
+  }
   return out;
 }
 

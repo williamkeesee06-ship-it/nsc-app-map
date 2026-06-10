@@ -228,6 +228,14 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
     });
 
     const contents = toGeminiContents(body);
+    // Gemini requires the conversation to start with a user turn. If the
+    // client sent a transcript that begins with a model entry (e.g. a
+    // previous error reply that's still in their chat log), strip it —
+    // otherwise we get "function call turn must come immediately after a
+    // user turn" on the next round-trip.
+    while (contents.length > 0 && contents[0].role !== "user") {
+      contents.shift();
+    }
     const result = await model.generateContent({ contents });
     const response = result.response;
 
