@@ -11,8 +11,9 @@ import { useEffect, useRef, useState } from "react";
 import type { DrawingObject, DrawingStyle } from "@nsc/types";
 import { useDrawing } from "./drawingContext.js";
 import { railSvgForTool } from "./icons/telecomIcons.js";
-import IconPicker from "./IconPicker.js";
-import { type IconKey } from "./icons/iconRegistry.js";
+// IconPicker / IconKey imports removed — Billy 6/10: no per-object icon swap.
+// Icons are still bound to each object's style at draw time; we just don't
+// expose a way to change them after the fact.
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
 
@@ -349,7 +350,7 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     select, 
     dispatch, 
     addObject,
-    rotateSelected 
+    // rotateSelected removed — Billy 6/10: rotate buttons aren't useful.
   } = useDrawing();
   const isSelectTool = drawState.activeTool === "select";
 
@@ -699,65 +700,25 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
             </div>
           )}
 
-          {/* Point size — telecom symbols only (fully resizable) */}
+          {/* Point size — telecom symbols only (fully resizable).
+             Kept the size slider; removed the ICON picker and the
+             TRANSFORM block (rotate buttons + scale slider) per
+             Billy 6/10: icons aren't useful, rotate/scale are clutter. */}
           {isPoint && (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", width: 52, flexShrink: 0 }}>Size</span>
-                <input
-                  type="range"
-                  min={0.5}
-                  max={2.0}
-                  step={0.1}
-                  value={currentPointSize}
-                  onChange={(e) => patchStyle({ pointSize: Number(e.target.value) })}
-                  style={{ flex: 1 }}
-                />
-                <span style={{ fontSize: 10, color: "#8a96a3", width: 32, textAlign: "right" }}>{currentPointSize.toFixed(1)}x</span>
-              </div>
-
-              {/* Icon customization per object (My Maps style) */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>Icon</span>
-                <IconPicker
-                  value={obj.style.icon}
-                  onChange={(newIcon: IconKey) => patchStyle({ icon: newIcon })}
-                  compact
-                />
-              </div>
-            </>
-          )}
-
-          {/* Transform controls for all selected objects (PDF editor style) */}
-          <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 8, marginTop: 4 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", marginBottom: 4 }}>
-              Transform
-            </div>
-
-            {/* Rotation - uses the real rotateSelected action */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", width: 52, flexShrink: 0 }}>Rotate</span>
-              <button onClick={() => rotateSelected(-15)} style={{ fontSize: 11, padding: "1px 5px" }}>-15°</button>
-              <button onClick={() => rotateSelected(15)} style={{ fontSize: 11, padding: "1px 5px" }}>+15°</button>
-              <button onClick={() => rotateSelected(90)} style={{ fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>90°</button>
-              <button onClick={() => rotateSelected(-90)} style={{ fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>-90°</button>
-            </div>
-
-            {/* Scale for all objects */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", width: 52, flexShrink: 0 }}>Scale</span>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", width: 52, flexShrink: 0 }}>Size</span>
               <input
                 type="range"
                 min={0.5}
-                max={3}
+                max={2.0}
                 step={0.1}
-                value={obj.style.pointSize ?? 1}
+                value={currentPointSize}
                 onChange={(e) => patchStyle({ pointSize: Number(e.target.value) })}
                 style={{ flex: 1 }}
               />
-              <span style={{ fontSize: 10, color: "#8a96a3", width: 28 }}>{((obj.style.pointSize ?? 1) * 100).toFixed(0)}%</span>
+              <span style={{ fontSize: 10, color: "#8a96a3", width: 32, textAlign: "right" }}>{currentPointSize.toFixed(1)}x</span>
             </div>
-          </div>
+          )}
 
           {/* Fill — closed shapes only */}
           {isClosedShape && !isPoint && (
