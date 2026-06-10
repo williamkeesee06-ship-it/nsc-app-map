@@ -69,7 +69,7 @@ export function useLuminaLive() {
     mapBridgeRef,
     enqueueAction,
   } = useLumina();
-  const { username } = useAuth();
+  const { username, isManager } = useAuth();
 
   // Single session at a time. Held in a ref so re-renders don't blow it away.
   const sessionRef = useRef<LuminaLiveSession | null>(null);
@@ -77,11 +77,13 @@ export function useLuminaLive() {
   // "unexpected close" branch (which would loop setLiveOn(false)).
   const userInitiatedStopRef = useRef(false);
 
-  // Capture the latest username in a ref so the session's getUsername()
-  // callback always sees the current value without re-creating the session
-  // every time auth re-renders.
+  // Capture the latest username/isManager in refs so the session's
+  // callbacks always see the current value without re-creating the
+  // session every time auth re-renders.
   const usernameRef = useRef<string | null>(username);
   usernameRef.current = username;
+  const isManagerRef = useRef<boolean>(isManager);
+  isManagerRef.current = isManager;
 
   useEffect(() => {
     if (liveOn) {
@@ -151,6 +153,7 @@ export function useLuminaLive() {
           // queues a confirmation card just like text would.
           const result = await dispatchTool(call.name, call.args, {
             username: usernameRef.current || "Billy",
+            isManager: isManagerRef.current,
             map: mapBridgeRef.current,
             enqueueAction,
           });

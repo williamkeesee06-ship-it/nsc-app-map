@@ -59,7 +59,7 @@ export default function ChatPanel() {
     mapBridgeRef,
     enqueueAction,
   } = useLumina();
-  const { username } = useAuth();
+  const { username, isManager } = useAuth();
   const [applyingId, setApplyingId] = useState<string | null>(null);
 
   const [draft, setDraft] = useState("");
@@ -202,6 +202,7 @@ export default function ChatPanel() {
       username: username || "Billy",
       toolCtx: {
         username: username || "Billy",
+        isManager,
         map: mapBridgeRef.current,
         enqueueAction,
       },

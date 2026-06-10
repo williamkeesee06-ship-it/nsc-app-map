@@ -88,17 +88,34 @@ function matches(j: Job, input: ListJobsInput, now: number): boolean {
 
 async function run(
   input: ListJobsInput,
-  _ctx: LuminaToolContext
+  ctx: LuminaToolContext
 ): Promise<LuminaToolResult<ListJobsData>> {
   const now = Date.now();
   const all = await api.listJobs();
-  const filtered = all.jobs.filter((j: Job) => j.inTracker !== false && matches(j, input, now));
+
+  // Phase 9.7 parity: scope to the operator's supervisor unless they're
+  // a manager. Without this, Lumina reports the GLOBAL job count (1000+),
+  // not the supervisor's actual count — a hallucination Billy caught
+  // ("You have 1069 jobs" when the screen showed 216).
+  const operator = (ctx.username || "").trim().toLowerCase();
+  const scopedToSupervisor = !ctx.isManager && operator.length > 0;
+  const scoped = scopedToSupervisor
+    ? all.jobs.filter(
+        (j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === operator
+      )
+    : all.jobs;
+
+  const filtered = scoped.filter((j: Job) => j.inTracker !== false && matches(j, input, now));
   const truncated = filtered.length > HARD_CAP;
   const trimmed = truncated ? filtered.slice(0, HARD_CAP) : filtered;
   const projected = trimmed.map((j: Job) => project(j, now));
 
   const filterDesc =
     [
+      // Lead with the supervisor scope so the model sees exactly whose
+      // jobs it's counting and can phrase its reply correctly ("YOU have
+      // X jobs" vs "there are X jobs in the system").
+      scopedToSupervisor ? `supervisor="${ctx.username}"` : null,
       input.crew ? `crew~"${input.crew}"` : null,
       input.status ? `status~"${input.status}"` : null,
       input.city ? `city~"${input.city}"` : null,

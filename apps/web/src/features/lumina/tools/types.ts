@@ -24,6 +24,10 @@ export type LuminaToolKind = "read" | "navigate" | "propose";
 export interface LuminaToolContext {
   /** Username of the operator (Billy / Robbie / Joe / etc). */
   username: string;
+  /** True when the operator is in the managers allowlist (Phase 9.7).
+   *  Managers see every supervisor's jobs; non-managers are scoped to
+   *  their own. Defaults to false when undefined. */
+  isManager?: boolean;
   /** Imperative handle to drive the map (set by MapBridge in Phase 2). */
   map: LuminaMapBridge | null;
   /** Pending-actions queue (set by luminaStore). */
