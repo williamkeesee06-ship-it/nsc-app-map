@@ -597,21 +597,36 @@ export class DrawingEngine {
 
   // ─── Callout tool ───────────────────────────────────────────────────────────
   //
-  // Multi-point flow:
-  //   click 1     → arrow tip (anchor)
-  //   click 2..n  → bend points
-  //   double-click→ end line; final tail position becomes the text box.
-  //                 Then the label popup opens to capture the text content.
+  // STRICT 3-CLICK FLOW (Billy 6/10, option A):
+  //   click 1 → arrow tip (anchor)        — where the arrow head will point
+  //   click 2 → bend (knee)               — required mid-leader vertex
+  //   click 3 → text box position + COMMIT — opens the label popup immediately
+  //
+  // No double-click needed. No timing race. Each click advances a deterministic
+  // step counter. Industry standard for callouts (Bluebeam, Adobe, Nitro) is
+  // arrow→knee→text; this matches Billy's spec exactly.
+  //
+  // To cancel mid-draw: press Escape or switch tools (deactivate() cleans up).
 
   private setupCalloutTool(): void {
     const style = this.style!;
 
-    // Live points: anchor is points[0]; bends are points[1..n-2]; tail is the
-    // last point, which moves with the mouse until the next click.
-    const points: Array<{ lat: number; lng: number }> = [];
-    let lastClick = 0;
+    // Block Google's built-in double-click-to-zoom while the callout tool is
+    // active. Otherwise a fast click 2 + click 3 pair (under 300ms) would zoom
+    // the map underneath the user mid-draw — confusing and disorienting.
+    // We restore the prior value on cleanup so other tools/behavior unchanged.
+    const prevDblClickZoom = this.map.get("disableDoubleClickZoom");
+    this.map.setOptions({ disableDoubleClickZoom: true });
+
+    // Strict step machine. 0 = waiting for arrow head, 1 = waiting for bend,
+    // 2 = waiting for text box. After step 2 commits, the tool deactivates.
+    let step: 0 | 1 | 2 = 0;
+    let anchor: { lat: number; lng: number } | null = null;
+    let bend: { lat: number; lng: number } | null = null;
+
     let previewLine: google.maps.Polyline | null = null;
     let anchorMarker: google.maps.Marker | null = null;
+    let bendMarker: google.maps.Marker | null = null;
 
     const ensurePreview = () => {
       if (previewLine) return;
@@ -631,18 +646,47 @@ export class DrawingEngine {
       previewLine = null;
       anchorMarker?.setMap(null);
       anchorMarker = null;
+      bendMarker?.setMap(null);
+      bendMarker = null;
+      // Restore double-click-zoom to whatever the map had before. Undefined
+      // → default (enabled). True/false → use the prior explicit value.
+      this.map.setOptions({
+        disableDoubleClickZoom:
+          typeof prevDblClickZoom === "boolean" ? prevDblClickZoom : false,
+      });
     };
 
-    const updatePreview = (hoverPt?: { lat: number; lng: number }) => {
-      if (!previewLine || points.length === 0) return;
-      const path = hoverPt ? [...points, hoverPt] : [...points];
-      previewLine.setPath(path.map(p => new google.maps.LatLng(p.lat, p.lng)));
+    /** Live preview from committed points + the current cursor. */
+    const updatePreview = (cursor?: { lat: number; lng: number }) => {
+      if (!previewLine) return;
+      const path: Array<{ lat: number; lng: number }> = [];
+      if (anchor) path.push(anchor);
+      if (bend) path.push(bend);
+      if (cursor) path.push(cursor);
+      previewLine.setPath(path.map((p) => new google.maps.LatLng(p.lat, p.lng)));
     };
 
-    // Track mouse so the line follows the cursor between clicks
+    /** Tiny dot at a committed click so the user sees what's locked in. */
+    const dropMarker = (pt: { lat: number; lng: number }): google.maps.Marker =>
+      new google.maps.Marker({
+        position: pt,
+        map: this.map,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 4,
+          fillColor: style.strokeColor,
+          fillOpacity: 1,
+          strokeColor: "#fff",
+          strokeWeight: 1.5,
+        },
+        clickable: false,
+        zIndex: 16,
+      });
+
+    // Cursor tracking so the rubber-band line follows the mouse between clicks.
     const move = this.map.addListener("mousemove", (e: google.maps.MapMouseEvent) => {
       const pt = latLng(e);
-      if (!pt || points.length === 0) return;
+      if (!pt || step === 0) return;
       updatePreview(pt);
     });
     this.listeners.push(move);
@@ -650,62 +694,52 @@ export class DrawingEngine {
     const click = this.map.addListener("click", (e: google.maps.MapMouseEvent) => {
       const pt = latLng(e);
       if (!pt) return;
-      const now = Date.now();
-      const isDouble = now - lastClick < 300 && points.length >= 1;
-      lastClick = now;
 
-      if (isDouble) {
-        // Drop the duplicate point Google fires on the second half of a double-click.
-        // Use the previous tail as the text-box location.
-        if (points.length < 1) return;
-        const anchor = points[0];
-        const tail = points[points.length - 1];
-        const bends = points.slice(1, points.length - 1);
-
-        const obj: any = {
-          id: genId(),
-          tool: "callout",
-          anchor,
-          position: tail,
-          path: bends.length > 0 ? bends : undefined,
-          text: "\u200b",
-          style,
-        };
-        clearPreview();
-        points.length = 0;
-        this.deactivate();
-        this.commitOrPend(obj, tail.lat, tail.lng);
+      if (step === 0) {
+        // Click 1 — lock in the arrow head.
+        anchor = pt;
+        ensurePreview();
+        anchorMarker = dropMarker(pt);
+        step = 1;
+        updatePreview(pt);
         return;
       }
 
-      if (points.length === 0) {
-        // First click — set the anchor (arrow tip). Drop a small visual marker
-        // so the user sees where the arrow will point.
-        ensurePreview();
-        anchorMarker = new google.maps.Marker({
-          position: pt,
-          map: this.map,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 4,
-            fillColor: style.strokeColor,
-            fillOpacity: 1,
-            strokeColor: "#fff",
-            strokeWeight: 1.5,
-          },
-          clickable: false,
-          zIndex: 16,
-        });
+      if (step === 1) {
+        // Click 2 — lock in the bend (knee).
+        bend = pt;
+        bendMarker = dropMarker(pt);
+        step = 2;
+        updatePreview(pt);
+        return;
       }
 
-      points.push(pt);
-      updatePreview(pt);
+      // step === 2 → Click 3 lands the text box, commits, opens the editor.
+      // anchor and bend are guaranteed non-null here by the step machine.
+      if (!anchor || !bend) return;
+      const textBox = pt;
+
+      const obj: any = {
+        id: genId(),
+        tool: "callout",
+        anchor,
+        position: textBox,
+        path: [bend], // single required knee per the strict flow
+        text: "\u200b", // zero-width placeholder so the editor opens empty
+        style,
+      };
+
+      clearPreview();
+      step = 0;
+      anchor = null;
+      bend = null;
+      this.deactivate();
+      this.commitOrPend(obj, textBox.lat, textBox.lng);
     });
     this.listeners.push(click);
 
-    // If the user switches tools mid-draw, clean up. We piggyback on the
-    // listeners array (already cleared by deactivate()) by pushing a fake
-    // MapsEventListener whose remove() runs our cleanup.
+    // If the user switches tools or hits Escape mid-draw, the listeners array
+    // gets cleared by deactivate(). We piggyback on it so cleanup runs.
     this.listeners.push({ remove: clearPreview } as google.maps.MapsEventListener);
   }
 }
