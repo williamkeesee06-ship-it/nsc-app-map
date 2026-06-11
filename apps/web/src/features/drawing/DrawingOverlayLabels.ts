@@ -58,12 +58,23 @@ export function labelWidth(text: string): number {
   return Math.max(36, text.length * LABEL_CHAR_W + LABEL_PAD * 2);
 }
 
-export function makeLabelSvg(text: string): string {
+/** Default neutral border used for ATAG/MH/text labels. Callout labels override
+ *  this with the leader-line color so changing the callout color also recolors
+ *  the text-box border (Billy 6/10). */
+export const DEFAULT_LABEL_BORDER = "#C8D0DA";
+
+export function makeLabelSvg(text: string, borderColor: string = DEFAULT_LABEL_BORDER): string {
   const w = labelWidth(text);
   const h = LABEL_H;
+  // Callout color matching: the text-box outline mirrors the leader line so
+  // recoloring the callout in the markup panel updates the whole annotation.
+  // Use a slightly thicker stroke when a custom color is supplied so the
+  // colored border reads at a glance against the white fill.
+  const isCustom = borderColor !== DEFAULT_LABEL_BORDER;
+  const strokeW = isCustom ? 1.5 : 1;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
-    `<rect x="0.5" y="0.5" width="${w - 1}" height="${h - 1}" rx="4" ry="4" fill="white" stroke="#C8D0DA" stroke-width="1"/>` +
+    `<rect x="0.75" y="0.75" width="${w - 1.5}" height="${h - 1.5}" rx="4" ry="4" fill="white" stroke="${escSvg(borderColor)}" stroke-width="${strokeW}"/>` +
     `<text x="${w / 2}" y="${h / 2 + 4}" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="10" font-weight="bold" fill="#1A2332">${escSvg(text)}</text>` +
     `</svg>`
   );
@@ -143,11 +154,12 @@ export function makeCalloutLine(
   from: google.maps.LatLngLiteral,
   to: google.maps.LatLngLiteral,
   map: google.maps.Map,
-  zIndex: number
+  zIndex: number,
+  color?: string
 ): google.maps.Polyline {
   return new google.maps.Polyline({
     path: [from, to],
-    strokeColor: CALLOUT_COLOR,
+    strokeColor: color || CALLOUT_COLOR,
     strokeWeight: 1,
     strokeOpacity: 0.85,
     clickable: false,
@@ -215,6 +227,9 @@ interface LabelEntry {
   symbolLatLng: google.maps.LatLngLiteral;
   text: string;
   zIndex: number;
+  /** Optional override for the label's box border + leader line color.
+   *  Only callout objects set this — every other tool uses the neutral default. */
+  borderColor?: string;
 }
 
 function computeLabelPlacements(
@@ -258,9 +273,10 @@ export function makeLabelMarkerAt(
   text: string,
   map: google.maps.Map,
   zIndex: number,
-  onClick?: (screen: { x: number; y: number }) => void
+  onClick?: (screen: { x: number; y: number }) => void,
+  borderColor?: string
 ): google.maps.Marker {
-  const svg = makeLabelSvg(text);
+  const svg = makeLabelSvg(text, borderColor);
   const w = labelWidth(text);
   const h = LABEL_H;
   const marker = new google.maps.Marker({
@@ -340,7 +356,10 @@ export function rebuildAllLabels(
     if (!text) continue;
     const pos = labelPositionForObj(obj);
     if (!pos) continue;
-    entries.push({ objId: obj.id, symbolLatLng: pos, text, zIndex: 6 });
+    // Callout text boxes mirror the leader line color so changing the stroke
+    // in the markup panel updates the box outline AND the leader line.
+    const borderColor = obj.tool === "callout" ? obj.style.strokeColor : undefined;
+    entries.push({ objId: obj.id, symbolLatLng: pos, text, zIndex: 6, borderColor });
   }
   if (entries.length === 0) {
     clearAllLabels(overlaysMap, calloutMap);
@@ -361,12 +380,17 @@ export function rebuildAllLabels(
     const obj = objects.find((o) => o.id === p.objId);
     const handler =
       onLabelClick && obj ? (screen: { x: number; y: number }) => onLabelClick(obj, screen) : undefined;
-    const lbl = makeLabelMarkerAt(labelLatLng, p.text, map, p.zIndex, handler);
+    const lbl = makeLabelMarkerAt(labelLatLng, p.text, map, p.zIndex, handler, p.borderColor);
     overlaysMap.set(p.objId + "_label", lbl);
 
     const offsetMag = Math.sqrt(p.offsetDx ** 2 + p.offsetDy ** 2);
     if (offsetMag > CALLOUT_MIN_OFFSET_PX) {
-      calloutMap.set(p.objId + "_callout", makeCalloutLine(p.symbolLatLng, labelLatLng, map, p.zIndex - 1));
+      // Anti-collision leader (separate from the user-drawn callout leader):
+      // also color it to match the box border so the visual is unified.
+      calloutMap.set(
+        p.objId + "_callout",
+        makeCalloutLine(p.symbolLatLng, labelLatLng, map, p.zIndex - 1, p.borderColor)
+      );
     }
   }
 }
