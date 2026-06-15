@@ -223,10 +223,13 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
       generationConfig: {
         temperature: 0.3,
-        // 1024 was too tight — with a 14k-char system prompt + 23 tool
+        // 1024 was too tight — with a 14k-char system prompt + 30+ tool
         // declarations, the model sometimes hits MAX_TOKENS while still
         // emitting its hidden thought tokens, leaving no visible text.
-        maxOutputTokens: 4096,
+        // 4096 still produced occasional "(empty reply from model)" after
+        // a successful tool call; 8192 gives enough headroom for thought
+        // + summary on inbox/Smartsheet result sets.
+        maxOutputTokens: 8192,
       },
     });
 

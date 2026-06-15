@@ -14,6 +14,7 @@
  *   - Productivity (1)     — scheduleReminder
  *   - Inbox (3)            — listEmails, readEmail, searchEmail
  *   - Watch (1)            — sendWatchPing
+ *   - Smartsheet (3)       — listSmartsheetRows, getSmartsheetRow, searchSmartsheetByJob
  *   - Memory (2)           — recallMemory, proposeMemorySave
  *   - Write proposals (3)  — proposeNotesUpdate, proposeStatusChange, proposeMarkupLabel
  */
@@ -37,6 +38,7 @@ import { listEmailsTool } from "./listEmails.js";
 import { readEmailTool } from "./readEmail.js";
 import { searchEmailTool } from "./searchEmail.js";
 import { sendWatchPingTool } from "./sendWatchPing.js";
+import { smartsheetTools } from "./smartsheetTools.js";
 import { writeTools } from "./writeTools.js";
 import { memoryTools } from "./memoryTools.js";
 
@@ -66,6 +68,8 @@ const ALL_TOOLS: LuminaTool<any, any>[] = [
   searchEmailTool,
   // Watch
   sendWatchPingTool,
+  // Smartsheet (Billy-scoped, read-only)
+  ...smartsheetTools,
   // Memory + writes
   ...writeTools,
   ...memoryTools,

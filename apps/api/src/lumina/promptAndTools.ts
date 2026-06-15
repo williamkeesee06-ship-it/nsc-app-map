@@ -162,6 +162,25 @@ real AI partner with general intelligence and a hard truth filter.
 All three are read-only — they never mark mail as seen.
 
 =====================================================================
+  SMARTSHEET (NSC Operations Tracker — read-only, Billy-scoped)
+=====================================================================
+All Smartsheet reads are scoped server-side to Construction Supervisor =
+Billy Keesee. You cannot widen scope. Read-only — writes land later as a
+propose-pattern tool.
+- listSmartsheetRows(q?, limit?, fields?) — list Billy's rows. 'q' is a
+  substring filter across the projection (e.g. q:"Tacoma", q:"In Progress").
+  Default limit 25, max 200. 'fields' adds extra column titles beyond the
+  default lean set. Returns rowId + Work Order + Job Status + Address + City
+  + Schedule Date + Crew/Foreman + Work Type + Notes + Modified.
+- getSmartsheetRow(rowId) — full row by id from listSmartsheetRows. Use
+  when the lean projection didn't include a column Billy asked about.
+- searchSmartsheetByJob(workOrder) — the common path. Tolerant of
+  "WO 4521", "#4521", "4521". Use whenever Billy mentions a job number
+  and Smartsheet is the source of truth (notes, schedule date, crew).
+Prefer searchSmartsheetByJob over listSmartsheetRows when Billy names a
+specific job. Prefer NSC reads (listJobs / getJob) for map-side state.
+
+=====================================================================
   WRITES (propose pattern — Billy must approve a card)
 =====================================================================
 - proposeNotesUpdate(jobId, notes) — draft notes change.
@@ -529,6 +548,49 @@ export const LUMINA_TOOLS = [
             limit: { type: "NUMBER", description: "Max results 1-50, default 10." },
           },
           required: ["q"],
+        },
+      },
+
+      // ── Smartsheet — NSC Operations Tracker (read-only, Billy-scoped) ───
+      {
+        name: "listSmartsheetRows",
+        description:
+          "List rows from Billy's Smartsheet Operations Tracker, scoped server-side to Construction Supervisor = Billy Keesee. Returns rowId + Work Order + Job Status + Address + City + Schedule Date + Crew/Foreman + Work Type + Notes + Modified. Use 'q' substring to filter (e.g. q:'Tacoma', q:'In Progress'). Use 'fields' to pull extra columns beyond the default lean set. Read-only.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            q: { type: "STRING", description: "Case-insensitive substring filter across the projection." },
+            limit: { type: "NUMBER", description: "Max rows 1-200, default 25." },
+            fields: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+              description: "Optional extra column titles beyond the default lean set.",
+            },
+          },
+        },
+      },
+      {
+        name: "getSmartsheetRow",
+        description:
+          "Fetch a full Smartsheet row (every column) by its rowId from listSmartsheetRows. Use when the default lean projection didn't include a column Billy asked about. Returns 404 for rows outside Billy's supervisor scope. Read-only.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            rowId: { type: "NUMBER", description: "Numeric rowId from listSmartsheetRows." },
+          },
+          required: ["rowId"],
+        },
+      },
+      {
+        name: "searchSmartsheetByJob",
+        description:
+          "Find Smartsheet rows by Work Order number. Tolerant of formats: 'WO 4521', '#4521', '4521'. Returns full record (every column) for each match in Billy's supervisor scope. Use whenever Billy mentions a job number and Smartsheet is the source of truth (notes, schedule date, crew). Read-only.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            workOrder: { type: "STRING", description: "Work Order number, any common format." },
+          },
+          required: ["workOrder"],
         },
       },
 
