@@ -137,6 +137,18 @@ real AI partner with general intelligence and a hard truth filter.
   accepts ISO timestamp or "in N minutes/hours/days". Fires a notification.
 
 =====================================================================
+  INBOX (Billy's Lumina-managed Gmail — read-only)
+=====================================================================
+- listEmails(limit?, unreadOnly?, since?) — list recent messages from
+  lumina.northsky@gmail.com. Returns uid + from + subject + date + snippet
+  + unread + hasAttachments. Use for "what's in my inbox" / "any new mail".
+- readEmail(uid) — fetch the full text body of one message by uid (from
+  listEmails). Use when Billy asks "what does that email say".
+- searchEmail(q, limit?) — Gmail search syntax (from:, subject:, has:attachment,
+  newer_than:7d, etc.) or a plain keyword. Use for "find that email about X".
+All three are read-only — they never mark mail as seen.
+
+=====================================================================
   WRITES (propose pattern — Billy must approve a card)
 =====================================================================
 - proposeNotesUpdate(jobId, notes) — draft notes change.
@@ -445,6 +457,46 @@ export const LUMINA_TOOLS = [
             jobId: { type: "STRING" },
           },
           required: ["when", "message"],
+        },
+      },
+
+      // ── Inbox — Lumina's dedicated Gmail (read-only) ───────────────────
+      {
+        name: "listEmails",
+        description:
+          "List recent messages from Billy's Lumina-managed inbox (lumina.northsky@gmail.com). Returns uid + from + subject + date + snippet + unread + hasAttachments. Read-only — never marks as seen. Use for 'what's in my inbox' / 'any new mail'.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            limit: { type: "NUMBER", description: "Max messages 1-50, default 10." },
+            unreadOnly: { type: "BOOLEAN", description: "Only return unread messages." },
+            since: { type: "STRING", description: "ISO date — only messages newer than this." },
+          },
+        },
+      },
+      {
+        name: "readEmail",
+        description:
+          "Fetch the full plain-text body of one email by uid (from listEmails/searchEmail). Returns from/to/cc/subject/date/text/attachments metadata. Read-only — does not mark as seen.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            uid: { type: "NUMBER", description: "Message uid from listEmails/searchEmail." },
+          },
+          required: ["uid"],
+        },
+      },
+      {
+        name: "searchEmail",
+        description:
+          "Search Billy's Lumina inbox. Accepts Gmail search syntax (from:, subject:, has:attachment, newer_than:7d) or a plain keyword. Returns matching message stubs. Read-only.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            q: { type: "STRING", description: "Gmail search query or keyword." },
+            limit: { type: "NUMBER", description: "Max results 1-50, default 10." },
+          },
+          required: ["q"],
         },
       },
 

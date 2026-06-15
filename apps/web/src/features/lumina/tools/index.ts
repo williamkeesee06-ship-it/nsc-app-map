@@ -12,6 +12,7 @@
  *   - Map nav (12)         — flyTo* / dropPin / filter / select / route-line
  *   - General knowledge (4) — webSearch, calculate, getWeather, routeOptimize
  *   - Productivity (1)     — scheduleReminder
+ *   - Inbox (3)            — listEmails, readEmail, searchEmail
  *   - Memory (2)           — recallMemory, proposeMemorySave
  *   - Write proposals (3)  — proposeNotesUpdate, proposeStatusChange, proposeMarkupLabel
  */
@@ -31,6 +32,9 @@ import { calculateTool } from "./calculate.js";
 import { getWeatherTool } from "./getWeather.js";
 import { routeOptimizeTool } from "./routeOptimize.js";
 import { scheduleReminderTool } from "./scheduleReminder.js";
+import { listEmailsTool } from "./listEmails.js";
+import { readEmailTool } from "./readEmail.js";
+import { searchEmailTool } from "./searchEmail.js";
 import { writeTools } from "./writeTools.js";
 import { memoryTools } from "./memoryTools.js";
 
@@ -54,6 +58,10 @@ const ALL_TOOLS: LuminaTool<any, any>[] = [
   routeOptimizeTool,
   // Productivity
   scheduleReminderTool,
+  // Inbox
+  listEmailsTool,
+  readEmailTool,
+  searchEmailTool,
   // Memory + writes
   ...writeTools,
   ...memoryTools,
