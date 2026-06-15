@@ -54,9 +54,16 @@ router.post("/lumina/live-token", async (req: Request, res: Response) => {
   const newSessionExpire = new Date(now + 2 * 60 * 1000).toISOString();
   const expireTime = new Date(now + 30 * 60 * 1000).toISOString();
 
-  // Live API model — Gemini 3.1 Flash Live Preview (newest, lower latency).
-  // 3.5 Flash does NOT support Live API yet; revisit when a 3.x Live goes GA.
-  const MODEL = "gemini-3.1-flash-live-preview";
+  // Live API model — Gemini 2.5 Flash Live Preview.
+  //
+  // Why not 3.1 Flash Live Preview (the newer one):
+  // Google's own dev forum has an open bug (May 2026) where the 3.x Live
+  // models close the WebSocket with code=1011 "Internal error encountered"
+  // at ~80% rate before any model output is emitted. 2.5 Live is stable
+  // (5/5 success in the same test where 3.1 fails 4/5). Revisit when
+  // 3.x Live goes GA — until then, 2.5 is the safe production choice.
+  // Ref: discuss.ai.google.dev/t/gemini-live-api-...-167186
+  const MODEL = "gemini-live-2.5-flash-preview";
   const VOICE = "Aoede"; // composed, warm — fits Lumina
 
   // Phase 5c — inject saved memories into the Live mode system prompt so
