@@ -54,16 +54,20 @@ router.post("/lumina/live-token", async (req: Request, res: Response) => {
   const newSessionExpire = new Date(now + 2 * 60 * 1000).toISOString();
   const expireTime = new Date(now + 30 * 60 * 1000).toISOString();
 
-  // Live API model — Gemini 2.5 Flash Live Preview.
+  // Live API model — ID list registered for bidiGenerateContent on the
+  // AI Studio auth_tokens (v1alpha) path. Vertex docs use different
+  // names; only this short list is valid here:
+  //   • gemini-2.5-flash-native-audio-preview-12-2025
+  //   • gemini-2.0-flash-live-001                    (stable, older but proven)
+  //   • gemini-3.1-flash-live-preview                (3.x preview — known 1011 bug)
   //
-  // Why not 3.1 Flash Live Preview (the newer one):
-  // Google's own dev forum has an open bug (May 2026) where the 3.x Live
-  // models close the WebSocket with code=1011 "Internal error encountered"
-  // at ~80% rate before any model output is emitted. 2.5 Live is stable
-  // (5/5 success in the same test where 3.1 fails 4/5). Revisit when
-  // 3.x Live goes GA — until then, 2.5 is the safe production choice.
-  // Ref: discuss.ai.google.dev/t/gemini-live-api-...-167186
-  const MODEL = "gemini-live-2.5-flash-preview";
+  // 'gemini-live-2.5-flash-preview' from Vertex docs is NOT valid here
+  // (API replies 1008 'not found for v1main').
+  //
+  // Default to 2.5 native-audio. Allow LUMINA_LIVE_MODEL env override
+  // so we can hot-swap without redeploying code if a specific id misbehaves.
+  const MODEL = process.env.LUMINA_LIVE_MODEL?.trim() ||
+    "gemini-2.5-flash-native-audio-preview-12-2025";
   const VOICE = "Aoede"; // composed, warm — fits Lumina
 
   // Phase 5c — inject saved memories into the Live mode system prompt so
