@@ -61,9 +61,32 @@ interface ChatResponseBody {
 // pairs are passed to runUserTurn via the local `live` array.)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Heuristic: text turns produced by the engine's own error stub. These
+// must never be replayed back to Gemini — they're sentinels we wrote to
+// the UI, not real model output, and they create invalid turn sequences.
+const ERROR_STUB_PATTERNS: RegExp[] = [
+  /^I hit an error/i,
+  /^Cancelled\.?$/i,
+  /^I got stuck calling tools/i,
+  /^\(no reply\)$/i,
+  /^\(empty reply from model\)$/i,
+  /^My safety filter blocked/i,
+  /^Reply blocked due to recitation/i,
+  /^I ran out of room mid-reply/i,
+  /^No reply produced \(finish reason:/i,
+];
+
+function isErrorStub(text: string): boolean {
+  const trimmed = text.trim();
+  return ERROR_STUB_PATTERNS.some((p) => p.test(trimmed));
+}
+
 function messagesToHistory(messages: ChatMessage[]): HistoryEntry[] {
   const out: HistoryEntry[] = [];
   for (const m of messages) {
+    // Drop our own error stubs — they're UI sentinels, not model output,
+    // and replaying them to Gemini corrupts the turn sequence.
+    if (m.role !== "user" && isErrorStub(m.text)) continue;
     out.push({
       kind: "text",
       role: m.role === "user" ? "user" : "model",
@@ -76,6 +99,21 @@ function messagesToHistory(messages: ChatMessage[]): HistoryEntry[] {
   // error-message reply doesn't poison the next turn.
   while (out.length > 0 && out[0].kind === "text" && out[0].role === "model") {
     out.shift();
+  }
+  // Belt-and-suspenders: collapse any model→model run by dropping the
+  // earlier one. Gemini occasionally rejects back-to-back model turns
+  // when one is empty.
+  for (let i = out.length - 1; i > 0; i--) {
+    const prev = out[i - 1];
+    const cur = out[i];
+    if (
+      prev.kind === "text" &&
+      cur.kind === "text" &&
+      prev.role === "model" &&
+      cur.role === "model"
+    ) {
+      out.splice(i - 1, 1);
+    }
   }
   return out;
 }
