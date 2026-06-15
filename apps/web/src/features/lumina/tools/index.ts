@@ -3,31 +3,58 @@
  *
  * Both the chat surface (text-mode Gemini SDK) and the live-voice surface
  * (geminiLive.ts onToolCall callback) route through dispatchTool(). This
- * is the SINGLE choke point where Lumina interacts with North Sky data.
+ * is the SINGLE choke point where Lumina interacts with North Sky data
+ * AND general knowledge.
  *
- * Phase 4 registers all 22 tools: 5 read + 12 map nav + 3 propose-write
- * (proposeMarkupLabel is fully wired; proposeNotesUpdate / proposeStatus
- * Change are registered as "not yet available" stubs so the model gives a
- * coherent refusal instead of calling an undefined tool).
+ * Tool families:
+ *   - NSC reads (5)        — listJobs, getJob, getMultipleJobs, listMarkups, listPhotos
+ *   - Geo/search reads (2) — searchAddress, getMyLocation, getAsbuiltMarkups
+ *   - Map nav (12)         — flyTo* / dropPin / filter / select / route-line
+ *   - General knowledge (4) — webSearch, calculate, getWeather, routeOptimize
+ *   - Productivity (1)     — scheduleReminder
+ *   - Memory (2)           — recallMemory, proposeMemorySave
+ *   - Write proposals (3)  — proposeNotesUpdate, proposeStatusChange, proposeMarkupLabel
  */
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 import { listJobsTool } from "./listJobs.js";
 import { getJobTool } from "./getJob.js";
+import { getMultipleJobsTool } from "./getMultipleJobs.js";
 import { listMarkupsTool } from "./listMarkups.js";
 import { listPhotosTool } from "./listPhotos.js";
 import { searchAddressTool } from "./searchAddress.js";
+import { getMyLocationTool } from "./getMyLocation.js";
+import { getAsbuiltMarkupsTool } from "./getAsbuiltMarkups.js";
 import { mapNavTools } from "./mapNav.js";
+import { webSearchTool } from "./webSearch.js";
+import { calculateTool } from "./calculate.js";
+import { getWeatherTool } from "./getWeather.js";
+import { routeOptimizeTool } from "./routeOptimize.js";
+import { scheduleReminderTool } from "./scheduleReminder.js";
 import { writeTools } from "./writeTools.js";
 import { memoryTools } from "./memoryTools.js";
 
 const ALL_TOOLS: LuminaTool<any, any>[] = [
+  // NSC reads
   listJobsTool,
   getJobTool,
+  getMultipleJobsTool,
   listMarkupsTool,
   listPhotosTool,
+  // Geo / address
   searchAddressTool,
+  getMyLocationTool,
+  getAsbuiltMarkupsTool,
+  // Map navigation (12 tools)
   ...mapNavTools,
+  // General intelligence
+  webSearchTool,
+  calculateTool,
+  getWeatherTool,
+  routeOptimizeTool,
+  // Productivity
+  scheduleReminderTool,
+  // Memory + writes
   ...writeTools,
   ...memoryTools,
 ];

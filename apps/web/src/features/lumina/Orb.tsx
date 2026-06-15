@@ -124,7 +124,9 @@ export default function Orb({ size = 40 }: OrbProps) {
         style={{
           position: "absolute",
           right: 16,
-          bottom: 16, // bottom-right corner — owns the slot where Google's gamepad used to be
+          // Stacked above the Google Street View pegman (~bottom:24, ~40px tall)
+          // so the orb never blocks the pegman drag handle. Billy 6/11.
+          bottom: 72,
           width: frame,
           height: frame,
           padding: 0,
