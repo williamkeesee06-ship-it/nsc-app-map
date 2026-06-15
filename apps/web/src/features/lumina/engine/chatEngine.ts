@@ -142,11 +142,17 @@ export interface ChatEngineDeps {
 
 export async function runUserTurn(deps: ChatEngineDeps): Promise<void> {
   const { priorMessages, newUserMessage, username, toolCtx } = deps;
-  const baseHistory = messagesToHistory(priorMessages);
+  // Fold the just-typed user message into baseHistory once — then every
+  // round-trip sends the same complete prefix + accumulating tool turns.
+  // (Previously newUserMessage was only attached on round 1; round 2's
+  // request lost the user question entirely, leaving Gemini with
+  // model-text → model-functionCall, which is invalid.)
+  const baseHistory: HistoryEntry[] = [
+    ...messagesToHistory(priorMessages),
+    { kind: "text", role: "user", text: newUserMessage },
+  ];
   // `live` carries the in-turn tool call/result pairs for re-POST.
   const live: HistoryEntry[] = [];
-  // The first request carries the user message; subsequent ones don't.
-  let firstRequest = true;
   let assistantId: string | null = null;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -158,8 +164,10 @@ export async function runUserTurn(deps: ChatEngineDeps): Promise<void> {
         headers: { "Content-Type": "application/json" },
         signal: deps.signal,
         body: JSON.stringify({
+          // Send the full prefix on every round so the API can run
+          // statelessly. The user message is already in baseHistory so
+          // we never pass newUserMessage as a separate field anymore.
           history: [...baseHistory, ...live],
-          newUserMessage: firstRequest ? newUserMessage : undefined,
           username,
         }),
       });
@@ -185,8 +193,6 @@ export async function runUserTurn(deps: ChatEngineDeps): Promise<void> {
       });
       return;
     }
-    firstRequest = false;
-
     // ── Tool calls — dispatch each, push results, loop ──────────────────
     if (body.toolCalls && body.toolCalls.length > 0) {
       live.push({ kind: "call", calls: body.toolCalls });

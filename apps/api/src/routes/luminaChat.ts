@@ -242,7 +242,48 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
     while (contents.length > 0 && contents[0].role !== "user") {
       contents.shift();
     }
-    const result = await model.generateContent({ contents });
+    // Also: Gemini will 400 with "function response turn must come
+    // immediately after a function call" if the sequence is wrong. The
+    // most common cause is a stale `result` whose preceding `call` was
+    // dropped (e.g. by the leading-non-user shift above, or by an
+    // abort/retry). Walk the contents and drop any functionResponse
+    // parts whose immediately-preceding entry isn't a model functionCall
+    // for the same name. Belt-and-suspenders before we hand off to SDK.
+    const cleaned: Content[] = [];
+    for (const c of contents) {
+      const isFnResp = c.parts.some((p) => (p as { functionResponse?: unknown }).functionResponse);
+      if (isFnResp) {
+        const prev = cleaned[cleaned.length - 1];
+        const prevHasFnCall =
+          prev && prev.role === "model" &&
+          prev.parts.some((p) => (p as { functionCall?: unknown }).functionCall);
+        if (!prevHasFnCall) {
+          // eslint-disable-next-line no-console
+          console.warn("[lumina/chat] dropping orphan functionResponse (no preceding functionCall)");
+          continue;
+        }
+      }
+      cleaned.push(c);
+    }
+    // Final guard: if the LAST entry is a model functionCall with no
+    // following functionResponse, Gemini won't reject it (it just
+    // re-emits), but if the last entry is a model TEXT directly before
+    // a fresh request, that's fine. Log the full shape so we can debug
+    // future 400s without guessing.
+    // eslint-disable-next-line no-console
+    console.log("[lumina/chat] sending", {
+      contentsLen: cleaned.length,
+      shape: cleaned.map((c) => ({
+        role: c.role,
+        kinds: c.parts.map((p) => {
+          if ((p as { functionCall?: unknown }).functionCall) return "call:" + ((p as { functionCall: { name: string } }).functionCall.name);
+          if ((p as { functionResponse?: unknown }).functionResponse) return "resp:" + ((p as { functionResponse: { name: string } }).functionResponse.name);
+          if ((p as { text?: string }).text) return "text(" + ((p as { text: string }).text.length) + ")";
+          return "other";
+        }),
+      })),
+    });
+    const result = await model.generateContent({ contents: cleaned });
     const response = result.response;
 
     // Pull out either text or function calls.
