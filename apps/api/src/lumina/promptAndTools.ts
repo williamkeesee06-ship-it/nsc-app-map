@@ -137,6 +137,19 @@ real AI partner with general intelligence and a hard truth filter.
   accepts ISO timestamp or "in N minutes/hours/days". Fires a notification.
 
 =====================================================================
+  WATCH NOTIFICATIONS (Pushover → phone → Samsung watch)
+=====================================================================
+- sendWatchPing(message, title?, priority?, sound?, url?, urlTitle?) —
+  push a notification to Billy's wrist. Use proactively when you've
+  finished an important task, when you see an urgent inbox alert, or
+  when a scheduled reminder fires. Priority: -2 silent, -1 quiet,
+  0 normal, 1 high (bypasses quiet hours). Default sound "magic".
+  Reserve sound "siren" for genuinely urgent (escalation emails, safety
+  alerts). Use "intermission" for daily briefs, "cashregister" for
+  good news, "spacealarm" for warnings. Keep message under 160 chars
+  for clean watch rendering. Do NOT ping for routine reads.
+
+=====================================================================
   INBOX (Billy's Lumina-managed Gmail — read-only)
 =====================================================================
 - listEmails(limit?, unreadOnly?, since?) — list recent messages from
@@ -457,6 +470,25 @@ export const LUMINA_TOOLS = [
             jobId: { type: "STRING" },
           },
           required: ["when", "message"],
+        },
+      },
+
+      // ── Watch notifications — Pushover proxy ────────────────────────
+      {
+        name: "sendWatchPing",
+        description:
+          "Push a notification to Billy's Samsung watch via Pushover (mirrored from his phone). Use proactively for urgent inbox alerts, finished long-running ops, scheduled reminders, or daily briefs. Keep message ≤160 chars for clean watch rendering. Priority -2 silent, -1 quiet, 0 normal, 1 high (bypass quiet hours). Common sounds: magic (default), siren (urgent), intermission (calm brief), cashregister (good news), spacealarm (warning).",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            message: { type: "STRING", description: "Body text. ≤1024 chars; keep ≤160 for watch." },
+            title: { type: "STRING", description: "Optional title. ≤250 chars." },
+            priority: { type: "NUMBER", description: "-2|-1|0|1. Default 0." },
+            sound: { type: "STRING", description: "Pushover sound name (magic, siren, intermission, cashregister, spacealarm, etc.)." },
+            url: { type: "STRING", description: "Optional URL Pushover shows below the message." },
+            urlTitle: { type: "STRING", description: "Anchor text for url." },
+          },
+          required: ["message"],
         },
       },
 

@@ -13,6 +13,7 @@
  *   - General knowledge (4) — webSearch, calculate, getWeather, routeOptimize
  *   - Productivity (1)     — scheduleReminder
  *   - Inbox (3)            — listEmails, readEmail, searchEmail
+ *   - Watch (1)            — sendWatchPing
  *   - Memory (2)           — recallMemory, proposeMemorySave
  *   - Write proposals (3)  — proposeNotesUpdate, proposeStatusChange, proposeMarkupLabel
  */
@@ -35,6 +36,7 @@ import { scheduleReminderTool } from "./scheduleReminder.js";
 import { listEmailsTool } from "./listEmails.js";
 import { readEmailTool } from "./readEmail.js";
 import { searchEmailTool } from "./searchEmail.js";
+import { sendWatchPingTool } from "./sendWatchPing.js";
 import { writeTools } from "./writeTools.js";
 import { memoryTools } from "./memoryTools.js";
 
@@ -62,6 +64,8 @@ const ALL_TOOLS: LuminaTool<any, any>[] = [
   listEmailsTool,
   readEmailTool,
   searchEmailTool,
+  // Watch
+  sendWatchPingTool,
   // Memory + writes
   ...writeTools,
   ...memoryTools,
