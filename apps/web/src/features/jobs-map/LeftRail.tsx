@@ -12,6 +12,7 @@ import { queuePrefWrite } from "../../lib/prefsSync.js";
 import StatusFilterPills from "./StatusFilterPills.js";
 import CentralOfficesPill from "./CentralOfficesPill.js";
 import RouteBuilderTab from "./RouteBuilderTab.js";
+import CalendarTab from "./CalendarTab.js";
 import LuminaTab from "../lumina/LuminaTab.js";
 
 // Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
@@ -34,7 +35,7 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'filters' | 'telecom' | 'tools' | 'route' | 'lumina';
+type TabId = 'filters' | 'telecom' | 'tools' | 'route' | 'calendar' | 'lumina';
 
 export default function LeftRail({
   jobs,
@@ -147,6 +148,7 @@ export default function LeftRail({
     { id: 'telecom', label: 'TELECOM' },
     { id: 'tools', label: 'TOOLS' },
     { id: 'route', label: 'ROUTE' },
+    { id: 'calendar', label: 'CALENDAR' },
     { id: 'lumina', label: 'LUMINA' },
   ];
 
@@ -209,6 +211,7 @@ export default function LeftRail({
                 {activeTab === 'telecom' && <TelecomTab />}
                 {activeTab === 'tools' && <AnnotateTab />}
                 {activeTab === 'route' && <RouteBuilderTab />}
+                {activeTab === 'calendar' && <CalendarTab />}
               </div>
             </div>
           )}

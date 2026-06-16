@@ -151,7 +151,43 @@ export const api = {
       `/api/lumina/memories/${encodeURIComponent(username)}/${encodeURIComponent(id)}`,
       { method: "DELETE" }
     ),
+
+  // Calendar tab: returns scheduled events overlapping the Mon-Fri week
+  // starting at weekStart (YYYY-MM-DD). scope='mine' = Billy only,
+  // scope='all' = every supervisor in the sheet.
+  getCalendar: (weekStart: string, scope: "mine" | "all") =>
+    request<CalendarPayload>(
+      `/api/lumina/smartsheet/calendar?weekStart=${encodeURIComponent(weekStart)}&scope=${scope}`
+    ),
 };
+
+export interface CalendarEvent {
+  rowId: number;
+  workOrder: string;
+  jobStatus: string | null;
+  supervisor: string;
+  supervisorColor: string;
+  crew: string;
+  address: string;
+  city: string;
+  bidMaster: string | null;
+  base: string | null;
+  scheduleDate: string;
+  endDate: string;
+  attachmentCount: number;
+  modifiedAt?: string;
+}
+
+export interface CalendarPayload {
+  scope: "mine" | "all";
+  supervisor: string | null;
+  weekStart: string;
+  weekEnd: string;
+  totalEvents: number;
+  supervisorColors: Record<string, string>;
+  cachedSeconds: number;
+  events: CalendarEvent[];
+}
 
 export interface LuminaMemoryItem {
   id: string;

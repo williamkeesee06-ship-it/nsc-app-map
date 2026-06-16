@@ -21,12 +21,21 @@ export interface SmartsheetCell {
   displayValue?: string;
 }
 
+export interface SmartsheetAttachment {
+  id: number;
+  name?: string;
+  attachmentType?: string;
+  parentType?: string; // "ROW" | "SHEET" | "COMMENT"
+  parentId?: number;  // row id when parentType=ROW
+}
+
 export interface SmartsheetRow {
   id: number;
   rowNumber: number;
   cells: SmartsheetCell[];
   createdAt?: string;
   modifiedAt?: string;
+  attachments?: SmartsheetAttachment[]; // populated when getSheet({withAttachments:true})
 }
 
 export interface SmartsheetSheet {
@@ -57,7 +66,12 @@ async function ssFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function getSheet(): Promise<SmartsheetSheet> {
+export interface GetSheetOpts {
+  /** When true, also pull per-row attachments so each row.attachments is populated. */
+  withAttachments?: boolean;
+}
+
+export async function getSheet(opts: GetSheetOpts = {}): Promise<SmartsheetSheet> {
   const env = getEnv();
   if (!env.SMARTSHEET_SHEET_ID) {
     throw new Error("[smartsheet] SMARTSHEET_SHEET_ID missing");
@@ -65,8 +79,11 @@ export async function getSheet(): Promise<SmartsheetSheet> {
   // Smartsheet's GET /sheets/{id} defaults to 100 rows per page. With our
   // tracker holding 500+ rows we MUST request the whole sheet, otherwise the
   // sync only sees the first 100 (and off-tracker logic then flags the rest).
+  const includes: string[] = [];
+  if (opts.withAttachments) includes.push("attachments");
+  const includeQs = includes.length ? `&include=${includes.join(",")}` : "";
   return ssFetch<SmartsheetSheet>(
-    `/sheets/${env.SMARTSHEET_SHEET_ID}?includeAll=true`
+    `/sheets/${env.SMARTSHEET_SHEET_ID}?includeAll=true${includeQs}`
   );
 }
 
