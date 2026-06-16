@@ -8,6 +8,7 @@ import { applyFilters } from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
 import { useFiltersContext } from "./filtersContext.js";
 import LeftRail from "./LeftRail.js";
+import CalendarTab from "./CalendarTab.js";
 import JobCard from "./JobCard.js";
 import LayersPanel from "../workspace/LayersPanel.js";
 import type { Job } from "@nsc/types";
@@ -204,6 +205,23 @@ function JobsMapInner({
   // Lumen Central Offices overlay — toggled from the topbar pill.
   const showCOs = useShowCOs();
 
+  // ── Full-screen Calendar overlay ─────────────────────────────────────────
+  // LeftRail broadcasts its active tab via the "nsc:active-tab" CustomEvent.
+  // When the user picks CALENDAR (and the rail isn't collapsed), we mount
+  // <CalendarTab /> absolutely-positioned over the map canvas so it claims
+  // the full main area instead of being squeezed into the side rail.
+  // The rail stays visible so the user can click another tab to dismiss.
+  const [calendarFullscreen, setCalendarFullscreen] = useState(false);
+  useEffect(() => {
+    function onActiveTab(e: Event) {
+      const detail = (e as CustomEvent<{ tab: string; collapsed: boolean }>).detail;
+      if (!detail) return;
+      setCalendarFullscreen(detail.tab === "calendar" && !detail.collapsed);
+    }
+    window.addEventListener("nsc:active-tab", onActiveTab);
+    return () => window.removeEventListener("nsc:active-tab", onActiveTab);
+  }, []);
+
   return (
     <div className="jobs-map">
       <LeftRail
@@ -256,6 +274,24 @@ function JobsMapInner({
           </Map>
           {/* Lumina orb — floats above Google's pan/Pegman controls. */}
           <LuminaOrb />
+
+          {/* Full-screen Calendar overlay — sits above the map and all
+              in-map overlays (markers, drawings, Lumina orb) but below the
+              right-side JobCard panel. The map keeps rendering underneath
+              so re-entry is instant when the user switches tabs back. */}
+          {calendarFullscreen && (
+            <div
+              className="calendar-fullscreen-overlay"
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 50,
+                background: "#0b1118",
+              }}
+            >
+              <CalendarTab />
+            </div>
+          )}
         </div>
 
         {/* Records banner removed per redesign — the topbar info boxes show the

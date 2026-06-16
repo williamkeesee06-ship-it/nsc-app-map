@@ -12,7 +12,7 @@ import { queuePrefWrite } from "../../lib/prefsSync.js";
 import StatusFilterPills from "./StatusFilterPills.js";
 import CentralOfficesPill from "./CentralOfficesPill.js";
 import RouteBuilderTab from "./RouteBuilderTab.js";
-import CalendarTab from "./CalendarTab.js";
+// CalendarTab is mounted full-screen by JobsMap, not inside the rail.
 import LuminaTab from "../lumina/LuminaTab.js";
 
 // Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
@@ -49,6 +49,22 @@ export default function LeftRail({
   const [activeTab, setActiveTab] = useState<TabId>('filters'); // Default to filters (top tab)
 
   const [collapsed, setCollapsed] = useState<boolean>(false);
+
+  // Broadcast active tab + collapse state so JobsMap can mount the Calendar
+  // as a full-screen overlay over the map (instead of cramming it in the
+  // side rail). The event fires on every change so JobsMap stays in sync
+  // even if the rail is collapsed or the user switches tabs rapidly.
+  useEffect(() => {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("nsc:active-tab", {
+          detail: { tab: activeTab, collapsed },
+        })
+      );
+    } catch {
+      /* non-browser env */
+    }
+  }, [activeTab, collapsed]);
 
   // Click an active tab to collapse the rail; click a different tab to switch
   // to it (and uncollapse if currently collapsed).
@@ -211,7 +227,36 @@ export default function LeftRail({
                 {activeTab === 'telecom' && <TelecomTab />}
                 {activeTab === 'tools' && <AnnotateTab />}
                 {activeTab === 'route' && <RouteBuilderTab />}
-                {activeTab === 'calendar' && <CalendarTab />}
+                {activeTab === 'calendar' && (
+                  // Calendar renders full-screen over the map (mounted by
+                  // JobsMap). The rail just shows a hint so the user knows
+                  // where it went and how to dismiss it.
+                  <div className="cal-rail-hint">
+                    <div className="cal-rail-hint__title">CALENDAR IS FULL-SCREEN</div>
+                    <div className="cal-rail-hint__body">
+                      Click any other tab (or click CALENDAR again to collapse the rail) to return to the map.
+                    </div>
+                    <style>{`
+                      .cal-rail-hint {
+                        padding: 18px 14px;
+                        color: #cfd6df;
+                        font-family: "Space Grotesk", system-ui, sans-serif;
+                      }
+                      .cal-rail-hint__title {
+                        font-size: 11px;
+                        font-weight: 700;
+                        letter-spacing: 0.08em;
+                        color: #4a9eff;
+                        margin-bottom: 8px;
+                      }
+                      .cal-rail-hint__body {
+                        font-size: 12px;
+                        line-height: 1.45;
+                        color: #98a2b3;
+                      }
+                    `}</style>
+                  </div>
+                )}
               </div>
             </div>
           )}
