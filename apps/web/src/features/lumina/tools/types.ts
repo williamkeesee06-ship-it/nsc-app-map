@@ -109,14 +109,34 @@ export interface PendingActionBase {
 
 export interface PendingNotesUpdate extends PendingActionBase {
   kind: "notesUpdate";
+  /** Smartsheet jobId (Work Order string) or numeric rowId as string. */
   jobId: string;
+  /** New note text — server stamps it with date + "Billy: " prefix. */
   notes: string;
+  /** "append" keeps existing notes and adds a new stamped line;
+   *  "replace" overwrites the whole cell. Defaults to "append" in UI. */
+  mode?: "append" | "replace";
 }
 
 export interface PendingStatusChange extends PendingActionBase {
   kind: "statusChange";
   jobId: string;
   status: string;
+  /** Whether this targets Job Status or Secondary Job Status. */
+  statusKind?: "primary" | "secondary";
+}
+
+/**
+ * Sprint 2.1 — propose to move a job's Schedule Date (and optionally
+ * End Date for multi-day jobs). Server enforces Billy-only supervisor scope.
+ */
+export interface PendingReschedule extends PendingActionBase {
+  kind: "reschedule";
+  jobId: string;
+  /** YYYY-MM-DD. */
+  scheduleDate: string;
+  /** YYYY-MM-DD, optional. Required for multi-day jobs. */
+  endDate?: string;
 }
 
 export interface PendingMarkupLabel extends PendingActionBase {
@@ -143,4 +163,5 @@ export type PendingAction =
   | PendingNotesUpdate
   | PendingStatusChange
   | PendingMarkupLabel
-  | PendingMemorySave;
+  | PendingMemorySave
+  | PendingReschedule;

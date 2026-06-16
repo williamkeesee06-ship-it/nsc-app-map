@@ -106,3 +106,76 @@ export function rowToRecord(
 export function buildColumnsById(sheet: SmartsheetSheet): Map<number, SmartsheetColumn> {
   return new Map(sheet.columns.map((c) => [c.id, c]));
 }
+
+export function buildColumnsByTitle(sheet: SmartsheetSheet): Map<string, SmartsheetColumn> {
+  return new Map(sheet.columns.map((c) => [c.title, c]));
+}
+
+/**
+ * Update one or more cells on an existing row. Returns the server-echoed row.
+ *
+ * `cells` is keyed by column TITLE (e.g. "NSC Project Notes") to keep callers
+ * readable; we resolve titles to column ids internally. Pass `null` to clear
+ * a cell, an ISO yyyy-MM-dd string for DATE columns, a string for TEXT, or
+ * any of the PICKLIST allowed values for status-like columns.
+ *
+ * Notes:
+ *  - Smartsheet accepts an ARRAY of row objects under PUT /sheets/{id}/rows.
+ *    We always send one row; this is the documented "update rows" endpoint.
+ *  - We pass `strict: false` so date strings without timezone ("2026-06-22")
+ *    are accepted on DATE columns without fighting the API.
+ *  - We never set formula cells (Duration, etc.) — if a caller passes one
+ *    by accident the API will reject the whole row; that's the right
+ *    failure mode.
+ */
+export async function updateRowCells(
+  rowId: number,
+  cells: Record<string, string | number | boolean | null>,
+  sheet?: SmartsheetSheet
+): Promise<SmartsheetRow> {
+  const env = getEnv();
+  if (!env.SMARTSHEET_SHEET_ID) {
+    throw new Error("[smartsheet] SMARTSHEET_SHEET_ID missing");
+  }
+  const resolvedSheet = sheet ?? (await getSheet());
+  const byTitle = buildColumnsByTitle(resolvedSheet);
+  const cellPayload: Array<{ columnId: number; value: string | number | boolean | null; strict?: boolean }> = [];
+  for (const [title, value] of Object.entries(cells)) {
+    const col = byTitle.get(title);
+    if (!col) {
+      throw new Error(`[smartsheet] Unknown column "${title}" (sheet has: ${[...byTitle.keys()].join(", ")})`);
+    }
+    cellPayload.push({ columnId: col.id, value, strict: false });
+  }
+  if (cellPayload.length === 0) {
+    throw new Error("[smartsheet] updateRowCells called with no cells");
+  }
+  const body = [{ id: rowId, cells: cellPayload }];
+  const response = await ssFetch<{ result: SmartsheetRow[] | SmartsheetRow }>(
+    `/sheets/${env.SMARTSHEET_SHEET_ID}/rows`,
+    { method: "PUT", body: JSON.stringify(body) }
+  );
+  // Smartsheet sometimes returns an array, sometimes one row. Normalize.
+  if (Array.isArray(response.result)) return response.result[0];
+  return response.result;
+}
+
+/**
+ * Locate a row by its Work Order value (any case, trimmed). Returns null if
+ * no row matches. Used by the propose-write endpoints so callers can address
+ * a job by its human name ("P.362908") instead of the numeric rowId.
+ */
+export function findRowByWorkOrder(
+  sheet: SmartsheetSheet,
+  workOrder: string
+): SmartsheetRow | null {
+  const target = String(workOrder).trim().toLowerCase();
+  if (!target) return null;
+  const byId = buildColumnsById(sheet);
+  for (const row of sheet.rows) {
+    const rec = rowToRecord(row, byId);
+    const wo = String(rec["Work Order"] ?? "").trim().toLowerCase();
+    if (wo === target) return row;
+  }
+  return null;
+}

@@ -15,8 +15,10 @@
  *   - Inbox (3)            — listEmails, readEmail, searchEmail
  *   - Watch (1)            — sendWatchPing
  *   - Smartsheet (3)       — listSmartsheetRows, getSmartsheetRow, searchSmartsheetByJob
+ *   - Schedule (1)         — getSchedule  (Sprint 2.1, /calendar endpoint)
  *   - Memory (2)           — recallMemory, proposeMemorySave
- *   - Write proposals (3)  — proposeNotesUpdate, proposeStatusChange, proposeMarkupLabel
+ *   - Write proposals (4)  — proposeNotesUpdate, proposeStatusChange,
+ *                            proposeMarkupLabel, proposeReschedule
  */
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
@@ -39,6 +41,7 @@ import { readEmailTool } from "./readEmail.js";
 import { searchEmailTool } from "./searchEmail.js";
 import { sendWatchPingTool } from "./sendWatchPing.js";
 import { smartsheetTools } from "./smartsheetTools.js";
+import { getScheduleTool } from "./getSchedule.js";
 import { writeTools } from "./writeTools.js";
 import { memoryTools } from "./memoryTools.js";
 
@@ -70,7 +73,9 @@ const ALL_TOOLS: LuminaTool<any, any>[] = [
   sendWatchPingTool,
   // Smartsheet (Billy-scoped, read-only)
   ...smartsheetTools,
-  // Memory + writes
+  // Schedule read (Sprint 2.1)
+  getScheduleTool,
+  // Memory + writes (Sprint 1.4 un-stubs notes/status; 2.1 adds reschedule)
   ...writeTools,
   ...memoryTools,
 ];

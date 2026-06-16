@@ -159,6 +159,59 @@ export const api = {
     request<CalendarPayload>(
       `/api/lumina/smartsheet/calendar?weekStart=${encodeURIComponent(weekStart)}&scope=${scope}`
     ),
+
+  // Smartsheet write-through (Sprint 1.4 + 2.1) — Billy-scoped only.
+  // The server enforces supervisor = "Billy Keesee"; cross-supervisor edits
+  // are refused with 403. These are called only by the APPLY card flow after
+  // Billy approves a propose-* tool's pending action.
+  updateSmartsheetNotes: (body: {
+    jobId: string | number;
+    notes: string;
+    mode?: "replace" | "append";
+  }) =>
+    request<{
+      ok: true;
+      rowId: number;
+      jobId: string | number;
+      mode: "replace" | "append";
+      newValue: string;
+      modifiedAt?: string;
+    }>("/api/lumina/smartsheet/update-notes", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateSmartsheetStatus: (body: {
+    jobId: string | number;
+    status: string;
+    kind?: "primary" | "secondary";
+  }) =>
+    request<{
+      ok: true;
+      rowId: number;
+      jobId: string | number;
+      column: string;
+      newValue: string;
+      modifiedAt?: string;
+    }>("/api/lumina/smartsheet/update-status", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  rescheduleSmartsheet: (body: {
+    jobId: string | number;
+    scheduleDate: string; // YYYY-MM-DD
+    endDate?: string; // YYYY-MM-DD
+  }) =>
+    request<{
+      ok: true;
+      rowId: number;
+      jobId: string | number;
+      scheduleDate: string;
+      endDate: string | null;
+      modifiedAt?: string;
+    }>("/api/lumina/smartsheet/reschedule", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };
 
 export interface CalendarEvent {

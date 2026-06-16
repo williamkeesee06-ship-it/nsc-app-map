@@ -33,7 +33,10 @@ import {
   getSheet,
   buildColumnsById,
   rowToRecord,
+  updateRowCells,
+  findRowByWorkOrder,
   type SmartsheetSheet,
+  type SmartsheetRow,
 } from "../lib/smartsheet.js";
 
 // Map of supervisor name -> hex color, matching the Lumen Calendar legend.
@@ -410,6 +413,194 @@ router.get("/lumina/smartsheet/calendar", async (req: Request, res: Response) =>
     // eslint-disable-next-line no-console
     console.error("[lumina/smartsheet/calendar] error:", err);
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ----- Shared helper: resolve a job to a Smartsheet row + assert scope --
+//
+// Used by every write endpoint below. Lookup is by Work Order (case-insens.,
+// trimmed) OR by numeric rowId. Returns the resolved row, the supervisor it
+// belongs to, and the always-fresh sheet snapshot. Throws on miss so callers
+// can let the express error path serialize.
+async function resolveJobRow(
+  jobIdOrRowId: string | number,
+  expectedSupervisor: string
+): Promise<{ row: SmartsheetRow; supervisor: string; sheet: SmartsheetSheet }> {
+  // Force a fresh read — the write-then-immediately-re-read pattern is too
+  // common to risk a 60s stale cache.
+  const sheet = await getSheet();
+  const byId = buildColumnsById(sheet);
+
+  let row: SmartsheetRow | undefined;
+  const numeric = typeof jobIdOrRowId === "number" ? jobIdOrRowId : Number(jobIdOrRowId);
+  if (Number.isFinite(numeric) && String(numeric) === String(jobIdOrRowId)) {
+    row = sheet.rows.find((r) => r.id === numeric);
+  } else {
+    const found = findRowByWorkOrder(sheet, String(jobIdOrRowId));
+    row = found ?? undefined;
+  }
+  if (!row) {
+    throw Object.assign(new Error(`Job "${jobIdOrRowId}" not found in Smartsheet.`), { status: 404 });
+  }
+
+  const rec = rowToRecord(row, byId);
+  const supervisor = String(rec[SUPERVISOR_COLUMN] ?? "").trim();
+  if (!supervisor) {
+    throw Object.assign(new Error(`Row ${row.id} has no Construction Supervisor set — refusing write.`), { status: 403 });
+  }
+  if (supervisor !== expectedSupervisor) {
+    throw Object.assign(
+      new Error(
+        `Row ${row.id} belongs to ${supervisor}, not ${expectedSupervisor}. Refusing write — supervisors can only edit their own rows.`
+      ),
+      { status: 403 }
+    );
+  }
+  return { row, supervisor, sheet };
+}
+
+// Bust both caches after any write so the next read reflects the change.
+function invalidateSheetCaches() {
+  cachedSheet = null;
+  cachedSheetWithAtt = null;
+}
+
+// ----- POST /lumina/smartsheet/update-notes ------------------------------
+//
+// Append or replace the NSC Project Notes cell on a job row. Only Billy's
+// own rows are writable here; cross-supervisor edits are refused.
+//
+// Body: { jobId: string|number, notes: string, mode?: "replace" | "append" }
+router.post("/lumina/smartsheet/update-notes", async (req: Request, res: Response) => {
+  try {
+    const { jobId, notes, mode } = (req.body ?? {}) as {
+      jobId?: string | number;
+      notes?: string;
+      mode?: "replace" | "append";
+    };
+    if (jobId === undefined || jobId === null || jobId === "") {
+      return res.status(400).json({ error: "jobId required (Work Order string or numeric rowId)." });
+    }
+    if (typeof notes !== "string") {
+      return res.status(400).json({ error: "notes must be a string." });
+    }
+    const writeMode = mode === "append" ? "append" : "replace";
+
+    const { row, sheet } = await resolveJobRow(jobId, SUPERVISOR_SCOPE);
+    const byId = buildColumnsById(sheet);
+    const rec = rowToRecord(row, byId);
+    const existing = String(rec["NSC Project Notes"] ?? "");
+
+    // Stamp the note with date + author so the history reads cleanly when
+    // multiple notes pile up over a project's life. Format mirrors what the
+    // supervisor would type by hand on the desktop.
+    const stamp = new Date().toLocaleDateString("en-US", {
+      month: "2-digit", day: "2-digit", year: "2-digit",
+    });
+    const stamped = `${stamp} - Billy: ${notes.trim()}`;
+
+    const next = writeMode === "append" && existing
+      ? `${existing}\n${stamped}`
+      : stamped;
+
+    const updated = await updateRowCells(row.id, { "NSC Project Notes": next }, sheet);
+    invalidateSheetCaches();
+    return res.json({
+      ok: true,
+      rowId: updated.id,
+      jobId,
+      mode: writeMode,
+      newValue: next,
+      modifiedAt: updated.modifiedAt,
+    });
+  } catch (err) {
+    const status = (err as { status?: number }).status ?? 500;
+    console.error("[lumina/smartsheet/update-notes] error:", err);
+    return res.status(status).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ----- POST /lumina/smartsheet/update-status -----------------------------
+//
+// Change Job Status (or Secondary Job Status) on a job row.
+// Body: { jobId, status: string, kind?: "primary" | "secondary" }
+router.post("/lumina/smartsheet/update-status", async (req: Request, res: Response) => {
+  try {
+    const { jobId, status, kind } = (req.body ?? {}) as {
+      jobId?: string | number;
+      status?: string;
+      kind?: "primary" | "secondary";
+    };
+    if (jobId === undefined || jobId === null || jobId === "") {
+      return res.status(400).json({ error: "jobId required." });
+    }
+    if (typeof status !== "string" || !status.trim()) {
+      return res.status(400).json({ error: "status must be a non-empty string." });
+    }
+    const column = kind === "secondary" ? "Secondary Job Status" : "Job Status";
+
+    const { row, sheet } = await resolveJobRow(jobId, SUPERVISOR_SCOPE);
+    const updated = await updateRowCells(row.id, { [column]: status.trim() }, sheet);
+    invalidateSheetCaches();
+    return res.json({
+      ok: true,
+      rowId: updated.id,
+      jobId,
+      column,
+      newValue: status.trim(),
+      modifiedAt: updated.modifiedAt,
+    });
+  } catch (err) {
+    const status = (err as { status?: number }).status ?? 500;
+    console.error("[lumina/smartsheet/update-status] error:", err);
+    return res.status(status).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ----- POST /lumina/smartsheet/reschedule --------------------------------
+//
+// Move a job's Schedule Date (and optionally its End Date). Single-day jobs
+// can pass scheduleDate only; multi-day must pass both.
+//
+// Body: { jobId, scheduleDate: "YYYY-MM-DD", endDate?: "YYYY-MM-DD" }
+router.post("/lumina/smartsheet/reschedule", async (req: Request, res: Response) => {
+  try {
+    const { jobId, scheduleDate, endDate } = (req.body ?? {}) as {
+      jobId?: string | number;
+      scheduleDate?: string;
+      endDate?: string;
+    };
+    if (jobId === undefined || jobId === null || jobId === "") {
+      return res.status(400).json({ error: "jobId required." });
+    }
+    if (typeof scheduleDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(scheduleDate)) {
+      return res.status(400).json({ error: "scheduleDate must be YYYY-MM-DD." });
+    }
+    if (endDate !== undefined && endDate !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      return res.status(400).json({ error: "endDate must be YYYY-MM-DD when provided." });
+    }
+    if (endDate && endDate < scheduleDate) {
+      return res.status(400).json({ error: "endDate cannot be before scheduleDate." });
+    }
+
+    const { row, sheet } = await resolveJobRow(jobId, SUPERVISOR_SCOPE);
+    const cells: Record<string, string | null> = { "Schedule Date": scheduleDate };
+    if (endDate) cells["End Date"] = endDate;
+
+    const updated = await updateRowCells(row.id, cells, sheet);
+    invalidateSheetCaches();
+    return res.json({
+      ok: true,
+      rowId: updated.id,
+      jobId,
+      scheduleDate,
+      endDate: endDate ?? null,
+      modifiedAt: updated.modifiedAt,
+    });
+  } catch (err) {
+    const status = (err as { status?: number }).status ?? 500;
+    console.error("[lumina/smartsheet/reschedule] error:", err);
+    return res.status(status).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 

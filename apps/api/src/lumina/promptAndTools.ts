@@ -181,10 +181,27 @@ Prefer searchSmartsheetByJob over listSmartsheetRows when Billy names a
 specific job. Prefer NSC reads (listJobs / getJob) for map-side state.
 
 =====================================================================
+  SCHEDULE (Sprint 2.1)
+=====================================================================
+- getSchedule(weekStart?, scope?) — read the week's scheduled jobs from
+  Smartsheet (Mon–Fri grid). weekStart is YYYY-MM-DD; omit it for the
+  current week. scope='mine' (default) returns Billy's jobs only;
+  scope='all' returns every supervisor. Returns events plus a byDay map
+  keyed by weekday name — use the byDay map to answer 'what's on Tuesday'
+  questions without re-summarizing the whole week.
+
+=====================================================================
   WRITES (propose pattern — Billy must approve a card)
 =====================================================================
-- proposeNotesUpdate(jobId, notes) — draft notes change.
-- proposeStatusChange(jobId, status) — draft status change.
+- proposeNotesUpdate(jobId, notes, mode?) — draft a notes change on the
+  Smartsheet NSC Project Notes column. mode='append' (default) keeps
+  history; 'replace' overwrites. Server stamps the entry with date + Billy.
+- proposeStatusChange(jobId, status, statusKind?) — draft a status change.
+  statusKind='primary' (default) targets Job Status; 'secondary' targets
+  Secondary Job Status.
+- proposeReschedule(jobId, scheduleDate, endDate?) — draft a schedule
+  date move (Sprint 2.1). scheduleDate YYYY-MM-DD. Pass endDate (also
+  YYYY-MM-DD) for multi-day jobs; the server refuses endDate < scheduleDate.
 - proposeMarkupLabel(jobId, objectId, label) — draft markup label change.
 - proposeMemorySave(text, kind?) — durable memory about Billy.
 
@@ -594,25 +611,79 @@ export const LUMINA_TOOLS = [
         },
       },
 
+      // ── Schedule read (Sprint 2.1) ───────────────────────────────
+      {
+        name: "getSchedule",
+        description:
+          "Read the week's scheduled jobs from Smartsheet (Mon-Fri grid). Defaults to Billy's scope and the current week. Pass weekStart=YYYY-MM-DD for other weeks (must be a Monday); scope='all' for every supervisor. Returns events plus a byDay map keyed by weekday name for quick day-specific summaries. Read-only.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            weekStart: {
+              type: "STRING",
+              description: "Monday of the target week in YYYY-MM-DD. Omit for the current week.",
+            },
+            scope: {
+              type: "STRING",
+              description: "'mine' (default, Billy only) or 'all' (every supervisor).",
+            },
+          },
+        },
+      },
+
       // ── Write tools — propose pattern (gated by confirmation cards) ────
       {
         name: "proposeNotesUpdate",
         description:
-          "Draft a notes update for a job. Does NOT write — queues a confirmation card that Billy must approve.",
+          "Draft a notes update for a job's Smartsheet NSC Project Notes column. mode='append' (default) keeps historical notes and adds a stamped line; 'replace' overwrites. Does NOT write — queues a confirmation card that Billy must approve.",
         parameters: {
           type: "OBJECT",
-          properties: { jobId: { type: "STRING" }, notes: { type: "STRING" } },
+          properties: {
+            jobId: { type: "STRING" },
+            notes: { type: "STRING" },
+            mode: {
+              type: "STRING",
+              description: "'append' (default) or 'replace'.",
+            },
+          },
           required: ["jobId", "notes"],
         },
       },
       {
         name: "proposeStatusChange",
         description:
-          "Draft a status change for a job. Does NOT write — queues a confirmation card that Billy must approve.",
+          "Draft a status change for a job. statusKind='primary' (default) targets Job Status; 'secondary' targets Secondary Job Status. Does NOT write — queues a confirmation card that Billy must approve.",
         parameters: {
           type: "OBJECT",
-          properties: { jobId: { type: "STRING" }, status: { type: "STRING" } },
+          properties: {
+            jobId: { type: "STRING" },
+            status: { type: "STRING" },
+            statusKind: {
+              type: "STRING",
+              description: "'primary' (default) or 'secondary'.",
+            },
+          },
           required: ["jobId", "status"],
+        },
+      },
+      {
+        name: "proposeReschedule",
+        description:
+          "Draft a schedule date move for a job (Smartsheet Schedule Date, and optionally End Date for multi-day jobs). Both dates must be YYYY-MM-DD. Does NOT write — queues a confirmation card that Billy must approve.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobId: { type: "STRING" },
+            scheduleDate: {
+              type: "STRING",
+              description: "New schedule date in YYYY-MM-DD.",
+            },
+            endDate: {
+              type: "STRING",
+              description: "Optional end date in YYYY-MM-DD for multi-day jobs.",
+            },
+          },
+          required: ["jobId", "scheduleDate"],
         },
       },
       {

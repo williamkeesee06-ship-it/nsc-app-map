@@ -1,20 +1,22 @@
 /**
- * Phase 4 — propose-write tools.
+ * Phase 4 + Sprint 1.4 + Sprint 2.1 — propose-write tools.
  *
- * These tools never mutate anything directly. They enqueue a PendingAction
- * onto luminaStore. The ChatPanel renders a confirmation card; APPLY runs
- * the real write path (api.putDrawing for markup labels) and triggers the
- * write-glow on success.
+ * These tools NEVER mutate anything directly. They enqueue a PendingAction
+ * onto luminaStore. ChatPanel renders a confirmation card; APPLY runs the
+ * real write path and triggers the write-glow on success.
  *
- * Three propose tools ship in Phase 4:
- *   - proposeMarkupLabel  → fully wired (asbuilt doc is writable today)
- *   - proposeNotesUpdate  → stubbed: returns ok:false with a clear message,
- *                           because Smartsheet notes have no write path yet
- *   - proposeStatusChange → same — Smartsheet status has no write path yet
+ * Pattern (mirrors proposeMarkupLabel — the original reference):
+ *   1. Validate input shape, return ok:false on bad args.
+ *   2. Build a PendingAction with a discriminated `kind`.
+ *   3. Enqueue via ctx.enqueueAction(action).
+ *   4. Return ok:true with the verbatim "Queued. Tell Billy …" message so
+ *      the model relays it instead of inventing a confirmation.
  *
- * When notes/status acquire a real write path (future phase), this is the
- * only file that has to change: drop the early-return and add a real
- * PendingNotesUpdate / PendingStatusChange enqueue.
+ * Live propose tools:
+ *   - proposeMarkupLabel  → asbuilt drawing doc (Firestore)
+ *   - proposeNotesUpdate  → Smartsheet NSC Project Notes (Sprint 1.4)
+ *   - proposeStatusChange → Smartsheet Job Status / Secondary Job Status
+ *   - proposeReschedule   → Smartsheet Schedule Date / End Date (Sprint 2.1)
  */
 
 import type {
@@ -22,10 +24,13 @@ import type {
   LuminaToolContext,
   LuminaToolResult,
   PendingMarkupLabel,
+  PendingNotesUpdate,
+  PendingReschedule,
+  PendingStatusChange,
 } from "./types.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// proposeMarkupLabel — REAL write path
+// proposeMarkupLabel — REAL write path (Firestore asbuilt doc)
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ProposeMarkupLabelInput {
@@ -93,68 +98,247 @@ export const proposeMarkupLabelTool: LuminaTool<
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// proposeNotesUpdate — STUB (no write path yet)
-// proposeStatusChange — STUB (no write path yet)
-//
-// We register these so the model gets a clear "not available yet" answer
-// instead of silently failing to call an undefined tool. The model is
-// expected to relay this verbatim to Billy.
+// proposeNotesUpdate — REAL write path (Smartsheet NSC Project Notes)
+// Sprint 1.4. Server stamps the note with "MM/DD/YY - Billy: <text>" so the
+// history reads cleanly when multiple notes pile up over a project's life.
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ProposeNotesUpdateInput {
   jobId: string;
   notes: string;
+  mode?: "append" | "replace";
+}
+
+interface ProposeNotesUpdateData {
+  queued: true;
+  pendingActionId: string;
+  jobId: string;
+  notes: string;
+  mode: "append" | "replace";
 }
 
 async function runProposeNotesUpdate(
-  _input: ProposeNotesUpdateInput,
-  _ctx: LuminaToolContext
-): Promise<LuminaToolResult<{ available: false }>> {
+  input: ProposeNotesUpdateInput,
+  ctx: LuminaToolContext
+): Promise<LuminaToolResult<ProposeNotesUpdateData>> {
+  if (!input.jobId || typeof input.notes !== "string" || !input.notes.trim()) {
+    return {
+      ok: false,
+      message: "proposeNotesUpdate requires jobId and a non-empty notes string.",
+    };
+  }
+  // Default to "append" — Billy almost never wants to wipe historical notes,
+  // and if he does he can say "replace the note with…".
+  const mode: "append" | "replace" = input.mode === "replace" ? "replace" : "append";
+
+  const pendingId = `pnu_${crypto.randomUUID()}`;
+  const action: PendingNotesUpdate = {
+    id: pendingId,
+    kind: "notesUpdate",
+    createdAt: Date.now(),
+    title: `${mode === "append" ? "Append note" : "Replace note"} on ${input.jobId}`,
+    diff: [{ field: mode === "append" ? "notes (append)" : "notes (replace)", after: input.notes.trim() }],
+    jobId: String(input.jobId),
+    notes: input.notes.trim(),
+    mode,
+  };
+  ctx.enqueueAction(action);
+
   return {
-    ok: false,
+    ok: true,
     message:
-      "Notes updates aren't wired to Smartsheet yet. Tell Billy: \"I can't write notes back to Smartsheet from here yet — you'll have to edit that one manually for now.\" Do not queue or claim it as done.",
-    data: { available: false },
+      "Queued. Tell Billy verbally that the note is queued and ask him to approve it on the confirmation card.",
+    pendingActionId: pendingId,
+    data: {
+      queued: true,
+      pendingActionId: pendingId,
+      jobId: String(input.jobId),
+      notes: input.notes.trim(),
+      mode,
+    },
   };
 }
 
 export const proposeNotesUpdateTool: LuminaTool<
   ProposeNotesUpdateInput,
-  { available: false }
+  ProposeNotesUpdateData
 > = {
   name: "proposeNotesUpdate",
   description:
-    "Draft a notes update for a job. Does NOT write — queues a confirmation card that Billy must approve.",
+    "Draft a notes update for a job (Smartsheet NSC Project Notes). Does NOT write — queues a confirmation card that Billy must approve.",
   kind: "propose",
   run: runProposeNotesUpdate,
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// proposeStatusChange — REAL write path (Smartsheet Job Status)
+// Sprint 1.4. statusKind defaults to "primary" (Job Status column);
+// pass "secondary" to write the Secondary Job Status column instead.
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface ProposeStatusChangeInput {
   jobId: string;
   status: string;
+  statusKind?: "primary" | "secondary";
+}
+
+interface ProposeStatusChangeData {
+  queued: true;
+  pendingActionId: string;
+  jobId: string;
+  status: string;
+  statusKind: "primary" | "secondary";
 }
 
 async function runProposeStatusChange(
-  _input: ProposeStatusChangeInput,
-  _ctx: LuminaToolContext
-): Promise<LuminaToolResult<{ available: false }>> {
+  input: ProposeStatusChangeInput,
+  ctx: LuminaToolContext
+): Promise<LuminaToolResult<ProposeStatusChangeData>> {
+  if (!input.jobId || typeof input.status !== "string" || !input.status.trim()) {
+    return {
+      ok: false,
+      message: "proposeStatusChange requires jobId and a non-empty status.",
+    };
+  }
+  const statusKind: "primary" | "secondary" =
+    input.statusKind === "secondary" ? "secondary" : "primary";
+
+  const pendingId = `psc_${crypto.randomUUID()}`;
+  const action: PendingStatusChange = {
+    id: pendingId,
+    kind: "statusChange",
+    createdAt: Date.now(),
+    title: `Set ${statusKind === "secondary" ? "secondary status" : "status"} on ${input.jobId}`,
+    diff: [
+      {
+        field: statusKind === "secondary" ? "Secondary Job Status" : "Job Status",
+        after: input.status.trim(),
+      },
+    ],
+    jobId: String(input.jobId),
+    status: input.status.trim(),
+    statusKind,
+  };
+  ctx.enqueueAction(action);
+
   return {
-    ok: false,
+    ok: true,
     message:
-      "Status changes aren't wired to Smartsheet yet. Tell Billy: \"I can't push status changes back to Smartsheet from here yet — you'll have to set that one manually for now.\" Do not queue or claim it as done.",
-    data: { available: false },
+      "Queued. Tell Billy verbally that the status change is queued and ask him to approve it on the confirmation card.",
+    pendingActionId: pendingId,
+    data: {
+      queued: true,
+      pendingActionId: pendingId,
+      jobId: String(input.jobId),
+      status: input.status.trim(),
+      statusKind,
+    },
   };
 }
 
 export const proposeStatusChangeTool: LuminaTool<
   ProposeStatusChangeInput,
-  { available: false }
+  ProposeStatusChangeData
 > = {
   name: "proposeStatusChange",
   description:
-    "Draft a status change for a job. Does NOT write — queues a confirmation card that Billy must approve.",
+    "Draft a status change for a job (Smartsheet Job Status, or Secondary Job Status when statusKind='secondary'). Does NOT write — queues a confirmation card that Billy must approve.",
   kind: "propose",
   run: runProposeStatusChange,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// proposeReschedule — REAL write path (Smartsheet Schedule Date / End Date)
+// Sprint 2.1. scheduleDate is required (YYYY-MM-DD); endDate is required for
+// multi-day jobs. Server refuses if endDate < scheduleDate.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ProposeRescheduleInput {
+  jobId: string;
+  scheduleDate: string;
+  endDate?: string;
+}
+
+interface ProposeRescheduleData {
+  queued: true;
+  pendingActionId: string;
+  jobId: string;
+  scheduleDate: string;
+  endDate?: string;
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+async function runProposeReschedule(
+  input: ProposeRescheduleInput,
+  ctx: LuminaToolContext
+): Promise<LuminaToolResult<ProposeRescheduleData>> {
+  if (!input.jobId) {
+    return { ok: false, message: "proposeReschedule requires jobId." };
+  }
+  if (!input.scheduleDate || !DATE_RE.test(input.scheduleDate)) {
+    return {
+      ok: false,
+      message: "proposeReschedule requires scheduleDate in YYYY-MM-DD format.",
+    };
+  }
+  if (input.endDate && !DATE_RE.test(input.endDate)) {
+    return {
+      ok: false,
+      message: "proposeReschedule endDate must be YYYY-MM-DD when provided.",
+    };
+  }
+  if (input.endDate && input.endDate < input.scheduleDate) {
+    return {
+      ok: false,
+      message: "proposeReschedule endDate cannot be before scheduleDate.",
+    };
+  }
+
+  const pendingId = `prs_${crypto.randomUUID()}`;
+  const diff: Array<{ field: string; after?: string }> = [
+    { field: "Schedule Date", after: input.scheduleDate },
+  ];
+  if (input.endDate) diff.push({ field: "End Date", after: input.endDate });
+
+  const action: PendingReschedule = {
+    id: pendingId,
+    kind: "reschedule",
+    createdAt: Date.now(),
+    title: input.endDate
+      ? `Reschedule ${input.jobId} → ${input.scheduleDate} to ${input.endDate}`
+      : `Reschedule ${input.jobId} → ${input.scheduleDate}`,
+    diff,
+    jobId: String(input.jobId),
+    scheduleDate: input.scheduleDate,
+    endDate: input.endDate,
+  };
+  ctx.enqueueAction(action);
+
+  return {
+    ok: true,
+    message:
+      "Queued. Tell Billy verbally that the reschedule is queued and ask him to approve it on the confirmation card.",
+    pendingActionId: pendingId,
+    data: {
+      queued: true,
+      pendingActionId: pendingId,
+      jobId: String(input.jobId),
+      scheduleDate: input.scheduleDate,
+      endDate: input.endDate,
+    },
+  };
+}
+
+export const proposeRescheduleTool: LuminaTool<
+  ProposeRescheduleInput,
+  ProposeRescheduleData
+> = {
+  name: "proposeReschedule",
+  description:
+    "Draft a schedule date move for a job (Smartsheet Schedule Date and optional End Date for multi-day jobs). Does NOT write — queues a confirmation card that Billy must approve.",
+  kind: "propose",
+  run: runProposeReschedule,
 };
 
 // Convenience bundle for the registry.
@@ -162,4 +346,5 @@ export const writeTools = [
   proposeMarkupLabelTool,
   proposeNotesUpdateTool,
   proposeStatusChangeTool,
+  proposeRescheduleTool,
 ];

@@ -142,6 +142,83 @@ export default function ChatPanel() {
         } catch {
           /* non-browser env */
         }
+      } else if (action.kind === "notesUpdate") {
+        // Sprint 1.4 APPLY — Smartsheet NSC Project Notes write-through.
+        // Server stamps "MM/DD/YY - Billy: <note>" and enforces Billy-only scope.
+        const result = await api.updateSmartsheetNotes({
+          jobId: action.jobId,
+          notes: action.notes,
+          mode: action.mode ?? "append",
+        });
+        appendMessage({
+          id: crypto.randomUUID(),
+          role: "lumina",
+          text: `Note ${action.mode === "replace" ? "replaced" : "added"} on ${action.jobId}.`,
+          at: Date.now(),
+        });
+        // Re-broadcast so any open Smartsheet read panels can refresh.
+        try {
+          window.dispatchEvent(
+            new CustomEvent("nsc:smartsheet-changed", {
+              detail: { rowId: result.rowId, jobId: action.jobId, column: "NSC Project Notes" },
+            })
+          );
+        } catch {
+          /* non-browser env */
+        }
+      } else if (action.kind === "statusChange") {
+        // Sprint 1.4 APPLY — Smartsheet Job Status (or Secondary) write-through.
+        const result = await api.updateSmartsheetStatus({
+          jobId: action.jobId,
+          status: action.status,
+          kind: action.statusKind ?? "primary",
+        });
+        appendMessage({
+          id: crypto.randomUUID(),
+          role: "lumina",
+          text: `${result.column} set to "${action.status}" on ${action.jobId}.`,
+          at: Date.now(),
+        });
+        try {
+          window.dispatchEvent(
+            new CustomEvent("nsc:smartsheet-changed", {
+              detail: { rowId: result.rowId, jobId: action.jobId, column: result.column },
+            })
+          );
+        } catch {
+          /* non-browser env */
+        }
+      } else if (action.kind === "reschedule") {
+        // Sprint 2.1 APPLY — Smartsheet Schedule Date / End Date write-through.
+        const result = await api.rescheduleSmartsheet({
+          jobId: action.jobId,
+          scheduleDate: action.scheduleDate,
+          endDate: action.endDate,
+        });
+        const span = action.endDate
+          ? `${action.scheduleDate} → ${action.endDate}`
+          : action.scheduleDate;
+        appendMessage({
+          id: crypto.randomUUID(),
+          role: "lumina",
+          text: `Rescheduled ${action.jobId} to ${span}.`,
+          at: Date.now(),
+        });
+        // Let the Calendar tab refetch the week without a page reload.
+        try {
+          window.dispatchEvent(
+            new CustomEvent("nsc:calendar-changed", {
+              detail: { rowId: result.rowId, jobId: action.jobId },
+            })
+          );
+          window.dispatchEvent(
+            new CustomEvent("nsc:smartsheet-changed", {
+              detail: { rowId: result.rowId, jobId: action.jobId, column: "Schedule Date" },
+            })
+          );
+        } catch {
+          /* non-browser env */
+        }
       }
       resolveAction(action.id);
     } catch (err) {

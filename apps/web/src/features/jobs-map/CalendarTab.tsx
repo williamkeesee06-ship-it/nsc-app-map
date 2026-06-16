@@ -183,6 +183,9 @@ export function CalendarTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
+  // Bumped by the nsc:calendar-changed event after Lumina applies a
+  // reschedule. Increment forces the fetch effect below to re-run.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const weekEnd = useMemo(() => addDays(weekStart, 4), [weekStart]);
   const weekStartIso = useMemo(() => isoDate(weekStart), [weekStart]);
@@ -203,7 +206,18 @@ export function CalendarTab() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [weekStartIso, scope]);
+  }, [weekStartIso, scope, refreshTick]);
+
+  // Refetch when Lumina applies a reschedule (or any Smartsheet write that
+  // touches schedule columns). Cheap — the server-side cache is shared with
+  // /calendar, so a near-immediate refetch is fine.
+  useEffect(() => {
+    function onChange() {
+      setRefreshTick((t) => t + 1);
+    }
+    window.addEventListener("nsc:calendar-changed", onChange);
+    return () => window.removeEventListener("nsc:calendar-changed", onChange);
+  }, []);
 
   const events = payload?.events ?? [];
   const crews = useMemo(() => Array.from(groupByCrew(events).keys()), [events]);
