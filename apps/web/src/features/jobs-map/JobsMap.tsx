@@ -207,16 +207,16 @@ function JobsMapInner({
 
   // ── Full-screen Calendar overlay ─────────────────────────────────────────
   // LeftRail broadcasts its active tab via the "nsc:active-tab" CustomEvent.
-  // When the user picks CALENDAR (and the rail isn't collapsed), we mount
-  // <CalendarTab /> absolutely-positioned over the map canvas so it claims
-  // the full main area instead of being squeezed into the side rail.
-  // The rail stays visible so the user can click another tab to dismiss.
+  // When the user picks CALENDAR, we mount <CalendarTab /> absolutely-
+  // positioned over the map canvas so it claims the full main area.
+  // The rail collapses to a thin tab strip so the user can click another
+  // tab to dismiss — collapse state does NOT hide the overlay.
   const [calendarFullscreen, setCalendarFullscreen] = useState(false);
   useEffect(() => {
     function onActiveTab(e: Event) {
       const detail = (e as CustomEvent<{ tab: string; collapsed: boolean }>).detail;
       if (!detail) return;
-      setCalendarFullscreen(detail.tab === "calendar" && !detail.collapsed);
+      setCalendarFullscreen(detail.tab === "calendar");
     }
     window.addEventListener("nsc:active-tab", onActiveTab);
     return () => window.removeEventListener("nsc:active-tab", onActiveTab);

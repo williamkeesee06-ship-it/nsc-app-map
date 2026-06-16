@@ -68,12 +68,14 @@ export default function LeftRail({
 
   // Click an active tab to collapse the rail; click a different tab to switch
   // to it (and uncollapse if currently collapsed).
+  // Exception: CALENDAR mounts full-screen over the map and has no rail
+  // content of its own, so we collapse the rail when entering it.
   const onTabClick = useCallback((id: TabId) => {
     if (id === activeTab) {
       setCollapsed(c => !c);
     } else {
       setActiveTab(id);
-      setCollapsed(false);
+      setCollapsed(id === 'calendar');
     }
   }, [activeTab]);
   const draggingRef = useRef(false);
@@ -227,36 +229,9 @@ export default function LeftRail({
                 {activeTab === 'telecom' && <TelecomTab />}
                 {activeTab === 'tools' && <AnnotateTab />}
                 {activeTab === 'route' && <RouteBuilderTab />}
-                {activeTab === 'calendar' && (
-                  // Calendar renders full-screen over the map (mounted by
-                  // JobsMap). The rail just shows a hint so the user knows
-                  // where it went and how to dismiss it.
-                  <div className="cal-rail-hint">
-                    <div className="cal-rail-hint__title">CALENDAR IS FULL-SCREEN</div>
-                    <div className="cal-rail-hint__body">
-                      Click any other tab (or click CALENDAR again to collapse the rail) to return to the map.
-                    </div>
-                    <style>{`
-                      .cal-rail-hint {
-                        padding: 18px 14px;
-                        color: #cfd6df;
-                        font-family: "Space Grotesk", system-ui, sans-serif;
-                      }
-                      .cal-rail-hint__title {
-                        font-size: 11px;
-                        font-weight: 700;
-                        letter-spacing: 0.08em;
-                        color: #4a9eff;
-                        margin-bottom: 8px;
-                      }
-                      .cal-rail-hint__body {
-                        font-size: 12px;
-                        line-height: 1.45;
-                        color: #98a2b3;
-                      }
-                    `}</style>
-                  </div>
-                )}
+                {/* Calendar tab has no rail content — it mounts full-screen
+                    over the map (handled by JobsMap). The rail auto-collapses
+                    on entry so there's nothing visible here. */}
               </div>
             </div>
           )}
