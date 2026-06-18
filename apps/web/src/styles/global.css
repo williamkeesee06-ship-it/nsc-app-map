@@ -3071,10 +3071,13 @@ input:focus, textarea:focus, select:focus {
 */
 .topbar .logo { height: 60px; }
 
+/* 6/18/26: widened search bar after MapTypeToggle moved to Filters tab.
+   Previously flex 0 1 280px / max 320 / min 200. Now ~70% wider per approved
+   topbar_filters_redesign mockup. */
 .topbar .search-wrap {
-  flex: 0 1 280px;
-  max-width: 320px;
-  min-width: 200px;
+  flex: 1 1 520px;
+  max-width: 620px;
+  min-width: 340px;
 }
 
 .screenshot-btn--active {

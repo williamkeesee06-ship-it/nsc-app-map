@@ -11,7 +11,9 @@
 import { useEffect, useState, useRef } from "react";
 import type { MapTheme } from "./mapStyles.js";
 
-type MapType = "roadmap" | "satellite" | "hybrid" | "terrain";
+// Exported so sibling components (e.g. the Filters-tab MapTypeFilterSection)
+// can share the same union without redeclaring it.
+export type MapType = "roadmap" | "satellite" | "hybrid" | "terrain";
 
 export interface MapPreferences {
   mapType: MapType;
@@ -36,7 +38,9 @@ const DEFAULT_PREFS: MapPreferences = {
   showTransit: true,
 };
 
-function loadPrefs(): MapPreferences {
+// Exported so other UIs (e.g. the Filters tab) can read/write the same store
+// without duplicating localStorage keys or broadcast event names.
+export function loadPrefs(): MapPreferences {
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     if (raw) {
@@ -49,17 +53,24 @@ function loadPrefs(): MapPreferences {
   return { ...DEFAULT_PREFS };
 }
 
-function savePrefs(prefs: MapPreferences) {
+export function savePrefs(prefs: MapPreferences) {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
 }
 
-function broadcast(prefs: MapPreferences) {
+export function broadcastPrefs(prefs: MapPreferences) {
   window.dispatchEvent(new CustomEvent("nsc:map-prefs-changed", { detail: prefs }));
 }
+// Internal alias — kept so the rest of this file reads unchanged.
+const broadcast = broadcastPrefs;
+
+// Event name used to notify all listeners when prefs change. Exported so
+// other components can subscribe (e.g. to stay in sync when the topbar
+// pill changes the prefs).
+export const MAP_PREFS_EVENT = "nsc:map-prefs-changed";
 
 // Base tile layers (Google mapTypeId). Satellite imagery is the underlying
 // difference; theme styling only affects roadmap/terrain rendering.
-const BASE_MAPS: { id: MapType; label: string; icon: string }[] = [
+export const BASE_MAPS: { id: MapType; label: string; icon: string }[] = [
   { id: "roadmap", label: "Classic", icon: "🗺" },
   { id: "satellite", label: "Satellite", icon: "🛰" },
   { id: "hybrid", label: "Hybrid", icon: "🌐" },
@@ -67,7 +78,7 @@ const BASE_MAPS: { id: MapType; label: string; icon: string }[] = [
 ];
 
 // Styled themes — these layer Google styles on top of roadmap/terrain.
-const THEMES: { id: MapTheme; label: string; icon: string }[] = [
+export const THEMES: { id: MapTheme; label: string; icon: string }[] = [
   { id: "classic", label: "Default", icon: "☀️" },
   { id: "dark", label: "Dark", icon: "🌙" },
   { id: "silver", label: "Silver", icon: "⚪" },

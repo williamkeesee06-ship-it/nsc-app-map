@@ -10,7 +10,9 @@ import { downloadScreenshot } from "./screenshot.js";
 import SaveDrawingDialog from "./SaveDrawingDialog.js";
 import LocateMeButton from "./LocateMe.js";
 import { useJobsContext } from "../jobs-map/jobsContext.js";
-import MapTypeToggle from "../map/MapTypeToggle.js";
+// MapTypeToggle was moved out of the topbar and now lives in the Filters
+// tab as a radio-button section (see map/MapTypeFilterSection.tsx). The
+// move freed horizontal room here so the search bar can stretch wider.
 
 export default function TopbarActions() {
   // Gracefully consume the context — may be null outside DrawingProvider routes
@@ -127,8 +129,9 @@ export default function TopbarActions() {
         >
           {screenshotting ? "⏳" : <ScreenshotIcon />}
         </button>
-        {/* Base Map control must be present even outside the DrawingProvider. */}
-        <MapTypeToggle />
+        {/* Base map / theme controls live in the Filters tab now — see
+            map/MapTypeFilterSection.tsx. Removed from the topbar to free
+            room for a wider search bar. */}
       </div>
     );
   }
@@ -187,9 +190,8 @@ export default function TopbarActions() {
           {screenshotting ? "⏳" : <ScreenshotIcon />}
         </button>
 
-        {/* Map style toggle — moved from floating map widget into the topbar so
-            the editor toolbar doesn't cover it. */}
-        <MapTypeToggle />
+        {/* Map style toggle lives in the Filters tab now — see
+            map/MapTypeFilterSection.tsx. */}
 
         {/* Phase 5: workspace mode shows auto-save status pill (gives confirmation that
             autosave is working, since the explicit save button was removed). */}

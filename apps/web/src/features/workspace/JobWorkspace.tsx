@@ -9,7 +9,7 @@ import { stylesFor, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
 import { useMapTheme } from "../map/themeContext.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
-import MapTypeToggle from "../map/MapTypeToggle.js";
+// MapTypeToggle removed — map type/theme now lives in LeftRail Filters tab (MapTypeFilterSection).
 import MapTypeApplier from "../map/MapTypeApplier.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import LeftRail from "../jobs-map/LeftRail.js";

@@ -22,7 +22,7 @@ import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
 import { useShowCOs } from "./centralOfficesStore.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import JobsShownPill from "./JobsShownPill.js";
-import MapTypeToggle from "../map/MapTypeToggle.js";
+// MapTypeToggle moved to LeftRail Filters tab (MapTypeFilterSection). MapTypeApplier still listens to the same broadcast.
 import MapTypeApplier from "../map/MapTypeApplier.js";
 import type { MapTheme } from "../map/themeContext.js";
 import { JobsProvider } from "./jobsContext.js";

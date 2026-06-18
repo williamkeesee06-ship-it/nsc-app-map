@@ -11,6 +11,7 @@ import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 import { queuePrefWrite } from "../../lib/prefsSync.js";
 import StatusFilterPills from "./StatusFilterPills.js";
 import CentralOfficesPill from "./CentralOfficesPill.js";
+import MapTypeFilterSection from "../map/MapTypeFilterSection.js";
 import RouteBuilderTab from "./RouteBuilderTab.js";
 // CalendarTab is mounted full-screen by JobsMap, not inside the rail.
 import LuminaTab from "../lumina/LuminaTab.js";
@@ -428,6 +429,9 @@ function FiltersTab({
         <div className="filters-tab__heading">OVERLAYS</div>
         <CentralOfficesPill />
       </div>
+
+      {/* Map type + theme — moved out of the topbar (6/18). */}
+      <MapTypeFilterSection />
 
       {!hideFilters && (
         <div className="filters-tab__group">
