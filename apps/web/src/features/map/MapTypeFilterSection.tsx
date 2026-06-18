@@ -54,6 +54,16 @@ export default function MapTypeFilterSection() {
   function setTheme(id: MapPreferences["theme"]) {
     setPrefs((p) => ({ ...p, theme: id, dark: id === "dark" }));
   }
+  function toggleDetail(key: "showCityLabels" | "showRoadLabels" | "showPoiLabels" | "showTransit") {
+    setPrefs((p) => ({ ...p, [key]: !p[key] }));
+  }
+
+  const detailRows: { key: "showCityLabels" | "showRoadLabels" | "showPoiLabels" | "showTransit"; label: string }[] = [
+    { key: "showCityLabels", label: "City & town names" },
+    { key: "showRoadLabels", label: "Street / road names" },
+    { key: "showPoiLabels", label: "Businesses & places" },
+    { key: "showTransit", label: "Transit lines" },
+  ];
 
   return (
     <>
@@ -92,6 +102,29 @@ export default function MapTypeFilterSection() {
               <span className="map-pref-row__label">{t.label}</span>
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="filters-tab__group">
+        <div className="filters-tab__heading">MAP DETAIL</div>
+        <div className="map-pref-list">
+          {detailRows.map((row) => {
+            const checked = prefs[row.key];
+            return (
+              <button
+                key={row.key}
+                type="button"
+                className={`map-pref-row map-pref-row--check${checked ? " is-active" : ""}`}
+                onClick={() => toggleDetail(row.key)}
+                aria-pressed={checked}
+              >
+                <span className="map-pref-row__check" aria-hidden="true">
+                  {checked ? "✓" : ""}
+                </span>
+                <span className="map-pref-row__label">{row.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -156,6 +189,25 @@ export default function MapTypeFilterSection() {
         .map-pref-row.is-active .map-pref-row__label {
           font-weight: 700;
           color: #ffffff;
+        }
+        /* Checkbox variant for MAP DETAIL rows */
+        .map-pref-row__check {
+          width: 16px;
+          height: 16px;
+          flex: 0 0 16px;
+          border-radius: 3px;
+          border: 1.5px solid #4a5868;
+          background: #14181f;
+          color: #ffffff;
+          font-size: 11px;
+          line-height: 14px;
+          text-align: center;
+          font-weight: 700;
+          transition: background 0.12s ease, border-color 0.12s ease;
+        }
+        .map-pref-row--check.is-active .map-pref-row__check {
+          background: #1565C0;
+          border-color: #1565C0;
         }
       `}</style>
     </>
