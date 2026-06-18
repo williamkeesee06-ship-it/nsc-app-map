@@ -172,21 +172,25 @@ function JobsMapInner({
 
       if (drawState.dirty && drawState.objects.length > 0 && switchingJob) {
         // Phase 5.2: auto-save silently before switching (best-effort).
-        // If the current draft has a targetJobId, try to push it to Firestore.
-        // On failure we fall back to localStorage (already persisted).
-        // If no targetJobId, the draft is unattached — leave it in localStorage.
+        // Pass `prevJobId` so save() aborts if anything else has already moved
+        // the target underneath us — prevents A's markups from landing in B's doc.
         if (prevJobId) {
           try {
-            await saveDrawing();
+            await saveDrawing(prevJobId);
           } catch {
-            // Save failed — localStorage draft is still intact, user won't lose work.
+            // Save failed — dirty stays true and the next autosave tick retries.
           }
         }
         // Either way, proceed with the switch — no window.confirm.
       }
 
+      // Billy 6/18 — mid-flight wipe protection.
+      // Clear local objects BEFORE setSelected (which triggers setTarget(B))
+      // so we never have { targetJobId: B, objects: A's markups } visible to
+      // the autosave debounce. loadObjects([]) also clears the dirty flag.
+      loadObjects([], []);
       setSelected(job);
-      // Load existing drawings for the newly-selected job into the overlay.
+      // Now fetch the newly-selected job's markups and load them in.
       try {
         const doc = await api.getDrawing(job.jobId, drawingOwner);
         if (doc && "objects" in doc && Array.isArray(doc.objects)) {

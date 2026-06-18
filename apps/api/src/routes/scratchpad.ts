@@ -54,12 +54,36 @@ router.put("/scratchpad/:owner", async (req, res, next) => {
     }
     const body = req.body as { objects?: unknown };
     const objects = Array.isArray(body.objects) ? body.objects : [];
+
+    // ── Empty-overwrite guard (Billy 6/18) ─────────────────────────────────
+    // Mirrors the asbuilt PUT guard. Scratchpad gets wiped the same way:
+    // a stale autosave from a transition can PUT an empty array and erase
+    // everything. Refuse + log unless ?allowEmpty=true is passed.
+    const ref = docRef(ownerName);
+    const allowEmpty = String(req.query.allowEmpty ?? "false") === "true";
+    if (objects.length === 0 && !allowEmpty) {
+      const existing = await ref.get();
+      if (existing.exists) {
+        const existingObjs = (existing.data() as { objects?: unknown[] })?.objects;
+        if (Array.isArray(existingObjs) && existingObjs.length > 0) {
+          console.warn(`[scratchpad-guard] BLOCKED empty overwrite owner="${ownerName}" existingObjs=${existingObjs.length} userAgent=${req.header("user-agent") ?? "?"} referer=${req.header("referer") ?? "?"}`);
+          res.status(409).json({
+            error: "refused-empty-overwrite",
+            detail: `Existing scratchpad has ${existingObjs.length} markup(s). Pass ?allowEmpty=true to intentionally clear.`,
+            owner: ownerName,
+            existingCount: existingObjs.length,
+          });
+          return;
+        }
+      }
+    }
+
     const payload = {
       objects,
       updatedAt: Date.now(),
       ownerName,
     };
-    await docRef(ownerName).set(payload, { merge: false });
+    await ref.set(payload, { merge: false });
     res.json(payload);
   } catch (err) {
     next(err);

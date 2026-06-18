@@ -264,6 +264,33 @@ router.put("/asbuilt/:jobId", async (req, res, next) => {
         res.status(400).json({ error: "Invalid asbuilt payload (v2)", issues: parsed.error.issues });
         return;
       }
+
+      // ── Empty-overwrite guard (Billy 6/18) ───────────────────────────────
+      // Refuse to overwrite a non-empty doc with an empty objects array unless
+      // the client opts in with ?allowEmpty=true. This prevents the silent
+      // data-loss path where a race during job-switch PUTs an empty payload
+      // and Firestore replaces real markups with nothing.
+      const allowEmpty = String(req.query.allowEmpty ?? "false") === "true";
+      if (parsed.data.objects.length === 0 && !allowEmpty) {
+        const existing = await target.get();
+        if (existing.exists) {
+          const existingObjs = (existing.data() as { objects?: unknown[] })?.objects;
+          if (Array.isArray(existingObjs) && existingObjs.length > 0) {
+            // Hard refuse + log enough context to find offenders in Vercel logs.
+            // We do NOT touch Firestore.
+            console.warn(`[asbuilt-guard] BLOCKED empty overwrite jobId=${jobId} owner="${ownerName}" existingObjs=${existingObjs.length} userAgent=${req.header("user-agent") ?? "?"} referer=${req.header("referer") ?? "?"}`);
+            res.status(409).json({
+              error: "refused-empty-overwrite",
+              detail: `Existing doc has ${existingObjs.length} markup(s). Pass ?allowEmpty=true to intentionally clear.`,
+              jobId,
+              owner: ownerName,
+              existingCount: existingObjs.length,
+            });
+            return;
+          }
+        }
+      }
+
       // Persist ownerName alongside the validated doc (not part of zod schema
       // but Firestore is permissive — we add it as an extra field).
       await target.set({ ...parsed.data, ownerName }, { merge: false });

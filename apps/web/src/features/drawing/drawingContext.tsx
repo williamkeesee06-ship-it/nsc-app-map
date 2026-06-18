@@ -344,7 +344,9 @@ interface DrawingContextValue {
   alignSelected: (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v') => void;
   deleteObjects: (ids: string[]) => void;
 
-  save: () => Promise<void>;
+  /** Optional `expectedTargetJobId` lets callers pin which job they expect to be saving for.
+   *  If the live target moved (job switch in flight), the save is aborted. */
+  save: (expectedTargetJobId?: string | null) => Promise<void>;
   /** Phase 5.2: clear the localStorage draft for the current target (or any draft) */
   clearDraft: () => void;
   mapRef: MutableRefObject<google.maps.Map | null>;
@@ -765,9 +767,25 @@ export function DrawingProvider({ children, mapRef }: Props) {
     dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, position } as DrawingObject });
   }, []);
 
-  const save = useCallback(async () => {
+  // Billy 6/18 — mid-flight target-change guard.
+  // When the user switches jobs, there's a window between setTarget(B) and the
+  // async loadObjects(B's data) call where stateRef has { targetJobId: B,
+  // objects: A's markups }. If autosave fires in that window it PUTs A's
+  // markups into B's doc, silently destroying B's real data. We protect
+  // against this by capturing the expected target at save-call time and
+  // bailing out if the current target has moved.
+  const save = useCallback(async (expectedTargetJobId?: string | null) => {
     const { targetJobId, objects } = stateRef.current;
     const owner = ownerRef.current;
+
+    // If the caller pinned a target, refuse to save if the live target has
+    // changed underneath us. The dropped save is harmless — dirty stays true
+    // and the next autosave tick will pick it up once the new target settles.
+    if (expectedTargetJobId !== undefined && expectedTargetJobId !== targetJobId) {
+      // eslint-disable-next-line no-console
+      console.warn(`[drawing-save] aborted: target changed from ${expectedTargetJobId} to ${targetJobId} mid-flight`);
+      return;
+    }
 
     // No job selected → save to per-user scratchpad so main-map markups
     // follow Billy across devices (Billy 6/3).
@@ -868,9 +886,12 @@ export function DrawingProvider({ children, mapRef }: Props) {
     // No visible countdown — autosave is fast and silent
     dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: null });
 
+    // Capture the target at scheduling time so the fired save can verify the
+    // target hasn't moved. See save() for the rationale.
+    const expectedTarget = state.targetJobId;
     autoSaveTimerRef.current = setTimeout(() => {
       clearAutoSaveTimers();
-      void saveRef.current();
+      void saveRef.current(expectedTarget);
     }, AUTO_SAVE_DELAY_MS);
 
     return clearAutoSaveTimers;
