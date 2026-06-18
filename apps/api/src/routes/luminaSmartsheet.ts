@@ -286,6 +286,75 @@ router.get("/lumina/smartsheet/by-job/:workOrder", async (req: Request, res: Res
   }
 });
 
+// ----- GET /lumina/smartsheet/locate/:workOrder --------------------------
+//
+// Sheet-wide existence check. Unlike /by-job (Billy-scoped), this looks
+// at EVERY row in the tracker and reports only:
+//   - whether the work order exists somewhere on the sheet
+//   - which supervisor owns it (or null if no supervisor assigned yet)
+//   - city + Job Status for context
+// We deliberately do NOT return notes or arbitrary cells — Billy can read
+// his own rows in full via /by-job, but the rest of the sheet stays opaque.
+// This unblocks the "is this job routed somewhere else?" question without
+// leaking sensitive cross-supervisor data.
+router.get("/lumina/smartsheet/locate/:workOrder", async (req: Request, res: Response) => {
+  const wo = String(req.params.workOrder ?? "").trim();
+  if (!wo) return res.status(400).json({ error: "workOrder required" });
+  try {
+    const sheet = await getSheetCached();
+    const columnsById = buildColumnsById(sheet);
+    // Same normalization as /by-job so "P.362908", "362908", "#362908" all match.
+    const needle = wo.replace(/[^a-z0-9]/gi, "").toLowerCase();
+
+    interface LocateHit {
+      rowId: number;
+      workOrder: string;
+      supervisor: string | null;
+      isMine: boolean;
+      city: string | null;
+      jobStatus: string | null;
+    }
+    const hits: LocateHit[] = [];
+    for (const row of sheet.rows) {
+      const rec = rowToRecord(row, columnsById);
+      const woRaw = String(rec["Work Order"] ?? "");
+      const woNorm = woRaw.replace(/[^a-z0-9]/gi, "").toLowerCase();
+      if (!woNorm) continue;
+      if (woNorm !== needle && !woNorm.includes(needle)) continue;
+      const sup = String(rec[SUPERVISOR_COLUMN] ?? "").trim();
+      hits.push({
+        rowId: row.id,
+        workOrder: woRaw,
+        supervisor: sup || null,
+        isMine: sup === SUPERVISOR_SCOPE,
+        city: (rec["City"] as string) ?? null,
+        jobStatus: (rec["Job Status"] as string) ?? null,
+      });
+    }
+
+    if (hits.length === 0) {
+      return res.json({
+        workOrder: wo,
+        found: false,
+        hits: [],
+        message: "This work order is not on the Smartsheet tracker at all.",
+      });
+    }
+    // Sort: Billy's rows first (in case of dupes), then the rest.
+    hits.sort((a, b) => Number(b.isMine) - Number(a.isMine));
+    res.json({
+      workOrder: wo,
+      found: true,
+      hits,
+      anyMine: hits.some((h) => h.isMine),
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[lumina/smartsheet/locate] error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ----- GET /lumina/smartsheet/calendar -----------------------------------
 //
 // Powers the Calendar tab in the web UI. Returns events for a 5-day work

@@ -196,6 +196,27 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  // Sheet-wide existence check for a Work Order. Unlike getJob/by-job
+  // (which are Billy-scoped), locateSmartsheetJob looks at every row in
+  // the tracker and reports just enough to answer "is this job somewhere
+  // else?": supervisor name, city, and Job Status. Notes and other cells
+  // stay opaque for cross-supervisor rows.
+  locateSmartsheetJob: (workOrder: string) =>
+    request<{
+      workOrder: string;
+      found: boolean;
+      hits: Array<{
+        rowId: number;
+        workOrder: string;
+        supervisor: string | null;
+        isMine: boolean;
+        city: string | null;
+        jobStatus: string | null;
+      }>;
+      anyMine?: boolean;
+      message?: string;
+    }>(`/api/lumina/smartsheet/locate/${encodeURIComponent(workOrder)}`),
+
   rescheduleSmartsheet: (body: {
     jobId: string | number;
     scheduleDate: string; // YYYY-MM-DD

@@ -58,33 +58,118 @@ interface FlyToJobInput {
   jobId: string;
 }
 
-const flyToJobTool: LuminaTool<FlyToJobInput, { jobId: string; lat: number; lng: number }> = {
+interface FlyToJobData {
+  // Always present.
+  jobId: string;
+  // "nsc" = found on Billy's NSC tracker (map flown, card opened).
+  // "otherSupervisor" = not on NSC but exists in Smartsheet under someone else.
+  // "unassigned" = exists in Smartsheet with no supervisor yet.
+  // "notFound" = not anywhere on the tracker.
+  outcome: "nsc" | "otherSupervisor" | "unassigned" | "notFound";
+  workOrder?: string;
+  address?: string;
+  city?: string;
+  lat?: number;
+  lng?: number;
+  // Populated on otherSupervisor / unassigned so Lumina can tell Billy
+  // who owns the row and offer to look closer.
+  smartsheetHit?: {
+    rowId: number;
+    supervisor: string | null;
+    city: string | null;
+    jobStatus: string | null;
+  };
+}
+
+const flyToJobTool: LuminaTool<FlyToJobInput, FlyToJobData> = {
   name: "flyToJob",
-  description: "Pan/zoom the map to a job's location. Use when Billy mentions a specific work order.",
+  description:
+    "Pan/zoom the map to a job and open its JobCard. ALWAYS call this first when Billy mentions a work order \u2014 it handles the full flow: (1) if the job is on Billy's NSC tracker, the map flies there and the card pops; (2) if not, it falls back to a sheet-wide Smartsheet lookup and reports who owns the row (or that it's unrouted, or that it doesn't exist at all). Returns an `outcome` field plus address/city so the caller can immediately mine the inbox for related threads.",
   kind: "navigate",
   async run(input, ctx) {
     if (!ctx.map) return { ok: false, message: "Map not ready." };
     if (!input.jobId) return { ok: false, message: "flyToJob requires jobId." };
 
-    // selectJob path drives both the camera AND opens the JobCard — single
-    // source of truth for "where is the user looking".
-    ctx.map.selectJob(input.jobId);
-
-    // Best-effort: also fetch the geocode so we can report lat/lng back.
+    // Path A — try NSC tracker first. selectJob is the single source of truth
+    // for "where is the user looking" — it drives both the camera and the card.
     try {
       const r = await api.getJob(input.jobId);
+      ctx.map.selectJob(r.job.jobId);
       const g = r.job.geocode;
       if (g?.status === "OK") {
         ctx.map.triggerArrivalGlow({ lat: g.lat, lng: g.lng });
         return {
           ok: true,
-          message: `Flying to ${r.job.workOrder}.`,
-          data: { jobId: r.job.jobId, lat: g.lat, lng: g.lng },
+          message: `Flying to ${r.job.workOrder} in ${r.job.city ?? "unknown city"}.`,
+          data: {
+            jobId: r.job.jobId,
+            outcome: "nsc",
+            workOrder: r.job.workOrder,
+            address: r.job.address ?? undefined,
+            city: r.job.city ?? undefined,
+            lat: g.lat,
+            lng: g.lng,
+          },
         };
       }
-      return { ok: true, message: `Selected ${r.job.workOrder} (no geocode on file).` };
+      return {
+        ok: true,
+        message: `Selected ${r.job.workOrder} on the tracker (no geocode on file).`,
+        data: {
+          jobId: r.job.jobId,
+          outcome: "nsc",
+          workOrder: r.job.workOrder,
+          address: r.job.address ?? undefined,
+          city: r.job.city ?? undefined,
+        },
+      };
     } catch {
-      return { ok: true, message: `Selected ${input.jobId}.` };
+      // Fall through to the Smartsheet-wide fallback below.
+    }
+
+    // Path B — not on Billy's NSC tracker. Search the entire Smartsheet so
+    // we can tell Billy whether it's routed to another supervisor, sitting
+    // unassigned, or genuinely doesn't exist.
+    try {
+      const loc = await api.locateSmartsheetJob(input.jobId);
+      if (!loc.found || loc.hits.length === 0) {
+        return {
+          ok: true, // not an error — it's a valid "not found" result
+          message: `Work order ${input.jobId} isn't on the Smartsheet tracker at all.`,
+          data: { jobId: input.jobId, outcome: "notFound" },
+        };
+      }
+      const hit = loc.hits[0]; // sorted Billy-first on the server
+      const outcome: FlyToJobData["outcome"] = hit.supervisor
+        ? "otherSupervisor"
+        : "unassigned";
+      const supLabel = hit.supervisor ?? "unassigned";
+      return {
+        ok: true,
+        message:
+          outcome === "otherSupervisor"
+            ? `Work order ${hit.workOrder} is on Smartsheet but routed to ${supLabel}, not Billy.`
+            : `Work order ${hit.workOrder} is on Smartsheet but has no supervisor assigned yet.`,
+        data: {
+          jobId: input.jobId,
+          outcome,
+          workOrder: hit.workOrder,
+          city: hit.city ?? undefined,
+          smartsheetHit: {
+            rowId: hit.rowId,
+            supervisor: hit.supervisor,
+            city: hit.city,
+            jobStatus: hit.jobStatus,
+          },
+        },
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        message: `Couldn't look up ${input.jobId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      };
     }
   },
 };
