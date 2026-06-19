@@ -776,10 +776,9 @@ export const LUMINA_TOOLS = [
       },
 
       // ── Tasks ─────────────────────────────────────────────────────────
-      // TODO Billy review — these three tools require the client-side
-      // dispatchTool() handler (MapBridge.tsx or equivalent) to call the
-      // matching /api/tasks endpoints. They are registered here so Lumina
-      // can propose task creation/completion in both chat and voice modes.
+      // Client-side dispatch lives in apps/web/src/features/lumina/tools/
+      // (addTask.ts, completeTask.ts, listOpenTasks.ts). Both chat and
+      // voice modes route through dispatchTool() → /api/tasks endpoints.
       {
         name: "addTask",
         description:

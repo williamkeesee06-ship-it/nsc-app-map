@@ -44,6 +44,9 @@ import { smartsheetTools } from "./smartsheetTools.js";
 import { getScheduleTool } from "./getSchedule.js";
 import { writeTools } from "./writeTools.js";
 import { memoryTools } from "./memoryTools.js";
+import { addTaskTool } from "./addTask.js";
+import { completeTaskTool } from "./completeTask.js";
+import { listOpenTasksTool } from "./listOpenTasks.js";
 
 const ALL_TOOLS: LuminaTool<any, any>[] = [
   // NSC reads
@@ -78,6 +81,10 @@ const ALL_TOOLS: LuminaTool<any, any>[] = [
   // Memory + writes (Sprint 1.4 un-stubs notes/status; 2.1 adds reschedule)
   ...writeTools,
   ...memoryTools,
+  // Tasks (TASKS tab — Lumina can add/complete/list)
+  addTaskTool,
+  completeTaskTool,
+  listOpenTasksTool,
 ];
 
 const REGISTRY: Record<string, LuminaTool<any, any>> = Object.fromEntries(
