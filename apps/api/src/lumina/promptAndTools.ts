@@ -775,6 +775,54 @@ export const LUMINA_TOOLS = [
         },
       },
 
+      // ── Tasks ─────────────────────────────────────────────────────────
+      // TODO Billy review — these three tools require the client-side
+      // dispatchTool() handler (MapBridge.tsx or equivalent) to call the
+      // matching /api/tasks endpoints. They are registered here so Lumina
+      // can propose task creation/completion in both chat and voice modes.
+      {
+        name: "addTask",
+        description:
+          "Create a new task for Billy. Use when Billy asks Lumina to remember or track something. source is always 'lumina-chat'.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            text: { type: "STRING", description: "Task text (plain imperative sentence, max 200 chars)." },
+            parentId: { type: "STRING", description: "Optional parent task id to make this a subtask." },
+            jobRef: {
+              type: "OBJECT",
+              description: "Optional job this task is linked to.",
+              properties: {
+                id: { type: "STRING" },
+                label: { type: "STRING" },
+              },
+            },
+          },
+          required: ["text"],
+        },
+      },
+      {
+        name: "completeTask",
+        description:
+          "Mark a task as done and remove it. Use when Billy says a task is finished.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            taskId: { type: "STRING", description: "The id of the task to complete." },
+          },
+          required: ["taskId"],
+        },
+      },
+      {
+        name: "listOpenTasks",
+        description:
+          "Return Billy's current open tasks so Lumina can reference them in replies. Use when Billy asks 'what are my tasks' or before adding a task to avoid duplicates.",
+        parameters: {
+          type: "OBJECT",
+          properties: {},
+        },
+      },
+
       // ── Memory tools ───────────────────────────────────────────────────
       {
         name: "recallMemory",
