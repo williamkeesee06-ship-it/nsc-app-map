@@ -18,7 +18,6 @@ import luminaPushRouter from "./routes/luminaPush.js";
 import luminaSmartsheetRouter from "./routes/luminaSmartsheet.js";
 import luminaBriefRouter from "./routes/luminaBrief.js";
 import tasksRouter from "./routes/tasks.js";
-import luminaInboxScanRouter from "./routes/luminaInboxScan.js";
 import luminaStaleTasksRouter from "./routes/luminaStaleTasks.js";
 
 export function createApp() {
@@ -47,7 +46,6 @@ export function createApp() {
   app.use("/api", luminaSmartsheetRouter);
   app.use("/api", luminaBriefRouter);
   app.use("/api", tasksRouter);
-  app.use("/api", luminaInboxScanRouter);
   app.use("/api", luminaStaleTasksRouter);
 
   // Catch-all error handler — never let an uncaught error crash the function.

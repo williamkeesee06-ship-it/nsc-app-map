@@ -18,16 +18,8 @@
       "schedule": "30 13 * * *"
     },
     {
-      "path": "/api/lumina/inbox-scan",
-      "schedule": "0 14-23 * * 1-5"
-    },
-    {
-      "path": "/api/lumina/inbox-scan",
-      "schedule": "0 0 * * 2-6"
-    },
-    {
       "path": "/api/lumina/stale-tasks",
-      "schedule": "0 * * * *"
+      "schedule": "0 15 * * *"
     }
   ]
 }
