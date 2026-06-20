@@ -3047,9 +3047,9 @@ input:focus, textarea:focus, select:focus {
 .filters-tab__heading {
   font-family: ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.18em;
-  color: #5a6678;
+  color: #1565C0;
   text-transform: uppercase;
   margin-bottom: 2px;
 }

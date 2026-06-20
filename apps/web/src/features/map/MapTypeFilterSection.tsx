@@ -79,7 +79,6 @@ export default function MapTypeFilterSection() {
               aria-pressed={prefs.mapType === b.id}
             >
               <span className="map-pref-row__radio" aria-hidden="true" />
-              <span className="map-pref-row__icon" aria-hidden="true">{b.icon}</span>
               <span className="map-pref-row__label">{b.label}</span>
             </button>
           ))}
@@ -98,7 +97,6 @@ export default function MapTypeFilterSection() {
               aria-pressed={prefs.theme === t.id}
             >
               <span className="map-pref-row__radio" aria-hidden="true" />
-              <span className="map-pref-row__icon" aria-hidden="true">{t.icon}</span>
               <span className="map-pref-row__label">{t.label}</span>
             </button>
           ))}
