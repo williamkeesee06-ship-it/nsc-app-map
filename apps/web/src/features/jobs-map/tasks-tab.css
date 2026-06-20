@@ -317,6 +317,142 @@
   opacity: 0.5;
 }
 
+.tasks-empty__add-btn {
+  margin-top: 8px;
+  padding: 0 16px;
+  height: 32px;
+  background: #0052cc;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  opacity: 1; /* override .tasks-empty opacity on the button */
+}
+
+.tasks-empty__add-btn:hover {
+  background: #0041a8;
+}
+
+/* ── Inline Composer ─────────────────────────────────────────────── */
+
+.tasks-composer {
+  position: relative;
+  margin: 8px 12px 80px; /* 80px bottom to sit above FAB space */
+  background: #ffffff;
+  border: 1px solid #e0e5ea;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 10px;
+  transition: box-shadow 0.15s;
+  flex-shrink: 0;
+}
+
+.tasks-composer:focus-within {
+  border-color: #0052cc;
+  box-shadow:
+    0 0 0 2px rgba(0, 82, 204, 0.18),
+    0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.tasks-composer__close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font-size: 18px;
+  line-height: 1;
+  color: #5b6776;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.1s, color 0.1s;
+}
+
+.tasks-composer__close:hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: #15202c;
+}
+
+.tasks-composer__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #15202c;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 0;
+  min-height: 38px;
+  max-height: 96px;
+  overflow-y: auto;
+  font-family: inherit;
+  /* Leave room for × close button */
+  padding-right: 28px;
+}
+
+.tasks-composer__textarea::placeholder {
+  color: #9aa3ad;
+}
+
+.tasks-composer__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.tasks-composer__cancel {
+  height: 32px;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #5b6776;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.tasks-composer__cancel:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.tasks-composer__add {
+  height: 32px;
+  padding: 0 14px;
+  background: #0052cc;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.tasks-composer__add:hover:not(:disabled) {
+  background: #0041a8;
+}
+
+.tasks-composer__add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ── Floating + FAB ──────────────────────────────────────────────── */
 
 .tasks-fab {

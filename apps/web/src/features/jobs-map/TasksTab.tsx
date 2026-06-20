@@ -183,6 +183,114 @@ function FormattingToolbar({ activeEditorRef }: { activeEditorRef: ActiveEditorR
   );
 }
 
+// ─── Inline Task Composer ──────────────────────────────────────────────────────
+
+interface TaskComposerProps {
+  onAdd: (text: string) => Promise<void>;
+  onClose: () => void;
+}
+
+function TaskComposer({ onAdd, onClose }: TaskComposerProps) {
+  const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-focus on mount — native textarea works reliably on mobile Safari.
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
+  // Auto-grow textarea: min 38px, max 96px.
+  function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const ta = e.currentTarget;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, 96)}px`;
+    setText(ta.value);
+  }
+
+  const canAdd = text.trim().length > 0;
+
+  async function handleAdd() {
+    if (!canAdd || submitting) return;
+    setSubmitting(true);
+    try {
+      await onAdd(text.trim());
+      // Keep composer open, clear text — "keep adding" UX (Todoist/TickTick pattern).
+      setText("");
+      if (textareaRef.current) {
+        textareaRef.current.value = "";
+        textareaRef.current.style.height = "auto";
+        textareaRef.current.focus();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void handleAdd();
+    } else if (e.key === "Escape") {
+      onClose();
+    }
+  }
+
+  // Close on blur only when textarea is empty.
+  function handleBlur(e: React.FocusEvent<HTMLTextAreaElement>) {
+    // If focus moves within the composer card, don't close.
+    const relatedTarget = e.relatedTarget as Node | null;
+    const card = e.currentTarget.closest(".tasks-composer");
+    if (card && relatedTarget instanceof Node && card.contains(relatedTarget)) return;
+    if (text.trim() === "") {
+      onClose();
+    }
+  }
+
+  return (
+    <div className="tasks-composer">
+      <button
+        className="tasks-composer__close"
+        onClick={onClose}
+        title="Dismiss"
+        aria-label="Close composer"
+        type="button"
+      >
+        ×
+      </button>
+      <textarea
+        ref={textareaRef}
+        className="tasks-composer__textarea"
+        placeholder="Add a task…"
+        value={text}
+        onChange={handleInput}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
+        rows={1}
+        aria-label="New task text"
+      />
+      <div className="tasks-composer__actions">
+        <button
+          className="tasks-composer__cancel"
+          onClick={onClose}
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          className="tasks-composer__add"
+          onClick={() => void handleAdd()}
+          disabled={!canAdd || submitting}
+          type="button"
+          aria-label="Add task"
+        >
+          {submitting ? "Adding…" : "Add"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Single task row ───────────────────────────────────────────────────────────
 
 interface TaskRowProps {
@@ -362,6 +470,7 @@ function TaskRow({
 export default function TasksTab() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [fadingIds, setFadingIds] = useState<Set<string>>(new Set());
+  const [composerOpen, setComposerOpen] = useState(false);
   const activeEditorRef = useRef<ReturnType<typeof useEditor> | null>(null);
   const textPendingRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -509,26 +618,21 @@ export default function TasksTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byParentId]);
 
-  // FAB: add top-level task.
-  const handleAddTopLevel = useCallback(async () => {
+  // ─── Composer submit ──────────────────────────────────────────────────────
+
+  const handleComposerAdd = useCallback(async (text: string) => {
     const orderIndex = topLevel.length > 0
       ? Math.max(...topLevel.map((t) => t.orderIndex)) + 1
       : 0;
-    try {
-      const { task } = await createTask({
-        ownerName: OWNER,
-        text: "",
-        parentId: null,
-        source: "user",
-        orderIndex,
-      } as Parameters<typeof createTask>[0] & { orderIndex?: number });
-      setTasks((prev) => [...prev, task]);
-      // Focus the new editor after React re-renders.
-      // (The TaskRow will auto-focus via its ref on mount if needed.)
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn("[TasksTab] add task error:", err);
-    }
+    const { task } = await createTask({
+      ownerName: OWNER,
+      text,
+      parentId: null,
+      source: "user",
+      orderIndex,
+    } as Parameters<typeof createTask>[0] & { orderIndex?: number });
+    // Optimistically prepend new task to the top of the list.
+    setTasks((prev) => [task, ...prev]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topLevel]);
 
@@ -590,7 +694,16 @@ export default function TasksTab() {
       {openCount === 0 && (
         <div className="tasks-empty">
           <span className="tasks-empty__sparkle">✦</span>
-          <span>No tasks. Tap + to add one or ask Lumina.</span>
+          <span>No tasks yet. Ask Lumina or add one below.</span>
+          {!composerOpen && (
+            <button
+              className="tasks-empty__add-btn"
+              onClick={() => setComposerOpen(true)}
+              type="button"
+            >
+              + Add task
+            </button>
+          )}
         </div>
       )}
 
@@ -673,15 +786,25 @@ export default function TasksTab() {
         </div>
       )}
 
-      {/* Floating + FAB */}
-      <button
-        className="tasks-fab"
-        onClick={() => void handleAddTopLevel()}
-        title="Add task"
-        aria-label="Add new task"
-      >
-        +
-      </button>
+      {/* Inline composer — shown above the FAB when open */}
+      {composerOpen && (
+        <TaskComposer
+          onAdd={handleComposerAdd}
+          onClose={() => setComposerOpen(false)}
+        />
+      )}
+
+      {/* Floating + FAB — hidden when composer is open */}
+      {!composerOpen && (
+        <button
+          className="tasks-fab"
+          onClick={() => setComposerOpen(true)}
+          title="Add task"
+          aria-label="Add new task"
+        >
+          +
+        </button>
+      )}
     </div>
   );
 }
