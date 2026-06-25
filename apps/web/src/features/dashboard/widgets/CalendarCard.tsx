@@ -90,7 +90,7 @@ export default function CalendarCard({
 
       <div className="calendar-card__week" role="row">
         {days.map((d) => {
-          const count = weekSchedule[d.iso]?.crews.length ?? 0;
+          const count = weekSchedule[d.iso]?.crewCount ?? 0;
           const dayNum = Number(d.iso.slice(8, 10));
           return (
             <button

@@ -1,11 +1,8 @@
-// My Todo List — reads the same Firestore-backed /api/tasks list as the
-// full Tasks tab (Todoist/Reminders pattern). Shows the top open tasks with a
-// priority badge and a neon "+" inline composer that adds a user task.
-//
-// Priority: the Task schema has no priority field, so we derive it from the
-// task `source` — lumina-email = HIGH, lumina-chat = MED, user = LOW. This is
-// a defensible proxy (email-sourced action items are the most time-sensitive);
-// flagged for Billy in case a real priority field is wanted.
+// My Todo List — reads the same Firestore-backed /api/tasks list as the full
+// Tasks tab (Todoist/Reminders pattern). The Task schema has no priority and
+// no due-date field, so each row is just a check circle + title; a neon "+"
+// inline composer adds a user task. Checking a row marks it done and removes
+// it from the open list.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../auth/authContext.js";
@@ -22,16 +19,8 @@ interface Task {
   createdAt: number;
 }
 
-type Priority = "HIGH" | "MED" | "LOW";
-
 const MAX_ROWS = 5;
 const DEFAULT_OWNER = "Billy Keesee";
-
-function priorityOf(source: TaskSource): Priority {
-  if (source === "lumina-email") return "HIGH";
-  if (source === "lumina-chat") return "MED";
-  return "LOW";
-}
 
 // Tasks store rich text (tiptap HTML). Render as plain text in this compact
 // card to avoid injecting markup.
@@ -98,6 +87,21 @@ export default function TodoCard() {
     }
   }, [draft, owner, reload, saving]);
 
+  const completeTask = useCallback(
+    async (id: string) => {
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+      try {
+        await apiFetch<{ task: Task }>(`/api/tasks/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ done: true }),
+        });
+      } catch {
+        reload();
+      }
+    },
+    [reload]
+  );
+
   return (
     <div className="card card--light todo-card">
       <div className="card__header">
@@ -132,19 +136,17 @@ export default function TodoCard() {
         <p className="todo-card__empty">Nothing on your list. Nice.</p>
       ) : (
         <ul className="todo-card__list">
-          {visible.map((t) => {
-            const priority = priorityOf(t.source);
-            return (
-              <li className="todo-card__item" key={t.id}>
-                <span
-                  className={`todo-card__badge todo-card__badge--${priority.toLowerCase()}`}
-                >
-                  {priority}
-                </span>
-                <span className="todo-card__text">{toPlainText(t.text)}</span>
-              </li>
-            );
-          })}
+          {visible.map((t) => (
+            <li className="todo-card__item" key={t.id}>
+              <button
+                type="button"
+                className="todo-card__check"
+                aria-label="Mark complete"
+                onClick={() => void completeTask(t.id)}
+              />
+              <span className="todo-card__text">{toPlainText(t.text)}</span>
+            </li>
+          ))}
         </ul>
       )}
     </div>

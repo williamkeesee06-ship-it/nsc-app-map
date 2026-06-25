@@ -245,6 +245,15 @@ function JobsMapInner({
     },
     [filters, setFilters, requestTab]
   );
+  const onDashboardOpenJob = useCallback(
+    (jobId: string) => {
+      const job = allJobs.find((j) => j.jobId === jobId);
+      if (!job) return;
+      requestTab("filters");
+      void handleSelect(job);
+    },
+    [allJobs, requestTab, handleSelect]
+  );
 
   return (
     <div className="jobs-map">
@@ -330,6 +339,7 @@ function JobsMapInner({
                 onFilterStatus={onDashboardFilterStatus}
                 onOpenMap={() => requestTab("filters")}
                 onOpenCalendar={() => requestTab("calendar")}
+                onOpenJob={onDashboardOpenJob}
               />
             </div>
           )}

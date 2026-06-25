@@ -1,7 +1,6 @@
 // Dashboard home — default landing view. Mounted full-screen over the map by
-// JobsMap when the Dashboard tab is active. Grid layout per the approved
-// mockup, with the four spec corrections applied (no "Good Day to Bore" chip,
-// no dashboard search bar, map at 58% width, calendar shows crews per day).
+// JobsMap when the Dashboard tab is active. Map at 58% width; the calendar
+// shows crews scheduled per day. No search bar, no "Good Day to Bore" chip.
 
 import { Suspense } from "react";
 import type { Job } from "@nsc/types";
@@ -23,6 +22,7 @@ export interface DashboardPageProps {
   onFilterStatus: (bucket: StatusBucket) => void;
   onOpenMap: () => void;
   onOpenCalendar: () => void;
+  onOpenJob: (jobId: string) => void;
 }
 
 function firstNameOf(username: string | null): string {
@@ -35,6 +35,7 @@ export default function DashboardPage({
   onFilterStatus,
   onOpenMap,
   onOpenCalendar,
+  onOpenJob,
 }: DashboardPageProps) {
   const { username } = useAuth();
   const data = useDashboardData(jobs);
@@ -55,7 +56,7 @@ export default function DashboardPage({
           <CalendarCard
             weekStart={data.weekStart}
             weekSchedule={data.weekSchedule}
-            loading={data.loadingCalendar}
+            loading={false}
             onOpenCalendar={onOpenCalendar}
           />
         </div>
@@ -63,7 +64,7 @@ export default function DashboardPage({
         <div className="nsc-dashboard__row nsc-dashboard__row--bottom">
           <LuminaBriefingCard firstName={firstName} username={username} />
           <div className="nsc-dashboard__right-stack">
-            <AtRiskJobsCard atRiskJobs={data.atRiskJobs} />
+            <AtRiskJobsCard atRiskJobs={data.atRiskJobs} onOpenJob={onOpenJob} />
             <QuickLinksCard />
           </div>
         </div>

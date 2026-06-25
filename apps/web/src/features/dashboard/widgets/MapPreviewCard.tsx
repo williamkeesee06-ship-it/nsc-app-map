@@ -2,10 +2,10 @@
 // this safe) showing the signed-in user's geocoded jobs as neon pins. Tapping
 // the card jumps to the full Jobs/map tab.
 //
-// KPI chips: the spec lists Tower Sites / Fiber Routes (mi) / Active Jobs.
-// Only "Active Jobs" is derivable from the live Job schema (non-completed
-// jobs). There is no tower-count or fiber-mileage field on Job, so those two
-// chips read "—" rather than inventing a number. Flagged for Billy.
+// KPI chips, all derived from live jobs (dashboard_fix_spec §3):
+//   Active Jobs     — bucket ∈ {needs_fielding, rts, pending, in_progress}
+//   Permits Pending — permitRequired truthy AND no actualCompletionDate
+//   Traffic Control — trafficControlRequired === true AND no actualCompletionDate
 
 import { useEffect, useMemo } from "react";
 import { Map, useMap } from "@vis.gl/react-google-maps";
@@ -13,10 +13,21 @@ import type { Job } from "@nsc/types";
 import { stylesFor, DEFAULT_CENTER, DEFAULT_ZOOM } from "../../map/mapStyles.js";
 import {
   MARKER_COLORS,
+  bucketForJob,
   colorKeyForJob,
   isJobCompleted,
   neonPinDataUrl,
 } from "../../jobs-map/markerStyle.js";
+
+const ACTIVE_BUCKETS = new Set(["needs_fielding", "rts", "pending", "in_progress"]);
+
+function isTruthyFlag(value: string | null | undefined): boolean {
+  return /^(y|yes|true|required|1)/i.test((value ?? "").trim());
+}
+
+function notCompleted(job: Job): boolean {
+  return !(job.actualCompletionDate && job.actualCompletionDate.trim());
+}
 
 export interface MapPreviewCardProps {
   jobs: Job[];
@@ -72,11 +83,18 @@ function PreviewMarkers({ jobs }: { jobs: Job[] }) {
 
 export default function MapPreviewCard({ jobs, onOpenMap }: MapPreviewCardProps) {
   const kpis = useMemo<KpiChip[]>(() => {
-    const active = jobs.filter((j) => !isJobCompleted(j)).length;
+    let active = 0;
+    let permits = 0;
+    let traffic = 0;
+    for (const j of jobs) {
+      if (ACTIVE_BUCKETS.has(bucketForJob(j))) active += 1;
+      if (isTruthyFlag(j.permitRequired) && notCompleted(j)) permits += 1;
+      if (j.trafficControlRequired === true && notCompleted(j)) traffic += 1;
+    }
     return [
-      { label: "Tower Sites", value: "—" },
-      { label: "Fiber Routes (mi)", value: "—" },
       { label: "Active Jobs", value: String(active) },
+      { label: "Permits Pending", value: String(permits) },
+      { label: "Traffic Control", value: String(traffic) },
     ];
   }, [jobs]);
 

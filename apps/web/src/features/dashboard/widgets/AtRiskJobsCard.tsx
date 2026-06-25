@@ -1,23 +1,19 @@
-// At-risk jobs table — jobs whose schedule date has passed (HIGH) or that are
-// permit-required and scheduled within 7 days (MED). See computeAtRisk in
-// useDashboardData for why "submitted >7 days, no approval" is omitted (no
-// submission-date field on Job).
+// At-risk jobs table. Rules live in computeAtRisk (useDashboardData): schedule
+// slip, permit pending, traffic control needed soon, stale hold — all from
+// real Job fields. Tapping a row opens that job's card on the map.
 
 import type { AtRiskJob } from "../hooks/useDashboardData.js";
 
 export interface AtRiskJobsCardProps {
   atRiskJobs: AtRiskJob[];
-}
-
-function descriptionOf(job: AtRiskJob["job"]): string {
-  return job.customerProject || job.workType || "—";
+  onOpenJob: (jobId: string) => void;
 }
 
 function locationOf(job: AtRiskJob["job"]): string {
   return [job.address, job.city].filter(Boolean).join(", ") || "—";
 }
 
-export default function AtRiskJobsCard({ atRiskJobs }: AtRiskJobsCardProps) {
+export default function AtRiskJobsCard({ atRiskJobs, onOpenJob }: AtRiskJobsCardProps) {
   return (
     <div className="card card--light atrisk-card">
       <div className="card__header">
@@ -33,18 +29,29 @@ export default function AtRiskJobsCard({ atRiskJobs }: AtRiskJobsCardProps) {
             <thead>
               <tr>
                 <th>Job ID</th>
-                <th>Description</th>
                 <th>Location</th>
-                <th>Due Date</th>
+                <th>Schedule</th>
                 <th>Risk</th>
                 <th>Reason</th>
               </tr>
             </thead>
             <tbody>
               {atRiskJobs.map((r) => (
-                <tr key={r.job.jobId}>
+                <tr
+                  key={r.job.jobId}
+                  className="atrisk-card__row"
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Open job ${r.job.workOrder}`}
+                  onClick={() => onOpenJob(r.job.jobId)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onOpenJob(r.job.jobId);
+                    }
+                  }}
+                >
                   <td className="atrisk-card__id">{r.job.workOrder}</td>
-                  <td>{descriptionOf(r.job)}</td>
                   <td>{locationOf(r.job)}</td>
                   <td>{r.dueDate ?? "—"}</td>
                   <td>

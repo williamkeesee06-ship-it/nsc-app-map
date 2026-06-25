@@ -1,26 +1,28 @@
-// Single dashboard data hook.
-//
-// Architecture note (spec said `onSnapshot`): this web app has NO client-side
-// Firestore SDK — all reads go through the same-origin REST API (api.listJobs,
-// api.getCalendar). We therefore follow the app's established pattern (see
-// useJobs.ts): consume the already-live `jobs` array (kept fresh by useJobs via
-// the nsc:jobs-reload bus) for job-derived data, fetch the crew calendar once
-// per week, and refetch on window focus. This matches the codebase rather than
-// introducing a second data path.
+// Single dashboard data hook. Everything is derived synchronously from the
+// already-live `jobs` array (kept fresh by useJobs via the nsc:jobs-reload
+// bus) using the real Job schema — no invented fields, no second data path.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { Job } from "@nsc/types";
-import { api, type CalendarEvent } from "../../../lib/api.js";
-import { isJobCompleted } from "../../jobs-map/markerStyle.js";
-import { countByStatus, type StatusCounts } from "../dashboardStatus.js";
+import { bucketForJob } from "../../jobs-map/markerStyle.js";
+import { countByBucket, type BucketCounts } from "../dashboardStatus.js";
 
 export interface CrewEntry {
+  /** constructionCrewForeman, or "Unassigned" when blank. */
   name: string;
+  /** workOrder — the operator-facing job id. */
   jobId: string;
   address: string;
 }
 
-export type WeekSchedule = Record<string, { crews: CrewEntry[] }>;
+export interface DaySchedule {
+  /** Rows for the day, deduped by (foreman, workOrder). */
+  crews: CrewEntry[];
+  /** Distinct foreman count — the "crews today" badge. */
+  crewCount: number;
+}
+
+export type WeekSchedule = Record<string, DaySchedule>;
 
 export type RiskLevel = "HIGH" | "MED";
 
@@ -31,26 +33,17 @@ export interface AtRiskJob {
   dueDate: string | null;
 }
 
-export interface ActivityRow {
-  jobId: string;
-  workOrder: string;
-  status: string;
-  at: number;
-}
-
 export interface DashboardData {
-  statusCounts: StatusCounts;
+  statusCounts: BucketCounts;
   myJobs: Job[];
   atRiskJobs: AtRiskJob[];
   weekSchedule: WeekSchedule;
-  recentActivity: ActivityRow[];
   weekStart: string;
-  loadingCalendar: boolean;
 }
 
 const DAY_MS = 86_400_000;
 
-// Monday of the current week as YYYY-MM-DD (Pacific-agnostic local date).
+// Monday of the current week as YYYY-MM-DD (local date).
 function mondayOfThisWeek(now: Date = new Date()): string {
   const d = new Date(now);
   const dow = d.getDay(); // 0 = Sun
@@ -66,49 +59,98 @@ function toIso(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function daysUntil(iso: string | null): number | null {
+function todayIso(): string {
+  return toIso(new Date());
+}
+
+// Whole-day delta from today to an ISO date (negative = in the past).
+function daysFromToday(iso: string | null): number | null {
   if (!iso) return null;
   const t = Date.parse(iso.slice(0, 10));
   if (Number.isNaN(t)) return null;
-  return Math.round((t - Date.now()) / DAY_MS);
+  const today = Date.parse(todayIso());
+  return Math.round((t - today) / DAY_MS);
 }
 
-function needsPermit(job: Job): boolean {
-  const p = (job.permitRequired ?? "").trim();
-  return /^(y|yes|true|required|1)/i.test(p);
+function isEmpty(value: string | null | undefined): boolean {
+  return !value || !value.trim();
 }
 
-// Derive at-risk jobs from live fields. NOTE: there is no permit-expiration or
-// submission-date field in the Job schema, so:
-//  - "permit expiring ≤7 days" is approximated as permit-required jobs
-//    scheduled within 7 days (closest live signal).
-//  - "submitted >7 days, no approval" cannot be computed (no submission date)
-//    and is intentionally omitted rather than guessed.
+function isTruthyFlag(value: string | null | undefined): boolean {
+  return /^(y|yes|true|required|1)/i.test((value ?? "").trim());
+}
+
+// Days since an ISO timestamp (e.g. smartsheetModified). null if unparseable.
+function daysSince(iso: string | null): number | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  return Math.round((Date.now() - t) / DAY_MS);
+}
+
+// At-risk rules, all from real fields (see dashboard_fix_spec §2). NOTE: the
+// "no recent crew change" qualifier on the traffic-control rule has no backing
+// field in the Job schema, so it is omitted (reported, not guessed).
 function computeAtRisk(jobs: Job[]): AtRiskJob[] {
   const out: AtRiskJob[] = [];
   for (const job of jobs) {
-    if (isJobCompleted(job)) continue;
-    const d = daysUntil(job.scheduleDate);
+    const bucket = bucketForJob(job);
+    if (bucket === "completed") continue;
 
-    if (d !== null && d < 0) {
+    const sched = daysFromToday(job.scheduleDate);
+    const noCompletion = isEmpty(job.actualCompletionDate);
+
+    // Schedule slip — past schedule date, not completed.
+    if (sched !== null && sched < 0 && noCompletion) {
       out.push({
         job,
-        risk: "HIGH",
-        reason: "Schedule date passed, not completed",
+        risk: sched < -7 ? "HIGH" : "MED",
+        reason:
+          sched < -7
+            ? `Schedule slip — ${-sched} days past, not completed`
+            : "Schedule slip — past schedule date, not completed",
         dueDate: job.scheduleDate,
       });
       continue;
     }
-    if (needsPermit(job) && d !== null && d >= 0 && d <= 7) {
+
+    // Permit pending — permit required, scheduled within the next 7 days.
+    if (isTruthyFlag(job.permitRequired) && sched !== null && sched >= 0 && sched <= 7) {
       out.push({
         job,
         risk: "MED",
-        reason: "Permit required, scheduled within 7 days",
+        reason: "Permit pending — permit required, scheduled within 7 days",
         dueDate: job.scheduleDate,
       });
+      continue;
+    }
+
+    // Traffic control needed soon — scheduled within the next 3 days.
+    if (job.trafficControlRequired === true && sched !== null && sched >= 0 && sched <= 3) {
+      out.push({
+        job,
+        risk: "MED",
+        reason: "Traffic control needed soon — scheduled within 3 days",
+        dueDate: job.scheduleDate,
+      });
+      continue;
+    }
+
+    // Stale hold — on hold for more than 14 days.
+    if (bucket === "on_hold") {
+      const held = daysSince(job.smartsheetModified);
+      if (held !== null && held > 14) {
+        out.push({
+          job,
+          risk: "MED",
+          reason: `Stale hold — on hold ${held} days`,
+          dueDate: job.scheduleDate,
+        });
+      }
     }
   }
-  // HIGH first, then soonest due date.
+
+  // HIGH first, then soonest schedule date.
   out.sort((a, b) => {
     if (a.risk !== b.risk) return a.risk === "HIGH" ? -1 : 1;
     return (a.dueDate ?? "").localeCompare(b.dueDate ?? "");
@@ -116,83 +158,67 @@ function computeAtRisk(jobs: Job[]): AtRiskJob[] {
   return out;
 }
 
-function buildWeekSchedule(events: CalendarEvent[]): WeekSchedule {
+// Group the current week's jobs by scheduleDate, then by foreman. The badge is
+// the distinct-foreman count; rows are deduped by (foreman, workOrder); blank
+// foreman groups under "Unassigned".
+function buildWeekSchedule(jobs: Job[], weekStart: string): WeekSchedule {
+  const weekDays = new Set<string>();
+  for (let i = 0; i < 7; i += 1) {
+    const d = new Date(`${weekStart}T00:00:00`);
+    d.setDate(d.getDate() + i);
+    weekDays.add(toIso(d));
+  }
+
   const out: WeekSchedule = {};
-  for (const ev of events) {
-    const date = (ev.scheduleDate ?? "").slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-    const crewName = (ev.crew ?? "").trim() || "(unassigned)";
-    const bucket = out[date] ?? { crews: [] };
-    // Dedupe by crew name within a day (multiple jobs → keep first job ref).
-    if (!bucket.crews.some((c) => c.name === crewName)) {
-      bucket.crews.push({
-        name: crewName,
-        jobId: ev.workOrder || String(ev.rowId),
-        address: [ev.address, ev.city].filter(Boolean).join(", "),
-      });
-    }
+  const seen = new Map<string, Set<string>>(); // date -> set of "foreman||workOrder"
+  const foremen = new Map<string, Set<string>>(); // date -> set of foreman
+
+  for (const job of jobs) {
+    const date = (job.scheduleDate ?? "").slice(0, 10);
+    if (!weekDays.has(date)) continue;
+
+    const foreman = (job.constructionCrewForeman ?? "").trim() || "Unassigned";
+    const wo = job.workOrder || job.jobId;
+    const dedupeKey = `${foreman}||${wo}`;
+
+    const seenForDay = seen.get(date) ?? new Set<string>();
+    if (seenForDay.has(dedupeKey)) continue;
+    seenForDay.add(dedupeKey);
+    seen.set(date, seenForDay);
+
+    const foremenForDay = foremen.get(date) ?? new Set<string>();
+    foremenForDay.add(foreman);
+    foremen.set(date, foremenForDay);
+
+    const bucket = out[date] ?? { crews: [], crewCount: 0 };
+    bucket.crews.push({
+      name: foreman,
+      jobId: wo,
+      address: [job.address, job.city].filter(Boolean).join(", "),
+    });
     out[date] = bucket;
+  }
+
+  for (const [date, set] of foremen) {
+    if (out[date]) out[date].crewCount = set.size;
   }
   return out;
 }
 
 export function useDashboardData(jobs: Job[]): DashboardData {
   const weekStart = useMemo(() => mondayOfThisWeek(), []);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loadingCalendar, setLoadingCalendar] = useState(true);
-  const [nonce, setNonce] = useState(0);
-
-  // Fetch the crew calendar for the current week; refetch on window focus so
-  // the rollup stays current without a websocket/snapshot listener.
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingCalendar(true);
-    api
-      .getCalendar(weekStart, "mine")
-      .then((payload) => {
-        if (!cancelled) setEvents(payload.events);
-      })
-      .catch(() => {
-        if (!cancelled) setEvents([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingCalendar(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [weekStart, nonce]);
-
-  useEffect(() => {
-    function onFocus() {
-      setNonce((n) => n + 1);
-    }
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, []);
-
-  const statusCounts = useMemo(() => countByStatus(jobs), [jobs]);
+  const statusCounts = useMemo(() => countByBucket(jobs), [jobs]);
   const atRiskJobs = useMemo(() => computeAtRisk(jobs), [jobs]);
-  const weekSchedule = useMemo(() => buildWeekSchedule(events), [events]);
-  const recentActivity = useMemo<ActivityRow[]>(() => {
-    return [...jobs]
-      .sort((a, b) => (b.lastSyncedAt ?? 0) - (a.lastSyncedAt ?? 0))
-      .slice(0, 6)
-      .map((j) => ({
-        jobId: j.jobId,
-        workOrder: j.workOrder,
-        status: j.secondaryJobStatus ?? j.jobStatus ?? "",
-        at: j.lastSyncedAt ?? 0,
-      }));
-  }, [jobs]);
+  const weekSchedule = useMemo(
+    () => buildWeekSchedule(jobs, weekStart),
+    [jobs, weekStart]
+  );
 
   return {
     statusCounts,
     myJobs: jobs,
     atRiskJobs,
     weekSchedule,
-    recentActivity,
     weekStart,
-    loadingCalendar,
   };
 }

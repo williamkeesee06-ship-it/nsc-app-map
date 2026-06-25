@@ -100,18 +100,29 @@ interface BriefingResponse {
   modelTurnAt: number;
 }
 
-const RTS_RE = /^rts$|fielded.*rts|fielded.*coordination|ready to submit/i;
+function isTruthyFlag(value: string | null | undefined): boolean {
+  return /^(y|yes|true|required|1)/i.test((value ?? "").trim());
+}
 
-function isReadyToSubmit(j: Job): boolean {
-  const s = (j.secondaryJobStatus ?? "").trim();
-  return RTS_RE.test(s);
+function isEmpty(value: string | null | undefined): boolean {
+  return !value || !value.trim();
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function daysUntil(iso: string | null): number | null {
   if (!iso) return null;
   const d = Date.parse(iso.slice(0, 10));
   if (Number.isNaN(d)) return null;
-  return Math.round((d - Date.now()) / 86400000);
+  const start = Date.parse(todayIso());
+  return Math.round((d - start) / 86400000);
+}
+
+interface Candidate {
+  signal: number; // 0 = no signal; higher sorts first
+  text: string;
 }
 
 async function buildBriefing(username?: string): Promise<BriefingResponse> {
@@ -126,28 +137,62 @@ async function buildBriefing(username?: string): Promise<BriefingResponse> {
     ? all.filter((j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === u)
     : all;
 
-  // Bullet 1 — jobs ready to submit.
-  const ready = jobs.filter(isReadyToSubmit);
-  const readyList = ready.slice(0, 4).map((j) => j.workOrder).filter(Boolean).join(", ");
-  const bullet1 =
-    ready.length === 0
-      ? "No jobs are ready to submit right now."
-      : `${ready.length} job${ready.length === 1 ? "" : "s"} ready to submit${readyList ? `: ${readyList}${ready.length > 4 ? "…" : ""}` : ""}.`;
+  const today = todayIso();
 
-  // Bullet 2 — permit-required jobs scheduled within 7 days. NOTE: the Job
-  // schema has no permit-expiration date, so this surfaces permit-required
-  // jobs scheduled this week (the closest live signal available).
-  const permitSoon = jobs.filter((j) => {
-    const needsPermit = !!(j.permitRequired && /^(y|yes|true|required)/i.test(j.permitRequired.trim()));
+  // Five candidate bullets, each computed from real Job fields only. We score
+  // each by its signal (the count it reports) and surface the strongest three.
+  // No fabrication: a candidate with zero signal is dropped, not padded.
+  const candidates: Candidate[] = [];
+
+  // 1 — jobs scheduled today, not yet completed.
+  const scheduledToday = jobs.filter(
+    (j) => (j.scheduleDate ?? "").slice(0, 10) === today && isEmpty(j.actualCompletionDate)
+  ).length;
+  if (scheduledToday > 0) {
+    candidates.push({
+      signal: scheduledToday,
+      text: `${scheduledToday} job${scheduledToday === 1 ? "" : "s"} scheduled today.`,
+    });
+  }
+
+  // 2 — jobs past their schedule date with no completion logged.
+  const pastDue = jobs.filter((j) => {
     const d = daysUntil(j.scheduleDate);
-    return needsPermit && d !== null && d >= 0 && d <= 7;
-  });
-  const bullet2 =
-    permitSoon.length === 0
-      ? "No permit-required jobs scheduled in the next 7 days."
-      : `${permitSoon.length} permit-required job${permitSoon.length === 1 ? "" : "s"} scheduled within 7 days — verify permits are active.`;
+    return d !== null && d < 0 && isEmpty(j.actualCompletionDate);
+  }).length;
+  if (pastDue > 0) {
+    candidates.push({
+      signal: pastDue,
+      text: `${pastDue} job${pastDue === 1 ? "" : "s"} past schedule date with no completion.`,
+    });
+  }
 
-  // Bullet 3 — crew conflicts (same crew booked on 2+ jobs the same day).
+  // 3 — permit-required jobs scheduled within the next 7 days.
+  const permitSoon = jobs.filter((j) => {
+    const d = daysUntil(j.scheduleDate);
+    return isTruthyFlag(j.permitRequired) && d !== null && d >= 0 && d <= 7;
+  }).length;
+  if (permitSoon > 0) {
+    candidates.push({
+      signal: permitSoon,
+      text: `${permitSoon} job${permitSoon === 1 ? "" : "s"} require permits within 7 days.`,
+    });
+  }
+
+  // 4 — jobs requiring traffic control scheduled this week (next 7 days).
+  const trafficWeek = jobs.filter((j) => {
+    const d = daysUntil(j.scheduleDate);
+    return j.trafficControlRequired === true && d !== null && d >= 0 && d <= 7;
+  }).length;
+  if (trafficWeek > 0) {
+    candidates.push({
+      signal: trafficWeek,
+      text: `${trafficWeek} job${trafficWeek === 1 ? "" : "s"} require traffic control this week.`,
+    });
+  }
+
+  // 5 — crew double-booked (same foreman on 2+ jobs the same day). Signal is
+  // the worst single overlap so it ranks against the count-based bullets.
   const byCrewDay = new Map<string, Set<string>>();
   for (const j of jobs) {
     const crew = (j.constructionCrewForeman ?? "").trim();
@@ -159,15 +204,26 @@ async function buildBriefing(username?: string): Promise<BriefingResponse> {
     byCrewDay.set(key, set);
   }
   const conflicts = [...byCrewDay.entries()].filter(([, ids]) => ids.size > 1);
-  const bullet3 =
-    conflicts.length === 0
-      ? "No crew double-bookings detected."
-      : `${conflicts.length} crew double-booking${conflicts.length === 1 ? "" : "s"} detected — review the calendar.`;
+  if (conflicts.length > 0) {
+    const [key] = conflicts.sort((a, b) => b[1].size - a[1].size)[0];
+    const [crew, date] = key.split("__");
+    candidates.push({
+      signal: conflicts.length,
+      text: `Crew ${crew} double-booked on ${date}.`,
+    });
+  }
+
+  // Top three by signal strength. If nothing fired, say so plainly.
+  candidates.sort((a, b) => b.signal - a.signal);
+  const bullets =
+    candidates.length === 0
+      ? ["Nothing flagged across your jobs. All clear."]
+      : candidates.slice(0, 3).map((c) => c.text);
 
   const first = (username ?? "Billy Keesee").trim().split(/\s+/)[0] || "Billy";
   return {
     greeting: `Good morning, ${first}.`,
-    bullets: [bullet1, bullet2, bullet3],
+    bullets,
     modelTurnAt: Date.now(),
   };
 }
