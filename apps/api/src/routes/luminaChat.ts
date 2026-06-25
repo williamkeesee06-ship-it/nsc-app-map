@@ -30,6 +30,8 @@ import {
   LUMINA_FUNCTION_DECLARATIONS,
 } from "../lumina/promptAndTools.js";
 import { loadMemoriesForPrompt, type MemoryItem } from "./luminaMemories.js";
+import { db } from "../lib/firestore.js";
+import type { Job } from "@nsc/types";
 
 const router = Router();
 
@@ -80,6 +82,150 @@ interface ChatRequestBody {
   newUserMessage?: string;
   /** Operator username — pasted into system prompt so Lumina addresses Billy. */
   username?: string;
+  /** Dashboard briefing mode — bypasses the chat engine and returns computed
+   *  bullets from live Firestore data instead of a Gemini turn. */
+  mode?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dashboard briefing — deterministic, server-side bullets from live Firestore.
+// Reuses this same /lumina/chat route (mode === "dashboard_briefing") rather
+// than standing up a parallel endpoint. Bullets are computed at request time;
+// nothing is cached.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface BriefingResponse {
+  greeting: string;
+  bullets: string[];
+  modelTurnAt: number;
+}
+
+function isTruthyFlag(value: string | null | undefined): boolean {
+  return /^(y|yes|true|required|1)/i.test((value ?? "").trim());
+}
+
+function isEmpty(value: string | null | undefined): boolean {
+  return !value || !value.trim();
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function daysUntil(iso: string | null): number | null {
+  if (!iso) return null;
+  const d = Date.parse(iso.slice(0, 10));
+  if (Number.isNaN(d)) return null;
+  const start = Date.parse(todayIso());
+  return Math.round((d - start) / 86400000);
+}
+
+interface Candidate {
+  signal: number; // 0 = no signal; higher sorts first
+  text: string;
+}
+
+async function buildBriefing(username?: string): Promise<BriefingResponse> {
+  const snap = await db().collection("jobs").get();
+  const all: Job[] = [];
+  snap.forEach((doc) => all.push(doc.data() as Job));
+
+  // Scope to the signed-in supervisor when provided (mirrors the web app's
+  // per-supervisor job filter); fall back to all jobs otherwise.
+  const u = (username ?? "").trim().toLowerCase();
+  const jobs = u
+    ? all.filter((j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === u)
+    : all;
+
+  const today = todayIso();
+
+  // Five candidate bullets, each computed from real Job fields only. We score
+  // each by its signal (the count it reports) and surface the strongest three.
+  // No fabrication: a candidate with zero signal is dropped, not padded.
+  const candidates: Candidate[] = [];
+
+  // 1 — jobs scheduled today, not yet completed.
+  const scheduledToday = jobs.filter(
+    (j) => (j.scheduleDate ?? "").slice(0, 10) === today && isEmpty(j.actualCompletionDate)
+  ).length;
+  if (scheduledToday > 0) {
+    candidates.push({
+      signal: scheduledToday,
+      text: `${scheduledToday} job${scheduledToday === 1 ? "" : "s"} scheduled today.`,
+    });
+  }
+
+  // 2 — jobs past their schedule date with no completion logged.
+  const pastDue = jobs.filter((j) => {
+    const d = daysUntil(j.scheduleDate);
+    return d !== null && d < 0 && isEmpty(j.actualCompletionDate);
+  }).length;
+  if (pastDue > 0) {
+    candidates.push({
+      signal: pastDue,
+      text: `${pastDue} job${pastDue === 1 ? "" : "s"} past schedule date with no completion.`,
+    });
+  }
+
+  // 3 — permit-required jobs scheduled within the next 7 days.
+  const permitSoon = jobs.filter((j) => {
+    const d = daysUntil(j.scheduleDate);
+    return isTruthyFlag(j.permitRequired) && d !== null && d >= 0 && d <= 7;
+  }).length;
+  if (permitSoon > 0) {
+    candidates.push({
+      signal: permitSoon,
+      text: `${permitSoon} job${permitSoon === 1 ? "" : "s"} require permits within 7 days.`,
+    });
+  }
+
+  // 4 — jobs requiring traffic control scheduled this week (next 7 days).
+  const trafficWeek = jobs.filter((j) => {
+    const d = daysUntil(j.scheduleDate);
+    return j.trafficControlRequired === true && d !== null && d >= 0 && d <= 7;
+  }).length;
+  if (trafficWeek > 0) {
+    candidates.push({
+      signal: trafficWeek,
+      text: `${trafficWeek} job${trafficWeek === 1 ? "" : "s"} require traffic control this week.`,
+    });
+  }
+
+  // 5 — crew double-booked (same foreman on 2+ jobs the same day). Signal is
+  // the worst single overlap so it ranks against the count-based bullets.
+  const byCrewDay = new Map<string, Set<string>>();
+  for (const j of jobs) {
+    const crew = (j.constructionCrewForeman ?? "").trim();
+    const date = (j.scheduleDate ?? "").slice(0, 10);
+    if (!crew || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const key = `${crew}__${date}`;
+    const set = byCrewDay.get(key) ?? new Set<string>();
+    set.add(j.jobId);
+    byCrewDay.set(key, set);
+  }
+  const conflicts = [...byCrewDay.entries()].filter(([, ids]) => ids.size > 1);
+  if (conflicts.length > 0) {
+    const [key] = conflicts.sort((a, b) => b[1].size - a[1].size)[0];
+    const [crew, date] = key.split("__");
+    candidates.push({
+      signal: conflicts.length,
+      text: `Crew ${crew} double-booked on ${date}.`,
+    });
+  }
+
+  // Top three by signal strength. If nothing fired, say so plainly.
+  candidates.sort((a, b) => b.signal - a.signal);
+  const bullets =
+    candidates.length === 0
+      ? ["Nothing flagged across your jobs. All clear."]
+      : candidates.slice(0, 3).map((c) => c.text);
+
+  const first = (username ?? "Billy Keesee").trim().split(/\s+/)[0] || "Billy";
+  return {
+    greeting: `Good morning, ${first}.`,
+    bullets,
+    modelTurnAt: Date.now(),
+  };
 }
 
 interface ChatResponseBody {
@@ -175,6 +321,21 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
   }
 
   const body = req.body as ChatRequestBody | undefined;
+
+  // Dashboard briefing short-circuit — does not need history[] or Gemini.
+  if (body?.mode === "dashboard_briefing") {
+    try {
+      const briefing = await buildBriefing(body.username);
+      return res.json(briefing);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[lumina/chat] briefing error:", err);
+      return res
+        .status(500)
+        .json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
   if (!body || !Array.isArray(body.history)) {
     return res.status(400).json({ error: "invalid body — history[] required" });
   }
