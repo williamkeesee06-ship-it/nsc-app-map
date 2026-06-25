@@ -36,7 +36,11 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'filters' | 'telecom' | 'tools' | 'tasks' | 'calendar' | 'lumina';
+type TabId = 'dashboard' | 'filters' | 'telecom' | 'tools' | 'tasks' | 'calendar' | 'lumina';
+
+// 2x2 grid glyph for the Dashboard tab (Lucide LayoutDashboard equivalent —
+// the repo uses inline SVG strings, not lucide-react).
+const DASHBOARD_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>`;
 
 export default function LeftRail({
   jobs,
@@ -47,9 +51,11 @@ export default function LeftRail({
   availableSupervisors,
 }: Props) {
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
-  const [activeTab, setActiveTab] = useState<TabId>('filters'); // Default to filters (top tab)
+  // Dashboard is the default landing tab (Billy). Like Calendar, it mounts
+  // full-screen over the map via JobsMap, so the rail starts collapsed.
+  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
 
-  const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [collapsed, setCollapsed] = useState<boolean>(true);
 
   // Broadcast active tab + collapse state so JobsMap can mount the Calendar
   // as a full-screen overlay over the map (instead of cramming it in the
@@ -67,6 +73,19 @@ export default function LeftRail({
     }
   }, [activeTab, collapsed]);
 
+  // Allow other components (e.g. the Dashboard overlay) to request a tab
+  // switch via a CustomEvent, mirroring the existing nsc:* event-bus pattern.
+  useEffect(() => {
+    function onRequestTab(e: Event) {
+      const detail = (e as CustomEvent<{ tab: TabId }>).detail;
+      if (!detail?.tab) return;
+      setActiveTab(detail.tab);
+      setCollapsed(detail.tab === 'calendar' || detail.tab === 'dashboard');
+    }
+    window.addEventListener("nsc:request-tab", onRequestTab as EventListener);
+    return () => window.removeEventListener("nsc:request-tab", onRequestTab as EventListener);
+  }, []);
+
   // Click an active tab to collapse the rail; click a different tab to switch
   // to it (and uncollapse if currently collapsed).
   // Exception: CALENDAR mounts full-screen over the map and has no rail
@@ -76,7 +95,9 @@ export default function LeftRail({
       setCollapsed(c => !c);
     } else {
       setActiveTab(id);
-      setCollapsed(id === 'calendar');
+      // Calendar and Dashboard mount full-screen over the map and have no rail
+      // body of their own, so collapse the rail when entering them.
+      setCollapsed(id === 'calendar' || id === 'dashboard');
     }
   }, [activeTab]);
   const draggingRef = useRef(false);
@@ -162,7 +183,8 @@ export default function LeftRail({
 
   // Always 2 columns — tiles shrink to fit
 
-  const tabs: { id: TabId; label: string }[] = [
+  const tabs: { id: TabId; label: string; iconSvg?: string }[] = [
+    { id: 'dashboard', label: 'DASHBOARD', iconSvg: DASHBOARD_ICON_SVG },
     { id: 'filters', label: 'FILTERS' },
     { id: 'telecom', label: 'TELECOM' },
     { id: 'tools', label: 'TOOLS' },
@@ -186,10 +208,18 @@ export default function LeftRail({
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            className={`left-rail-tab ${activeTab === tab.id && !collapsed ? 'active' : ''}`}
+            className={`left-rail-tab ${tab.id === 'dashboard' ? 'left-rail-tab--dashboard' : ''} ${activeTab === tab.id && (!collapsed || tab.id === 'dashboard') ? 'active' : ''}`}
             onClick={() => onTabClick(tab.id)}
             title={`${tab.label} — click again to ${collapsed ? 'expand' : 'collapse'}`}
+            aria-label={tab.label}
           >
+            {tab.iconSvg && (
+              <span
+                className="left-rail-tab__icon"
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{ __html: tab.iconSvg }}
+              />
+            )}
             <span>{tab.label}</span>
           </button>
         ))}

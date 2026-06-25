@@ -25,6 +25,66 @@ interface NwsPeriod {
   shortForecast?: string;
   detailedForecast?: string;
   probabilityOfPrecipitation?: { value: number | null };
+  relativeHumidity?: { value: number | null };
+}
+
+// Sunrise/sunset (NOAA solar equations) — keyless, no upstream call. Returns
+// local-time HH:MM AM/PM strings for the given day at lat/lng. The dashboard
+// weather strip needs these and NWS does not provide them.
+function solarTimes(lat: number, lng: number, when: Date = new Date()): {
+  sunrise: string;
+  sunset: string;
+} {
+  const rad = Math.PI / 180;
+  const dayMs = 86400000;
+  const start = Date.UTC(when.getUTCFullYear(), 0, 0);
+  const dayOfYear = Math.floor((Date.UTC(when.getUTCFullYear(), when.getUTCMonth(), when.getUTCDate()) - start) / dayMs);
+
+  // Fractional year (radians) → equation of time + solar declination.
+  const gamma = (2 * Math.PI / 365) * (dayOfYear - 1 + 0.5);
+  const eqTime =
+    229.18 *
+    (0.000075 +
+      0.001868 * Math.cos(gamma) -
+      0.032077 * Math.sin(gamma) -
+      0.014615 * Math.cos(2 * gamma) -
+      0.040849 * Math.sin(2 * gamma)); // minutes
+  const decl =
+    0.006918 -
+    0.399912 * Math.cos(gamma) +
+    0.070257 * Math.sin(gamma) -
+    0.006758 * Math.cos(2 * gamma) +
+    0.000907 * Math.sin(2 * gamma) -
+    0.002697 * Math.cos(3 * gamma) +
+    0.00148 * Math.sin(3 * gamma); // radians
+
+  // Hour angle at sunrise/sunset (90.833° accounts for refraction + solar disc).
+  const cosH =
+    Math.cos(90.833 * rad) / (Math.cos(lat * rad) * Math.cos(decl)) -
+    Math.tan(lat * rad) * Math.tan(decl);
+  // Polar day/night guard.
+  if (cosH > 1) return { sunrise: "—", sunset: "—" };
+  if (cosH < -1) return { sunrise: "—", sunset: "—" };
+  const ha = Math.acos(cosH) / rad; // degrees
+
+  // UTC minutes from local solar noon math.
+  const sunriseUtcMin = 720 - 4 * (lng + ha) - eqTime;
+  const sunsetUtcMin = 720 - 4 * (lng - ha) - eqTime;
+
+  const fmt = (utcMinutes: number): string => {
+    const base = Date.UTC(when.getUTCFullYear(), when.getUTCMonth(), when.getUTCDate());
+    const d = new Date(base + Math.round(utcMinutes) * 60000);
+    // Render in the timezone implied by the longitude is unreliable; use the
+    // server's Pacific scope (the app is Kent, WA based) for the label.
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Los_Angeles",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(d);
+  };
+
+  return { sunrise: fmt(sunriseUtcMin), sunset: fmt(sunsetUtcMin) };
 }
 
 router.get("/lumina/weather", async (req: Request, res: Response) => {
@@ -82,8 +142,10 @@ router.get("/lumina/weather", async (req: Request, res: Response) => {
       shortForecast: p.shortForecast ?? "",
       detailedForecast: p.detailedForecast ?? "",
       precipitationChancePct: p.probabilityOfPrecipitation?.value ?? null,
+      relativeHumidityPct: p.relativeHumidity?.value ?? null,
     }));
-    res.json({ lat, lng, area, periods });
+    const { sunrise, sunset } = solarTimes(lat, lng);
+    res.json({ lat, lng, area, sunrise, sunset, periods });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("[lumina/weather] error:", err);

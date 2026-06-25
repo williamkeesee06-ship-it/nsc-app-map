@@ -30,6 +30,8 @@ import {
   LUMINA_FUNCTION_DECLARATIONS,
 } from "../lumina/promptAndTools.js";
 import { loadMemoriesForPrompt, type MemoryItem } from "./luminaMemories.js";
+import { db } from "../lib/firestore.js";
+import type { Job } from "@nsc/types";
 
 const router = Router();
 
@@ -80,6 +82,94 @@ interface ChatRequestBody {
   newUserMessage?: string;
   /** Operator username — pasted into system prompt so Lumina addresses Billy. */
   username?: string;
+  /** Dashboard briefing mode — bypasses the chat engine and returns computed
+   *  bullets from live Firestore data instead of a Gemini turn. */
+  mode?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dashboard briefing — deterministic, server-side bullets from live Firestore.
+// Reuses this same /lumina/chat route (mode === "dashboard_briefing") rather
+// than standing up a parallel endpoint. Bullets are computed at request time;
+// nothing is cached.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface BriefingResponse {
+  greeting: string;
+  bullets: string[];
+  modelTurnAt: number;
+}
+
+const RTS_RE = /^rts$|fielded.*rts|fielded.*coordination|ready to submit/i;
+
+function isReadyToSubmit(j: Job): boolean {
+  const s = (j.secondaryJobStatus ?? "").trim();
+  return RTS_RE.test(s);
+}
+
+function daysUntil(iso: string | null): number | null {
+  if (!iso) return null;
+  const d = Date.parse(iso.slice(0, 10));
+  if (Number.isNaN(d)) return null;
+  return Math.round((d - Date.now()) / 86400000);
+}
+
+async function buildBriefing(username?: string): Promise<BriefingResponse> {
+  const snap = await db().collection("jobs").get();
+  const all: Job[] = [];
+  snap.forEach((doc) => all.push(doc.data() as Job));
+
+  // Scope to the signed-in supervisor when provided (mirrors the web app's
+  // per-supervisor job filter); fall back to all jobs otherwise.
+  const u = (username ?? "").trim().toLowerCase();
+  const jobs = u
+    ? all.filter((j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === u)
+    : all;
+
+  // Bullet 1 — jobs ready to submit.
+  const ready = jobs.filter(isReadyToSubmit);
+  const readyList = ready.slice(0, 4).map((j) => j.workOrder).filter(Boolean).join(", ");
+  const bullet1 =
+    ready.length === 0
+      ? "No jobs are ready to submit right now."
+      : `${ready.length} job${ready.length === 1 ? "" : "s"} ready to submit${readyList ? `: ${readyList}${ready.length > 4 ? "…" : ""}` : ""}.`;
+
+  // Bullet 2 — permit-required jobs scheduled within 7 days. NOTE: the Job
+  // schema has no permit-expiration date, so this surfaces permit-required
+  // jobs scheduled this week (the closest live signal available).
+  const permitSoon = jobs.filter((j) => {
+    const needsPermit = !!(j.permitRequired && /^(y|yes|true|required)/i.test(j.permitRequired.trim()));
+    const d = daysUntil(j.scheduleDate);
+    return needsPermit && d !== null && d >= 0 && d <= 7;
+  });
+  const bullet2 =
+    permitSoon.length === 0
+      ? "No permit-required jobs scheduled in the next 7 days."
+      : `${permitSoon.length} permit-required job${permitSoon.length === 1 ? "" : "s"} scheduled within 7 days — verify permits are active.`;
+
+  // Bullet 3 — crew conflicts (same crew booked on 2+ jobs the same day).
+  const byCrewDay = new Map<string, Set<string>>();
+  for (const j of jobs) {
+    const crew = (j.constructionCrewForeman ?? "").trim();
+    const date = (j.scheduleDate ?? "").slice(0, 10);
+    if (!crew || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const key = `${crew}__${date}`;
+    const set = byCrewDay.get(key) ?? new Set<string>();
+    set.add(j.jobId);
+    byCrewDay.set(key, set);
+  }
+  const conflicts = [...byCrewDay.entries()].filter(([, ids]) => ids.size > 1);
+  const bullet3 =
+    conflicts.length === 0
+      ? "No crew double-bookings detected."
+      : `${conflicts.length} crew double-booking${conflicts.length === 1 ? "" : "s"} detected — review the calendar.`;
+
+  const first = (username ?? "Billy Keesee").trim().split(/\s+/)[0] || "Billy";
+  return {
+    greeting: `Good morning, ${first}.`,
+    bullets: [bullet1, bullet2, bullet3],
+    modelTurnAt: Date.now(),
+  };
 }
 
 interface ChatResponseBody {
@@ -175,6 +265,21 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
   }
 
   const body = req.body as ChatRequestBody | undefined;
+
+  // Dashboard briefing short-circuit — does not need history[] or Gemini.
+  if (body?.mode === "dashboard_briefing") {
+    try {
+      const briefing = await buildBriefing(body.username);
+      return res.json(briefing);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[lumina/chat] briefing error:", err);
+      return res
+        .status(500)
+        .json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
   if (!body || !Array.isArray(body.history)) {
     return res.status(400).json({ error: "invalid body — history[] required" });
   }

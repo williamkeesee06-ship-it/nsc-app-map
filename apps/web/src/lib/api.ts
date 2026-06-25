@@ -54,6 +54,30 @@ export const api = {
   },
 
   listJobs: () => request<{ jobs: Job[]; count: number }>("/api/jobs"),
+
+  // Dashboard weather strip — reuses the existing NWS-backed weather route.
+  getWeather: (lat: number, lng: number) =>
+    request<WeatherPayload>(
+      `/api/lumina/weather?lat=${lat}&lng=${lng}&periods=2`
+    ),
+
+  // Dashboard Lumina briefing — reuses /api/lumina/chat with a dedicated mode.
+  getDashboardBriefing: (username: string) =>
+    request<DashboardBriefing>("/api/lumina/chat", {
+      method: "POST",
+      body: JSON.stringify({ mode: "dashboard_briefing", username, history: [] }),
+    }),
+  // One-shot question from the dashboard briefing card. Returns the model's
+  // text reply (tool-calling turns are not expected for these short asks).
+  askLumina: (prompt: string, username: string | null) =>
+    request<{ text?: string; modelTurnAt: number }>("/api/lumina/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        history: [],
+        newUserMessage: prompt,
+        username: username ?? undefined,
+      }),
+    }),
   listSupervisors: () =>
     request<{ supervisors: string[]; managers: string[]; count: number }>(
       "/api/supervisors"
@@ -234,6 +258,34 @@ export const api = {
       body: JSON.stringify(body),
     }),
 };
+
+export interface WeatherPeriod {
+  name: string;
+  start: string;
+  end: string;
+  temperatureF: number;
+  windSpeed: string;
+  windDirection: string;
+  shortForecast: string;
+  detailedForecast: string;
+  precipitationChancePct: number | null;
+  relativeHumidityPct: number | null;
+}
+
+export interface WeatherPayload {
+  lat: number;
+  lng: number;
+  area: string | null;
+  sunrise: string;
+  sunset: string;
+  periods: WeatherPeriod[];
+}
+
+export interface DashboardBriefing {
+  greeting: string;
+  bullets: string[];
+  modelTurnAt: number;
+}
 
 export interface CalendarEvent {
   rowId: number;

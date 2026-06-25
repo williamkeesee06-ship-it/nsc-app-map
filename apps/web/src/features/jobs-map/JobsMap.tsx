@@ -9,6 +9,8 @@ import type { Filters } from "./FilterRail.js";
 import { useFiltersContext } from "./filtersContext.js";
 import LeftRail from "./LeftRail.js";
 import CalendarTab from "./CalendarTab.js";
+import DashboardPage from "../dashboard/DashboardPage.js";
+import type { StatusBucket } from "./markerStyle.js";
 import JobCard from "./JobCard.js";
 import LayersPanel from "../workspace/LayersPanel.js";
 import type { Job } from "@nsc/types";
@@ -216,15 +218,33 @@ function JobsMapInner({
   // The rail collapses to a thin tab strip so the user can click another
   // tab to dismiss — collapse state does NOT hide the overlay.
   const [calendarFullscreen, setCalendarFullscreen] = useState(false);
+  // Dashboard is the default landing tab — it mounts full-screen on first
+  // paint (LeftRail starts on 'dashboard' and broadcasts it on mount).
+  const [dashboardFullscreen, setDashboardFullscreen] = useState(true);
   useEffect(() => {
     function onActiveTab(e: Event) {
       const detail = (e as CustomEvent<{ tab: string; collapsed: boolean }>).detail;
       if (!detail) return;
       setCalendarFullscreen(detail.tab === "calendar");
+      setDashboardFullscreen(detail.tab === "dashboard");
     }
     window.addEventListener("nsc:active-tab", onActiveTab);
     return () => window.removeEventListener("nsc:active-tab", onActiveTab);
   }, []);
+
+  // Dashboard → app navigation. Tapping a status segment pre-filters the map;
+  // tapping the map/calendar cards switches to that tab. We drive LeftRail via
+  // the nsc:request-tab event bus (LeftRail owns the active-tab state).
+  const requestTab = useCallback((tab: string) => {
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab } }));
+  }, []);
+  const onDashboardFilterStatus = useCallback(
+    (bucket: StatusBucket) => {
+      setFilters({ ...filters, buckets: new Set([bucket]), hideCompleted: bucket !== "completed" });
+      requestTab("filters");
+    },
+    [filters, setFilters, requestTab]
+  );
 
   return (
     <div className="jobs-map">
@@ -294,6 +314,23 @@ function JobsMapInner({
               }}
             >
               <CalendarTab />
+            </div>
+          )}
+
+          {/* Full-screen Dashboard overlay — default landing view. Same
+              layering contract as the calendar overlay. Kept mounted only
+              while active so its data hook / second map tear down cleanly. */}
+          {dashboardFullscreen && (
+            <div
+              className="dashboard-fullscreen-overlay"
+              style={{ position: "absolute", inset: 0, zIndex: 50 }}
+            >
+              <DashboardPage
+                jobs={allJobs}
+                onFilterStatus={onDashboardFilterStatus}
+                onOpenMap={() => requestTab("filters")}
+                onOpenCalendar={() => requestTab("calendar")}
+              />
             </div>
           )}
         </div>
