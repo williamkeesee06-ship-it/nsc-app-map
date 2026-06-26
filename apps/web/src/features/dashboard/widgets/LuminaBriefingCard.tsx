@@ -70,7 +70,7 @@ export default function LuminaBriefingCard({
       </div>
       <div className="lumina-card__layout">
         <div className="lumina-card__orb-col">
-          <NeonOrb size={140} />
+          <NeonOrb size={110} />
         </div>
 
         <div className="lumina-card__main">

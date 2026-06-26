@@ -1,7 +1,8 @@
 /* Dashboard home — "Neon Pulse Light" visual system. Light brushed steel,
    chrome bezels with rivets, radial dyson-ring gauges, electric-blue neon
    glow. Tokens are scoped to .nsc-dashboard so they don't leak into the global
-   theme. Grids: 3-col row = 58fr 21fr 21fr, bottom row = 58fr 42fr. */
+   theme. Grids: 3-col row = 58fr 21fr 21fr, bottom row = 42fr 58fr (Lumina
+   shrunk so At-Risk + Quick Links get more room). */
 
 .nsc-dashboard {
   --neon-blue: #3da9ff;
@@ -68,7 +69,7 @@
 }
 
 .nsc-dashboard__row--bottom {
-  grid-template-columns: 58fr 42fr;
+  grid-template-columns: 42fr 58fr;
   min-height: 360px;
 }
 
@@ -135,33 +136,54 @@
   box-shadow: 0 0 10px color-mix(in srgb, var(--bezel-accent, var(--neon-red)) 65%, transparent);
 }
 
-/* Scoped under .nsc-dashboard so these win over the app-wide
-   `.rivet { display: none !important }` rule in global.css (which is what
-   was killing every dashboard rivet). Higher specificity + !important. */
+/* Premium 3D chrome rivets — 4 corners only. Scoped under .nsc-dashboard so
+   these win over the app-wide `.rivet { display: none !important }` rule in
+   global.css (which was killing every dashboard rivet). Each head reads as a
+   real machined bolt: bright specular highlight top-left, brushed-chrome body,
+   recessed shadow bottom-right, plus an outer bevel ring (::before) and a drop
+   shadow so it sits on the frame. Light-theme translation of the neon-pulse
+   reference. */
 .nsc-dashboard .rivet {
   display: block !important;
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: radial-gradient(
-    circle at 38% 30%,
-    #eef2f6 0%,
-    #b6c0cc 38%,
-    #6a747f 72%,
-    #444c56 100%
+    circle at 32% 26%,
+    #ffffff 0%,
+    #e6ecf2 22%,
+    #b3bdc9 52%,
+    #7d8895 78%,
+    #4c5560 100%
   ) !important;
   box-shadow:
-    inset 0 -1.5px 2px rgba(0, 0, 0, 0.6),
-    inset 0 1px 1px rgba(255, 255, 255, 0.95),
-    0 1px 2px rgba(20, 28, 40, 0.5) !important;
+    /* recessed hard shadow on bottom-right */
+    inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+    /* specular pop on top-left */
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.95),
+    /* outer drop shadow so the head sits on the frame */
+    0 1px 2px rgba(0, 0, 0, 0.25) !important;
   z-index: 4;
 }
 
-.nsc-dashboard .rivet--tl { top: 8px; left: 8px; }
-.nsc-dashboard .rivet--tr { top: 8px; right: 8px; }
-.nsc-dashboard .rivet--bl { bottom: 8px; left: 8px; }
-.nsc-dashboard .rivet--br { bottom: 8px; right: 8px; }
+/* Outer chrome bevel ring around each rivet head. */
+.nsc-dashboard .rivet::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fdfefe 0%, #c4ccd6 45%, #8c97a3 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.85),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.3);
+  z-index: -1;
+}
+
+.nsc-dashboard .rivet--tl { top: 7px; left: 7px; }
+.nsc-dashboard .rivet--tr { top: 7px; right: 7px; }
+.nsc-dashboard .rivet--bl { bottom: 7px; left: 7px; }
+.nsc-dashboard .rivet--br { bottom: 7px; right: 7px; }
 
 /* Cards reuse the bezel; keep flex column behaviour for inner content. */
 .nsc-dashboard .card {
@@ -627,8 +649,14 @@
 
 /* ── Lumina briefing ─────────────────────────────────────────────────── */
 
+/* Lumina now occupies the narrower (42fr) column — cut ~30% off the card's
+   internal padding so the briefing still breathes in the tighter footprint. */
+.lumina-card .bezel__inner {
+  padding: 11px 13px;
+}
+
 .lumina-card__brand-row {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .lumina-card__brand {
@@ -641,7 +669,7 @@
 
 .lumina-card__layout {
   display: flex;
-  gap: 20px;
+  gap: 14px;
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -667,11 +695,11 @@
 }
 
 .lumina-card__hello {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: 0.01em;
   color: var(--ink);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   font-family: Georgia, "Times New Roman", serif;
 }
 
@@ -786,9 +814,36 @@
 }
 
 .atrisk-card__scroll {
-  overflow: auto;
   flex: 1 1 auto;
   min-height: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Thin chrome-tinted scrollbar (Firefox). */
+  scrollbar-width: thin;
+  scrollbar-color: #b3bdc9 transparent;
+}
+
+/* Thin chrome-tinted scrollbar (WebKit/Blink). */
+.atrisk-card__scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.atrisk-card__scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.atrisk-card__scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, #cdd5df, #97a2af);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.atrisk-card__scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #bcc6d1, #828d9b);
+  background-clip: padding-box;
 }
 
 .atrisk-card__table {
