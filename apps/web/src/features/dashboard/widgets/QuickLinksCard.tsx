@@ -3,6 +3,7 @@
 // opens in a new tab.
 
 import type { ReactNode } from "react";
+import Bezel from "../components/Bezel.js";
 
 interface QuickLink {
   key: string;
@@ -83,7 +84,7 @@ const LINKS: QuickLink[] = [
 
 export default function QuickLinksCard() {
   return (
-    <div className="card card--light quicklinks-card">
+    <Bezel className="card quicklinks-card">
       <div className="card__header">
         <h2 className="card__title">Quick Links</h2>
       </div>
@@ -99,9 +100,22 @@ export default function QuickLinksCard() {
           >
             <span className="quicklinks-card__glyph">{l.glyph}</span>
             <span className="quicklinks-card__label">{l.label}</span>
+            <span className="quicklinks-card__open" aria-hidden>
+              Open
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
+                <path
+                  d="M5 12h14M13 6l6 6-6 6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
           </a>
         ))}
       </div>
-    </div>
+    </Bezel>
   );
 }

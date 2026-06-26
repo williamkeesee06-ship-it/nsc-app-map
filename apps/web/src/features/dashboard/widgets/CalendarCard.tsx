@@ -6,6 +6,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { WeekSchedule } from "../hooks/useDashboardData.js";
+import Bezel from "../components/Bezel.js";
+
+const MAX_DOTS = 4;
 
 export interface CalendarCardProps {
   weekStart: string; // Monday, YYYY-MM-DD
@@ -76,7 +79,7 @@ export default function CalendarCard({
   const selectedCrews = weekSchedule[selected]?.crews ?? [];
 
   return (
-    <div className="card card--light calendar-card">
+    <Bezel className="card calendar-card">
       <div className="card__header">
         <h2 className="card__title">Calendar</h2>
         <button
@@ -92,6 +95,7 @@ export default function CalendarCard({
         {days.map((d) => {
           const count = weekSchedule[d.iso]?.crewCount ?? 0;
           const dayNum = Number(d.iso.slice(8, 10));
+          const dots = Math.min(count, MAX_DOTS);
           return (
             <button
               type="button"
@@ -105,9 +109,22 @@ export default function CalendarCard({
             >
               <span className="calendar-card__dow">{d.label}</span>
               <span className="calendar-card__date">{dayNum}</span>
-              {count > 0 && (
-                <span className="calendar-card__badge">{count}</span>
-              )}
+              <span className="calendar-card__dots" aria-hidden>
+                {count === 0 ? (
+                  <span className="calendar-card__dots-empty" />
+                ) : (
+                  <>
+                    {Array.from({ length: dots }).map((_, i) => (
+                      <span className="calendar-card__dot" key={i} />
+                    ))}
+                    {count > MAX_DOTS && (
+                      <span className="calendar-card__dots-more">
+                        +{count - MAX_DOTS}
+                      </span>
+                    )}
+                  </>
+                )}
+              </span>
             </button>
           );
         })}
@@ -130,6 +147,6 @@ export default function CalendarCard({
           ))}
         </ul>
       )}
-    </div>
+    </Bezel>
   );
 }

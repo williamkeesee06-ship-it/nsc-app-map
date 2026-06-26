@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../auth/authContext.js";
+import Bezel from "../components/Bezel.js";
 
 type TaskSource = "user" | "lumina-chat" | "lumina-email";
 
@@ -103,7 +104,7 @@ export default function TodoCard() {
   );
 
   return (
-    <div className="card card--light todo-card">
+    <Bezel className="card todo-card">
       <div className="card__header">
         <h2 className="card__title">My Todo List</h2>
       </div>
@@ -149,6 +150,6 @@ export default function TodoCard() {
           ))}
         </ul>
       )}
-    </div>
+    </Bezel>
   );
 }
