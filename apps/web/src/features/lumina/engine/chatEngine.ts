@@ -70,6 +70,7 @@ const ERROR_STUB_PATTERNS: RegExp[] = [
   /^I got stuck calling tools/i,
   /^\(no reply\)$/i,
   /^\(empty reply from model\)$/i,
+  /^I couldn't figure out how to respond/i,
   /^My safety filter blocked/i,
   /^Reply blocked due to recitation/i,
   /^I ran out of room mid-reply/i,
@@ -230,7 +231,9 @@ export async function runUserTurn(deps: ChatEngineDeps): Promise<void> {
     }
 
     // ── Final text reply ────────────────────────────────────────────────
-    const text = body.text?.trim() || "(no reply)";
+    const text =
+      body.text?.trim() ||
+      "I couldn't figure out how to respond — try rephrasing or being more specific.";
     if (!assistantId) assistantId = crypto.randomUUID();
     deps.onAssistantMessage({
       id: assistantId,

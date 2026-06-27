@@ -444,42 +444,76 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
         }),
       })),
     });
-    const result = await model.generateContent({ contents: cleaned });
-    const response = result.response;
+    // Run one model turn and pull out either text or function calls. Returns
+    // the extracted shape so we can retry once on an empty STOP without
+    // duplicating the parsing logic.
+    async function runTurn(turnContents: Content[]) {
+      const result = await model.generateContent({ contents: turnContents });
+      const response = result.response;
+      const candidates = response.candidates ?? [];
+      const parts = candidates[0]?.content?.parts ?? [];
+      const finishReason = candidates[0]?.finishReason;
 
-    // Pull out either text or function calls.
-    const candidates = response.candidates ?? [];
-    const parts = candidates[0]?.content?.parts ?? [];
-    const finishReason = candidates[0]?.finishReason;
-
-    // eslint-disable-next-line no-console
-    console.log("[lumina/chat] turn complete", {
-      finishReason,
-      partCount: parts.length,
-      partKinds: parts.map((p) => {
-        if ((p as { functionCall?: unknown }).functionCall) return "call";
-        if ((p as { text?: string }).text) return "text";
-        return "other";
-      }),
-      promptFeedback: response.promptFeedback,
-    });
-
-    const fnCalls = parts
-      .filter((p): p is { functionCall: { name: string; args: Record<string, unknown>; thoughtSignature?: string } } =>
-        Boolean((p as { functionCall?: unknown }).functionCall)
-      )
-      .map((p) => {
-        const fc = p.functionCall;
-        // Capture thoughtSignature so the client can echo it back next turn.
-        // Required by Gemini 3.x — without it, the follow-up request 400s.
-        const out: ClientToolCall = {
-          id: cryptoRandomId(),
-          name: fc.name,
-          args: (fc.args ?? {}) as Record<string, unknown>,
-        };
-        if (fc.thoughtSignature) out.thoughtSignature = fc.thoughtSignature;
-        return out;
+      // eslint-disable-next-line no-console
+      console.log("[lumina/chat] turn complete", {
+        finishReason,
+        partCount: parts.length,
+        partKinds: parts.map((p) => {
+          if ((p as { functionCall?: unknown }).functionCall) return "call";
+          if ((p as { text?: string }).text) return "text";
+          return "other";
+        }),
+        promptFeedback: response.promptFeedback,
       });
+
+      const fnCalls = parts
+        .filter((p): p is { functionCall: { name: string; args: Record<string, unknown>; thoughtSignature?: string } } =>
+          Boolean((p as { functionCall?: unknown }).functionCall)
+        )
+        .map((p) => {
+          const fc = p.functionCall;
+          // Capture thoughtSignature so the client can echo it back next turn.
+          // Required by Gemini 3.x — without it, the follow-up request 400s.
+          const tc: ClientToolCall = {
+            id: cryptoRandomId(),
+            name: fc.name,
+            args: (fc.args ?? {}) as Record<string, unknown>,
+          };
+          if (fc.thoughtSignature) tc.thoughtSignature = fc.thoughtSignature;
+          return tc;
+        });
+
+      const turnText =
+        typeof response.text === "function"
+          ? response.text()
+          : (parts[0] as { text?: string } | undefined)?.text ?? "";
+
+      return { fnCalls, finishReason, text: turnText || "" };
+    }
+
+    let { fnCalls, finishReason, text } = await runTurn(cleaned);
+
+    // Empty STOP — the model finished cleanly but emitted zero text and zero
+    // function calls (observed for certain phrasings like "watch ping"). Do
+    // ONE retry with the same contents plus a nudge before falling back to a
+    // sentinel. Don't retry SAFETY/RECITATION/MAX_TOKENS — those have their
+    // own messages and a retry won't help.
+    if (fnCalls.length === 0 && !text && finishReason === "STOP") {
+      // eslint-disable-next-line no-console
+      console.warn("[lumina/chat] empty STOP — retrying once with nudge", {
+        contentsLen: cleaned.length,
+      });
+      const retryContents: Content[] = [
+        ...cleaned,
+        { role: "user", parts: [{ text: "Please respond." }] },
+      ];
+      const retry = await runTurn(retryContents);
+      if (retry.fnCalls.length > 0 || retry.text) {
+        fnCalls = retry.fnCalls;
+        text = retry.text;
+        finishReason = retry.finishReason;
+      }
+    }
 
     if (fnCalls.length > 0) {
       const out: ChatResponseBody = {
@@ -489,12 +523,9 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       return res.json(out);
     }
 
-    const text =
-      typeof response.text === "function" ? response.text() : (parts[0] as { text?: string } | undefined)?.text ?? "";
-
     // If the model returned absolutely nothing, surface a useful explanation
     // instead of the silent "(no reply)". Common causes: MAX_TOKENS,
-    // SAFETY, RECITATION, or empty candidates from a malformed turn.
+    // SAFETY, RECITATION, or an empty STOP that survived the retry above.
     let finalText = text || "";
     if (!finalText) {
       if (finishReason === "MAX_TOKENS") {
@@ -506,7 +537,7 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       } else if (finishReason && finishReason !== "STOP") {
         finalText = `No reply produced (finish reason: ${finishReason}).`;
       } else {
-        finalText = "(empty reply from model)";
+        finalText = "I couldn't figure out how to respond — try rephrasing or being more specific.";
       }
     }
 
