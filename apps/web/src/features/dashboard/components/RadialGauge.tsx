@@ -73,9 +73,10 @@ export default function RadialGauge({
             <stop offset="50%" stopColor="#b5bec8" />
             <stop offset="100%" stopColor="#e6ebf0" />
           </linearGradient>
-          <filter id={glowId} x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation={arcStroke * 0.6} result="blur" />
+          <filter id={glowId} x="-75%" y="-75%" width="250%" height="250%">
+            <feGaussianBlur stdDeviation={arcStroke * 1.1} result="blur" />
             <feMerge>
+              <feMergeNode in="blur" />
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
@@ -95,7 +96,19 @@ export default function RadialGauge({
         {/* Inner white face */}
         <circle cx={center} cy={center} r={r - ringStroke / 2} fill={`url(#${faceId})`} />
 
-        {/* Neon arc */}
+        {/* Full-circle neon track so the ring always reads as a complete
+            colored dyson ring, with the brighter progress arc layered on top. */}
+        <circle
+          cx={center}
+          cy={center}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={arcStroke}
+          strokeOpacity={0.22}
+        />
+
+        {/* Neon progress arc */}
         <circle
           cx={center}
           cy={center}
