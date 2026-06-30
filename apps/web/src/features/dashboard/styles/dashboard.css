@@ -264,6 +264,12 @@
 
 .weather-strip .bezel__inner {
   justify-content: center;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.66)),
+    url("/dashboard/weather-radar-bg.png");
+  background-size: cover;
+  background-position: center right;
+  background-repeat: no-repeat;
 }
 
 .weather-strip__body {
