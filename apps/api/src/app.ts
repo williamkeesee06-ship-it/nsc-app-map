@@ -5,6 +5,7 @@ import asbuiltRouter from "./routes/asbuilt.js";
 import prefsRouter from "./routes/prefs.js";
 import syncRouter from "./routes/sync.js";
 import jobsRouter from "./routes/jobs.js";
+import digTicketsRouter from "./routes/digTickets.js";
 import scratchpadRouter from "./routes/scratchpad.js";
 import photosRouter from "./routes/photos.js";
 import luminaLiveTokenRouter from "./routes/luminaLiveToken.js";
@@ -32,6 +33,7 @@ export function createApp() {
   app.use("/api", asbuiltRouter);
   app.use("/api", syncRouter);
   app.use("/api", jobsRouter);
+  app.use("/api", digTicketsRouter);
   app.use("/api", prefsRouter);
   app.use("/api", scratchpadRouter);
   app.use("/api", photosRouter);

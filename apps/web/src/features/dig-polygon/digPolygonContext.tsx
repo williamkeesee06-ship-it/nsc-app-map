@@ -1,9 +1,9 @@
-// 811 Phase 1 — shared state for the "Draw Dig Polygon" tool.
+// 811 Phase 1.5 — shared state for the dig-shape drawing tools.
 //
-// The toggle button lives in the Telecom tab (LeftRail) while the actual
+// The tool switcher lives in the Telecom tab (LeftRail) while the actual
 // drawing surface (DigPolygonOverlay) lives inside <Map>. This context is the
-// thin bridge between them: which job we're targeting, whether draw mode is
-// on, and the currently-saved polygon (so we can render/re-edit it on load).
+// thin bridge between them: which job we're targeting, which shape tool is
+// active, and the currently-saved shape (so we can render/re-edit it on load).
 import {
   createContext,
   useCallback,
@@ -12,26 +12,30 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { PolygonData } from "@nsc/types";
+import type { DigShape } from "@nsc/types";
+
+/** The three ITIC-matching dig tools. `null` = not drawing. */
+export type DigTool = "radius" | "route" | "polygon";
 
 interface DigPolygonContextValue {
-  /** True while the user is actively drawing/editing the dig polygon. */
+  /** The active drawing tool, or null when the overlay is idle. */
+  tool: DigTool | null;
+  setTool: (t: DigTool | null) => void;
+  /** True while any tool is active (drawing/editing). */
   active: boolean;
-  setActive: (b: boolean) => void;
-  toggle: () => void;
 
   /** Job currently open in the panel (null when none selected). */
   jobId: string | null;
-  /** The polygon persisted on that job, if any. */
-  existing: PolygonData | null;
+  /** The dig shape persisted on that job, if any. */
+  existing: DigShape | null;
   /** Called by JobsMap when the selected job changes. */
-  setTarget: (jobId: string | null, existing: PolygonData | null) => void;
+  setTarget: (jobId: string | null, existing: DigShape | null) => void;
 
-  /** True when the target job already has a saved polygon. */
-  hasPolygon: boolean;
+  /** True when the target job already has a saved shape. */
+  hasShape: boolean;
 
   /** Overlay calls this after a successful save (or clear). */
-  onSaved: (polygon: PolygonData | null) => void;
+  onSaved: (shape: DigShape | null) => void;
 }
 
 const DigPolygonContext = createContext<DigPolygonContextValue | null>(null);
@@ -45,40 +49,38 @@ export function useDigPolygon(): DigPolygonContextValue {
 }
 
 export function DigPolygonProvider({ children }: { children: ReactNode }) {
-  const [active, setActive] = useState(false);
+  const [tool, setTool] = useState<DigTool | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [existing, setExisting] = useState<PolygonData | null>(null);
+  const [existing, setExisting] = useState<DigShape | null>(null);
 
   const setTarget = useCallback(
-    (nextJobId: string | null, nextExisting: PolygonData | null) => {
+    (nextJobId: string | null, nextExisting: DigShape | null) => {
       setJobId(nextJobId);
       setExisting(nextExisting);
       // Leaving/switching a job must never strand us in draw mode against the
       // wrong document.
-      setActive(false);
+      setTool(null);
     },
     []
   );
 
-  const onSaved = useCallback((polygon: PolygonData | null) => {
-    setExisting(polygon);
-    setActive(false);
+  const onSaved = useCallback((shape: DigShape | null) => {
+    setExisting(shape);
+    setTool(null);
   }, []);
-
-  const toggle = useCallback(() => setActive((a) => !a), []);
 
   const value = useMemo<DigPolygonContextValue>(
     () => ({
-      active,
-      setActive,
-      toggle,
+      tool,
+      setTool,
+      active: tool !== null,
       jobId,
       existing,
       setTarget,
-      hasPolygon: existing !== null,
+      hasShape: existing !== null,
       onSaved,
     }),
-    [active, toggle, jobId, existing, setTarget, onSaved]
+    [tool, jobId, existing, setTarget, onSaved]
   );
 
   return (

@@ -14,6 +14,8 @@ import type { StatusBucket } from "./markerStyle.js";
 import JobCard from "./JobCard.js";
 import LayersPanel from "../workspace/LayersPanel.js";
 import type { Job } from "@nsc/types";
+import { normalizeDigShape } from "@nsc/types";
+import DigTicketsTab from "../dig-tickets/DigTicketsTab.js";
 import { useSearchFocus } from "../search/searchContext.js";
 import { MARKER_COLORS, colorKeyForJob, isJobCompleted, neonPinDataUrl } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
@@ -176,7 +178,10 @@ function JobsMapInner({
   // the Telecom-tab toggle and the on-map drawing surface both know the target
   // and can render/re-edit an existing polygon.
   useEffect(() => {
-    setDigTarget(selected?.jobId ?? null, selected?.digPolygon ?? null);
+    setDigTarget(
+      selected?.jobId ?? null,
+      normalizeDigShape(selected?.digPolygon ?? null)
+    );
   }, [selected, setDigTarget]);
 
   const handleSelect = useCallback(
@@ -233,12 +238,14 @@ function JobsMapInner({
   // Dashboard is the default landing tab — it mounts full-screen on first
   // paint (LeftRail starts on 'dashboard' and broadcasts it on mount).
   const [dashboardFullscreen, setDashboardFullscreen] = useState(true);
+  const [ticketsFullscreen, setTicketsFullscreen] = useState(false);
   useEffect(() => {
     function onActiveTab(e: Event) {
       const detail = (e as CustomEvent<{ tab: string; collapsed: boolean }>).detail;
       if (!detail) return;
       setCalendarFullscreen(detail.tab === "calendar");
       setDashboardFullscreen(detail.tab === "dashboard");
+      setTicketsFullscreen(detail.tab === "811-tickets");
     }
     window.addEventListener("nsc:active-tab", onActiveTab);
     return () => window.removeEventListener("nsc:active-tab", onActiveTab);
@@ -353,6 +360,20 @@ function JobsMapInner({
                 onOpenMap={() => requestTab("filters")}
                 onOpenCalendar={() => requestTab("calendar")}
                 onOpenJob={onDashboardOpenJob}
+              />
+            </div>
+          )}
+
+          {/* Full-screen 811 Dig Ticket Manager overlay. Same layering as the
+              calendar/dashboard overlays. */}
+          {ticketsFullscreen && (
+            <div
+              className="tickets-fullscreen-overlay"
+              style={{ position: "absolute", inset: 0, zIndex: 50, background: "#0b1118" }}
+            >
+              <DigTicketsTab
+                jobs={allJobs}
+                onOpenJob={(job) => onDashboardOpenJob(job.jobId)}
               />
             </div>
           )}

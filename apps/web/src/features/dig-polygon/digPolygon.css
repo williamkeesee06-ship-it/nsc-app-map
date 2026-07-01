@@ -19,8 +19,8 @@
   border-image: linear-gradient(180deg, #f4f6f8, #6e757f) 1;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 0 0 1px rgba(6, 182, 212, 0.35),
-    0 0 18px rgba(6, 182, 212, 0.35),
+    0 0 0 1px rgba(255, 106, 0, 0.4),
+    0 0 18px rgba(255, 106, 0, 0.4),
     var(--panel-elevation, 0 6px 20px rgba(0, 0, 0, 0.28));
   color: var(--text-primary, #15202c);
   font-family: inherit;
@@ -41,8 +41,8 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #06b6d4;
-  box-shadow: 0 0 8px rgba(6, 182, 212, 0.9);
+  background: #ff6a00;
+  box-shadow: 0 0 8px rgba(255, 106, 0, 0.9);
   animation: dig-pulse 1.6s ease-in-out infinite;
 }
 
@@ -71,23 +71,51 @@
   gap: 2px;
   padding: 6px 8px;
   border-radius: 6px;
-  background: rgba(10, 22, 30, 0.85);
-  box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.4);
+  background: rgba(30, 16, 6, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(255, 106, 0, 0.45);
 }
 
 .dig-hud__metric-label {
   font-size: 9px;
   letter-spacing: 0.12em;
-  color: #7fd6e6;
+  color: #ffb37a;
 }
 
 .dig-hud__metric-value {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 13px;
   font-weight: 600;
-  color: #06b6d4;
-  text-shadow: 0 0 6px rgba(6, 182, 212, 0.6);
+  color: #ff6a00;
+  text-shadow: 0 0 6px rgba(255, 106, 0, 0.6);
   white-space: nowrap;
+}
+
+/* Radius/route width control. */
+.dig-hud__width {
+  display: grid;
+  grid-template-columns: auto 64px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dig-hud__width-input {
+  width: 100%;
+  padding: 4px 6px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ff6a00;
+  background: rgba(30, 16, 6, 0.9);
+  border: 1px solid rgba(255, 106, 0, 0.6);
+  border-radius: 6px;
+  text-align: right;
+}
+
+.dig-hud__width-slider {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: #ff6a00;
 }
 
 .dig-hud__error {
@@ -128,12 +156,12 @@
 }
 
 .dig-btn--primary {
-  color: #04222a;
-  border-color: #0891b2;
-  background: linear-gradient(180deg, #4fd8ee 0%, #06b6d4 55%, #0891b2 100%);
+  color: #2a1000;
+  border-color: #c85400;
+  background: linear-gradient(180deg, #ff9a4d 0%, #ff6a00 55%, #c85400 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 0 10px rgba(6, 182, 212, 0.5);
+    0 0 10px rgba(255, 106, 0, 0.5);
 }
 
 .dig-btn--danger {
@@ -184,7 +212,51 @@
   font-size: 10px;
   letter-spacing: 0.04em;
   text-align: center;
+  text-transform: capitalize;
   color: var(--text-muted, #5b6776);
 }
 
-.dig-polygon-status--saved { color: #0891b2; }
+.dig-polygon-status--saved { color: #c85400; }
+
+/* 811 three-tool switcher (radius / route / polygon). */
+.dig-tool-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.dig-tool-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 7px;
+  border: 1px solid var(--chrome-trim-dark, #6e757f);
+  background: linear-gradient(180deg, #eef1f5 0%, #c7cdd5 100%);
+  color: var(--text-primary, #15202c);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: filter 0.12s ease, box-shadow 0.12s ease;
+}
+
+.dig-tool-btn:hover:not(:disabled) { filter: brightness(1.05); }
+
+.dig-tool-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dig-tool-btn--active {
+  border-color: #c85400;
+  background: linear-gradient(180deg, #fff2e6 0%, #ffd0a3 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 0 10px rgba(255, 106, 0, 0.55);
+}
+
+.dig-tool-btn__icon { line-height: 0; }
+.dig-tool-btn__label { line-height: 1; }

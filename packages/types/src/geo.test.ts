@@ -7,6 +7,11 @@ import {
   distanceFt,
   polygonBounds,
   buildPolygonData,
+  buildRadiusShape,
+  buildRouteShape,
+  buildPolygonShape,
+  normalizeDigShape,
+  pathLengthFt,
   FEET_PER_METER,
   WA_REFERENCE_LAT_DEG,
 } from "./geo.js";
@@ -101,4 +106,43 @@ test("buildPolygonData assembles a complete record", () => {
   assert.ok(Math.abs(data.areaSqFt - 10_000) < 50);
   assert.ok(Math.abs(data.perimeterFt - 400) < 2);
   assert.ok(data.bounds.neLat > data.bounds.swLat);
+});
+
+// ── Phase 1.5 — radius/route/polygon shapes ────────────────────────────────
+
+test("radius shape: 25ft → area ≈ 1963.5 sqft, perimeter ≈ 157.08 ft", () => {
+  const s = buildRadiusShape({ lat: 47.4, lng: -122.3 }, 25, "William", 1);
+  assert.equal(s.type, "radius");
+  assert.equal(s.radiusFt, 25);
+  assert.equal(s.vertices.length, 64);
+  assert.ok(Math.abs(s.areaSqFt - 1963.5) < 0.5, `area=${s.areaSqFt}`);
+  assert.ok(Math.abs(s.perimeterFt - 157.08) < 0.5, `perim=${s.perimeterFt}`);
+});
+
+test("route shape: 100ft long × 5ft wide → area 500, perimeter 210", () => {
+  // A 100ft east-west path at the reference latitude.
+  const path = squareFeet(100).slice(0, 2); // two points 100ft apart in lng
+  const s = buildRouteShape(path, 5, "William", 1);
+  assert.equal(s.type, "route");
+  assert.equal(s.widthFt, 5);
+  const len = pathLengthFt(path);
+  assert.ok(Math.abs(len - 100) < 1, `len=${len}`);
+  assert.ok(Math.abs(s.areaSqFt - 500) < 5, `area=${s.areaSqFt}`);
+  assert.ok(Math.abs(s.perimeterFt - 210) < 2, `perim=${s.perimeterFt}`);
+});
+
+test("polygon shape wraps buildPolygonData with a type tag", () => {
+  const s = buildPolygonShape(squareFeet(100), "William", 7);
+  assert.equal(s.type, "polygon");
+  assert.equal(s.drawnBy, "William");
+  assert.ok(Math.abs(s.areaSqFt - 10_000) < 50);
+});
+
+test("normalizeDigShape coerces legacy PolygonData to polygon shape", () => {
+  const legacy = buildPolygonData(squareFeet(100), "William", 3);
+  const norm = normalizeDigShape(legacy);
+  assert.equal(norm?.type, "polygon");
+  const radius = buildRadiusShape({ lat: 47.4, lng: -122.3 }, 25, "W", 1);
+  assert.equal(normalizeDigShape(radius)?.type, "radius");
+  assert.equal(normalizeDigShape(null), null);
 });

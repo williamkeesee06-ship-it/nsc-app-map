@@ -1,6 +1,14 @@
 // Same-origin API client. In dev, Vite proxies /api to localhost:3001.
 // In prod, vercel.json rewrites /api/* to the serverless function.
-import type { AsbuiltDoc, AsBuiltDocument, Job, PolygonData, SyncRun } from "@nsc/types";
+import type {
+  AsbuiltDoc,
+  AsBuiltDocument,
+  DigShape,
+  DigTicket,
+  Job,
+  PolygonData,
+  SyncRun,
+} from "@nsc/types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -98,9 +106,9 @@ export const api = {
     ),
   getJob: (jobId: string) =>
     request<{ job: Job }>(`/api/jobs/${encodeURIComponent(jobId)}`),
-  // 811 Phase 1 — save (or clear, with null) the excavation polygon for a job.
-  putDigPolygon: (jobId: string, polygon: PolygonData | null) =>
-    request<{ jobId: string; digPolygon: PolygonData | null }>(
+  // 811 — save (or clear, with null) the excavation dig shape for a job.
+  putDigPolygon: (jobId: string, polygon: DigShape | PolygonData | null) =>
+    request<{ jobId: string; digPolygon: DigShape | null }>(
       `/api/jobs/${encodeURIComponent(jobId)}/dig-polygon`,
       { method: "PUT", body: JSON.stringify({ polygon }) }
     ),
@@ -263,6 +271,54 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // ── 811 Dig Ticket Manager ─────────────────────────────────────────────
+  listDigTickets: () =>
+    request<{ tickets: DigTicket[]; count: number }>("/api/dig-tickets"),
+  getDigTicket: (ticketId: string) =>
+    request<{ ticket: DigTicket }>(
+      `/api/dig-tickets/${encodeURIComponent(ticketId)}`
+    ),
+  // Create a ticket from a job's saved dig shape. Server snapshots the shape,
+  // generates marking instructions via Gemini, and returns the draft ticket.
+  createDigTicket: (body: {
+    jobId: string;
+    specs: {
+      depth: string;
+      handDigOnly: boolean;
+      directionalBoring: boolean;
+      whiteLined: boolean;
+      explosives: boolean;
+      workType: string;
+      equipment: string[];
+      markAround: string;
+      duration: number;
+    };
+  }) =>
+    request<{ ticket: DigTicket }>("/api/dig-tickets", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateDigTicket: (ticketId: string, patch: Partial<DigTicket>) =>
+    request<{ ticket: DigTicket }>(
+      `/api/dig-tickets/${encodeURIComponent(ticketId)}`,
+      { method: "PATCH", body: JSON.stringify(patch) }
+    ),
+  // Regenerate marking instructions / hazards / safe guidelines via Gemini.
+  regenerateMarkingInstructions: (ticketId: string) =>
+    request<{ ticket: DigTicket }>(
+      `/api/dig-tickets/${encodeURIComponent(ticketId)}/marking-instructions`,
+      { method: "POST", body: JSON.stringify({}) }
+    ),
+  // Update one utility's locate status (manual entry in v1).
+  updateUtilityStatus: (
+    ticketId: string,
+    body: { utility: string; status: string; notes?: string }
+  ) =>
+    request<{ ticket: DigTicket }>(
+      `/api/dig-tickets/${encodeURIComponent(ticketId)}/utility-status`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
 };
 
 export interface WeatherPeriod {
