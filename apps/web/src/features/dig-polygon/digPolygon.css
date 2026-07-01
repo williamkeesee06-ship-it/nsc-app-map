@@ -1,0 +1,190 @@
+/* 811 Phase 1 — Dig Polygon HUD. Neon Pulse Light on brushed steel:
+   chrome bezel frame + rivet corners, cyan telemetry readouts. */
+
+.dig-hud {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  width: 320px;
+  padding: 12px 14px 14px;
+  border-radius: var(--panel-radius, 10px);
+  background:
+    linear-gradient(180deg,
+      var(--steel-base-light, #d8dde4) 0%,
+      var(--steel-base, #b9c0c8) 55%,
+      var(--steel-base-dark, #8e96a0) 100%);
+  border: 2px solid transparent;
+  border-image: linear-gradient(180deg, #f4f6f8, #6e757f) 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 0 0 1px rgba(6, 182, 212, 0.35),
+    0 0 18px rgba(6, 182, 212, 0.35),
+    var(--panel-elevation, 0 6px 20px rgba(0, 0, 0, 0.28));
+  color: var(--text-primary, #15202c);
+  font-family: inherit;
+  user-select: none;
+}
+
+.dig-hud__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-primary, #15202c);
+}
+
+.dig-hud__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #06b6d4;
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.9);
+  animation: dig-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes dig-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.82); }
+}
+
+.dig-hud__hint {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-secondary, #3a4654);
+}
+
+.dig-hud__metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dig-hud__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(10, 22, 30, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.4);
+}
+
+.dig-hud__metric-label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: #7fd6e6;
+}
+
+.dig-hud__metric-value {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #06b6d4;
+  text-shadow: 0 0 6px rgba(6, 182, 212, 0.6);
+  white-space: nowrap;
+}
+
+.dig-hud__error {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #ffd7dc;
+  background: rgba(180, 20, 40, 0.82);
+}
+
+.dig-hud__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dig-btn {
+  flex: 1;
+  padding: 7px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--text-primary, #15202c);
+  border-radius: 6px;
+  border: 1px solid var(--chrome-trim-dark, #6e757f);
+  background: linear-gradient(180deg, #eef1f5 0%, #c7cdd5 100%);
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition: filter 0.12s ease, box-shadow 0.12s ease;
+}
+
+.dig-btn:hover:not(:disabled) { filter: brightness(1.05); }
+
+.dig-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dig-btn--primary {
+  color: #04222a;
+  border-color: #0891b2;
+  background: linear-gradient(180deg, #4fd8ee 0%, #06b6d4 55%, #0891b2 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 10px rgba(6, 182, 212, 0.5);
+}
+
+.dig-btn--danger {
+  color: #fff;
+  border-color: #a01829;
+  background: linear-gradient(180deg, #ff5a6e 0%, #d32036 100%);
+}
+
+/* Telecom-tab launcher button. */
+.dig-polygon-launch {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 7px;
+  border: 1px solid #0891b2;
+  color: #04222a;
+  background: linear-gradient(180deg, #4fd8ee 0%, #06b6d4 55%, #0891b2 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 10px rgba(6, 182, 212, 0.4);
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+
+.dig-polygon-launch:hover:not(:disabled) { filter: brightness(1.06); }
+
+.dig-polygon-launch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: linear-gradient(180deg, #d8dde4 0%, #b9c0c8 100%);
+  color: var(--text-muted, #5b6776);
+  border-color: var(--chrome-trim-dark, #6e757f);
+  box-shadow: none;
+}
+
+.dig-polygon-launch--active {
+  background: linear-gradient(180deg, #ff5a6e 0%, #d32036 100%);
+  border-color: #a01829;
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.dig-polygon-status {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--text-muted, #5b6776);
+}
+
+.dig-polygon-status--saved { color: #0891b2; }

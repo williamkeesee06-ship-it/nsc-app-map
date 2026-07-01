@@ -1,6 +1,6 @@
 // Same-origin API client. In dev, Vite proxies /api to localhost:3001.
 // In prod, vercel.json rewrites /api/* to the serverless function.
-import type { AsbuiltDoc, AsBuiltDocument, Job, SyncRun } from "@nsc/types";
+import type { AsbuiltDoc, AsBuiltDocument, Job, PolygonData, SyncRun } from "@nsc/types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -98,6 +98,12 @@ export const api = {
     ),
   getJob: (jobId: string) =>
     request<{ job: Job }>(`/api/jobs/${encodeURIComponent(jobId)}`),
+  // 811 Phase 1 — save (or clear, with null) the excavation polygon for a job.
+  putDigPolygon: (jobId: string, polygon: PolygonData | null) =>
+    request<{ jobId: string; digPolygon: PolygonData | null }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/dig-polygon`,
+      { method: "PUT", body: JSON.stringify({ polygon }) }
+    ),
   createJob: (body: { workOrder: string; jobName: string; address?: string; lat?: number; lng?: number }) =>
     request<{ jobId: string; workOrder: string; jobName: string; lat?: number; lng?: number }>("/api/jobs", {
       method: "POST",

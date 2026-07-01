@@ -19,6 +19,8 @@ import { MARKER_COLORS, colorKeyForJob, isJobCompleted, neonPinDataUrl } from ".
 import { api } from "../../lib/api.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
+import { DigPolygonProvider, useDigPolygon } from "../dig-polygon/digPolygonContext.js";
+import DigPolygonOverlay from "../dig-polygon/DigPolygonOverlay.js";
 import AllJobsMarkupsOverlay from "../drawing/AllJobsMarkupsOverlay.js";
 import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
 import { useShowCOs } from "./centralOfficesStore.js";
@@ -100,6 +102,7 @@ export default function JobsMap() {
   return (
     <JobsProvider jobs={allJobs} refreshJobs={reload}>
       <DrawingProvider mapRef={mapRef}>
+        <DigPolygonProvider>
         <JobsMapInner
           allJobs={allJobs}
           mapped={mapped}
@@ -117,6 +120,7 @@ export default function JobsMap() {
           allSupervisors={allSupervisors}
           drawingOwner={drawingOwner}
         />
+        </DigPolygonProvider>
       </DrawingProvider>
     </JobsProvider>
   );
@@ -157,6 +161,7 @@ function JobsMapInner({
   drawingOwner: string;
 }) {
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
+  const { setTarget: setDigTarget } = useDigPolygon();
 
   // When selected job changes, update the drawing target
   useEffect(() => {
@@ -166,6 +171,13 @@ function JobsMapInner({
       setTarget(null, null);
     }
   }, [selected, setTarget]);
+
+  // Mirror the selected job's 811 dig polygon into the DigPolygon context so
+  // the Telecom-tab toggle and the on-map drawing surface both know the target
+  // and can render/re-edit an existing polygon.
+  useEffect(() => {
+    setDigTarget(selected?.jobId ?? null, selected?.digPolygon ?? null);
+  }, [selected, setDigTarget]);
 
   const handleSelect = useCallback(
     async (job: Job) => {
@@ -298,6 +310,7 @@ function JobsMapInner({
             />
             <CentralOfficesOverlay visible={showCOs} />
             <DrawingOverlay />
+            <DigPolygonOverlay />
             {/* MapTypeToggle is in the topbar; this applier (inside the Map
                 context) actually applies the chosen style to the live map. */}
             <MapTypeApplier />

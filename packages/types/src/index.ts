@@ -1,5 +1,8 @@
 // Shared types for NSC APP MAP — used by both web and api workspaces.
 
+// Geodesic helpers for the 811 dig polygon tool (area/perimeter/bounds).
+export * from "./geo.js";
+
 export type LatLng = { lat: number; lng: number };
 
 export type PointType =
@@ -278,6 +281,90 @@ export interface Job {
   lastSyncedAt: number;
   // Geocode result (lat/lng for the map)
   geocode: JobGeocode | null;
+
+  // ── 811 Dig Ticket fields (Phase 1) ──────────────────────────────────
+  // All optional so existing job docs (and Smartsheet-normalized rows that
+  // never touched 811) stay valid without a migration.
+  /** The polygon William drew for this job's excavation area. */
+  digPolygon?: PolygonData | null;
+  /** Reference to the active dig ticket in digTickets/{ticketId}. */
+  activeTicketId?: string | null;
+  /** Mirrored from the active ticket (also written to Smartsheet). */
+  locateNumber?: string | null;
+  /** Mirrored from the active ticket. */
+  locateExpires?: Timestamp | null;
+}
+
+// ---- 811 Locate & Dig Ticket Manager (Phase 1) ----
+
+// This codebase stores Firestore timestamps as epoch-millisecond numbers
+// (see Job.firstSyncedAt / AsBuiltDocument.updatedAt), so the spec's
+// Firestore `Timestamp` maps to `number` here for consistency.
+export type Timestamp = number;
+
+// The polygon William traces around an excavation area. Saved to
+// jobs/{jobId}.digPolygon and snapshotted onto a dig ticket at filing time.
+export interface PolygonData {
+  vertices: Array<{ lat: number; lng: number }>;
+  bounds: { swLat: number; swLng: number; neLat: number; neLng: number };
+  areaSqFt: number;
+  perimeterFt: number;
+  drawnAt: Timestamp;
+  drawnBy: string;
+}
+
+// Locator response per utility, populated after marks come in (manual in v1).
+export interface UtilityStatus {
+  utility: string;
+  status: "Marked" | "Clear" | "Pending";
+  respondedAt?: Timestamp;
+  notes?: string;
+}
+
+export type DigTicketStatus =
+  | "Drafting"
+  | "Filing"
+  | "Review"
+  | "Filed"
+  | "Active"
+  | "Expiring"
+  | "Expired"
+  | "Failed";
+
+// One document per ticket at digTickets/{ticketId}.
+export interface DigTicket {
+  id: string; // Firestore doc ID
+  ticketNumber: string; // Assigned by ITIC (e.g., "WA-2026-1234567")
+  jobId: string; // Reference to jobs/{jobId}
+  status: DigTicketStatus;
+  polygon: PolygonData; // Snapshot from the job's polygon at time of filing
+  specs: {
+    depth: string;
+    handDigOnly: boolean;
+    directionalBoring: boolean;
+    whiteLined: boolean;
+    explosives: boolean;
+    workType: string; // Gas Line, Fiber Optic, etc from job.type
+    startDate: Timestamp; // 48hr from filing
+    duration: number; // days
+  };
+  markingInstructions: string; // Gemini-generated, human-edited
+  hazardsWarning: string;
+  utilityStatuses: UtilityStatus[]; // Populated after locators respond
+  automation: {
+    reviewScreenshotUrl: string; // Firebase Storage URL, captured before submit
+    confirmationScreenshotUrl: string | null; // Captured after submit
+    botRunId: string;
+    filedAt: Timestamp | null;
+    botErrors: string[];
+  };
+  dates: {
+    createdAt: Timestamp;
+    submittedAt: Timestamp | null;
+    startsAt: Timestamp | null; // 48hr from ITIC submit
+    expiresAt: Timestamp | null; // 28d from ITIC submit
+  };
+  createdBy: string; // Firebase auth uid
 }
 
 export interface SyncRun {

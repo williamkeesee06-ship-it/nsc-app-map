@@ -6,7 +6,7 @@ import { geocodeAddress } from "../lib/geocode.js";
 import { getSheet, buildColumnsById } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
-import type { Job } from "@nsc/types";
+import type { Job, PolygonData } from "@nsc/types";
 
 const router = Router();
 
@@ -247,6 +247,50 @@ router.get("/jobs/:jobId", async (req, res, next) => {
       return;
     }
     res.json({ job: doc.data() as Job });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/jobs/:jobId/dig-polygon — save (or clear) the 811 excavation
+// polygon William traced for a job. Body: { polygon: PolygonData | null }.
+// The client computes area/perimeter/bounds (via @nsc/types geo helpers) so
+// the HUD and the persisted document always agree; we persist as-is.
+router.put("/jobs/:jobId/dig-polygon", async (req, res, next) => {
+  try {
+    const jobId = req.params.jobId;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const body = req.body as { polygon?: PolygonData | null };
+    const polygon = body.polygon ?? null;
+
+    if (polygon !== null) {
+      const okVerts =
+        Array.isArray(polygon.vertices) &&
+        polygon.vertices.length >= 3 &&
+        polygon.vertices.every(
+          (v) =>
+            v &&
+            typeof v.lat === "number" &&
+            typeof v.lng === "number"
+        );
+      if (!okVerts) {
+        res
+          .status(400)
+          .json({ error: "polygon.vertices must be an array of >=3 {lat,lng}" });
+        return;
+      }
+    }
+
+    await ref.update({ digPolygon: polygon });
+    invalidateJobsCache();
+
+    res.json({ jobId, digPolygon: polygon });
   } catch (err) {
     next(err);
   }

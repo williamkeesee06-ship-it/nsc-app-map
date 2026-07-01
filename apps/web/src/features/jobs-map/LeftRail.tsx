@@ -6,6 +6,7 @@ import FilterRail from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
 import { isJobCompleted } from "./markerStyle.js";
 import { useDrawing } from "../drawing/drawingContext.js";
+import { useDigPolygon } from "../dig-polygon/digPolygonContext.js";
 import type { DrawingTool } from "@nsc/types";
 import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 import { queuePrefWrite } from "../../lib/prefsSync.js";
@@ -481,6 +482,15 @@ function TelecomTab() {
   const { activeTool } = state;
   const hasSelection = state.selectedIds.size > 0;
 
+  // 811 Phase 1 — dig polygon toggle. Enabled only when a job is selected
+  // (the polygon is saved to jobs/{jobId}.digPolygon).
+  const {
+    active: digActive,
+    toggle: toggleDig,
+    jobId: digJobId,
+    hasPolygon: hasDigPolygon,
+  } = useDigPolygon();
+
   const toggleTool = (tool: DrawingTool) => {
     setTool(activeTool === tool ? null : tool);
   };
@@ -521,6 +531,33 @@ function TelecomTab() {
           Delete ({state.selectedIds.size})
         </button>
       )}
+
+      <div className="telecom-divider">811 DIG TICKET</div>
+      <button
+        className={`dig-polygon-launch${digActive ? " dig-polygon-launch--active" : ""}`}
+        onClick={toggleDig}
+        disabled={!digJobId}
+        title={
+          digJobId
+            ? "Trace the excavation boundary for this job"
+            : "Select a job first"
+        }
+      >
+        {digActive
+          ? "Stop drawing"
+          : hasDigPolygon
+            ? "Edit Dig Polygon"
+            : "Draw Dig Polygon"}
+      </button>
+      <div
+        className={`dig-polygon-status${hasDigPolygon ? " dig-polygon-status--saved" : ""}`}
+      >
+        {!digJobId
+          ? "No job selected"
+          : hasDigPolygon
+            ? "Polygon saved for this job"
+            : "No polygon yet"}
+      </div>
     </section>
   );
 }
