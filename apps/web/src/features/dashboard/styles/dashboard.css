@@ -20,19 +20,21 @@
   color: var(--ink);
   overflow: hidden;
   font-family: inherit;
-  /* Layered bottom-anchored blueprint skyline behind all widgets. The dark
-     navy strip is tiled horizontally along the bottom under a heavy light
-     veil so it reads as a faint presence, not a dominant image; the top of
-     the board keeps its cool brushed-steel gradient. Widgets carry their own
-     chrome bezels, so the skyline peeks through the gaps between them. */
+  /* Blueprint skyline tiled behind all widgets across the whole board. The
+     navy strip repeats on both axes at native size so cranes, telecom towers,
+     and buildings read everywhere, not just in a bottom strip. A single
+     translucent light veil covers the full board so the blueprint bleeds
+     through softly; widgets carry their own chrome bezels, so the skyline
+     peeks through the gaps between them. */
   background-image:
     radial-gradient(1100px 600px at 10% -8%, rgba(61, 169, 255, 0.1), transparent 60%),
-    linear-gradient(rgba(247, 246, 242, 0.82), rgba(247, 246, 242, 0.82)),
+    linear-gradient(rgba(247, 246, 242, 0.78), rgba(247, 246, 242, 0.78)),
     url("/dashboard/dashboard-blueprint-bg.png"),
     linear-gradient(180deg, #f5f7fa 0%, #e8ecf1 100%);
-  background-repeat: no-repeat, repeat-x, repeat-x, no-repeat;
-  background-position: center, center bottom, center bottom, center;
-  background-size: auto, auto 263px, auto 263px, cover;
+  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
+  background-position: center, center, center, center;
+  background-size: auto, cover, auto, cover;
+  background-attachment: scroll, scroll, scroll, scroll;
 }
 
 /* Subtle brushed-steel noise overlay. */
