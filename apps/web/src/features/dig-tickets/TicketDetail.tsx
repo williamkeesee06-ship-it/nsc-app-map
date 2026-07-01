@@ -80,6 +80,29 @@ export default function TicketDetail({ ticket, job, onUpdated, onOpenJob }: Prop
       return t;
     });
 
+  // ITIC automation runs as a Firebase Function and mutates the ticket in
+  // Firestore; the callables return summary data, so we re-fetch to get the
+  // authoritative ticket back into local state.
+  const refetch = async () => (await api.getDigTicket(ticket.id)).ticket;
+
+  const runBot = () =>
+    run("bot", async () => {
+      await api.runIticBot(ticket.id);
+      return refetch();
+    });
+
+  const confirmSubmit = () =>
+    run("submit", async () => {
+      await api.confirmAndSubmitTicket(ticket.id);
+      return refetch();
+    });
+
+  const checkResponses = () =>
+    run("check", async () => {
+      await api.checkTicketResponses(ticket.id);
+      return refetch();
+    });
+
   const guidelines = ticket.safeGuidelines
     ? ticket.safeGuidelines.split("\n").filter(Boolean)
     : [];
@@ -151,6 +174,53 @@ export default function TicketDetail({ ticket, job, onUpdated, onOpenJob }: Prop
         </button>
       </section>
 
+      {/* ITIC automation: run the bot to fill the form + capture a review
+          screenshot, then confirm to file. */}
+      <section className="dt-card">
+        <div className="dt-card__title">ITIC AUTOMATION</div>
+        <div className="dt-view__foot">
+          <button
+            className="dt-btn dt-btn--primary"
+            onClick={runBot}
+            disabled={busy === "bot"}
+          >
+            {busy === "bot" ? "Running bot…" : "▶ Run ITIC bot (fill + review)"}
+          </button>
+          {ticket.status === "Review" && (
+            <button
+              className="dt-btn dt-btn--danger"
+              onClick={confirmSubmit}
+              disabled={busy === "submit"}
+            >
+              {busy === "submit" ? "Submitting…" : "✓ Confirm + Submit to ITIC"}
+            </button>
+          )}
+        </div>
+        {ticket.automation.reviewScreenshotUrl && (
+          <a
+            className="dt-link"
+            href={ticket.automation.reviewScreenshotUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View review screenshot
+          </a>
+        )}
+        {ticket.automation.confirmationScreenshotUrl && (
+          <a
+            className="dt-link"
+            href={ticket.automation.confirmationScreenshotUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View confirmation screenshot
+          </a>
+        )}
+        {ticket.automation.botErrors.length > 0 && (
+          <div className="dt-error">{ticket.automation.botErrors.at(-1)}</div>
+        )}
+      </section>
+
       {ticket.hazardsWarning && (
         <section className="dt-card dt-card--hazard">
           <div className="dt-card__title">⚠ HAZARDS</div>
@@ -172,6 +242,9 @@ export default function TicketDetail({ ticket, job, onUpdated, onOpenJob }: Prop
         <div className="dt-card__title">
           UTILITY RESPONSES
           {ticket.readyToDig && <span className="dt-chip dt-chip--ready">READY TO DIG</span>}
+          <button className="dt-btn dt-btn--sm" onClick={checkResponses} disabled={busy === "check"}>
+            {busy === "check" ? "Checking…" : "↻ Check ITIC"}
+          </button>
         </div>
         <div className="dt-util-panel">
           {ticket.utilityStatuses.map((u) => (

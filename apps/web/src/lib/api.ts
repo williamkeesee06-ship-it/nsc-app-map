@@ -25,6 +25,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// The ITIC bot / response-poller run as Firebase Callable Functions (Playwright
+// is too heavy for Vercel). We invoke them over their HTTPS endpoint using the
+// documented callable envelope ({ data } → { result }) so the web app doesn't
+// need the Firebase client SDK. Base URL is configured per-environment; when it
+// is absent the automation buttons surface a clear "not configured" error.
+const FUNCTIONS_BASE_URL = (import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined) ?? "";
+
+async function callFunction<T>(name: string, data: Record<string, unknown>): Promise<T> {
+  if (!FUNCTIONS_BASE_URL) {
+    throw new Error(
+      "ITIC automation is not configured (VITE_FUNCTIONS_BASE_URL unset). Deploy the functions and set the env var."
+    );
+  }
+  const res = await fetch(`${FUNCTIONS_BASE_URL.replace(/\/$/, "")}/${name}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ data }),
+  });
+  const json = (await res.json().catch(() => ({}))) as { result?: T; error?: { message?: string } };
+  if (!res.ok || json.error) {
+    throw new Error(json.error?.message || `Function ${name} failed (${res.status})`);
+  }
+  return json.result as T;
+}
+
 export const api = {
   health: () => request<{ ok: boolean; time: string }>("/api/health"),
 
@@ -318,6 +343,26 @@ export const api = {
     request<{ ticket: DigTicket }>(
       `/api/dig-tickets/${encodeURIComponent(ticketId)}/utility-status`,
       { method: "POST", body: JSON.stringify(body) }
+    ),
+
+  // ── ITIC automation (Firebase Callable Functions) ──────────────────────
+  // Fill the ITIC form + capture a review screenshot (ticket → Review).
+  runIticBot: (ticketId: string) =>
+    callFunction<{ ok: boolean; status: string; reviewScreenshotUrl: string }>(
+      "fileTicketBot",
+      { ticketId }
+    ),
+  // After operator sign-off, submit to ITIC (ticket → Filed).
+  confirmAndSubmitTicket: (ticketId: string) =>
+    callFunction<{ ok: boolean; status: string; ticketNumber: string }>(
+      "confirmAndSubmit",
+      { ticketId }
+    ),
+  // Scrape live utility responses for a filed ticket.
+  checkTicketResponses: (ticketId: string) =>
+    callFunction<{ ok: boolean; utilityStatuses: DigTicket["utilityStatuses"]; readyToDig: boolean }>(
+      "checkUtilityResponses",
+      { ticketId }
     ),
 };
 
