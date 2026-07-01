@@ -20,9 +20,19 @@
   color: var(--ink);
   overflow: hidden;
   font-family: inherit;
-  background:
+  /* Layered bottom-anchored blueprint skyline behind all widgets. The dark
+     navy strip is tiled horizontally along the bottom under a heavy light
+     veil so it reads as a faint presence, not a dominant image; the top of
+     the board keeps its cool brushed-steel gradient. Widgets carry their own
+     chrome bezels, so the skyline peeks through the gaps between them. */
+  background-image:
     radial-gradient(1100px 600px at 10% -8%, rgba(61, 169, 255, 0.1), transparent 60%),
+    linear-gradient(rgba(247, 246, 242, 0.82), rgba(247, 246, 242, 0.82)),
+    url("/dashboard/dashboard-blueprint-bg.png"),
     linear-gradient(180deg, #f5f7fa 0%, #e8ecf1 100%);
+  background-repeat: no-repeat, repeat-x, repeat-x, no-repeat;
+  background-position: center, center bottom, center bottom, center;
+  background-size: auto, auto 263px, auto 263px, cover;
 }
 
 /* Subtle brushed-steel noise overlay. */
@@ -264,8 +274,10 @@
 
 .weather-strip .bezel__inner {
   justify-content: center;
+  /* Steel HUD radar is a dark navy image — keep only a whisper of white veil
+     so the radar reads clearly; a heavier veil washed the old image out. */
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.66)),
+    linear-gradient(rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.16)),
     url("/dashboard/weather-radar-bg.png");
   background-size: cover;
   background-position: center right;
@@ -283,7 +295,7 @@
 .weather-strip--error .bezel__inner {
   align-items: center;
   justify-content: center;
-  color: var(--ink-soft);
+  color: #c3ccd8;
   font-size: 13px;
 }
 
@@ -294,11 +306,13 @@
   min-width: 0;
 }
 
+/* Lead text sits directly on the dark Steel HUD radar (the gauges keep their
+   own white faces), so it uses light ink for contrast against the dark bg. */
 .weather-strip__temp {
   font-size: 56px;
   font-weight: 200;
   line-height: 1;
-  color: var(--ink);
+  color: #f2f6fb;
   display: flex;
   align-items: flex-start;
 }
@@ -306,19 +320,19 @@
 .weather-strip__unit {
   font-size: 20px;
   font-weight: 400;
-  color: var(--ink-soft);
+  color: #c3ccd8;
   margin-top: 6px;
 }
 
 .weather-strip__condition {
   font-size: 14px;
-  color: var(--ink-soft);
+  color: #c3ccd8;
 }
 
 .weather-strip__area {
   font-size: 12px;
-  color: var(--ink-soft);
-  opacity: 0.8;
+  color: #c3ccd8;
+  opacity: 0.85;
 }
 
 .weather-strip__dials {

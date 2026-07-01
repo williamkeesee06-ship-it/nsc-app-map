@@ -12,7 +12,6 @@ import { queuePrefWrite } from "../../lib/prefsSync.js";
 import StatusFilterPills from "./StatusFilterPills.js";
 import CentralOfficesPill from "./CentralOfficesPill.js";
 import MapTypeFilterSection from "../map/MapTypeFilterSection.js";
-import TasksTab from "./TasksTab.js";
 // CalendarTab is mounted full-screen by JobsMap, not inside the rail.
 import LuminaTab from "../lumina/LuminaTab.js";
 
@@ -36,7 +35,7 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'dashboard' | 'filters' | 'telecom' | 'tools' | 'tasks' | 'calendar' | 'lumina';
+type TabId = 'dashboard' | 'filters' | 'telecom' | 'tools' | 'calendar' | 'lumina';
 
 // 2x2 grid glyph for the Dashboard tab (Lucide LayoutDashboard equivalent —
 // the repo uses inline SVG strings, not lucide-react).
@@ -188,7 +187,6 @@ export default function LeftRail({
     { id: 'filters', label: 'FILTERS' },
     { id: 'telecom', label: 'TELECOM' },
     { id: 'tools', label: 'TOOLS' },
-    { id: 'tasks', label: 'TASKS' },
     { id: 'calendar', label: 'CALENDAR' },
     { id: 'lumina', label: 'LUMINA' },
   ];
@@ -259,7 +257,6 @@ export default function LeftRail({
                 )}
                 {activeTab === 'telecom' && <TelecomTab />}
                 {activeTab === 'tools' && <AnnotateTab />}
-                {activeTab === 'tasks' && <TasksTab />}
                 {/* Calendar tab has no rail content — it mounts full-screen
                     over the map (handled by JobsMap). The rail auto-collapses
                     on entry so there's nothing visible here. */}
