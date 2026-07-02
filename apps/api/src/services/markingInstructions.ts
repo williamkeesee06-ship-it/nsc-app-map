@@ -86,6 +86,86 @@ Your response must be clean JSON, conforming to this schema:
 `;
 }
 
+const PLACEHOLDER =
+  "Unable to auto-generate — please write manually.";
+
+// Remove markdown code fences the model sometimes wraps JSON in despite
+// responseMimeType, then trim. Handles ```json … ``` and bare ``` … ```.
+function stripFences(raw: string): string {
+  return raw
+    .replace(/^\s*```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+}
+
+// Parse Gemini output without ever throwing. Returns a fully-populated result.
+// On unparseable JSON, the raw (fence-stripped) text becomes the marking
+// instructions so the operator still gets usable content instead of a 500.
+function coerceResult(rawText: string): MarkingInstructionResult {
+  const text = (rawText ?? "").trim();
+  if (!text) {
+    return {
+      markingInstructions: PLACEHOLDER,
+      hazardsWarning: "",
+      summaryText: "",
+      safeExcavationGuidelines: [],
+    };
+  }
+
+  const cleaned = stripFences(text);
+  let parsed: Partial<MarkingInstructionResult> | null = null;
+  try {
+    parsed = JSON.parse(cleaned) as Partial<MarkingInstructionResult>;
+  } catch (err) {
+    console.error(
+      "[markingInstructions] Failed to JSON.parse Gemini response; " +
+        "falling back to raw text. Error:",
+      err instanceof Error ? err.message : err,
+      "\nRaw Gemini body:\n",
+      rawText
+    );
+    return {
+      markingInstructions: cleaned || PLACEHOLDER,
+      hazardsWarning: "",
+      summaryText: "",
+      safeExcavationGuidelines: [],
+    };
+  }
+
+  return {
+    markingInstructions: parsed.markingInstructions?.trim() || cleaned || PLACEHOLDER,
+    hazardsWarning: parsed.hazardsWarning ?? "",
+    summaryText: parsed.summaryText ?? "",
+    safeExcavationGuidelines: Array.isArray(parsed.safeExcavationGuidelines)
+      ? parsed.safeExcavationGuidelines
+      : [],
+  };
+}
+
+// Safely pull text out of a Gemini response. response.text() throws when the
+// candidate was blocked or has no text part, so guard it.
+function extractText(result: { response: unknown }): string {
+  const response = result.response as {
+    text?: () => string;
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  try {
+    const t = response.text?.();
+    if (t) return t;
+  } catch {
+    // fall through to manual extraction
+  }
+  const parts = response.candidates?.[0]?.content?.parts ?? [];
+  return parts.map((p) => p.text ?? "").join("");
+}
+
+function finishReasonOf(result: { response: unknown }): string | undefined {
+  const response = result.response as {
+    candidates?: Array<{ finishReason?: string }>;
+  };
+  return response.candidates?.[0]?.finishReason;
+}
+
 export async function generateMarkingInstructions(
   job: Job,
   shape: DigShape | PolygonData,
@@ -95,33 +175,47 @@ export async function generateMarkingInstructions(
   if (!apiKey) throw new Error("GEMINI_API_KEY not set in environment");
 
   const genai = new GoogleGenerativeAI(apiKey);
-  const model = genai.getGenerativeModel({
-    model: "gemini-2.5-flash",
-    systemInstruction: { role: "system", parts: [{ text: SYSTEM_INSTRUCTION }] },
-    generationConfig: {
-      temperature: 0.3,
-      responseMimeType: "application/json",
-      maxOutputTokens: 2048,
-    },
-  });
+  const prompt = buildPrompt(job, shape, specs);
 
-  const result = await model.generateContent(buildPrompt(job, shape, specs));
-  const text = result.response.text() || "{}";
-  let parsed: Partial<MarkingInstructionResult>;
-  try {
-    parsed = JSON.parse(text) as Partial<MarkingInstructionResult>;
-  } catch {
-    // Model occasionally wraps JSON in a code fence despite responseMimeType.
-    const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-    parsed = JSON.parse(cleaned) as Partial<MarkingInstructionResult>;
+  const run = async (maxOutputTokens: number) => {
+    const model = genai.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: { role: "system", parts: [{ text: SYSTEM_INSTRUCTION }] },
+      generationConfig: {
+        temperature: 0.3,
+        responseMimeType: "application/json",
+        maxOutputTokens,
+      },
+    });
+    return model.generateContent(prompt);
+  };
+
+  let result = await run(2048);
+  let finishReason = finishReasonOf(result);
+
+  // A non-STOP finish (MAX_TOKENS, SAFETY, RECITATION…) means the JSON is
+  // likely truncated. Retry once with a bigger budget before falling back.
+  if (finishReason && finishReason !== "STOP") {
+    console.error(
+      `[markingInstructions] Gemini finishReason=${finishReason}; retrying once with a higher token budget.`
+    );
+    try {
+      const retry = await run(8192);
+      const retryReason = finishReasonOf(retry);
+      if (!retryReason || retryReason === "STOP") {
+        result = retry;
+        finishReason = retryReason;
+      } else {
+        console.error(
+          `[markingInstructions] Retry still finishReason=${retryReason}; using best-effort text.`
+        );
+        result = retry;
+        finishReason = retryReason;
+      }
+    } catch (err) {
+      console.error("[markingInstructions] Retry request failed:", err);
+    }
   }
 
-  return {
-    markingInstructions: parsed.markingInstructions ?? "",
-    hazardsWarning: parsed.hazardsWarning ?? "",
-    summaryText: parsed.summaryText ?? "",
-    safeExcavationGuidelines: Array.isArray(parsed.safeExcavationGuidelines)
-      ? parsed.safeExcavationGuidelines
-      : [],
-  };
+  return coerceResult(extractText(result));
 }
