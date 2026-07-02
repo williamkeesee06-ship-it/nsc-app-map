@@ -10,12 +10,12 @@ import chromium from "@sparticuz/chromium";
 import { chromium as playwright, type Browser, type Page } from "playwright-core";
 import type { DigTicket, Job, UtilityStatus } from "./types.js";
 
-const ITIC_BASE = "https://itic.occinc.com";
+const ITIC_BASE = "https://wa.itic.occinc.com";
 
 // Single source of truth for the live-portal selectors. Re-verify on deploy.
 const ITIC_SELECTORS = {
   usernameInput: "#username, input[name='username']",
-  passwordInput: "#password, input[name='password']",
+  passwordInput: "#pass, input[name='password']",
   loginButton: "button[type='submit'], input[type='submit']",
   newTicketLink: "a:has-text('New Ticket'), a:has-text('Create Ticket')",
   workTypeInput: "select[name='typeOfWork'], #typeOfWork",
