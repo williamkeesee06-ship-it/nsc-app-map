@@ -14,11 +14,15 @@ import type { StatusBucket } from "./markerStyle.js";
 import JobCard from "./JobCard.js";
 import LayersPanel from "../workspace/LayersPanel.js";
 import type { Job } from "@nsc/types";
+import { normalizeDigShape } from "@nsc/types";
+import DigTicketsTab from "../dig-tickets/DigTicketsTab.js";
 import { useSearchFocus } from "../search/searchContext.js";
 import { MARKER_COLORS, colorKeyForJob, isJobCompleted, neonPinDataUrl } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
+import { DigPolygonProvider, useDigPolygon } from "../dig-polygon/digPolygonContext.js";
+import DigPolygonOverlay from "../dig-polygon/DigPolygonOverlay.js";
 import AllJobsMarkupsOverlay from "../drawing/AllJobsMarkupsOverlay.js";
 import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
 import { useShowCOs } from "./centralOfficesStore.js";
@@ -100,6 +104,7 @@ export default function JobsMap() {
   return (
     <JobsProvider jobs={allJobs} refreshJobs={reload}>
       <DrawingProvider mapRef={mapRef}>
+        <DigPolygonProvider>
         <JobsMapInner
           allJobs={allJobs}
           mapped={mapped}
@@ -117,6 +122,7 @@ export default function JobsMap() {
           allSupervisors={allSupervisors}
           drawingOwner={drawingOwner}
         />
+        </DigPolygonProvider>
       </DrawingProvider>
     </JobsProvider>
   );
@@ -157,6 +163,7 @@ function JobsMapInner({
   drawingOwner: string;
 }) {
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
+  const { setTarget: setDigTarget } = useDigPolygon();
 
   // When selected job changes, update the drawing target
   useEffect(() => {
@@ -166,6 +173,16 @@ function JobsMapInner({
       setTarget(null, null);
     }
   }, [selected, setTarget]);
+
+  // Mirror the selected job's 811 dig polygon into the DigPolygon context so
+  // the Telecom-tab toggle and the on-map drawing surface both know the target
+  // and can render/re-edit an existing polygon.
+  useEffect(() => {
+    setDigTarget(
+      selected?.jobId ?? null,
+      normalizeDigShape(selected?.digPolygon ?? null)
+    );
+  }, [selected, setDigTarget]);
 
   const handleSelect = useCallback(
     async (job: Job) => {
@@ -221,12 +238,14 @@ function JobsMapInner({
   // Dashboard is the default landing tab — it mounts full-screen on first
   // paint (LeftRail starts on 'dashboard' and broadcasts it on mount).
   const [dashboardFullscreen, setDashboardFullscreen] = useState(true);
+  const [ticketsFullscreen, setTicketsFullscreen] = useState(false);
   useEffect(() => {
     function onActiveTab(e: Event) {
       const detail = (e as CustomEvent<{ tab: string; collapsed: boolean }>).detail;
       if (!detail) return;
       setCalendarFullscreen(detail.tab === "calendar");
       setDashboardFullscreen(detail.tab === "dashboard");
+      setTicketsFullscreen(detail.tab === "811-tickets");
     }
     window.addEventListener("nsc:active-tab", onActiveTab);
     return () => window.removeEventListener("nsc:active-tab", onActiveTab);
@@ -298,6 +317,7 @@ function JobsMapInner({
             />
             <CentralOfficesOverlay visible={showCOs} />
             <DrawingOverlay />
+            <DigPolygonOverlay />
             {/* MapTypeToggle is in the topbar; this applier (inside the Map
                 context) actually applies the chosen style to the live map. */}
             <MapTypeApplier />
@@ -340,6 +360,20 @@ function JobsMapInner({
                 onOpenMap={() => requestTab("filters")}
                 onOpenCalendar={() => requestTab("calendar")}
                 onOpenJob={onDashboardOpenJob}
+              />
+            </div>
+          )}
+
+          {/* Full-screen 811 Dig Ticket Manager overlay. Same layering as the
+              calendar/dashboard overlays. */}
+          {ticketsFullscreen && (
+            <div
+              className="tickets-fullscreen-overlay"
+              style={{ position: "absolute", inset: 0, zIndex: 50, background: "#0b1118" }}
+            >
+              <DigTicketsTab
+                jobs={allJobs}
+                onOpenJob={(job) => onDashboardOpenJob(job.jobId)}
               />
             </div>
           )}

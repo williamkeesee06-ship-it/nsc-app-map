@@ -6,7 +6,7 @@ import { geocodeAddress } from "../lib/geocode.js";
 import { getSheet, buildColumnsById } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
-import type { Job } from "@nsc/types";
+import type { DigShape, Job, PolygonData } from "@nsc/types";
 
 const router = Router();
 
@@ -251,6 +251,84 @@ router.get("/jobs/:jobId", async (req, res, next) => {
     next(err);
   }
 });
+
+// PUT /api/jobs/:jobId/dig-polygon — save (or clear) the 811 excavation
+// dig shape William drew for a job. Body: { polygon: DigShape | null }.
+// The client computes area/perimeter/bounds/vertices (via @nsc/types geo
+// helpers) so the HUD and the persisted document always agree; we validate
+// the discriminated union then persist as-is.
+router.put("/jobs/:jobId/dig-polygon", async (req, res, next) => {
+  try {
+    const jobId = req.params.jobId;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const body = req.body as { polygon?: (DigShape | PolygonData) | null };
+    const shape = body.polygon ?? null;
+
+    if (shape !== null) {
+      const err = validateDigShape(shape);
+      if (err) {
+        res.status(400).json({ error: err });
+        return;
+      }
+    }
+
+    await ref.update({ digPolygon: shape });
+    invalidateJobsCache();
+
+    res.json({ jobId, digPolygon: shape });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Validate a DigShape (or legacy bare PolygonData). Returns an error string
+// or null when valid. All three tools carry a rendered `vertices` ring, so we
+// require that; radius/route additionally carry their source parameters.
+function validateDigShape(shape: DigShape | PolygonData): string | null {
+  const isLatLngArray = (v: unknown, min: number): boolean =>
+    Array.isArray(v) &&
+    v.length >= min &&
+    v.every(
+      (p) =>
+        p &&
+        typeof (p as { lat: unknown }).lat === "number" &&
+        typeof (p as { lng: unknown }).lng === "number"
+    );
+
+  if (!isLatLngArray((shape as { vertices?: unknown }).vertices, 3)) {
+    return "shape.vertices must be an array of >=3 {lat,lng}";
+  }
+  const type = (shape as Partial<DigShape>).type;
+  if (type === "radius") {
+    const s = shape as { center?: unknown; radiusFt?: unknown };
+    if (
+      !s.center ||
+      typeof (s.center as { lat: unknown }).lat !== "number" ||
+      typeof (s.center as { lng: unknown }).lng !== "number"
+    ) {
+      return "radius shape requires a {lat,lng} center";
+    }
+    if (typeof s.radiusFt !== "number" || s.radiusFt <= 0 || s.radiusFt > 100) {
+      return "radiusFt must be a number in (0, 100]";
+    }
+  } else if (type === "route") {
+    const s = shape as { path?: unknown; widthFt?: unknown };
+    if (!isLatLngArray(s.path, 2)) {
+      return "route shape requires a path of >=2 {lat,lng}";
+    }
+    if (typeof s.widthFt !== "number" || s.widthFt <= 0 || s.widthFt > 500) {
+      return "widthFt must be a number in (0, 500]";
+    }
+  }
+  // polygon and legacy (no type) pass with just the vertices check.
+  return null;
+}
 
 // POST /api/jobs — create a manual job record (not from Smartsheet)
 router.post("/jobs", async (req, res, next) => {

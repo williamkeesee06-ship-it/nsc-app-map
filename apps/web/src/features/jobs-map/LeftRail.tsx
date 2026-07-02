@@ -6,6 +6,7 @@ import FilterRail from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
 import { isJobCompleted } from "./markerStyle.js";
 import { useDrawing } from "../drawing/drawingContext.js";
+import { useDigPolygon, type DigTool } from "../dig-polygon/digPolygonContext.js";
 import type { DrawingTool } from "@nsc/types";
 import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 import { queuePrefWrite } from "../../lib/prefsSync.js";
@@ -35,7 +36,11 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'dashboard' | 'filters' | 'telecom' | 'tools' | 'calendar' | 'lumina';
+type TabId = 'dashboard' | 'filters' | 'telecom' | 'tools' | 'calendar' | 'lumina' | '811-tickets';
+
+// Hard-hat / safety-shield glyph for the 811 Tickets tab (inline SVG — the
+// repo uses SVG strings, not lucide-react).
+const TICKETS_811_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>`;
 
 // 2x2 grid glyph for the Dashboard tab (Lucide LayoutDashboard equivalent —
 // the repo uses inline SVG strings, not lucide-react).
@@ -79,7 +84,11 @@ export default function LeftRail({
       const detail = (e as CustomEvent<{ tab: TabId }>).detail;
       if (!detail?.tab) return;
       setActiveTab(detail.tab);
-      setCollapsed(detail.tab === 'calendar' || detail.tab === 'dashboard');
+      setCollapsed(
+        detail.tab === 'calendar' ||
+          detail.tab === 'dashboard' ||
+          detail.tab === '811-tickets'
+      );
     }
     window.addEventListener("nsc:request-tab", onRequestTab as EventListener);
     return () => window.removeEventListener("nsc:request-tab", onRequestTab as EventListener);
@@ -94,9 +103,9 @@ export default function LeftRail({
       setCollapsed(c => !c);
     } else {
       setActiveTab(id);
-      // Calendar and Dashboard mount full-screen over the map and have no rail
-      // body of their own, so collapse the rail when entering them.
-      setCollapsed(id === 'calendar' || id === 'dashboard');
+      // Calendar, Dashboard, and 811 Tickets mount full-screen over the map and
+      // have no rail body of their own, so collapse the rail when entering them.
+      setCollapsed(id === 'calendar' || id === 'dashboard' || id === '811-tickets');
     }
   }, [activeTab]);
   const draggingRef = useRef(false);
@@ -189,6 +198,7 @@ export default function LeftRail({
     { id: 'tools', label: 'TOOLS' },
     { id: 'calendar', label: 'CALENDAR' },
     { id: 'lumina', label: 'LUMINA' },
+    { id: '811-tickets', label: '811 TICKETS', iconSvg: TICKETS_811_ICON_SVG },
   ];
 
   // When collapsed, only the 52px tab strip is visible (no content panel,
@@ -481,6 +491,16 @@ function TelecomTab() {
   const { activeTool } = state;
   const hasSelection = state.selectedIds.size > 0;
 
+  // 811 Phase 1.5 — dig shape tools. Enabled only when a job is selected
+  // (the shape is saved to jobs/{jobId}.digPolygon).
+  const {
+    tool: digTool,
+    setTool: setDigTool,
+    jobId: digJobId,
+    hasShape: hasDigShape,
+    existing: digShape,
+  } = useDigPolygon();
+
   const toggleTool = (tool: DrawingTool) => {
     setTool(activeTool === tool ? null : tool);
   };
@@ -521,9 +541,60 @@ function TelecomTab() {
           Delete ({state.selectedIds.size})
         </button>
       )}
+
+      <div className="telecom-divider">811 DIG SHAPE</div>
+      <div className="dig-tool-switcher">
+        {DIG_TOOLS.map(({ id, label, iconSvg }) => {
+          const isActive = digTool === id;
+          return (
+            <button
+              key={id}
+              className={`dig-tool-btn${isActive ? " dig-tool-btn--active" : ""}`}
+              onClick={() => setDigTool(isActive ? null : id)}
+              disabled={!digJobId}
+              title={digJobId ? label : "Select a job first"}
+            >
+              <span
+                className="dig-tool-btn__icon"
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{ __html: iconSvg }}
+              />
+              <span className="dig-tool-btn__label">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div
+        className={`dig-polygon-status${hasDigShape ? " dig-polygon-status--saved" : ""}`}
+      >
+        {!digJobId
+          ? "No job selected"
+          : hasDigShape && digShape
+            ? `${digShape.type} shape saved`
+            : "No shape yet"}
+      </div>
     </section>
   );
 }
+
+// 811 tool switcher definitions (neon-orange excavation shapes).
+const DIG_TOOLS: { id: DigTool; label: string; iconSvg: string }[] = [
+  {
+    id: "radius",
+    label: "RADIUS",
+    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="20" y2="12"/><circle cx="12" cy="12" r="1.5" fill="#ff6a00"/></svg>`,
+  },
+  {
+    id: "route",
+    label: "ROUTE",
+    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L10 8 L16 16 L20 4"/></svg>`,
+  },
+  {
+    id: "polygon",
+    label: "POLYGON",
+    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2" stroke-linejoin="round"><polygon points="12,3 21,9 18,20 6,20 3,9"/></svg>`,
+  },
+];
 
 function AnnotateTab() {
   const { state, setTool, undo, redo, canUndo, canRedo } = useDrawing();
