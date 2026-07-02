@@ -35,6 +35,16 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
+      - name: Register ITIC_USERNAME secret with Firebase
+        run: echo -n "${{ secrets.ITIC_USERNAME_VALUE }}" | npx firebase-tools functions:secrets:set ITIC_USERNAME --project "${{ secrets.FIREBASE_PROJECT_ID }}" --data-file=- --force
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+
+      - name: Register ITIC_PASSWORD secret with Firebase
+        run: echo -n "${{ secrets.ITIC_PASSWORD_VALUE }}" | npx firebase-tools functions:secrets:set ITIC_PASSWORD --project "${{ secrets.FIREBASE_PROJECT_ID }}" --data-file=- --force
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+
       - name: Deploy Functions
         run: npx firebase-tools deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive
         env:
