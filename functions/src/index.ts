@@ -37,8 +37,6 @@ initializeApp();
 const ITIC_USERNAME = defineSecret("ITIC_USERNAME");
 const ITIC_PASSWORD = defineSecret("ITIC_PASSWORD");
 const SMARTSHEET_ACCESS_TOKEN = defineSecret("SMARTSHEET_ACCESS_TOKEN");
-const PUSHOVER_TOKEN = defineSecret("PUSHOVER_TOKEN");
-const PUSHOVER_USER = defineSecret("PUSHOVER_USER");
 
 const HEAVY = { memory: "2GiB" as const, timeoutSeconds: 540, region: "us-west1" };
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -209,7 +207,7 @@ async function pollResponsesInto(
 
 // ── checkUtilityResponses ────────────────────────────────────────────────────
 export const checkUtilityResponses = onCall(
-  { ...HEAVY, secrets: [ITIC_USERNAME, ITIC_PASSWORD, PUSHOVER_TOKEN, PUSHOVER_USER] },
+  { ...HEAVY, secrets: [ITIC_USERNAME, ITIC_PASSWORD] },
   async (req) => {
     const ticketId = req.data?.ticketId as string | undefined;
     if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
@@ -235,7 +233,7 @@ export const dailySweep = onSchedule(
     schedule: "0 6 * * *",
     timeZone: "America/Los_Angeles",
     ...HEAVY,
-    secrets: [ITIC_USERNAME, ITIC_PASSWORD, PUSHOVER_TOKEN, PUSHOVER_USER],
+    secrets: [ITIC_USERNAME, ITIC_PASSWORD],
   },
   async () => {
     const now = Date.now();
@@ -306,7 +304,7 @@ export const dailySweep = onSchedule(
 export const onTicketFiled = onDocumentUpdated(
   {
     document: "digTickets/{ticketId}",
-    secrets: [SMARTSHEET_ACCESS_TOKEN, PUSHOVER_TOKEN, PUSHOVER_USER],
+    secrets: [SMARTSHEET_ACCESS_TOKEN],
     region: "us-west1",
   },
   async (event) => {
