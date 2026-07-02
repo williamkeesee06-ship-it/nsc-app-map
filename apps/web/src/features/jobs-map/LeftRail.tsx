@@ -38,14 +38,6 @@ interface Props {
 
 type TabId = 'dashboard' | 'filters' | 'telecom' | 'tools' | 'calendar' | 'lumina' | '811-tickets';
 
-// Hard-hat / safety-shield glyph for the 811 Tickets tab (inline SVG — the
-// repo uses SVG strings, not lucide-react).
-const TICKETS_811_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>`;
-
-// 2x2 grid glyph for the Dashboard tab (Lucide LayoutDashboard equivalent —
-// the repo uses inline SVG strings, not lucide-react).
-const DASHBOARD_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>`;
-
 export default function LeftRail({
   jobs,
   filters,
@@ -192,13 +184,13 @@ export default function LeftRail({
   // Always 2 columns — tiles shrink to fit
 
   const tabs: { id: TabId; label: string; iconSvg?: string }[] = [
-    { id: 'dashboard', label: 'DASHBOARD', iconSvg: DASHBOARD_ICON_SVG },
+    { id: 'dashboard', label: 'DASHBOARD' },
     { id: 'filters', label: 'MAP' },
     { id: 'telecom', label: 'TELECOM' },
     { id: 'tools', label: 'TOOLS' },
     { id: 'calendar', label: 'CALENDAR' },
     { id: 'lumina', label: 'LUMINA' },
-    { id: '811-tickets', label: '811 TICKETS', iconSvg: TICKETS_811_ICON_SVG },
+    { id: '811-tickets', label: '811 TICKETS' },
   ];
 
   // When collapsed, only the 52px tab strip is visible (no content panel,
