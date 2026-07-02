@@ -36,7 +36,7 @@ const ITIC_SELECTORS = {
   // Step 1 — mark location.
   addressSearch: 'input[placeholder="Search place or address"]',
   placeSuggestion: ".pac-item",
-  drawPanelButton: 'img[src*="draw"]',
+  drawPanelButton: 'img[src*="draw-white"]',
   // The Google Maps canvas container on Step 1. Multiple candidates are tried in
   // order so a markup change on the portal doesn't break the projection lookup.
   mapContainer: '#map, .gm-style, div[aria-label="Map"], div[role="region"][aria-label*="Map"]',
@@ -272,7 +272,7 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
     lng: (shape.bounds.swLng + shape.bounds.neLng) / 2,
   };
   const radiusFt = computeRadiusFt(shape);
-  await page.getByText("Radius excavation", { exact: false }).first().click();
+  // Tool already selected in the "opening drawing panel" step; just drop points.
   await clickLatLng(page, center.lat, center.lng);
   const radiusInput = page.locator('input[type="number"]').first();
   if ((await radiusInput.count()) > 0) await radiusInput.fill(String(radiusFt));
@@ -281,7 +281,7 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
 async function traceRoute(page: Page, shape: DigShape): Promise<void> {
   const path = shape.path?.length ? shape.path : shape.vertices;
   if (path.length < 2) throw new Error("Route shape has fewer than 2 path points");
-  await page.getByText("Route excavation", { exact: false }).first().click();
+  // Tool already selected in the "opening drawing panel" step; just drop points.
   for (let i = 0; i < path.length; i++) {
     // Double-click the final vertex to finish the polyline.
     await clickLatLng(page, path[i].lat, path[i].lng, i === path.length - 1);
@@ -291,7 +291,7 @@ async function traceRoute(page: Page, shape: DigShape): Promise<void> {
 async function tracePolygon(page: Page, shape: DigShape): Promise<void> {
   const verts = shape.vertices;
   if (verts.length < 3) throw new Error("Polygon shape has fewer than 3 vertices");
-  await page.getByText("Other", { exact: false }).first().click();
+  // Tool already selected (incl. "Proceed to create polygon") in the opener step.
   for (const v of verts) await clickLatLng(page, v.lat, v.lng);
   // Close the ring: double-click the first vertex (standard polygon-close gesture).
   await clickLatLng(page, verts[0].lat, verts[0].lng, true);
@@ -323,6 +323,9 @@ async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<vo
     await page.waitForTimeout(500);
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Enter");
+    // Give the map a beat to zoom to the geocoded location before we later wait
+    // for the drawing-tool opener to become visible.
+    await page.waitForTimeout(1_500);
     // Confirm the selection landed. Prefer the ZIP appearing in the input value;
     // if the address has no ZIP, fall back to the pac-container going hidden
     // again (Google sets display:none once a suggestion is chosen).
@@ -346,7 +349,31 @@ async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<vo
   });
 
   await step(page, "Step 1: opening drawing panel", async () => {
-    await page.locator(ITIC_SELECTORS.drawPanelButton).first().click();
+    // Two-step opener. The "Click for drawing tool" banner (draw-white.svg) is
+    // injected after geocoding but can be display:none / opacity:0 during the map
+    // zoom animation, so wait for VISIBLE (not mere DOM attachment) before click.
+    const drawOpener = page.locator(ITIC_SELECTORS.drawPanelButton).first();
+    await drawOpener.waitFor({ state: "visible", timeout: 15_000 });
+    await drawOpener.click();
+
+    // Pick the ITIC tool that matches the stored shape so fidelity is preserved.
+    // The menu icons are circle-tool / route-tool / polygon-tool — NOT draw*.svg.
+    const toolSelector =
+      shape.type === "radius"
+        ? 'a:has(img[src*="circle-tool"])'
+        : shape.type === "route"
+          ? 'a:has(img[src*="route-tool"])'
+          : 'a:has(img[src*="polygon-tool"])';
+    const toolButton = page.locator(toolSelector).first();
+    await toolButton.waitFor({ state: "visible", timeout: 10_000 });
+    await toolButton.click();
+
+    // Polygon ("Other") pops a confirmation dialog that must be dismissed.
+    if (shape.type === "polygon") {
+      const proceedBtn = page.locator('button:has-text("Proceed to create polygon")');
+      await proceedBtn.waitFor({ state: "visible", timeout: 5_000 });
+      await proceedBtn.click();
+    }
   });
 
   await step(page, `Step 1: tracing ${shape.type} shape`, async () => {
