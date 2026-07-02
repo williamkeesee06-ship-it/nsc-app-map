@@ -58,6 +58,22 @@ function iticCreds() {
   return { username: ITIC_USERNAME.value(), password: ITIC_PASSWORD.value() };
 }
 
+// If the bot attached a failure screenshot to the error, upload it and return a
+// message annotated with the URL so the failure state is visible in the ticket.
+async function recordFailure(ticketId: string, err: unknown): Promise<string> {
+  const message = err instanceof Error ? err.message : String(err);
+  const png = (err as { screenshot?: Buffer })?.screenshot;
+  if (png) {
+    try {
+      const url = await uploadScreenshot(ticketId, "failure", png);
+      return `${message} (screenshot: ${url})`;
+    } catch (uploadErr) {
+      logger.warn("failure screenshot upload failed", { ticketId, err: String(uploadErr) });
+    }
+  }
+  return message;
+}
+
 // ── fileTicketBot ────────────────────────────────────────────────────────────
 // Fills the ITIC form and captures a review screenshot for operator sign-off.
 // Leaves the ticket in Review; confirmAndSubmit does the actual filing.
@@ -88,7 +104,7 @@ export const fileTicketBot = onCall(
       });
       return { ok: true, status: "Review", reviewScreenshotUrl: url };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = await recordFailure(ticketId, err);
       logger.error("fileTicketBot failed", { ticketId, message });
       await ref.update({
         status: "Failed",
@@ -143,7 +159,7 @@ export const confirmAndSubmit = onCall(
       });
       return { ok: true, status: "Filed", ticketNumber };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = await recordFailure(ticketId, err);
       logger.error("confirmAndSubmit failed", { ticketId, message });
       await ref.update({
         status: "Failed",

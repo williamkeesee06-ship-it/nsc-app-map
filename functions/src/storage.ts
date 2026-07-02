@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 
 export async function uploadScreenshot(
   ticketId: string,
-  kind: "review" | "confirmation",
+  kind: "review" | "confirmation" | "failure",
   png: Buffer
 ): Promise<string> {
   const bucket = getStorage().bucket();
