@@ -95,6 +95,13 @@ jobs:
 
           echo "$CONFIG" > /tmp/firebase-config.json
 
+      - name: Emit Firebase config to log
+        run: |
+          set -e
+          echo "=== FIREBASE_CONFIG_START ==="
+          cat /tmp/firebase-config.json
+          echo "=== FIREBASE_CONFIG_END ==="
+
       - uses: actions/upload-artifact@v4
         with:
           name: firebase-web-config
