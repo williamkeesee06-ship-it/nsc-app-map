@@ -193,7 +193,7 @@ export default function LeftRail({
 
   const tabs: { id: TabId; label: string; iconSvg?: string }[] = [
     { id: 'dashboard', label: 'DASHBOARD', iconSvg: DASHBOARD_ICON_SVG },
-    { id: 'filters', label: 'FILTERS' },
+    { id: 'filters', label: 'MAP' },
     { id: 'telecom', label: 'TELECOM' },
     { id: 'tools', label: 'TOOLS' },
     { id: 'calendar', label: 'CALENDAR' },
