@@ -407,50 +407,15 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
   });
 }
 
-// Resolve the dashboard's "Create job ticket" <select>. The old approach keyed
-// off the "Emergency ticket" option — fragile (the label can drift) and
-// confusing (it looked like the bot was filing an emergency ticket). Instead we
-// try a chain of intuitive fingerprints and use the first that uniquely matches.
-async function findCreateTicketSelect(page: Page): Promise<Locator> {
-  const candidates = [
-    // Preferred: fingerprint by the option we actually pick
-    'select:has(option:text-is("2 full business days ticket"))',
-    // Fallback 1: fingerprint by placeholder option (label of the disabled first option)
-    'select:has(option:text-is("Create job ticket"))',
-    // Fallback 2: any select that has an option containing "business days"
-    'select:has(option:text-matches("business days", "i"))',
-    // Fallback 3: any select that has an option containing "Design Information Request"
-    'select:has(option:text-is("Design Information Request"))',
-  ];
-  for (const sel of candidates) {
-    const loc = page.locator(sel);
-    try {
-      await loc.waitFor({ state: "attached", timeout: 5000 });
-      const count = await loc.count();
-      if (count === 1) {
-        console.log(`[ITIC] Create-ticket <select> matched by: ${sel}`);
-        return loc;
-      }
-      if (count > 1) {
-        console.warn(`[ITIC] Selector matched ${count} elements, trying next: ${sel}`);
-      }
-    } catch {
-      // try next candidate
-    }
-  }
-  // Last resort: dump all selects for diagnostics
-  const allSelects = await page.locator("select").all();
-  const dump = await Promise.all(
-    allSelects.map(async (s, i) => {
-      const name = await s.getAttribute("name");
-      const id = await s.getAttribute("id");
-      const options = await s.locator("option").allTextContents();
-      return `[${i}] name=${name} id=${id} options=${JSON.stringify(options)}`;
-    })
-  );
-  throw new Error(
-    `Create-ticket <select> not found on /excavatorTickets. Selects found:\n${dump.join("\n")}`
-  );
+// Resolve the dashboard's "Create job ticket" <select>. We filter the page's
+// <select> elements down to the one whose option list contains the exact ticket
+// type we pick. That option list uniquely identifies the create-ticket control
+// and avoids the DataTables pagination-length <select>, which also lives on the
+// dashboard but has only numeric options.
+function findCreateTicketSelect(page: Page): Locator {
+  return page
+    .locator("select")
+    .filter({ has: page.locator("option", { hasText: DEFAULT_TICKET_TYPE }) });
 }
 
 // Fill the ticket wizard through Step 2. Call submitAndConfirm() next to advance
@@ -473,12 +438,41 @@ export async function fillTicketForm(page: Page, ticket: DigTicket, job: Job): P
 
   await step(page, `Dashboard: selecting ticket type "${DEFAULT_TICKET_TYPE}"`, async () => {
     console.log("[ITIC] Dashboard: resolving create-ticket <select>");
-    const select = await findCreateTicketSelect(page);
+    const select = findCreateTicketSelect(page);
+    await select.waitFor({ state: "attached", timeout: STEP_TIMEOUT });
     console.log(`[ITIC] Dashboard: selecting option "${DEFAULT_TICKET_TYPE}"`);
+    // Native single-select: choosing the option fires a change event that the
+    // portal handles by navigating to Step 1. Do NOT .click() the <select> —
+    // clicking only toggles the dropdown open and times out waiting for it to
+    // become actionable (this was the original 30s-timeout bug).
     await select.selectOption({ label: DEFAULT_TICKET_TYPE });
-    await select.click();
+
     console.log("[ITIC] Dashboard: awaiting navigation to /createTicketStep1");
-    await page.waitForURL("**/createTicketStep1", { timeout: STEP_TIMEOUT });
+    try {
+      await page.waitForURL("**/createTicketStep1**", { timeout: 5_000 });
+    } catch {
+      // A few portal builds require an explicit click on the split-button area
+      // that visually pairs with the <select> to commit the navigation. Dump
+      // the visible buttons for diagnostics, then click the paired button as a
+      // last resort.
+      if (/createTicketStep1/.test(page.url())) return;
+      console.warn("[ITIC] Dashboard: URL did not change within 5s after selectOption");
+      const buttons = await page.locator("button:visible").all();
+      const labels = await Promise.all(
+        buttons.map(async (b, i) => `[${i}] "${((await b.textContent()) ?? "").trim()}"`)
+      );
+      console.warn(`[ITIC] Dashboard: visible buttons:\n${labels.join("\n")}`);
+      const pair = page
+        .locator(
+          'button:has-text("Create job ticket"), button:has-text("Create"), button:has-text("Go")'
+        )
+        .first();
+      if ((await pair.count()) > 0) {
+        console.warn("[ITIC] Dashboard: clicking paired button as last-resort");
+        await pair.click().catch(() => {});
+      }
+      await page.waitForURL("**/createTicketStep1**", { timeout: 15_000 });
+    }
   });
 
   await markLocation(page, ticket, job);
