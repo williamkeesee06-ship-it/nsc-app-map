@@ -82,9 +82,14 @@ router.post("/dig-tickets", async (req, res, next) => {
       return;
     }
 
+    // WA state dig tickets are always valid for 45 days — reject any other value.
+    if (body.specs?.duration != null && body.specs.duration !== 45) {
+      res.status(400).json({ error: "duration must be 45 (WA dig-ticket lifespan)" });
+      return;
+    }
+
     const now = Date.now();
     const specs: DigTicket["specs"] = {
-      depth: body.specs?.depth ?? "",
       handDigOnly: body.specs?.handDigOnly ?? false,
       directionalBoring: body.specs?.directionalBoring ?? false,
       whiteLined: body.specs?.whiteLined ?? false,
@@ -93,7 +98,7 @@ router.post("/dig-tickets", async (req, res, next) => {
       equipment: Array.isArray(body.specs?.equipment) ? body.specs!.equipment! : [],
       markAround: body.specs?.markAround ?? "",
       startDate: now + 2 * DAY_MS, // ITIC requires 48hr notice
-      duration: body.specs?.duration ?? 28,
+      duration: 45,
     };
 
     // Best-effort Gemini generation — a ticket can still be drafted (and the

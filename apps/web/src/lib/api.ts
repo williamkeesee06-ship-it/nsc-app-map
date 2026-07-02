@@ -299,7 +299,6 @@ export const api = {
   createDigTicket: (body: {
     jobId: string;
     specs: {
-      depth: string;
       handDigOnly: boolean;
       directionalBoring: boolean;
       whiteLined: boolean;
@@ -307,7 +306,7 @@ export const api = {
       workType: string;
       equipment: string[];
       markAround: string;
-      duration: number;
+      duration: 45;
     };
   }) =>
     request<{ ticket: DigTicket }>("/api/dig-tickets", {
@@ -342,18 +341,16 @@ export const api = {
     ),
 
   // ── ITIC automation (Firebase Callable Functions) ──────────────────────
-  // Fill the ITIC form + capture a review screenshot (ticket → Review).
+  // Fill the ITIC form and auto-submit end-to-end (ticket → Filed). Returns the
+  // assigned locate number, expiration, and confirmation PDF URL.
   runIticBot: (ticketId: string) =>
-    callFunction<{ ok: boolean; status: string; reviewScreenshotUrl: string }>(
-      "fileTicketBot",
-      { ticketId }
-    ),
-  // After operator sign-off, submit to ITIC (ticket → Filed).
-  confirmAndSubmitTicket: (ticketId: string) =>
-    callFunction<{ ok: boolean; status: string; ticketNumber: string }>(
-      "confirmAndSubmit",
-      { ticketId }
-    ),
+    callFunction<{
+      ok: boolean;
+      status: string;
+      ticketNumber: string;
+      expiresAt: number;
+      iticPdfUrl: string;
+    }>("fileTicketBot", { ticketId }),
   // Scrape live utility responses for a filed ticket.
   checkTicketResponses: (ticketId: string) =>
     callFunction<{ ok: boolean; utilityStatuses: DigTicket["utilityStatuses"]; readyToDig: boolean }>(

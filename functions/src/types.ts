@@ -54,7 +54,6 @@ export interface DigTicket {
   status: DigTicketStatus;
   shape: DigShape;
   specs: {
-    depth: string;
     handDigOnly: boolean;
     directionalBoring: boolean;
     whiteLined: boolean;
@@ -63,7 +62,7 @@ export interface DigTicket {
     equipment: string[];
     markAround: string;
     startDate: Timestamp;
-    duration: number;
+    duration: 45;
   };
   markingInstructions: string;
   hazardsWarning: string;
@@ -78,6 +77,7 @@ export interface DigTicket {
     filedAt: Timestamp | null;
     botErrors: string[];
   };
+  iticPdfUrl?: string | null;
   dates: {
     createdAt: Timestamp;
     submittedAt: Timestamp | null;

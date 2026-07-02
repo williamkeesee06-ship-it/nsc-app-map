@@ -63,7 +63,6 @@ SHAPE GEOMETRY STATS:
 ${shapeSummary(shape)}
 
 TICKET DETAILS:
-- Maximum Depth: ${specs.depth || "Not specified"}
 - Hand digging only: ${specs.handDigOnly ? "YES" : "NO"}
 - Explosives used: ${specs.explosives ? "YES" : "NO"}
 - Horizontal Directional Boring (HDD): ${specs.directionalBoring ? "YES" : "NO"}
@@ -75,7 +74,7 @@ Provide the following outputs inside a clean JSON object:
 1. "markingInstructions": A clear, detailed 3-4 sentence paragraph that the utility markings locator can read to locate and spray-paint standard markings. Use exact directional terminology (e.g., North, South, East, West, right-of-way, easement, curb line, property boundary) relative to the drawn area and site description.
 2. "hazardsWarning": A brief alert of any potential nearby structures, underground easements, or utility lines inferred from the site type.
 3. "summaryText": A 1-sentence executive summary of the excavation ticket scope.
-4. "safeExcavationGuidelines": A bulleted list of 3 safety tips specific to this utility type and depth.
+4. "safeExcavationGuidelines": A bulleted list of 3 safety tips specific to this utility type.
 
 Your response must be clean JSON, conforming to this schema:
 {

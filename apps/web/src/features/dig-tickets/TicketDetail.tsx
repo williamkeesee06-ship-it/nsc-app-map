@@ -93,12 +93,6 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       return refetch();
     });
 
-  const confirmSubmit = () =>
-    run("submit", async () => {
-      await api.confirmAndSubmitTicket(ticket.id);
-      return refetch();
-    });
-
   const checkResponses = () =>
     run("check", async () => {
       await api.checkTicketResponses(ticket.id);
@@ -140,6 +134,12 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
           <div className="dt-view__sub">
             {ticket.ticketNumber || "Not filed with ITIC yet"} · Created {fmtDate(ticket.dates.createdAt)}
           </div>
+          {ticket.ticketNumber && (
+            <div className="dt-filed-banner">
+              <span className="dt-filed-banner__num">ITIC #{ticket.ticketNumber}</span>
+              <span className="dt-filed-banner__exp">Expires {fmtDate(ticket.dates.expiresAt)}</span>
+            </div>
+          )}
         </div>
         <div className="dt-view__head-right">
           <span className="dt-ticket__status" style={{ background: statusColor(ticket.status) }}>
@@ -166,7 +166,6 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
           <div><span>Type</span><b>{ticket.shape.type}</b></div>
           <div><span>Area</span><b>{Math.round(ticket.shape.areaSqFt).toLocaleString()} ft²</b></div>
           <div><span>Perimeter</span><b>{Math.round(ticket.shape.perimeterFt).toLocaleString()} ft</b></div>
-          <div><span>Depth</span><b>{ticket.specs.depth || "—"}</b></div>
           <div><span>Work type</span><b>{ticket.specs.workType || "—"}</b></div>
           <div><span>Duration</span><b>{ticket.specs.duration} days</b></div>
         </div>
@@ -203,8 +202,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
         </button>
       </section>
 
-      {/* ITIC automation: run the bot to fill the form + capture a review
-          screenshot, then confirm to file. */}
+      {/* ITIC automation: file with ITIC end-to-end (fill + auto-submit). */}
       <section className="dt-card">
         <div className="dt-card__title">ITIC AUTOMATION</div>
         <div className="dt-view__foot">
@@ -213,18 +211,19 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
             onClick={runBot}
             disabled={busy === "bot"}
           >
-            {busy === "bot" ? "Running bot…" : "▶ Run ITIC bot (fill + review)"}
+            {busy === "bot" ? "Filing…" : "▶ File with ITIC"}
           </button>
-          {ticket.status === "Review" && (
-            <button
-              className="dt-btn dt-btn--danger"
-              onClick={confirmSubmit}
-              disabled={busy === "submit"}
-            >
-              {busy === "submit" ? "Submitting…" : "✓ Confirm + Submit to ITIC"}
-            </button>
-          )}
         </div>
+        {ticket.iticPdfUrl && (
+          <a
+            className="dt-link"
+            href={ticket.iticPdfUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View ITIC PDF
+          </a>
+        )}
         {ticket.automation.reviewScreenshotUrl && (
           <a
             className="dt-link"

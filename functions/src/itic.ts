@@ -11,12 +11,11 @@
 // are centralised in ITIC_SELECTORS so they can be re-verified against the live
 // portal during deployment (README-811-DEPLOY.md → "Verifying ITIC selectors").
 //
-// Contract preserved from the previous implementation:
-//   fillTicketForm  — dashboard → Step 1 → Step 2, fills everything, STOPS on
-//                     Step 2 without advancing (i.e. no submit).
-//   captureReview   — advances Step 2 → Step 3 and screenshots the review page.
-//                     This is the "fill + review" stopping point (fileTicketBot).
-//   submitTicket    — clicks Submit on Step 3 (only confirmAndSubmit calls this).
+// Flow (auto-submit end-to-end, no operator review pause):
+//   fillTicketForm  — dashboard → Step 1 (precise shape trace) → Step 2 (fill).
+//   submitAndConfirm— advances Step 2 → Step 3, clicks Submit, reads back the
+//                     assigned ticket number + expiration, and captures a PDF of
+//                     the confirmation page.
 import chromium from "@sparticuz/chromium";
 import { chromium as playwright, type Browser, type Page } from "playwright-core";
 import type { DigShape, DigTicket, Job, LatLng, UtilityStatus } from "./types.js";
@@ -39,6 +38,9 @@ const ITIC_SELECTORS = {
   addressSearch: 'input[placeholder="Search place or address"]',
   placeSuggestion: ".pac-item",
   drawPanelButton: 'img[src*="draw"]',
+  // The Google Maps canvas container on Step 1. Multiple candidates are tried in
+  // order so a markup change on the portal doesn't break the projection lookup.
+  mapContainer: '#map, .gm-style, div[aria-label="Map"], div[role="region"][aria-label*="Map"]',
   // Step 3 — review/submit + confirmation number.
   submitButton: 'button:has-text("Submit")',
   ticketNumber: ".ticket-number, [data-ticket-number], #ticketNumber",
@@ -59,19 +61,6 @@ export interface IticCredentials {
 }
 
 // ── small mapping tables ───────────────────────────────────────────────────
-function mapWorkType(raw: string): string {
-  switch (raw.trim().toUpperCase()) {
-    case "MEC":
-      return "MECHANICAL EXCAVATION";
-    case "HAND":
-      return "HAND DIGGING";
-    case "BORE":
-      return "DIRECTIONAL BORING";
-    default:
-      return raw;
-  }
-}
-
 // Our stored equipment strings → the ITIC listbox option labels.
 const EQUIPMENT_MAP: Record<string, string> = {
   auger: "Auger",
@@ -130,6 +119,80 @@ function computeRadiusFt(shape: DigShape): number {
   const sw: LatLng = { lat: b.swLat, lng: b.swLng };
   const ne: LatLng = { lat: b.neLat, lng: b.neLng };
   return Math.max(10, Math.round(feetBetween(sw, ne) / 2));
+}
+
+// ── date helpers ─────────────────────────────────────────────────────────────
+// Soonest allowed start = today + N business days (weekends skipped). Federal
+// holidays are NOT skipped yet — a simple weekend skip is acceptable for v1.
+function addBusinessDays(from: Date, days: number): Date {
+  const d = new Date(from);
+  let added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added += 1;
+  }
+  return d;
+}
+
+function formatMDY(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${mm}/${dd}/${d.getFullYear()}`;
+}
+
+// ── map projection helpers ─────────────────────────────────────────────────
+// Convert a lat/lng to a pixel offset within the map container using the live
+// Google Maps projection (approach 1 from the spec). Runs inside the page so it
+// can read window.google.maps. Returns null if the map instance/projection is
+// not reachable, letting the caller fall back to the radius flow.
+async function latLngToPixel(
+  page: Page,
+  mapSelector: string,
+  lat: number,
+  lng: number
+): Promise<{ x: number; y: number } | null> {
+  return page.evaluate(
+    ({ sel, lat, lng }) => {
+      const w = window as unknown as { google?: any; __iticMap?: any };
+      const g = w.google;
+      if (!g?.maps) return null;
+      const el = document.querySelector(sel) as (HTMLElement & { __gm?: any }) | null;
+      if (!el) return null;
+      // ITIC does not expose a documented handle to its Map, so try the common
+      // locations: an app global, the container's internal __gm.map, else scan.
+      const map =
+        w.__iticMap ??
+        el.__gm?.map ??
+        (el.closest(".gm-style")?.parentElement as any)?.__gm?.map ??
+        null;
+      if (!map || typeof map.getProjection !== "function") return null;
+      const proj = map.getProjection();
+      const bounds = map.getBounds?.();
+      if (!proj || !bounds) return null;
+      const scale = Math.pow(2, map.getZoom());
+      const ne = bounds.getNorthEast();
+      const sw = bounds.getSouthWest();
+      const topRight = proj.fromLatLngToPoint(ne);
+      const bottomLeft = proj.fromLatLngToPoint(sw);
+      const point = proj.fromLatLngToPoint(new g.maps.LatLng(lat, lng));
+      return {
+        x: (point.x - bottomLeft.x) * scale,
+        y: (point.y - topRight.y) * scale,
+      };
+    },
+    { sel: mapSelector, lat, lng }
+  );
+}
+
+// Click a lat/lng on the map canvas. Throws if the projection is unreachable so
+// the caller can fall back to the address-search + radius flow.
+async function clickLatLng(page: Page, lat: number, lng: number, dblclick = false): Promise<void> {
+  const pos = await latLngToPixel(page, ITIC_SELECTORS.mapContainer, lat, lng);
+  if (!pos) throw new Error("Map projection not reachable for lat/lng→pixel conversion");
+  const map = page.locator(ITIC_SELECTORS.mapContainer).first();
+  if (dblclick) await map.dblclick({ position: pos });
+  else await map.click({ position: pos });
 }
 
 // ── step wrapper: logging + screenshot-on-failure ────────────────────────────
@@ -196,30 +259,79 @@ function describeDigSite(ticket: DigTicket, job: Job): string {
 }
 
 // ── Step 1: mark the dig location ─────────────────────────────────────────────
-// The map's lat/lng→pixel projection is not reliably reachable from a headless
-// context, so polygon vertex-clicking is fragile. We use the sanctioned fallback
-// (README task item 6): search the ticket's address and use "Radius excavation"
-// with a radius that bounds the stored shape. Marking convention: White paint.
+// Match the stored shape on ITIC precisely rather than converting everything to
+// a bounding circle:
+//   radius  → "Radius excavation": click the center, enter radiusFt.
+//   route   → "Route excavation": click each path vertex in order.
+//   polygon → "Other": click each vertex, then close the ring.
+// Precise tracing depends on the live Google Maps projection being reachable
+// (latLngToPixel). If it is not, we fall back to the address-search + radius
+// bounding flow so filing still succeeds. Marking convention: White paint.
+async function traceCircle(page: Page, shape: DigShape): Promise<void> {
+  const center = shape.center ?? {
+    lat: (shape.bounds.swLat + shape.bounds.neLat) / 2,
+    lng: (shape.bounds.swLng + shape.bounds.neLng) / 2,
+  };
+  const radiusFt = computeRadiusFt(shape);
+  await page.getByText("Radius excavation", { exact: false }).first().click();
+  await clickLatLng(page, center.lat, center.lng);
+  const radiusInput = page.locator('input[type="number"]').first();
+  if ((await radiusInput.count()) > 0) await radiusInput.fill(String(radiusFt));
+}
+
+async function traceRoute(page: Page, shape: DigShape): Promise<void> {
+  const path = shape.path?.length ? shape.path : shape.vertices;
+  if (path.length < 2) throw new Error("Route shape has fewer than 2 path points");
+  await page.getByText("Route excavation", { exact: false }).first().click();
+  for (let i = 0; i < path.length; i++) {
+    // Double-click the final vertex to finish the polyline.
+    await clickLatLng(page, path[i].lat, path[i].lng, i === path.length - 1);
+  }
+}
+
+async function tracePolygon(page: Page, shape: DigShape): Promise<void> {
+  const verts = shape.vertices;
+  if (verts.length < 3) throw new Error("Polygon shape has fewer than 3 vertices");
+  await page.getByText("Other", { exact: false }).first().click();
+  for (const v of verts) await clickLatLng(page, v.lat, v.lng);
+  // Close the ring: double-click the first vertex (standard polygon-close gesture).
+  await clickLatLng(page, verts[0].lat, verts[0].lng, true);
+}
+
+async function traceShape(page: Page, shape: DigShape): Promise<void> {
+  if (shape.type === "radius") return traceCircle(page, shape);
+  if (shape.type === "route") return traceRoute(page, shape);
+  return tracePolygon(page, shape);
+}
+
 async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<void> {
   const address = (job.address ?? "").trim();
-  const radiusFt = computeRadiusFt(ticket.shape);
+  const shape = ticket.shape;
+  const radiusFt = computeRadiusFt(shape);
 
   await step(page, `Step 1: address search "${address}"`, async () => {
     if (!address) throw new Error("Job has no address to search for on the ITIC map");
     await page.locator(ITIC_SELECTORS.addressSearch).fill(address);
     await page.locator(ITIC_SELECTORS.placeSuggestion).first().click();
+    // Let the map settle on the searched location before reading its projection.
+    await page.waitForTimeout(2_000);
   });
 
   await step(page, "Step 1: opening drawing panel", async () => {
     await page.locator(ITIC_SELECTORS.drawPanelButton).first().click();
   });
 
-  await step(page, `Step 1: Radius excavation (radius ~${radiusFt} ft)`, async () => {
-    await page.getByText("Radius excavation", { exact: false }).first().click();
-    // Enter the radius if the flow exposes a numeric input for it (best-effort).
-    const radiusInput = page.locator('input[type="number"]').first();
-    if ((await radiusInput.count()) > 0) {
-      await radiusInput.fill(String(radiusFt));
+  await step(page, `Step 1: tracing ${shape.type} shape`, async () => {
+    try {
+      await traceShape(page, shape);
+    } catch (err) {
+      // Precise tracing failed (usually the projection wasn't reachable). Fall
+      // back to a bounding "Radius excavation" so filing still completes.
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[ITIC] precise ${shape.type} trace failed (${msg}); falling back to radius`);
+      await page.getByText("Radius excavation", { exact: false }).first().click();
+      const radiusInput = page.locator('input[type="number"]').first();
+      if ((await radiusInput.count()) > 0) await radiusInput.fill(String(radiusFt));
     }
   });
 
@@ -252,17 +364,18 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
   });
 
   await step(page, "Step 2: work-begin date", async () => {
-    const d = new Date(specs.startDate);
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    const dateStr = `${mm}/${dd}/${d.getFullYear()}`;
+    // Soonest allowed start = today + 2 business days, at midnight (12:00 AM).
+    const start = addBusinessDays(new Date(), 2);
     const dateField = page.getByLabel(/work to begin date/i);
-    if ((await dateField.count()) > 0) await dateField.fill(dateStr);
+    if ((await dateField.count()) > 0) await dateField.fill(formatMDY(start));
+    const timeField = page.getByLabel(/^at$|begin time|work to begin time/i);
+    if ((await timeField.count()) > 0) await timeField.fill("12:00 AM");
   });
 
   await step(page, "Step 2: type of work", async () => {
+    // Pass the user-typed work type through verbatim — no MEC/HAND/BORE mapping.
     const tow = page.getByLabel(/type of work/i);
-    if ((await tow.count()) > 0) await tow.fill(mapWorkType(specs.workType));
+    if ((await tow.count()) > 0) await tow.fill(specs.workType);
   });
 
   await step(page, "Step 2: directional drilling / white lined", async () => {
@@ -291,12 +404,12 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
 
   await step(page, "Step 2: work being done for", async () => {
     const forField = page.getByLabel(/work being done for/i);
-    if ((await forField.count()) > 0) await forField.fill("NORTHSKY COMMUNICATIONS");
+    if ((await forField.count()) > 0) await forField.fill("LUMEN");
   });
 }
 
-// Fill the ticket wizard up to (but not including) final submission. Ends on
-// Step 2 (filled). Call captureReview() next to advance to Step 3 and snapshot.
+// Fill the ticket wizard through Step 2. Call submitAndConfirm() next to advance
+// to Step 3, submit, and read back the assigned ticket number + expiration.
 export async function fillTicketForm(page: Page, ticket: DigTicket, job: Job): Promise<void> {
   page.setDefaultTimeout(STEP_TIMEOUT);
 
@@ -322,35 +435,61 @@ export async function fillTicketForm(page: Page, ticket: DigTicket, job: Job): P
   await writeInstructions(page, ticket, job);
 }
 
-// Advance Step 2 → Step 3 (review) and capture a full-page PNG for sign-off.
-// This is the "fill + review" stop point: fileTicketBot ends here and does NOT
-// submit; only confirmAndSubmit continues to submitTicket().
-export async function captureReview(page: Page): Promise<Buffer> {
+export interface SubmitResult {
+  ticketNumber: string;
+  expirationDate: string; // MM/DD/YYYY as scraped from the confirmation, if found
+  confirmationScreenshot: Buffer;
+  confirmationPdf: Buffer;
+}
+
+// Pull the ITIC-assigned ticket number + expiration off the confirmation page.
+// Prefer the dedicated selectors; fall back to flexible regex over page text.
+async function extractConfirmation(
+  page: Page
+): Promise<{ ticketNumber: string; expirationDate: string }> {
+  let ticketNumber = "";
+  const numEl = page.locator(ITIC_SELECTORS.ticketNumber).first();
+  if ((await numEl.count()) > 0) {
+    ticketNumber = ((await numEl.textContent()) ?? "").trim();
+  }
+
+  const bodyText = (await page.locator("body").innerText().catch(() => "")) || "";
+  if (!ticketNumber) {
+    const m =
+      bodyText.match(/ticket\s*(?:#|number|no\.?)\s*:?\s*([A-Z0-9-]{5,})/i) ??
+      bodyText.match(/\b(\d{8,})\b/);
+    if (m) ticketNumber = m[1].trim();
+  }
+
+  let expirationDate = "";
+  const expMatch =
+    bodyText.match(/expir\w*\s*(?:date)?\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i) ??
+    bodyText.match(/valid\s*(?:through|until)\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+  if (expMatch) expirationDate = expMatch[1].trim();
+
+  return { ticketNumber, expirationDate };
+}
+
+// Advance Step 2 → Step 3, submit the ticket, read back the assigned number +
+// expiration, and capture a Letter-format PDF of the confirmation page.
+export async function submitAndConfirm(page: Page): Promise<SubmitResult> {
   page.setDefaultTimeout(STEP_TIMEOUT);
   await step(page, "Step 2: Next → Step 3 (review)", async () => {
     await page.getByRole("button", { name: /next/i }).click();
     await page.waitForURL("**/createTicketStep3", { timeout: STEP_TIMEOUT });
   });
-  return page.screenshot({ fullPage: true, type: "png" });
-}
 
-export interface SubmitResult {
-  ticketNumber: string;
-  confirmationScreenshot: Buffer;
-}
-
-// Click the final submit on Step 3 and read back the ITIC-assigned number.
-export async function submitTicket(page: Page): Promise<SubmitResult> {
-  page.setDefaultTimeout(STEP_TIMEOUT);
   await step(page, "Step 3: submitting ticket", async () => {
     await page.click(ITIC_SELECTORS.submitButton);
     await page.waitForLoadState("networkidle", { timeout: 120_000 });
   });
-  const numEl = page.locator(ITIC_SELECTORS.ticketNumber).first();
-  const ticketNumber =
-    (await numEl.count()) > 0 ? ((await numEl.textContent())?.trim() ?? "") : "";
+
+  const { ticketNumber, expirationDate } = await extractConfirmation(page);
   const confirmationScreenshot = await page.screenshot({ fullPage: true, type: "png" });
-  return { ticketNumber, confirmationScreenshot };
+  const confirmationPdf = Buffer.from(
+    await page.pdf({ format: "Letter", printBackground: true })
+  );
+  return { ticketNumber, expirationDate, confirmationScreenshot, confirmationPdf };
 }
 
 // ITIC free-text response → our UtilityStatus enum.

@@ -376,18 +376,19 @@ export interface DigTicket {
   status: DigTicketStatus;
   shape: DigShape; // Snapshot from the job's dig shape at time of filing
   specs: {
-    depth: string;
     handDigOnly: boolean;
     directionalBoring: boolean;
     whiteLined: boolean;
     explosives: boolean;
-    workType: string; // Gas Line, Fiber Optic, etc from job.type
+    /** Free-text type of work the user typed (e.g. "POLE TRANSFER"). */
+    workType: string;
     /** Equipment in use (backhoe, trencher, boring rig, etc.). */
     equipment: string[];
     /** Free-text description of what to mark around (e.g. "the pole line"). */
     markAround: string;
     startDate: Timestamp; // 48hr from filing
-    duration: number; // days
+    /** WA state dig tickets are valid for 45 days — always 45. */
+    duration: 45;
   };
   markingInstructions: string; // Gemini-generated, human-edited
   hazardsWarning: string;
@@ -405,11 +406,13 @@ export interface DigTicket {
     filedAt: Timestamp | null;
     botErrors: string[];
   };
+  /** Signed URL of the ITIC confirmation PDF captured after auto-submit. */
+  iticPdfUrl?: string | null;
   dates: {
     createdAt: Timestamp;
     submittedAt: Timestamp | null;
     startsAt: Timestamp | null; // 48hr from ITIC submit
-    expiresAt: Timestamp | null; // 28d from ITIC submit
+    expiresAt: Timestamp | null; // 45d from ITIC submit
   };
   createdBy: string; // Firebase auth uid
 }

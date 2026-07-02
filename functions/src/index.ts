@@ -1,9 +1,9 @@
 // 811 automation entry points (Firebase Functions Gen2).
 //
-//   fileTicketBot         callable — fill ITIC form, capture review screenshot,
-//                         move ticket to Review (does NOT submit)
-//   confirmAndSubmit      callable — after operator sign-off, file with ITIC and
-//                         record the assigned locate number
+//   fileTicketBot         callable — fill ITIC form AND auto-submit end-to-end,
+//                         then record the assigned locate number, expiration,
+//                         and confirmation PDF (ticket → Filed)
+//   confirmAndSubmit      callable — DEPRECATED no-op (auto-submit is now inline)
 //   checkUtilityResponses callable — scrape member responses for a filed ticket
 //   dailySweep            scheduled — 6am Pacific: expire/renew + poll responses
 //   onTicketFiled         Firestore trigger — Smartsheet write-back on Filed
@@ -24,11 +24,10 @@ import {
   launchBrowser,
   login,
   fillTicketForm,
-  captureReview,
-  submitTicket,
+  submitAndConfirm,
   checkUtilityResponses as scrapeResponses,
 } from "./itic.js";
-import { uploadScreenshot } from "./storage.js";
+import { uploadScreenshot, uploadConfirmationPdf } from "./storage.js";
 import { writeLocateBack } from "./smartsheet.js";
 import { notify } from "./notifications.js";
 
@@ -74,9 +73,23 @@ async function recordFailure(ticketId: string, err: unknown): Promise<string> {
   return message;
 }
 
+// Parse an "MM/DD/YYYY" expiration string scraped from ITIC into epoch ms.
+// Returns null if the string is missing or unparseable.
+function parseExpiration(mdy: string): number | null {
+  const m = mdy.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (!m) return null;
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  let year = Number(m[3]);
+  if (year < 100) year += 2000;
+  const d = new Date(year, month - 1, day);
+  return Number.isNaN(d.getTime()) ? null : d.getTime();
+}
+
 // ── fileTicketBot ────────────────────────────────────────────────────────────
-// Fills the ITIC form and captures a review screenshot for operator sign-off.
-// Leaves the ticket in Review; confirmAndSubmit does the actual filing.
+// Fills the ITIC form AND auto-submits end-to-end: reads back the assigned
+// locate number + expiration, uploads a confirmation PDF, and flips the ticket
+// to Filed. The onTicketFiled trigger then performs the Smartsheet write-back.
 export const fileTicketBot = onCall(
   { ...HEAVY, secrets: [ITIC_USERNAME, ITIC_PASSWORD] },
   async (req) => {
@@ -94,15 +107,29 @@ export const fileTicketBot = onCall(
       const page = await browser.newPage();
       await login(page, iticCreds());
       await fillTicketForm(page, ticket, job);
-      const png = await captureReview(page);
-      const url = await uploadScreenshot(ticketId, "review", png);
+      const { ticketNumber, expirationDate, confirmationScreenshot, confirmationPdf } =
+        await submitAndConfirm(page);
 
+      const [screenshotUrl, pdfUrl] = await Promise.all([
+        uploadScreenshot(ticketId, "confirmation", confirmationScreenshot),
+        uploadConfirmationPdf(ticketId, confirmationPdf),
+      ]);
+
+      const now = Date.now();
+      const startsAt = now + 2 * DAY_MS;
+      const expiresAt = parseExpiration(expirationDate) ?? startsAt + ticket.specs.duration * DAY_MS;
       await ref.update({
-        status: "Review",
-        "automation.reviewScreenshotUrl": url,
+        status: "Filed",
+        ticketNumber: ticketNumber || ticket.ticketNumber,
+        iticPdfUrl: pdfUrl,
+        "automation.confirmationScreenshotUrl": screenshotUrl,
+        "automation.filedAt": now,
         "automation.botErrors": [],
+        "dates.submittedAt": now,
+        "dates.startsAt": startsAt,
+        "dates.expiresAt": expiresAt,
       });
-      return { ok: true, status: "Review", reviewScreenshotUrl: url };
+      return { ok: true, status: "Filed", ticketNumber, expiresAt, iticPdfUrl: pdfUrl };
     } catch (err) {
       const message = await recordFailure(ticketId, err);
       logger.error("fileTicketBot failed", { ticketId, message });
@@ -117,58 +144,17 @@ export const fileTicketBot = onCall(
   }
 );
 
-// ── confirmAndSubmit ─────────────────────────────────────────────────────────
-// Operator has reviewed the screenshot. Re-run fill and submit (Cloud Functions
-// are stateless between invocations so we cannot reuse the review session), read
-// the assigned ticket number, and flip to Filed. The onTicketFiled trigger then
-// performs the Smartsheet write-back.
+// ── confirmAndSubmit (DEPRECATED) ─────────────────────────────────────────────
+// Auto-submit is now handled inline by fileTicketBot, so this callable is kept
+// only for backwards compatibility with any stale clients. It no-ops.
 export const confirmAndSubmit = onCall(
   { ...HEAVY, secrets: [ITIC_USERNAME, ITIC_PASSWORD] },
   async (req) => {
     const ticketId = req.data?.ticketId as string | undefined;
-    if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
-
-    const { ticket, job } = await loadTicketAndJob(ticketId);
-    if (ticket.status !== "Review") {
-      throw new HttpsError("failed-precondition", `Ticket must be in Review, is ${ticket.status}`);
-    }
-    const ref = db().collection("digTickets").doc(ticketId);
-    await ref.update({ status: "Filing" });
-
-    let browser: Browser | null = null;
-    try {
-      browser = await launchBrowser();
-      const page = await browser.newPage();
-      await login(page, iticCreds());
-      await fillTicketForm(page, ticket, job);
-      await captureReview(page);
-      const { ticketNumber, confirmationScreenshot } = await submitTicket(page);
-      const url = await uploadScreenshot(ticketId, "confirmation", confirmationScreenshot);
-
-      const now = Date.now();
-      const startsAt = now + 2 * DAY_MS;
-      const expiresAt = startsAt + ticket.specs.duration * DAY_MS;
-      await ref.update({
-        status: "Filed",
-        ticketNumber: ticketNumber || ticket.ticketNumber,
-        "automation.confirmationScreenshotUrl": url,
-        "automation.filedAt": now,
-        "dates.submittedAt": now,
-        "dates.startsAt": startsAt,
-        "dates.expiresAt": expiresAt,
-      });
-      return { ok: true, status: "Filed", ticketNumber };
-    } catch (err) {
-      const message = await recordFailure(ticketId, err);
-      logger.error("confirmAndSubmit failed", { ticketId, message });
-      await ref.update({
-        status: "Failed",
-        "automation.botErrors": [...(ticket.automation.botErrors ?? []), message],
-      });
-      throw new HttpsError("internal", `Submit failed: ${message}`);
-    } finally {
-      await browser?.close();
-    }
+    logger.warn("confirmAndSubmit is deprecated and no longer submits; fileTicketBot auto-submits", {
+      ticketId,
+    });
+    return { ok: true, deprecated: true };
   }
 );
 

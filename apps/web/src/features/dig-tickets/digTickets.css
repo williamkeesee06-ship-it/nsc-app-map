@@ -175,6 +175,13 @@
 }
 
 .dt-view__sub { font-size: 13px; color: #8b95a1; margin-top: 2px; }
+.dt-filed-banner {
+  display: inline-flex; align-items: center; gap: 12px; margin-top: 8px;
+  padding: 6px 12px; border-radius: 8px;
+  background: rgba(255, 106, 0, 0.12); border: 1px solid rgba(255, 106, 0, 0.45);
+}
+.dt-filed-banner__num { font-size: 16px; font-weight: 800; color: #ffb37a; letter-spacing: 0.03em; }
+.dt-filed-banner__exp { font-size: 13px; color: #e8edf2; }
 
 .dt-link {
   font-size: 13px;
@@ -319,6 +326,8 @@
 .dt-form__title { margin: 0 0 14px; font-size: 24px; font-weight: 800; color: #ff6a00; }
 .dt-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .dt-field > span { font-size: 13px; font-weight: 700; letter-spacing: 0.05em; color: #ffb37a; }
+.dt-field > span.dt-field__hint { font-size: 12px; font-weight: 400; letter-spacing: 0; color: #8b95a1; text-transform: none; }
+.dt-field input:disabled { opacity: 0.7; cursor: not-allowed; }
 .dt-field input, .dt-field select {
   padding: 8px 10px;
   border-radius: 7px;

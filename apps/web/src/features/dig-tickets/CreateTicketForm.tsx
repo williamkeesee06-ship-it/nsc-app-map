@@ -16,7 +16,6 @@ const EQUIPMENT_OPTIONS = ["Backhoe", "Trencher", "Boring Rig", "Excavator", "Ha
 
 export default function CreateTicketForm({ jobs, username, onCreated, onCancel }: Props) {
   const [jobId, setJobId] = useState(jobs[0]?.jobId ?? "");
-  const [depth, setDepth] = useState("");
   const [workType, setWorkType] = useState("");
   const [markAround, setMarkAround] = useState("");
   const [handDigOnly, setHandDigOnly] = useState(false);
@@ -24,7 +23,6 @@ export default function CreateTicketForm({ jobs, username, onCreated, onCancel }
   const [whiteLined, setWhiteLined] = useState(false);
   const [explosives, setExplosives] = useState(false);
   const [equipment, setEquipment] = useState<string[]>([]);
-  const [duration, setDuration] = useState(28);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,15 +40,14 @@ export default function CreateTicketForm({ jobs, username, onCreated, onCancel }
       const { ticket } = await api.createDigTicket({
         jobId,
         specs: {
-          depth,
           handDigOnly,
           directionalBoring,
           whiteLined,
           explosives,
-          workType: workType || job?.workType || "",
+          workType: workType.trim(),
           equipment,
           markAround,
-          duration,
+          duration: 45,
         },
       });
       onCreated(ticket);
@@ -98,16 +95,11 @@ export default function CreateTicketForm({ jobs, username, onCreated, onCancel }
       )}
 
       <label className="dt-field">
-        <span>Max depth</span>
-        <input value={depth} onChange={(e) => setDepth(e.target.value)} placeholder='e.g. 4 ft' />
-      </label>
-
-      <label className="dt-field">
         <span>Work type</span>
         <input
           value={workType}
           onChange={(e) => setWorkType(e.target.value)}
-          placeholder={job?.workType ?? "e.g. Fiber Optic"}
+          placeholder="e.g. POLE TRANSFER, SPLICE PIT"
         />
       </label>
 
@@ -145,13 +137,8 @@ export default function CreateTicketForm({ jobs, username, onCreated, onCancel }
 
       <label className="dt-field">
         <span>Duration (days)</span>
-        <input
-          type="number"
-          min={1}
-          max={60}
-          value={duration}
-          onChange={(e) => setDuration(Math.max(1, Math.min(60, Number(e.target.value) || 28)))}
-        />
+        <input type="number" value={45} readOnly disabled />
+        <span className="dt-field__hint">WA state dig tickets are valid for 45 days</span>
       </label>
 
       {error && <div className="dt-error">{error}</div>}
