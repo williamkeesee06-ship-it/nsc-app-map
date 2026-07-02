@@ -17,7 +17,7 @@
 //                     assigned ticket number + expiration, and captures a PDF of
 //                     the confirmation page.
 import chromium from "@sparticuz/chromium";
-import { chromium as playwright, type Browser, type Page } from "playwright-core";
+import { chromium as playwright, type Browser, type Locator, type Page } from "playwright-core";
 import type { DigShape, DigTicket, Job, LatLng, UtilityStatus } from "./types.js";
 
 const ITIC_BASE = "https://wa.itic.occinc.com";
@@ -31,9 +31,8 @@ const ITIC_SELECTORS = {
   loginButton: 'button:has-text("Log in")',
   // Dashboard: the create-ticket control is a native <select> styled as a
   // "Create job ticket" split-button. It is NOT the last <select> on the page
-  // (that's the DataTables length selector). Target it uniquely by the
-  // "Emergency ticket" option, which only this select has.
-  createTicketSelect: 'select:has(option:text-is("Emergency ticket"))',
+  // (that's the DataTables length selector). It is resolved at runtime by
+  // findCreateTicketSelect(), which tries a chain of intuitive fingerprints.
   // Step 1 — mark location.
   addressSearch: 'input[placeholder="Search place or address"]',
   placeSuggestion: ".pac-item",
@@ -408,26 +407,77 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
   });
 }
 
+// Resolve the dashboard's "Create job ticket" <select>. The old approach keyed
+// off the "Emergency ticket" option — fragile (the label can drift) and
+// confusing (it looked like the bot was filing an emergency ticket). Instead we
+// try a chain of intuitive fingerprints and use the first that uniquely matches.
+async function findCreateTicketSelect(page: Page): Promise<Locator> {
+  const candidates = [
+    // Preferred: fingerprint by the option we actually pick
+    'select:has(option:text-is("2 full business days ticket"))',
+    // Fallback 1: fingerprint by placeholder option (label of the disabled first option)
+    'select:has(option:text-is("Create job ticket"))',
+    // Fallback 2: any select that has an option containing "business days"
+    'select:has(option:text-matches("business days", "i"))',
+    // Fallback 3: any select that has an option containing "Design Information Request"
+    'select:has(option:text-is("Design Information Request"))',
+  ];
+  for (const sel of candidates) {
+    const loc = page.locator(sel);
+    try {
+      await loc.waitFor({ state: "attached", timeout: 5000 });
+      const count = await loc.count();
+      if (count === 1) {
+        console.log(`[ITIC] Create-ticket <select> matched by: ${sel}`);
+        return loc;
+      }
+      if (count > 1) {
+        console.warn(`[ITIC] Selector matched ${count} elements, trying next: ${sel}`);
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+  // Last resort: dump all selects for diagnostics
+  const allSelects = await page.locator("select").all();
+  const dump = await Promise.all(
+    allSelects.map(async (s, i) => {
+      const name = await s.getAttribute("name");
+      const id = await s.getAttribute("id");
+      const options = await s.locator("option").allTextContents();
+      return `[${i}] name=${name} id=${id} options=${JSON.stringify(options)}`;
+    })
+  );
+  throw new Error(
+    `Create-ticket <select> not found on /excavatorTickets. Selects found:\n${dump.join("\n")}`
+  );
+}
+
 // Fill the ticket wizard through Step 2. Call submitAndConfirm() next to advance
 // to Step 3, submit, and read back the assigned ticket number + expiration.
 export async function fillTicketForm(page: Page, ticket: DigTicket, job: Job): Promise<void> {
   page.setDefaultTimeout(STEP_TIMEOUT);
 
+  await step(page, "Dashboard: awaiting /excavatorTickets readiness", async () => {
+    // The dashboard may still be rendering when we arrive from login. Wait for
+    // the URL, network to settle, and the ticket table to paint before hunting
+    // for the create-ticket <select>.
+    console.log("[ITIC] Dashboard: waiting for URL **/excavatorTickets");
+    await page.waitForURL("**/excavatorTickets", { timeout: STEP_TIMEOUT });
+    console.log("[ITIC] Dashboard: waiting for network idle");
+    await page.waitForLoadState("networkidle", { timeout: STEP_TIMEOUT });
+    console.log("[ITIC] Dashboard: waiting for ticket table to be visible");
+    await page.locator("table").first().waitFor({ state: "visible", timeout: STEP_TIMEOUT });
+    console.log("[ITIC] Dashboard: ready");
+  });
+
   await step(page, `Dashboard: selecting ticket type "${DEFAULT_TICKET_TYPE}"`, async () => {
-    const select = page.locator(ITIC_SELECTORS.createTicketSelect);
-    // Defensive check: confirm we resolved the real "Create job ticket" control
-    // and not, e.g., the DataTables length selector. "Emergency ticket" is
-    // unique to the target select.
-    const hasEmergencyOption =
-      (await select.locator('option:text-is("Emergency ticket")').count()) > 0;
-    if (!hasEmergencyOption) {
-      throw new Error(
-        'Create-job-ticket <select> not found: no select on the dashboard has an ' +
-          '"Emergency ticket" option (selector matched the wrong element)'
-      );
-    }
+    console.log("[ITIC] Dashboard: resolving create-ticket <select>");
+    const select = await findCreateTicketSelect(page);
+    console.log(`[ITIC] Dashboard: selecting option "${DEFAULT_TICKET_TYPE}"`);
     await select.selectOption({ label: DEFAULT_TICKET_TYPE });
     await select.click();
+    console.log("[ITIC] Dashboard: awaiting navigation to /createTicketStep1");
     await page.waitForURL("**/createTicketStep1", { timeout: STEP_TIMEOUT });
   });
 
