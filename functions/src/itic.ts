@@ -310,8 +310,37 @@ async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<vo
 
   await step(page, `Step 1: address search "${address}"`, async () => {
     if (!address) throw new Error("Job has no address to search for on the ITIC map");
-    await page.locator(ITIC_SELECTORS.addressSearch).fill(address);
-    await page.locator(ITIC_SELECTORS.placeSuggestion).first().click();
+    // Google Places Autocomplete appends ONE persistent .pac-container to <body>
+    // and toggles it between display:none/block. Clicking a .pac-item races the
+    // element while it's still hidden from a prior invocation, so we drive the
+    // selection with the keyboard instead (verified reliable on the live portal).
+    const addressInput = page.locator(ITIC_SELECTORS.addressSearch);
+    await addressInput.click();
+    await addressInput.fill(address);
+    // Wait for the suggestions to actually become VISIBLE (not merely attached).
+    await page.locator(".pac-container").first().waitFor({ state: "visible", timeout: 10_000 });
+    // Give Google's async suggestions a beat to populate.
+    await page.waitForTimeout(500);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    // Confirm the selection landed. Prefer the ZIP appearing in the input value;
+    // if the address has no ZIP, fall back to the pac-container going hidden
+    // again (Google sets display:none once a suggestion is chosen).
+    const zip = address.match(/\b\d{5}\b/)?.[0];
+    if (zip) {
+      await page.waitForFunction(
+        (z) => {
+          const el = document.querySelector(
+            'input[placeholder="Search place or address"]',
+          ) as HTMLInputElement | null;
+          return !!el && el.value.includes(z);
+        },
+        zip,
+        { timeout: 10_000 },
+      );
+    } else {
+      await page.locator(".pac-container").first().waitFor({ state: "hidden", timeout: 10_000 });
+    }
     // Let the map settle on the searched location before reading its projection.
     await page.waitForTimeout(2_000);
   });
