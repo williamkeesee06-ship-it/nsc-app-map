@@ -46,7 +46,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
 
       - name: Register SMARTSHEET_ACCESS_TOKEN secret with Firebase
-        run: echo -n "${{ secrets.SMARTSHEET_ACCESS_TOKEN_VALUE }}" | npx firebase-tools functions:secrets:set SMARTSHEET_ACCESS_TOKEN --project "${{ secrets.FIREBASE_PROJECT_ID }}" --data-file=- --force
+        run: echo -n "${{ secrets.SMARTSHEET_ACCESS_TOKEN }}" | npx firebase-tools functions:secrets:set SMARTSHEET_ACCESS_TOKEN --project "${{ secrets.FIREBASE_PROJECT_ID }}" --data-file=- --force
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
 
