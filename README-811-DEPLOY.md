@@ -49,12 +49,72 @@ session rather than resuming the review session.
 
 ## Deploy
 
+Deployment is **automatic**. A GitHub Actions workflow
+(`.github/workflows/deploy-functions.yml`) redeploys the functions on every push
+to `main` that touches `functions/**` or `firebase.json`, and can also be run
+on demand from the Actions tab ("Run workflow"). You do **not** need the Firebase
+CLI on your machine. The only one-time step is adding two GitHub secrets
+(`FIREBASE_SERVICE_ACCOUNT` and `FIREBASE_PROJECT_ID`) — see
+[Auto-deploy setup (one-time, browser-only)](#auto-deploy-setup-one-time-browser-only).
+
+The manual CLI path is still available if you ever need it:
+
 ```bash
 npm --prefix functions install   # first time only
 npm --prefix functions run deploy
 ```
 
 or from the repo root: `firebase deploy --only functions`.
+
+## Auto-deploy setup (one-time, browser-only)
+
+Do this once from your browser — no command line required. After that, every push
+to `main` deploys the functions automatically.
+
+### 1. Create a Firebase service account key
+
+1. Open <https://console.firebase.google.com> and select the **nsc-app-map** project.
+2. Click the **gear icon** (top-left) → **Project Settings**.
+3. Open the **Service accounts** tab.
+4. Click **Generate new private key** → **Generate key** to confirm. A `.json`
+   file downloads to your computer.
+5. Open that `.json` file in **Notepad**, press **Ctrl+A** to select all, then
+   **Ctrl+C** to copy the entire contents.
+
+### 2. Get your Firebase project ID
+
+1. On the same **Project Settings** page, open the **General** tab.
+2. Find **Project ID** (looks like `nsc-app-map-xxxxx`).
+3. Copy it.
+
+### 3. Add both to GitHub Secrets
+
+1. Go to <https://github.com/williamkeesee06-ship-it/nsc-app-map/settings/secrets/actions>.
+2. Click **New repository secret**.
+   - **Name:** `FIREBASE_SERVICE_ACCOUNT`
+   - **Value:** paste the **entire JSON** you copied in step 1.
+   - Click **Add secret**.
+3. Click **New repository secret** again.
+   - **Name:** `FIREBASE_PROJECT_ID`
+   - **Value:** the project ID from step 2.
+   - Click **Add secret**.
+
+> Never commit the service account `.json` to the repo — it lives only in GitHub
+> Secrets.
+
+### 4. Trigger the first deploy
+
+1. Go to <https://github.com/williamkeesee06-ship-it/nsc-app-map/actions>.
+2. Click **Deploy Firebase Functions** in the left sidebar.
+3. Click **Run workflow** → **Run workflow**.
+4. Wait ~3–5 minutes. The run should turn **green ✓**.
+
+### 5. Get the deployed function URLs
+
+1. Once green, click into the workflow run.
+2. Expand the **Deploy Functions** step.
+3. Copy the base URL from the output
+   (e.g. `https://us-central1-nsc-app-map.cloudfunctions.net`).
 
 ## Verifying ITIC selectors
 
