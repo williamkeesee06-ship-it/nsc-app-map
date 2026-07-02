@@ -1,0 +1,50 @@
+name: push-vercel-env
+on:
+  workflow_dispatch:
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse service account and push to Vercel
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          SMARTSHEET_ACCESS_TOKEN: ${{ secrets.SMARTSHEET_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -e
+          PID=$(echo "$SA_JSON" | jq -r .project_id)
+          CE=$(echo "$SA_JSON" | jq -r .client_email)
+          PK=$(echo "$SA_JSON" | jq -r .private_key)
+
+          TEAM="team_AkTKhyQaAaDPGABiAKPz60Jg"
+          PROJ="prj_TYHgt1zJ5PyoeR5tEsPwPeinp36D"
+
+          push_env() {
+            local KEY="$1"
+            local VAL="$2"
+            local BODY=$(jq -n --arg k "$KEY" --arg v "$VAL" \
+              '{key:$k, value:$v, type:"encrypted", target:["production","preview"]}')
+            echo "Pushing $KEY..."
+            local CODE=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
+              -X POST "https://api.vercel.com/v10/projects/$PROJ/env?teamId=$TEAM&upsert=true" \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$BODY")
+            echo "  status: $CODE"
+            if [ "$CODE" != "200" ] && [ "$CODE" != "201" ]; then
+              cat /tmp/resp.json
+              echo ""
+            fi
+          }
+
+          push_env "FIREBASE_PROJECT_ID" "$PID"
+          push_env "FIREBASE_CLIENT_EMAIL" "$CE"
+          push_env "FIREBASE_PRIVATE_KEY" "$PK"
+          push_env "SMARTSHEET_TOKEN" "$SMARTSHEET_ACCESS_TOKEN"
+
+          echo "Done. Triggering redeploy..."
+          curl -s -X POST "https://api.vercel.com/v13/deployments?teamId=$TEAM&forceNew=1" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"nsc-app-map-fresh\",\"target\":\"production\",\"gitSource\":{\"type\":\"github\",\"repoId\":1239587883,\"ref\":\"main\"}}" | jq '{url,id,state}'
