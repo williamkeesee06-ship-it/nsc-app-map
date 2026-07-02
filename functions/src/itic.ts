@@ -306,7 +306,6 @@ async function traceShape(page: Page, shape: DigShape): Promise<void> {
 async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<void> {
   const address = (job.address ?? "").trim();
   const shape = ticket.shape;
-  const radiusFt = computeRadiusFt(shape);
 
   await step(page, `Step 1: address search "${address}"`, async () => {
     if (!address) throw new Error("Job has no address to search for on the ITIC map");
@@ -377,17 +376,12 @@ async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<vo
   });
 
   await step(page, `Step 1: tracing ${shape.type} shape`, async () => {
-    try {
-      await traceShape(page, shape);
-    } catch (err) {
-      // Precise tracing failed (usually the projection wasn't reachable). Fall
-      // back to a bounding "Radius excavation" so filing still completes.
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[ITIC] precise ${shape.type} trace failed (${msg}); falling back to radius`);
-      await page.getByText("Radius excavation", { exact: false }).first().click();
-      const radiusInput = page.locator('input[type="number"]').first();
-      if ((await radiusInput.count()) > 0) await radiusInput.fill(String(radiusFt));
-    }
+    // The matching tool is already selected in the opener step, so trace the
+    // stored shape exactly. Never fall back to a different shape (e.g. a bounding
+    // radius) — shape fidelity is required: radius=radius, route=route,
+    // polygon=polygon. If tracing fails, the step wrapper screenshots and
+    // rethrows so the run fails loudly rather than filing a wrong-shape ticket.
+    await traceShape(page, shape);
   });
 
   await step(page, 'Step 1: "Mark around" → White paint', async () => {
