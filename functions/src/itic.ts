@@ -151,36 +151,70 @@ async function latLngToPixel(
   lat: number,
   lng: number
 ): Promise<{ x: number; y: number } | null> {
-  return page.evaluate(
-    ({ sel, lat, lng }) => {
+  // Google Maps' getProjection() returns undefined until the projection_changed
+  // event fires (after the first idle + tile load). Even when we gate on
+  // waitForMapProjection before tracing, re-poll here so a per-point transient
+  // (e.g. a tile reload after a pan) doesn't throw. Up to 20 × 250ms.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const pos = await page.evaluate(
+      ({ sel, lat, lng }) => {
+        const w = window as unknown as { google?: any; __iticMap?: any };
+        const g = w.google;
+        if (!g?.maps) return null;
+        const el = document.querySelector(sel) as (HTMLElement & { __gm?: any }) | null;
+        if (!el) return null;
+        // ITIC does not expose a documented handle to its Map, so try the common
+        // locations: an app global, the container's internal __gm.map, else scan.
+        const map =
+          w.__iticMap ??
+          el.__gm?.map ??
+          (el.closest(".gm-style")?.parentElement as any)?.__gm?.map ??
+          null;
+        if (!map || typeof map.getProjection !== "function") return null;
+        const proj = map.getProjection();
+        const bounds = map.getBounds?.();
+        if (!proj || !bounds) return null;
+        const scale = Math.pow(2, map.getZoom());
+        const ne = bounds.getNorthEast();
+        const sw = bounds.getSouthWest();
+        const topRight = proj.fromLatLngToPoint(ne);
+        const bottomLeft = proj.fromLatLngToPoint(sw);
+        const point = proj.fromLatLngToPoint(new g.maps.LatLng(lat, lng));
+        return {
+          x: (point.x - bottomLeft.x) * scale,
+          y: (point.y - topRight.y) * scale,
+        };
+      },
+      { sel: mapSelector, lat, lng }
+    );
+    if (pos) return pos;
+    await page.waitForTimeout(250);
+  }
+  return null;
+}
+
+// Poll until the live Google Maps projection is reachable so lat/lng→pixel
+// conversion won't throw. getProjection() is undefined until the
+// projection_changed event fires, which trails the map's first idle + tile
+// load; picking the shape tool happens well before that, causing the race this
+// gate closes. Uses the same map-handle discovery as latLngToPixel.
+async function waitForMapProjection(page: Page, timeoutMs = 20_000): Promise<void> {
+  await page.waitForFunction(
+    (sel) => {
       const w = window as unknown as { google?: any; __iticMap?: any };
-      const g = w.google;
-      if (!g?.maps) return null;
+      if (!w.google?.maps) return false;
       const el = document.querySelector(sel) as (HTMLElement & { __gm?: any }) | null;
-      if (!el) return null;
-      // ITIC does not expose a documented handle to its Map, so try the common
-      // locations: an app global, the container's internal __gm.map, else scan.
+      if (!el) return false;
       const map =
         w.__iticMap ??
         el.__gm?.map ??
         (el.closest(".gm-style")?.parentElement as any)?.__gm?.map ??
         null;
-      if (!map || typeof map.getProjection !== "function") return null;
-      const proj = map.getProjection();
-      const bounds = map.getBounds?.();
-      if (!proj || !bounds) return null;
-      const scale = Math.pow(2, map.getZoom());
-      const ne = bounds.getNorthEast();
-      const sw = bounds.getSouthWest();
-      const topRight = proj.fromLatLngToPoint(ne);
-      const bottomLeft = proj.fromLatLngToPoint(sw);
-      const point = proj.fromLatLngToPoint(new g.maps.LatLng(lat, lng));
-      return {
-        x: (point.x - bottomLeft.x) * scale,
-        y: (point.y - topRight.y) * scale,
-      };
+      if (!map || typeof map.getProjection !== "function") return false;
+      return !!map.getProjection();
     },
-    { sel: mapSelector, lat, lng }
+    ITIC_SELECTORS.mapContainer,
+    { timeout: timeoutMs, polling: 250 }
   );
 }
 
@@ -272,6 +306,7 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
     lng: (shape.bounds.swLng + shape.bounds.neLng) / 2,
   };
   const radiusFt = computeRadiusFt(shape);
+  await waitForMapProjection(page);
   // Tool already selected in the "opening drawing panel" step; just drop points.
   await clickLatLng(page, center.lat, center.lng);
   const radiusInput = page.locator('input[type="number"]').first();
@@ -281,6 +316,7 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
 async function traceRoute(page: Page, shape: DigShape): Promise<void> {
   const path = shape.path?.length ? shape.path : shape.vertices;
   if (path.length < 2) throw new Error("Route shape has fewer than 2 path points");
+  await waitForMapProjection(page);
   // Tool already selected in the "opening drawing panel" step; just drop points.
   for (let i = 0; i < path.length; i++) {
     // Double-click the final vertex to finish the polyline.
@@ -291,6 +327,7 @@ async function traceRoute(page: Page, shape: DigShape): Promise<void> {
 async function tracePolygon(page: Page, shape: DigShape): Promise<void> {
   const verts = shape.vertices;
   if (verts.length < 3) throw new Error("Polygon shape has fewer than 3 vertices");
+  await waitForMapProjection(page);
   // Tool already selected (incl. "Proceed to create polygon") in the opener step.
   for (const v of verts) await clickLatLng(page, v.lat, v.lng);
   // Close the ring: double-click the first vertex (standard polygon-close gesture).
