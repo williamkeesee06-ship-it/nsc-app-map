@@ -6,6 +6,7 @@
 // snapshotted server-side from the job's saved digPolygon at creation time.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DigTicket, Job } from "@nsc/types";
+import { canDeleteDigTicket } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
 import TicketDetail from "./TicketDetail.js";
@@ -70,6 +71,30 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
     [jobs]
   );
 
+  // Delete a draft/failed ticket after confirmation. Optimistically drop it
+  // from the list, and refetch the authoritative list if the server rejects.
+  const onTicketDeleted = useCallback((deletedId: string) => {
+    setTickets((prev) => prev.filter((t) => t.id !== deletedId));
+    setSelectedId((cur) => (cur === deletedId ? null : cur));
+  }, []);
+
+  const deleteTicket = useCallback(
+    async (ticket: DigTicket) => {
+      const label = jobById(ticket.jobId)?.workOrder || ticket.ticketNumber || ticket.jobId;
+      if (!window.confirm(`Delete ticket ${label}? This cannot be undone.`)) return;
+      const prev = tickets;
+      onTicketDeleted(ticket.id);
+      try {
+        await api.deleteDigTicket(ticket.id);
+      } catch (e) {
+        setTickets(prev);
+        setError(e instanceof Error ? e.message : "Failed to delete ticket");
+        void refresh();
+      }
+    },
+    [tickets, jobById, onTicketDeleted, refresh]
+  );
+
   return (
     <div className="dt-root">
       <aside className="dt-list">
@@ -98,7 +123,7 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
           {tickets.map((t) => {
             const job = jobById(t.jobId);
             return (
-              <li key={t.id}>
+              <li key={t.id} className="dt-ticket-item">
                 <button
                   className={`dt-ticket${selectedId === t.id ? " dt-ticket--active" : ""}`}
                   onClick={() => {
@@ -120,6 +145,16 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
                     {t.shape.type} · {Math.round(t.shape.areaSqFt).toLocaleString()} ft²
                   </span>
                 </button>
+                {canDeleteDigTicket(t) && (
+                  <button
+                    className="dt-ticket__del"
+                    title="Delete ticket"
+                    aria-label="Delete ticket"
+                    onClick={() => void deleteTicket(t)}
+                  >
+                    ×
+                  </button>
+                )}
               </li>
             );
           })}
@@ -139,6 +174,7 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
             ticket={selected}
             job={jobById(selected.jobId)}
             onUpdated={onTicketUpdated}
+            onDeleted={onTicketDeleted}
             onOpenJob={onOpenJob}
           />
         ) : (

@@ -414,6 +414,17 @@ export interface DigTicket {
   createdBy: string; // Firebase auth uid
 }
 
+// A ticket may only be deleted while it has not been successfully filed with
+// ITIC: drafts, failed attempts, or anything without a real ITIC ticket number.
+// Filed/Active tickets (or any ticket that carries an ITIC number) are locked.
+// Enforced server-side (403) and mirrored client-side to hide the delete UI.
+export function canDeleteDigTicket(
+  ticket: Pick<DigTicket, "status" | "ticketNumber">
+): boolean {
+  if (ticket.ticketNumber && ticket.ticketNumber.trim() !== "") return false;
+  return ticket.status !== "Filed" && ticket.status !== "Active";
+}
+
 export interface SyncRun {
   syncId: string;
   startedAt: number;

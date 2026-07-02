@@ -61,6 +61,36 @@
   line-height: 1.55;
 }
 
+/* Wraps a ticket button + its hover-reveal delete affordance. */
+.dt-ticket-item { position: relative; }
+
+/* Small × in the card's top-right, revealed on hover. Sits over the status
+   pill's row without displacing the card's grid layout. */
+.dt-ticket__del {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 90, 110, 0.5);
+  background: rgba(30, 10, 14, 0.85);
+  color: #ff8a99;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.dt-ticket-item:hover .dt-ticket__del,
+.dt-ticket__del:focus-visible { opacity: 1; }
+.dt-ticket__del:hover { background: #d32036; color: #fff; border-color: #d32036; }
+
 .dt-ticket {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -135,6 +165,13 @@
   display: flex;
   align-items: baseline;
   gap: 12px;
+}
+
+.dt-view__head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .dt-view__sub { font-size: 13px; color: #8b95a1; margin-top: 2px; }
@@ -250,6 +287,21 @@
   background: linear-gradient(180deg, #ff9a4d 0%, #ff6a00 55%, #c85400 100%);
 }
 .dt-btn--danger { color: #fff; border-color: #a01829; background: linear-gradient(180deg, #ff5a6e 0%, #d32036 100%); }
+/* Destructive outline button for the ticket-detail header. Matches the Neon
+   Pulse Light theme with a red/orange border; fills in on hover. */
+.dt-btn--delete {
+  color: #ff8a99;
+  border-color: #ff5a6e;
+  background: rgba(30, 10, 14, 0.6);
+  font-weight: 600;
+  text-transform: none;
+}
+.dt-btn--delete:hover:not(:disabled) {
+  color: #fff;
+  background: linear-gradient(180deg, #ff5a6e 0%, #d32036 100%);
+  border-color: #d32036;
+  filter: none;
+}
 
 .dt-view__foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }
 

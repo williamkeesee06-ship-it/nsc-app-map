@@ -319,6 +319,12 @@ export const api = {
       `/api/dig-tickets/${encodeURIComponent(ticketId)}`,
       { method: "PATCH", body: JSON.stringify(patch) }
     ),
+  // Delete a draft/failed/orphaned ticket. Server returns 403 for filed tickets.
+  deleteDigTicket: (ticketId: string) =>
+    request<{ ok: boolean; id: string }>(
+      `/api/dig-tickets/${encodeURIComponent(ticketId)}`,
+      { method: "DELETE" }
+    ),
   // Regenerate marking instructions / hazards / safe guidelines via Gemini.
   regenerateMarkingInstructions: (ticketId: string) =>
     request<{ ticket: DigTicket }>(

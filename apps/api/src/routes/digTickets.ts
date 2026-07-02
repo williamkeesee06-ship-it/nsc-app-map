@@ -6,7 +6,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db } from "../lib/firestore.js";
 import { generateMarkingInstructions } from "../services/markingInstructions.js";
-import { normalizeDigShape } from "@nsc/types";
+import { normalizeDigShape, canDeleteDigTicket } from "@nsc/types";
 import type { DigTicket, Job, UtilityStatus } from "@nsc/types";
 
 const router = Router();
@@ -162,6 +162,40 @@ router.patch("/dig-tickets/:ticketId", async (req, res, next) => {
     await ref.update(patch as Record<string, unknown>);
     const updated = (await ref.get()).data() as DigTicket;
     res.json({ ticket: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/dig-tickets/:ticketId — remove a draft/failed/orphaned ticket.
+// Only the ticket doc is removed; the job and its dig polygon are untouched.
+// Tickets already filed with ITIC (see canDeleteDigTicket) are locked (403).
+router.delete("/dig-tickets/:ticketId", async (req, res, next) => {
+  try {
+    const ref = db().collection("digTickets").doc(req.params.ticketId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
+    const ticket = doc.data() as DigTicket;
+    if (!canDeleteDigTicket(ticket)) {
+      res.status(403).json({
+        error: "Filed tickets cannot be deleted. Only drafts and failed tickets may be removed.",
+      });
+      return;
+    }
+
+    await ref.delete();
+    // Clear the job's pointer if it still references this ticket, so the job
+    // becomes eligible to file a fresh ticket again. Leaves the dig shape intact.
+    const jobRef = db().collection("jobs").doc(ticket.jobId);
+    const jobDoc = await jobRef.get();
+    if (jobDoc.exists && (jobDoc.data() as Job).activeTicketId === ticket.id) {
+      await jobRef.update({ activeTicketId: null });
+    }
+
+    res.json({ ok: true, id: ticket.id });
   } catch (err) {
     next(err);
   }

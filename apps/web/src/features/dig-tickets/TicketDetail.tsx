@@ -3,6 +3,7 @@
 // response panel, status transitions, and the renewal flow.
 import { useState } from "react";
 import type { DigTicket, DigTicketStatus, Job, UtilityStatus } from "@nsc/types";
+import { canDeleteDigTicket } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { statusColor, utilityStatusColor, UTILITY_STATUS_OPTIONS } from "./ticketStyle.js";
 
@@ -10,6 +11,7 @@ interface Props {
   ticket: DigTicket;
   job: Job | null;
   onUpdated: (t: DigTicket) => void;
+  onDeleted: (ticketId: string) => void;
   onOpenJob: (job: Job) => void;
 }
 
@@ -31,7 +33,7 @@ function fmtDate(ms: number | null): string {
   return new Date(ms).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
 
-export default function TicketDetail({ ticket, job, onUpdated, onOpenJob }: Props) {
+export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpenJob }: Props) {
   const [marking, setMarking] = useState(ticket.markingInstructions);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +105,22 @@ export default function TicketDetail({ ticket, job, onUpdated, onOpenJob }: Prop
       return refetch();
     });
 
+  const deletable = canDeleteDigTicket(ticket);
+
+  const deleteTicket = async () => {
+    const label = job?.workOrder || ticket.ticketNumber || ticket.jobId;
+    if (!window.confirm(`Delete ticket ${label}? This cannot be undone.`)) return;
+    setBusy("delete");
+    setError(null);
+    try {
+      await api.deleteDigTicket(ticket.id);
+      onDeleted(ticket.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete ticket");
+      setBusy(null);
+    }
+  };
+
   const guidelines = ticket.safeGuidelines
     ? ticket.safeGuidelines.split("\n").filter(Boolean)
     : [];
@@ -123,9 +141,20 @@ export default function TicketDetail({ ticket, job, onUpdated, onOpenJob }: Prop
             {ticket.ticketNumber || "Not filed with ITIC yet"} · Created {fmtDate(ticket.dates.createdAt)}
           </div>
         </div>
-        <span className="dt-ticket__status" style={{ background: statusColor(ticket.status) }}>
-          {ticket.status}
-        </span>
+        <div className="dt-view__head-right">
+          <span className="dt-ticket__status" style={{ background: statusColor(ticket.status) }}>
+            {ticket.status}
+          </span>
+          {deletable && (
+            <button
+              className="dt-btn dt-btn--sm dt-btn--delete"
+              onClick={() => void deleteTicket()}
+              disabled={busy === "delete"}
+            >
+              {busy === "delete" ? "Deleting…" : "Delete ticket"}
+            </button>
+          )}
+        </div>
       </header>
 
       {error && <div className="dt-error">{error}</div>}
