@@ -465,14 +465,17 @@ a { color: var(--accent); }
   border: none;
   background: transparent;
   color: rgba(255,255,255,0.78);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  /* Inter (loaded app-wide) instead of Bebas Neue — the condensed all-caps
+     display face is hard to read rotated 90° at this small rail size. Inter
+     at 600+ weight with added tracking reads cleanly when sideways. */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   cursor: pointer;
   text-transform: uppercase;
   transition: background 120ms ease, color 120ms ease;
   white-space: nowrap;
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
 }
 
 .left-rail-tab:hover {
