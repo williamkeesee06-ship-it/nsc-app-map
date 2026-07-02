@@ -435,107 +435,126 @@
   margin-top: 12px;
 }
 
-/* ── Todo card ───────────────────────────────────────────────────────── */
+/* ── Active dig tickets card ─────────────────────────────────────────── */
 
-.todo-card__composer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.todo-card__add {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  border: 1px solid var(--steel-line);
-  background: linear-gradient(180deg, #ffffff, #e9eef4);
-  color: var(--neon-blue);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    var(--neon-glow);
-}
-
-.todo-card__add:disabled {
-  opacity: 0.5;
-  cursor: default;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.todo-card__input {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 32px;
+.digtix-card__count {
+  font-size: 12px;
+  font-weight: 800;
+  color: #063d2c;
+  background: #2fe6a8;
   border-radius: 999px;
-  border: 1px solid var(--steel-line);
-  padding: 0 14px;
-  font-size: 13px;
-  background: #fff;
-  color: var(--ink);
-  box-shadow: inset 0 1px 3px rgba(30, 42, 60, 0.1);
+  padding: 2px 9px;
+  box-shadow: 0 0 10px rgba(47, 230, 168, 0.5);
 }
 
-.todo-card__input:focus {
-  outline: none;
-  border-color: var(--neon-blue);
-  box-shadow: inset 0 1px 3px rgba(30, 42, 60, 0.1), var(--neon-glow);
-}
-
-.todo-card__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.digtix-card__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 220px;
   overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #b3bdc9 transparent;
 }
 
-.todo-card__item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-radius: 10px;
-  border: 1px solid #eef1f5;
-  background: #fff;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+.digtix-card__scroll::-webkit-scrollbar {
+  width: 8px;
 }
 
-.todo-card__item:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px -4px rgba(40, 50, 65, 0.25);
+.digtix-card__scroll::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.todo-card__check {
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid var(--neon-blue);
-  background: #fff;
+.digtix-card__scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, #cdd5df, #97a2af);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.digtix-card__scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #bcc6d1, #828d9b);
+  background-clip: padding-box;
+}
+
+.digtix-card__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.digtix-card__table th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  padding: 4px 8px;
+  position: sticky;
+  top: 0;
+  background: #f4f8fc;
+}
+
+.digtix-card__table td {
+  padding: 7px 8px;
+  border-top: 1px solid #eef1f5;
+  color: var(--ink);
+  vertical-align: middle;
+}
+
+.digtix-card__row {
   cursor: pointer;
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
-.todo-card__check:hover {
-  background: var(--neon-blue);
-  box-shadow: var(--neon-glow);
+.digtix-card__row:hover {
+  background: rgba(47, 230, 168, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(47, 230, 168, 0.3);
 }
 
-.todo-card__text {
-  font-size: 13px;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
+.digtix-card__job {
+  font-weight: 700;
   white-space: nowrap;
 }
 
-.todo-card__empty,
+.digtix-card__ticket {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.digtix-card__expiry {
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.digtix-card__pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.digtix-card__pill--green {
+  background: #16a34a;
+  box-shadow: 0 0 8px rgba(22, 163, 74, 0.45);
+}
+
+.digtix-card__pill--yellow {
+  background: var(--neon-amber);
+  color: #4a3300;
+}
+
+.digtix-card__pill--red {
+  background: var(--neon-red);
+  box-shadow: 0 0 8px rgba(255, 59, 92, 0.5);
+}
+
+.digtix-card__empty,
 .calendar-card__empty,
 .atrisk-card__empty {
   font-size: 13px;

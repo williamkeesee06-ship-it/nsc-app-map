@@ -10,7 +10,7 @@ import type { StatusBucket } from "../jobs-map/markerStyle.js";
 import WeatherStrip from "./widgets/WeatherStrip.js";
 import JobStatusBar from "./widgets/JobStatusBar.js";
 import MapPreviewCard from "./widgets/MapPreviewCard.js";
-import TodoCard from "./widgets/TodoCard.js";
+import ActiveDigTicketsCard from "./widgets/ActiveDigTicketsCard.js";
 import CalendarCard from "./widgets/CalendarCard.js";
 import LuminaBriefingCard from "./widgets/LuminaBriefingCard.js";
 import AtRiskJobsCard from "./widgets/AtRiskJobsCard.js";
@@ -52,7 +52,7 @@ export default function DashboardPage({
           <Suspense fallback={<div className="dash-skel dash-skel--map" aria-hidden />}>
             <MapPreviewCard jobs={data.myJobs} onOpenMap={onOpenMap} />
           </Suspense>
-          <TodoCard />
+          <ActiveDigTicketsCard jobs={jobs} />
           <CalendarCard
             weekStart={data.weekStart}
             weekSchedule={data.weekSchedule}
