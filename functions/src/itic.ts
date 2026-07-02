@@ -30,8 +30,11 @@ const ITIC_SELECTORS = {
   usernameInput: 'input[placeholder="Username"]',
   passwordInput: 'input[placeholder="Password"]',
   loginButton: 'button:has-text("Log in")',
-  // Dashboard: the create-ticket control is the LAST <select> on the page.
-  createTicketSelect: "select",
+  // Dashboard: the create-ticket control is a native <select> styled as a
+  // "Create job ticket" split-button. It is NOT the last <select> on the page
+  // (that's the DataTables length selector). Target it uniquely by the
+  // "Emergency ticket" option, which only this select has.
+  createTicketSelect: 'select:has(option:text-is("Emergency ticket"))',
   // Step 1 — mark location.
   addressSearch: 'input[placeholder="Search place or address"]',
   placeSuggestion: ".pac-item",
@@ -298,7 +301,18 @@ export async function fillTicketForm(page: Page, ticket: DigTicket, job: Job): P
   page.setDefaultTimeout(STEP_TIMEOUT);
 
   await step(page, `Dashboard: selecting ticket type "${DEFAULT_TICKET_TYPE}"`, async () => {
-    const select = page.locator(ITIC_SELECTORS.createTicketSelect).last();
+    const select = page.locator(ITIC_SELECTORS.createTicketSelect);
+    // Defensive check: confirm we resolved the real "Create job ticket" control
+    // and not, e.g., the DataTables length selector. "Emergency ticket" is
+    // unique to the target select.
+    const hasEmergencyOption =
+      (await select.locator('option:text-is("Emergency ticket")').count()) > 0;
+    if (!hasEmergencyOption) {
+      throw new Error(
+        'Create-job-ticket <select> not found: no select on the dashboard has an ' +
+          '"Emergency ticket" option (selector matched the wrong element)'
+      );
+    }
     await select.selectOption({ label: DEFAULT_TICKET_TYPE });
     await select.click();
     await page.waitForURL("**/createTicketStep1", { timeout: STEP_TIMEOUT });
