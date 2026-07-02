@@ -1,5 +1,6 @@
 // Same-origin API client. In dev, Vite proxies /api to localhost:3001.
 // In prod, vercel.json rewrites /api/* to the serverless function.
+import { getFunctions, httpsCallable } from "firebase/functions";
 import type {
   AsbuiltDoc,
   AsBuiltDocument,
@@ -9,6 +10,7 @@ import type {
   PolygonData,
   SyncRun,
 } from "@nsc/types";
+import { app } from "./firebase.js";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -26,28 +28,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // The ITIC bot / response-poller run as Firebase Callable Functions (Playwright
-// is too heavy for Vercel). We invoke them over their HTTPS endpoint using the
-// documented callable envelope ({ data } → { result }) so the web app doesn't
-// need the Firebase client SDK. Base URL is configured per-environment; when it
-// is absent the automation buttons surface a clear "not configured" error.
-const FUNCTIONS_BASE_URL = (import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined) ?? "";
+// is too heavy for Vercel). They are declared onCall, so we invoke them with the
+// Firebase Functions SDK, which injects the auth token, wraps the body in
+// { data }, routes to the correct region, and unwraps the { result } envelope.
+// The functions are deployed in us-west1, so the SDK must target that region.
+const functions = getFunctions(app, "us-west1");
 
 async function callFunction<T>(name: string, data: Record<string, unknown>): Promise<T> {
-  if (!FUNCTIONS_BASE_URL) {
-    throw new Error(
-      "ITIC automation is not configured (VITE_FUNCTIONS_BASE_URL unset). Deploy the functions and set the env var."
-    );
-  }
-  const res = await fetch(`${FUNCTIONS_BASE_URL.replace(/\/$/, "")}/${name}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ data }),
-  });
-  const json = (await res.json().catch(() => ({}))) as { result?: T; error?: { message?: string } };
-  if (!res.ok || json.error) {
-    throw new Error(json.error?.message || `Function ${name} failed (${res.status})`);
-  }
-  return json.result as T;
+  const callable = httpsCallable<Record<string, unknown>, T>(functions, name);
+  const res = await callable(data);
+  return res.data;
 }
 
 export const api = {
