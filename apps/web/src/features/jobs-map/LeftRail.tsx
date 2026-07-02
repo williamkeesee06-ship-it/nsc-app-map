@@ -1,4 +1,5 @@
-// Left rail — now tabbed: Layers | Telecom | Annotate (PDF-style tools)
+// Left rail — tabbed. Tools tab hosts Telecom + 811 dig-shape tools plus the
+// PDF-style annotation toolbox.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Job } from "@nsc/types";
 import type { MutableRefObject } from "react";
@@ -36,7 +37,7 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'dashboard' | 'filters' | 'telecom' | 'tools' | 'calendar' | 'lumina' | '811-tickets';
+type TabId = 'dashboard' | 'filters' | 'tools' | 'calendar' | 'lumina' | '811-tickets';
 
 export default function LeftRail({
   jobs,
@@ -186,7 +187,6 @@ export default function LeftRail({
   const tabs: { id: TabId; label: string; iconSvg?: string }[] = [
     { id: 'dashboard', label: 'DASHBOARD' },
     { id: 'filters', label: 'MAP' },
-    { id: 'telecom', label: 'TELECOM' },
     { id: 'tools', label: 'TOOLS' },
     { id: 'calendar', label: 'CALENDAR' },
     { id: 'lumina', label: 'LUMINA' },
@@ -257,7 +257,6 @@ export default function LeftRail({
                     availableSupervisors={availableSupervisors}
                   />
                 )}
-                {activeTab === 'telecom' && <TelecomTab />}
                 {activeTab === 'tools' && <AnnotateTab />}
                 {/* Calendar tab has no rail content — it mounts full-screen
                     over the map (handled by JobsMap). The rail auto-collapses
@@ -478,7 +477,26 @@ function FiltersTab({
   );
 }
 
-function TelecomTab() {
+// 811 tool switcher definitions (neon-orange excavation shapes).
+const DIG_TOOLS: { id: DigTool; label: string; iconSvg: string }[] = [
+  {
+    id: "radius",
+    label: "RADIUS",
+    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="20" y2="12"/><circle cx="12" cy="12" r="1.5" fill="#ff6a00"/></svg>`,
+  },
+  {
+    id: "route",
+    label: "ROUTE",
+    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L10 8 L16 16 L20 4"/></svg>`,
+  },
+  {
+    id: "polygon",
+    label: "POLYGON",
+    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2" stroke-linejoin="round"><polygon points="12,3 21,9 18,20 6,20 3,9"/></svg>`,
+  },
+];
+
+function AnnotateTab() {
   const { state, setTool, deleteSelected, undo, redo, canUndo, canRedo } = useDrawing();
   const { activeTool } = state;
   const hasSelection = state.selectedIds.size > 0;
@@ -512,19 +530,54 @@ function TelecomTab() {
     );
   };
 
+  // Full PDF-editor style annotation toolbox.
+  // The 7 generic drawing tools (text/line/arrow/rect/circle/polygon/freehand)
+  // were moved here from the Telecom tab — they reuse the proper SVG icons
+  // from STANDARD_TOOL_DEFS instead of unicode glyphs. Stamp was removed.
+  // Measure moved to the topbar. Eraser swapped for a construction-themed shovel icon.
+  const selectionTools: ToolDef[] = [
+    SELECT_TOOL_DEF,
+    { tool: "lasso", label: "LASSO", iconSvg: basicSvg(`<path d="M5,14 Q5,5 16,5 Q27,5 27,14 Q27,21 18,23 L18,28 L14,24 Q5,22 5,14 Z" stroke="STROKE" stroke-width="2" fill="none" stroke-linejoin="round"/>`) },
+  ];
+
+  const drawingTools: ToolDef[] = [
+    findStandard("line"),
+    findStandard("freehand"),
+    { tool: "highlighter", label: "HIGHLIGHT", iconSvg: basicSvg(`<path d="M4,22 L18,8 L24,14 L10,28 Z" stroke="STROKE" stroke-width="2" fill="none"/><line x1="16" y1="10" x2="22" y2="16" stroke="STROKE" stroke-width="2"/>`) },
+    // Construction-themed eraser: a brick-mason trowel / shovel that "clears" markup.
+    { tool: "eraser", label: "ERASER", iconSvg: basicSvg(`<path d="M20,4 L28,12 L14,26 L4,16 Z" stroke="STROKE" stroke-width="2" fill="none" stroke-linejoin="round"/><line x1="10" y1="22" x2="4" y2="28" stroke="STROKE" stroke-width="2.5" stroke-linecap="round"/>`) },
+    // Edit 7: Dimension Line — line with end ticks + measurement label (blueprint-style). Reuses 'line' tool under the hood; render style differs.
+    { tool: "line", label: "DIMENSION", iconSvg: basicSvg(`<line x1="4" y1="4" x2="4" y2="22" stroke="STROKE" stroke-width="2"/><line x1="28" y1="4" x2="28" y2="22" stroke="STROKE" stroke-width="2"/><line x1="4" y1="13" x2="28" y2="13" stroke="STROKE" stroke-width="2"/><text x="11" y="11" font-size="7" fill="STROKE" font-family="monospace">12'</text>`) },
+    // Edit 7: Perimeter (reuses polygon — labelled differently).
+    { tool: "polygon", label: "PERIMETER", iconSvg: basicSvg(`<polygon points="5,5 27,5 27,21 5,21" stroke="STROKE" stroke-width="2" fill="none" stroke-dasharray="3 2"/><text x="9" y="16" font-size="6" fill="STROKE" font-family="monospace">PERIM</text>`) },
+    // Edit 7: Area (reuses polygon — fill instead of stroke).
+    { tool: "polygon", label: "AREA", iconSvg: basicSvg(`<polygon points="5,5 27,5 27,21 5,21" stroke="STROKE" stroke-width="2" fill="STROKE" fill-opacity="0.25"/><text x="11" y="16" font-size="6" fill="STROKE" font-family="monospace">ft²</text>`) },
+  ];
+
+  const markupTools: ToolDef[] = [
+    findStandard("text"),
+    { tool: "callout", label: "CALLOUT", iconSvg: basicSvg(`<rect x="10" y="3" width="19" height="12" rx="2" stroke="STROKE" stroke-width="2" fill="none"/><path d="M14,15 L8,22 L17,18" stroke="STROKE" stroke-width="2" fill="none" stroke-linejoin="round"/><polygon points="6,24 11,22 9,20" fill="STROKE"/>`) },
+    // Edit 7: Cloud+ — cloud-bumpy polygon with built-in callout-style text box.
+    { tool: "callout", label: "CLOUD+", iconSvg: basicSvg(`<path d="M7,18 Q3,18 3,14 Q3,10 7,10 Q7,5 13,5 Q19,5 19,10 Q25,10 25,14 Q25,18 21,18 Z" stroke="STROKE" stroke-width="2" fill="none"/><text x="12" y="15" font-size="9" fill="STROKE" font-weight="bold">+</text>`) },
+    findStandard("arrow"),
+    // Edit 7: Double Arrow — reuses arrow tool, dual arrowheads (visual variant).
+    { tool: "arrow", label: "D-ARROW", iconSvg: basicSvg(`<line x1="7" y1="13" x2="25" y2="13" stroke="STROKE" stroke-width="2" stroke-linecap="round"/><polygon points="3,13 9,9 9,17" fill="STROKE"/><polygon points="29,13 23,9 23,17" fill="STROKE"/>`) },
+    findStandard("rectangle"),
+    findStandard("circle"),
+    findStandard("polygon"),
+  ];
+
   return (
-    <section className="rail-section rail-section--tools">
-      <div className="undo-redo-row">
+    <section className="rail-section annotate-tab">
+      {/* Quick Undo/Redo */}
+      <div className="undo-redo-row" style={{ marginBottom: 8 }}>
         <button className="undo-redo-btn" onClick={undo} disabled={!canUndo}>↶ UNDO</button>
         <button className="undo-redo-btn" onClick={redo} disabled={!canRedo}>↷ REDO</button>
       </div>
 
+      {/* Telecom tools — transplanted from the former Telecom tab. */}
+      <div className="telecom-divider">TELECOM</div>
       <div className="tool-grid">
-        {/* Select stays in Telecom for quick access alongside the telecom tools.
-            The 7 generic drawing tools (text/line/arrow/rect/circle/polygon/freehand)
-            now live in the TOOLS tab. Measure moved to the topbar. */}
-        {SELECT_TOOL_DEF && renderTile(SELECT_TOOL_DEF)}
-        <div className="telecom-divider">TELECOM</div>
         {TELECOM_TOOL_DEFS.map(renderTile)}
       </div>
 
@@ -565,113 +618,8 @@ function TelecomTab() {
             ? `${digShape.type} shape saved`
             : "No shape yet"}
       </div>
-    </section>
-  );
-}
 
-// 811 tool switcher definitions (neon-orange excavation shapes).
-const DIG_TOOLS: { id: DigTool; label: string; iconSvg: string }[] = [
-  {
-    id: "radius",
-    label: "RADIUS",
-    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="20" y2="12"/><circle cx="12" cy="12" r="1.5" fill="#ff6a00"/></svg>`,
-  },
-  {
-    id: "route",
-    label: "ROUTE",
-    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L10 8 L16 16 L20 4"/></svg>`,
-  },
-  {
-    id: "polygon",
-    label: "POLYGON",
-    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2" stroke-linejoin="round"><polygon points="12,3 21,9 18,20 6,20 3,9"/></svg>`,
-  },
-];
-
-function AnnotateTab() {
-  const { state, setTool, undo, redo, canUndo, canRedo } = useDrawing();
-  const { activeTool } = state;
-
-  // Full PDF-editor style annotation toolbox.
-  // The 7 generic drawing tools (text/line/arrow/rect/circle/polygon/freehand)
-  // were moved here from the Telecom tab — they reuse the proper SVG icons
-  // from STANDARD_TOOL_DEFS instead of unicode glyphs. Stamp was removed.
-  // Measure moved to the topbar. Eraser swapped for a construction-themed shovel icon.
-  const selectionTools: ToolDef[] = [
-    SELECT_TOOL_DEF,
-    { tool: "lasso", label: "LASSO", iconSvg: basicSvg(`<path d="M5,14 Q5,5 16,5 Q27,5 27,14 Q27,21 18,23 L18,28 L14,24 Q5,22 5,14 Z" stroke="STROKE" stroke-width="2" fill="none" stroke-linejoin="round"/>`) },
-  ];
-
-  const drawingTools: ToolDef[] = [
-    findStandard("line"),
-    findStandard("freehand"),
-    { tool: "highlighter", label: "HIGHLIGHT", iconSvg: basicSvg(`<path d="M4,22 L18,8 L24,14 L10,28 Z" stroke="STROKE" stroke-width="2" fill="none"/><line x1="16" y1="10" x2="22" y2="16" stroke="STROKE" stroke-width="2"/>`) },
-    // Construction-themed eraser: a brick-mason trowel / shovel that "clears" markup.
-    { tool: "eraser", label: "ERASER", iconSvg: basicSvg(`<path d="M20,4 L28,12 L14,26 L4,16 Z" stroke="STROKE" stroke-width="2" fill="none" stroke-linejoin="round"/><line x1="10" y1="22" x2="4" y2="28" stroke="STROKE" stroke-width="2.5" stroke-linecap="round"/>`) },
-    // Edit 7: Dimension Line — line with end ticks + measurement label (blueprint-style). Reuses 'line' tool under the hood; render style differs.
-    { tool: "line", label: "DIMENSION", iconSvg: basicSvg(`<line x1="4" y1="4" x2="4" y2="22" stroke="STROKE" stroke-width="2"/><line x1="28" y1="4" x2="28" y2="22" stroke="STROKE" stroke-width="2"/><line x1="4" y1="13" x2="28" y2="13" stroke="STROKE" stroke-width="2"/><text x="11" y="11" font-size="7" fill="STROKE" font-family="monospace">12'</text>`) },
-    // Edit 7: Perimeter (reuses polygon — labelled differently).
-    { tool: "polygon", label: "PERIMETER", iconSvg: basicSvg(`<polygon points="5,5 27,5 27,21 5,21" stroke="STROKE" stroke-width="2" fill="none" stroke-dasharray="3 2"/><text x="9" y="16" font-size="6" fill="STROKE" font-family="monospace">PERIM</text>`) },
-    // Edit 7: Area (reuses polygon — fill instead of stroke).
-    { tool: "polygon", label: "AREA", iconSvg: basicSvg(`<polygon points="5,5 27,5 27,21 5,21" stroke="STROKE" stroke-width="2" fill="STROKE" fill-opacity="0.25"/><text x="11" y="16" font-size="6" fill="STROKE" font-family="monospace">ft²</text>`) },
-  ];
-
-  const markupTools: ToolDef[] = [
-    findStandard("text"),
-    { tool: "callout", label: "CALLOUT", iconSvg: basicSvg(`<rect x="10" y="3" width="19" height="12" rx="2" stroke="STROKE" stroke-width="2" fill="none"/><path d="M14,15 L8,22 L17,18" stroke="STROKE" stroke-width="2" fill="none" stroke-linejoin="round"/><polygon points="6,24 11,22 9,20" fill="STROKE"/>`) },
-    // Edit 7: Cloud+ — cloud-bumpy polygon with built-in callout-style text box.
-    { tool: "callout", label: "CLOUD+", iconSvg: basicSvg(`<path d="M7,18 Q3,18 3,14 Q3,10 7,10 Q7,5 13,5 Q19,5 19,10 Q25,10 25,14 Q25,18 21,18 Z" stroke="STROKE" stroke-width="2" fill="none"/><text x="12" y="15" font-size="9" fill="STROKE" font-weight="bold">+</text>`) },
-    findStandard("arrow"),
-    // Edit 7: Double Arrow — reuses arrow tool, dual arrowheads (visual variant).
-    { tool: "arrow", label: "D-ARROW", iconSvg: basicSvg(`<line x1="7" y1="13" x2="25" y2="13" stroke="STROKE" stroke-width="2" stroke-linecap="round"/><polygon points="3,13 9,9 9,17" fill="STROKE"/><polygon points="29,13 23,9 23,17" fill="STROKE"/>`) },
-    findStandard("rectangle"),
-    findStandard("circle"),
-    findStandard("polygon"),
-  ];
-
-  const transformTools = [
-    { action: "rotate", label: "ROTATE", icon: "↻" },
-    { action: "group", label: "GROUP", icon: "📦" },
-    { action: "ungroup", label: "UNGROUP", icon: "📦" },
-    { action: "bring-front", label: "FRONT", icon: "↑" },
-    { action: "send-back", label: "BACK", icon: "↓" },
-    { action: "align-left", label: "ALIGN L", icon: "⫷" },
-    { action: "align-center", label: "CENTER", icon: "⫸" },
-    { action: "distribute", label: "DISTRIB", icon: "⟷" },
-  ];
-
-  const {
-    bringToFront,
-    sendToBack,
-    rotateSelected,
-    groupSelected,
-    ungroupSelected,
-    alignSelected,
-  } = useDrawing();
-
-  const handleAction = (action: string) => {
-    switch (action) {
-      case 'bring-front': bringToFront(); break;
-      case 'send-back': sendToBack(); break;
-      case 'rotate': rotateSelected(90); break;
-      case 'group': groupSelected(); break;
-      case 'ungroup': ungroupSelected(); break;
-      case 'align-left': alignSelected('left'); break;
-      case 'align-center': alignSelected('center'); break;
-      case 'distribute': alignSelected('distribute-h'); break;
-      default: console.log('Action:', action);
-    }
-  };
-
-  return (
-    <section className="rail-section annotate-tab">
-      {/* Quick Undo/Redo */}
-      <div className="undo-redo-row" style={{ marginBottom: 8 }}>
-        <button className="undo-redo-btn" onClick={undo} disabled={!canUndo}>↶ UNDO</button>
-        <button className="undo-redo-btn" onClick={redo} disabled={!canRedo}>↷ REDO</button>
-      </div>
-
-      <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 4, color: '#8a96a3' }}>SELECTION</div>
+      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>SELECTION</div>
       <div className="tool-grid">
         {selectionTools.map(({ tool, label, iconSvg }) => {
           const isActive = activeTool === tool;
@@ -710,24 +658,6 @@ function AnnotateTab() {
         })}
       </div>
 
-      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>TRANSFORM &amp; ORDER</div>
-      <div className="tool-grid">
-        {transformTools.map((t) => (
-          <button
-            key={t.action}
-            className="tool-tile"
-            onClick={() => handleAction(t.action)}
-            title={t.label}
-          >
-            <span className="tool-tile__icon" style={{ fontSize: 18, lineHeight: 1 }}>{t.icon}</span>
-            <span className="tool-tile__label">{t.label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div style={{ fontSize: 9, color: '#6a7580', marginTop: 12, lineHeight: 1.3 }}>
-        Full implementations (real eraser, callouts, rotate, grouping, align, lasso, stamps) coming in the next updates.
-      </div>
     </section>
   );
 }
