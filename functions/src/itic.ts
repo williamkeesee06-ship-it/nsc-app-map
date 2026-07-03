@@ -155,20 +155,19 @@ async function latLngToPixel(
   // event fires (after the first idle + tile load). Even when we gate on
   // waitForMapProjection before tracing, re-poll here so a per-point transient
   // (e.g. a tile reload after a pan) doesn't throw. Up to 20 × 250ms.
+  void mapSelector; // discovery is now via the oimc/#oimc_mapCanvas chain below.
   for (let attempt = 0; attempt < 20; attempt++) {
     const pos = await page.evaluate(
-      ({ sel, lat, lng }) => {
-        const w = window as unknown as { google?: any; __iticMap?: any };
+      ({ lat, lng }) => {
+        const w = window as any;
         const g = w.google;
         if (!g?.maps) return null;
-        const el = document.querySelector(sel) as (HTMLElement & { __gm?: any }) | null;
-        if (!el) return null;
-        // ITIC does not expose a documented handle to its Map, so try the common
-        // locations: an app global, the container's internal __gm.map, else scan.
+        // Preferred: ITIC's own global (documented in their gmap-combined.js
+        // source). Fallback: undocumented internal Google Maps handle on the
+        // #oimc_mapCanvas container.
         const map =
-          w.__iticMap ??
-          el.__gm?.map ??
-          (el.closest(".gm-style")?.parentElement as any)?.__gm?.map ??
+          (w.oimc && w.oimc.map && w.oimc.map.googleMap) ||
+          ((document.querySelector("#oimc_mapCanvas") as any)?.__gm?.map) ||
           null;
         if (!map || typeof map.getProjection !== "function") return null;
         const proj = map.getProjection();
@@ -185,7 +184,7 @@ async function latLngToPixel(
           y: (point.y - topRight.y) * scale,
         };
       },
-      { sel: mapSelector, lat, lng }
+      { lat, lng }
     );
     if (pos) return pos;
     await page.waitForTimeout(250);
@@ -198,24 +197,36 @@ async function latLngToPixel(
 // projection_changed event fires, which trails the map's first idle + tile
 // load; picking the shape tool happens well before that, causing the race this
 // gate closes. Uses the same map-handle discovery as latLngToPixel.
-async function waitForMapProjection(page: Page, timeoutMs = 20_000): Promise<void> {
-  await page.waitForFunction(
-    (sel) => {
-      const w = window as unknown as { google?: any; __iticMap?: any };
-      if (!w.google?.maps) return false;
-      const el = document.querySelector(sel) as (HTMLElement & { __gm?: any }) | null;
-      if (!el) return false;
-      const map =
-        w.__iticMap ??
-        el.__gm?.map ??
-        (el.closest(".gm-style")?.parentElement as any)?.__gm?.map ??
-        null;
-      if (!map || typeof map.getProjection !== "function") return false;
-      return !!map.getProjection();
-    },
-    ITIC_SELECTORS.mapContainer,
-    { timeout: timeoutMs, polling: 250 }
-  );
+async function waitForMapProjection(page: Page, timeoutMs = 30_000): Promise<void> {
+  try {
+    await page.waitForFunction(
+      () => {
+        const w = window as any;
+        const map =
+          (w.oimc && w.oimc.map && w.oimc.map.googleMap) ||
+          ((document.querySelector("#oimc_mapCanvas") as any)?.__gm?.map);
+        if (!map || typeof map.getProjection !== "function") return false;
+        const proj = map.getProjection();
+        return !!proj && typeof proj.fromLatLngToPoint === "function";
+      },
+      null,
+      { timeout: timeoutMs, polling: 250 }
+    );
+  } catch (err) {
+    // Dump the state of each candidate handle so a timeout is diagnosable from
+    // the Firebase Function logs (which path was missing).
+    const diag = await page
+      .evaluate(() => ({
+        hasOimc: !!(window as any).oimc,
+        hasOimcMap: !!(window as any).oimc?.map,
+        hasGoogleMap: !!(window as any).oimc?.map?.googleMap,
+        hasCanvas: !!document.querySelector("#oimc_mapCanvas"),
+        hasGm: !!(document.querySelector("#oimc_mapCanvas") as any)?.__gm,
+      }))
+      .catch(() => null);
+    console.error(`[ITIC] waitForMapProjection timed out. Map handle diagnostics: ${JSON.stringify(diag)}`);
+    throw err;
+  }
 }
 
 // Click a lat/lng on the map canvas. Throws if the projection is unreachable so
