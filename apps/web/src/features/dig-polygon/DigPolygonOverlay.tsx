@@ -317,6 +317,39 @@ export default function DigPolygonOverlay() {
     }
   }, [jobId, buildShape, onSaved]);
 
+  // Save, then jump to the 811 tab with this job's ticket pre-loaded (or a
+  // pre-selected CreateTicketForm if it has no active ticket yet).
+  const handleSaveAndOpen811 = useCallback(async () => {
+    if (!jobId) return;
+    const shape = buildShape();
+    if (!shape) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.putDigPolygon(jobId, shape);
+      onSaved(shape);
+      // Bridge to DigTicketsTab: sessionStorage survives the tab switch in
+      // case the 811 tab isn't mounted yet; the event covers the mounted case.
+      try {
+        sessionStorage.setItem("nsc.map.openDigTicketForJob", JSON.stringify({ jobId }));
+      } catch {
+        /* ignore disabled storage */
+      }
+      window.dispatchEvent(
+        new CustomEvent("nsc:map:openDigTicketForJob", { detail: { jobId } })
+      );
+      // Switch the app to the 811 tab via the established tab-request bus.
+      window.dispatchEvent(
+        new CustomEvent("nsc:request-tab", { detail: { tab: "811-tickets" } })
+      );
+      setTool(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save shape");
+    } finally {
+      setSaving(false);
+    }
+  }, [jobId, buildShape, onSaved, setTool]);
+
   const handleClear = useCallback(async () => {
     if (!jobId) return;
     setSaving(true);
@@ -437,6 +470,15 @@ export default function DigPolygonOverlay() {
         </button>
         <button className="dig-btn dig-btn--primary" onClick={handleSave} disabled={!canSave}>
           {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+      <div className="dig-hud__actions">
+        <button
+          className="dig-btn dig-btn--primary"
+          onClick={handleSaveAndOpen811}
+          disabled={!canSave}
+        >
+          {saving ? "Saving…" : "Save & Open 811"}
         </button>
       </div>
       <div className="dig-hud__actions">

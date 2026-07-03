@@ -23,6 +23,7 @@ import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import { DigPolygonProvider, useDigPolygon } from "../dig-polygon/digPolygonContext.js";
 import DigPolygonOverlay from "../dig-polygon/DigPolygonOverlay.js";
+import SavedDigShapeOverlay from "../dig-polygon/SavedDigShapeOverlay.js";
 import AllJobsMarkupsOverlay from "../drawing/AllJobsMarkupsOverlay.js";
 import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
 import { useShowCOs } from "./centralOfficesStore.js";
@@ -317,6 +318,7 @@ function JobsMapInner({
             />
             <CentralOfficesOverlay visible={showCOs} />
             <DrawingOverlay />
+            <SavedDigShapeOverlay />
             <DigPolygonOverlay />
             {/* MapTypeToggle is in the topbar; this applier (inside the Map
                 context) actually applies the chosen style to the live map. */}

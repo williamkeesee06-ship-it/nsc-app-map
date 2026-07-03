@@ -8,14 +8,20 @@ import { normalizeDigShape } from "@nsc/types";
 interface Props {
   jobs: Job[];
   username: string | null;
+  /** Optional job to pre-select (from the map's "Save & Open 811" flow). */
+  initialJobId?: string | null;
   onCreated: (ticket: DigTicket) => void;
   onCancel: () => void;
 }
 
 const EQUIPMENT_OPTIONS = ["Backhoe", "Trencher", "Boring Rig", "Excavator", "Hand Tools", "Vac Truck"];
 
-export default function CreateTicketForm({ jobs, username, onCreated, onCancel }: Props) {
-  const [jobId, setJobId] = useState(jobs[0]?.jobId ?? "");
+export default function CreateTicketForm({ jobs, username, initialJobId, onCreated, onCancel }: Props) {
+  const [jobId, setJobId] = useState(
+    initialJobId && jobs.some((j) => j.jobId === initialJobId)
+      ? initialJobId
+      : jobs[0]?.jobId ?? ""
+  );
   const [workType, setWorkType] = useState("");
   const [markAround, setMarkAround] = useState("");
   const [handDigOnly, setHandDigOnly] = useState(false);

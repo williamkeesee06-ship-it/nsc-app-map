@@ -28,6 +28,9 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
   const [creating, setCreating] = useState(false);
   // Auto-open flag driven by Lumina's startDigTicket tool.
   const [autoOpenModal, setAutoOpenModal] = useState(false);
+  // Job to pre-select in CreateTicketForm, set when the map's "Save & Open
+  // 811" flow targets a job with no active ticket.
+  const [initialJobId, setInitialJobId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -72,6 +75,46 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
     window.addEventListener("nsc:lumina:openDigTicket", handler);
     return () => window.removeEventListener("nsc:lumina:openDigTicket", handler);
   }, []);
+
+  // Map hook: "Save & Open 811" dispatches nsc:map:openDigTicketForJob with
+  // { jobId }. If that job already has an active ticket we select it; otherwise
+  // we open CreateTicketForm pre-selected to the job. A sessionStorage flag
+  // mirrors the event so the request survives the 811 tab mounting late.
+  useEffect(() => {
+    const applyDetail = (detail: { jobId?: string } | null) => {
+      const jobId = detail?.jobId;
+      if (!jobId) return;
+      const job = jobs.find((j) => j.jobId === jobId);
+      const activeTicketId = job?.activeTicketId;
+      const activeTicket = activeTicketId
+        ? tickets.find((t) => t.id === activeTicketId)
+        : null;
+      if (activeTicket) {
+        setCreating(false);
+        setInitialJobId(null);
+        setSelectedId(activeTicket.id);
+      } else {
+        setSelectedId(null);
+        setInitialJobId(jobId);
+        setCreating(true);
+      }
+    };
+    try {
+      const raw = sessionStorage.getItem("nsc.map.openDigTicketForJob");
+      if (raw) {
+        applyDetail(JSON.parse(raw));
+        sessionStorage.removeItem("nsc.map.openDigTicketForJob");
+      }
+    } catch {
+      /* ignore malformed / disabled storage */
+    }
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      applyDetail(detail);
+    };
+    window.addEventListener("nsc:map:openDigTicketForJob", handler);
+    return () => window.removeEventListener("nsc:map:openDigTicketForJob", handler);
+  }, [jobs, tickets]);
 
   const selected = useMemo(
     () => tickets.find((t) => t.id === selectedId) ?? null,
@@ -195,8 +238,15 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
           <CreateTicketForm
             jobs={ticketableJobs}
             username={username}
-            onCreated={onTicketCreated}
-            onCancel={() => setCreating(false)}
+            initialJobId={initialJobId}
+            onCreated={(t) => {
+              setInitialJobId(null);
+              onTicketCreated(t);
+            }}
+            onCancel={() => {
+              setInitialJobId(null);
+              setCreating(false);
+            }}
           />
         ) : selected ? (
           <TicketDetail
