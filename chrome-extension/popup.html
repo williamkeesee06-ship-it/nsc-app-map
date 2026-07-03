@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NSC 811 Autofill</title>
+    <style>
+      body {
+        width: 260px;
+        margin: 0;
+        padding: 14px;
+        font: 13px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: #0d1219;
+        color: #e8edf2;
+      }
+      h1 {
+        font-size: 14px;
+        letter-spacing: 0.06em;
+        color: #ffb37a;
+        margin: 0 0 8px;
+      }
+      #status {
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 10px;
+      }
+      ol {
+        margin: 0;
+        padding-left: 18px;
+        color: #b7c0cb;
+      }
+      li {
+        margin-bottom: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>NSC 811 AUTOFILL</h1>
+    <div id="status">No job captured yet.</div>
+    <ol>
+      <li>Open a ticket's <b>Request 811 → Open ITIC</b> in the app.</li>
+      <li>The bot picks a 2-day ticket &amp; fills the address.</li>
+      <li>Draw your shape, hit Next, then submit.</li>
+    </ol>
+    <script src="popup.js"></script>
+  </body>
+</html>

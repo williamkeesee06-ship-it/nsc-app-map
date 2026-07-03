@@ -6,6 +6,7 @@ import type { DigTicket, DigTicketStatus, Job, UtilityStatus } from "@nsc/types"
 import { canDeleteDigTicket } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { statusColor, utilityStatusColor, UTILITY_STATUS_OPTIONS } from "./ticketStyle.js";
+import IticModal from "./IticModal.js";
 
 interface Props {
   ticket: DigTicket;
@@ -29,11 +30,16 @@ const NEXT_STATUS: Partial<Record<DigTicketStatus, DigTicketStatus[]>> = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const ITIC_URL = "https://wa.itic.occinc.com";
 
 function fmtDate(ms: number | null): string {
   if (!ms) return "—";
   return new Date(ms).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+function formatMDY(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${mm}/${dd}/${d.getFullYear()}`;
 }
 
 // Soonest allowed work-to-begin = today + N business days (weekends skipped).
@@ -55,6 +61,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
   const [error, setError] = useState<string | null>(null);
   const [filedNumber, setFiledNumber] = useState(ticket.ticketNumber);
   const [notice, setNotice] = useState<string | null>(null);
+  const [iticOpen, setIticOpen] = useState(false);
 
   // Reset local edit buffer when a different ticket loads.
   const [lastId, setLastId] = useState(ticket.id);
@@ -109,39 +116,16 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
 
   // ── Request 811 (human-in-the-loop) ──────────────────────────────────────
   // The fully-automated bot proved too fragile on ITIC's Google-Maps draw step,
-  // so filing is now driven by hand: we copy the ticket's key fields to the
-  // clipboard, open ITIC in a new tab, and the user drives the wizard (draw
-  // shape → work type → LUMEN → 45 days → submit). They then paste the assigned
-  // ticket number back here, which flips the ticket to Filed (firing the
-  // onTicketFiled Smartsheet write-back).
+  // so filing is now driven by hand inside an embedded ITIC iframe (IticModal).
+  // The companion Chrome extension autofills login + address so ITIC opens
+  // straight to the map; the user draws the shape → submits, then pastes the
+  // assigned ticket number back here, which flips the ticket to Filed (firing
+  // the onTicketFiled Smartsheet write-back).
   const jobAddress = [job?.address, job?.city, job?.zipCode].filter(Boolean).join(", ");
-
-  const copyDataAndOpenItic = async () => {
-    const payload = [
-      `Address: ${jobAddress || "—"}`,
-      `Work Type: ${ticket.specs.workType || "—"}`,
-      `Work Being Done For: LUMEN`,
-      `Duration: 45 days`,
-      ``,
-      `Marking Instructions:`,
-      ticket.markingInstructions || "—",
-    ].join("\n");
-    setError(null);
-    try {
-      await navigator.clipboard.writeText(payload);
-      setNotice(
-        "Data copied to clipboard. Complete the ticket in ITIC (draw your shape, " +
-          "set work type + LUMEN + 45 days, submit), then paste the ITIC ticket # " +
-          "below and hit Save filed ticket."
-      );
-    } catch {
-      setNotice(
-        "Couldn't access the clipboard — copy the details above manually. ITIC is " +
-          "opening in a new tab."
-      );
-    }
-    window.open(ITIC_URL, "_blank", "noopener,noreferrer");
-  };
+  // Work-to-begin = today + 2 business days (ITIC's 48hr notice). Computed here
+  // so both saveFiledTicket and the extension payload agree on the date.
+  const workToBeginDate = addBusinessDays(new Date(), 2);
+  const workToBeginMDY = formatMDY(workToBeginDate);
 
   const saveFiledTicket = () =>
     run("save-filed", async () => {
@@ -193,6 +177,21 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
 
   return (
     <div className="dt-view">
+      {iticOpen && (
+        <IticModal
+          ticket={ticket}
+          job={job}
+          jobAddress={jobAddress}
+          markingInstructions={marking}
+          workToBegin={workToBeginMDY}
+          workToBeginMs={workToBeginDate.getTime()}
+          filedNumber={filedNumber}
+          onFiledNumberChange={setFiledNumber}
+          onSaveFiled={saveFiledTicket}
+          saving={busy === "save-filed"}
+          onClose={() => setIticOpen(false)}
+        />
+      )}
       <header className="dt-view__head">
         <div>
           <h2 className="dt-view__title">
@@ -274,8 +273,8 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
         </button>
       </section>
 
-      {/* Request 811: human-in-the-loop ITIC filing (copy data → draw + submit
-          in ITIC → paste ticket # back). */}
+      {/* Request 811: human-in-the-loop ITIC filing inside an embedded iframe
+          (draw + submit in ITIC → paste ticket # back). */}
       <section className="dt-card">
         <div className="dt-card__title">REQUEST 811</div>
         <div className="dt-request811">
@@ -287,9 +286,9 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
           </div>
           <button
             className="dt-btn dt-btn--primary"
-            onClick={() => void copyDataAndOpenItic()}
+            onClick={() => setIticOpen(true)}
           >
-            Copy Data + Open ITIC
+            Open ITIC (fill &amp; file)
           </button>
           <div className="dt-request811__filed">
             <label className="dt-field">

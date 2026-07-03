@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "NSC 811 Autofill",
+  "version": "1.0.0",
+  "description": "Autofills the ITIC 811 ticket wizard (login already handled by the user's session, address + downstream fields) from NSC App Map job data. Stops at the map draw step so the user draws the shape by hand.",
+  "permissions": ["storage", "scripting"],
+  "host_permissions": [
+    "https://wa.itic.occinc.com/*",
+    "https://nsc-app-map.vercel.app/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://nsc-app-map.vercel.app/*"],
+      "js": ["content-nsc.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://wa.itic.occinc.com/*"],
+      "js": ["content-itic.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "NSC 811 Autofill"
+  }
+}
