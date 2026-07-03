@@ -28,21 +28,41 @@ const NEXT_STATUS: Partial<Record<DigTicketStatus, DigTicketStatus[]>> = {
   Failed: ["Filing"],
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const ITIC_URL = "https://wa.itic.occinc.com";
+
 function fmtDate(ms: number | null): string {
   if (!ms) return "—";
   return new Date(ms).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+// Soonest allowed work-to-begin = today + N business days (weekends skipped).
+// WA dig tickets are valid for 45 days from the work-to-begin date.
+function addBusinessDays(from: Date, days: number): Date {
+  const d = new Date(from);
+  let added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added += 1;
+  }
+  return d;
 }
 
 export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpenJob }: Props) {
   const [marking, setMarking] = useState(ticket.markingInstructions);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [filedNumber, setFiledNumber] = useState(ticket.ticketNumber);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Reset local edit buffer when a different ticket loads.
   const [lastId, setLastId] = useState(ticket.id);
   if (lastId !== ticket.id) {
     setLastId(ticket.id);
     setMarking(ticket.markingInstructions);
+    setFiledNumber(ticket.ticketNumber);
+    setNotice(null);
   }
 
   const run = async (label: string, fn: () => Promise<DigTicket>) => {
@@ -87,10 +107,62 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
   // authoritative ticket back into local state.
   const refetch = async () => (await api.getDigTicket(ticket.id)).ticket;
 
-  const runBot = () =>
-    run("bot", async () => {
-      await api.runIticBot(ticket.id);
-      return refetch();
+  // ── Request 811 (human-in-the-loop) ──────────────────────────────────────
+  // The fully-automated bot proved too fragile on ITIC's Google-Maps draw step,
+  // so filing is now driven by hand: we copy the ticket's key fields to the
+  // clipboard, open ITIC in a new tab, and the user drives the wizard (draw
+  // shape → work type → LUMEN → 45 days → submit). They then paste the assigned
+  // ticket number back here, which flips the ticket to Filed (firing the
+  // onTicketFiled Smartsheet write-back).
+  const jobAddress = [job?.address, job?.city, job?.zipCode].filter(Boolean).join(", ");
+
+  const copyDataAndOpenItic = async () => {
+    const payload = [
+      `Address: ${jobAddress || "—"}`,
+      `Work Type: ${ticket.specs.workType || "—"}`,
+      `Work Being Done For: LUMEN`,
+      `Duration: 45 days`,
+      ``,
+      `Marking Instructions:`,
+      ticket.markingInstructions || "—",
+    ].join("\n");
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(payload);
+      setNotice(
+        "Data copied to clipboard. Complete the ticket in ITIC (draw your shape, " +
+          "set work type + LUMEN + 45 days, submit), then paste the ITIC ticket # " +
+          "below and hit Save filed ticket."
+      );
+    } catch {
+      setNotice(
+        "Couldn't access the clipboard — copy the details above manually. ITIC is " +
+          "opening in a new tab."
+      );
+    }
+    window.open(ITIC_URL, "_blank", "noopener,noreferrer");
+  };
+
+  const saveFiledTicket = () =>
+    run("save-filed", async () => {
+      const num = filedNumber.trim();
+      const now = Date.now();
+      // Work-to-begin is today + 2 business days (ITIC's 48hr notice); the
+      // locate is then valid for the ticket's 45-day WA lifespan.
+      const startsAt = addBusinessDays(new Date(now), 2).getTime();
+      const expiresAt = startsAt + ticket.specs.duration * DAY_MS;
+      const { ticket: t } = await api.updateDigTicket(ticket.id, {
+        ticketNumber: num,
+        status: "Filed",
+        dates: {
+          createdAt: ticket.dates.createdAt,
+          submittedAt: now,
+          startsAt,
+          expiresAt,
+        },
+      });
+      setNotice(`Filed ITIC #${num}. Smartsheet write-back is in progress.`);
+      return t;
     });
 
   const checkResponses = () =>
@@ -202,17 +274,41 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
         </button>
       </section>
 
-      {/* ITIC automation: file with ITIC end-to-end (fill + auto-submit). */}
+      {/* Request 811: human-in-the-loop ITIC filing (copy data → draw + submit
+          in ITIC → paste ticket # back). */}
       <section className="dt-card">
-        <div className="dt-card__title">ITIC AUTOMATION</div>
-        <div className="dt-view__foot">
+        <div className="dt-card__title">REQUEST 811</div>
+        <div className="dt-request811">
+          <div className="dt-request811__summary">
+            <div><span>Address</span><b>{jobAddress || "—"}</b></div>
+            <div><span>Work type</span><b>{ticket.specs.workType || "—"}</b></div>
+            <div><span>Work for</span><b>LUMEN</b></div>
+            <div><span>Duration</span><b>45 days</b></div>
+          </div>
           <button
             className="dt-btn dt-btn--primary"
-            onClick={runBot}
-            disabled={busy === "bot"}
+            onClick={() => void copyDataAndOpenItic()}
           >
-            {busy === "bot" ? "Filing…" : "▶ File with ITIC"}
+            Copy Data + Open ITIC
           </button>
+          <div className="dt-request811__filed">
+            <label className="dt-field">
+              <span>Filed ticket #</span>
+              <input
+                value={filedNumber}
+                onChange={(e) => setFiledNumber(e.target.value)}
+                placeholder="Paste the ITIC ticket # after you submit"
+              />
+            </label>
+            <button
+              className="dt-btn dt-btn--primary dt-btn--sm"
+              onClick={saveFiledTicket}
+              disabled={busy === "save-filed" || filedNumber.trim() === ""}
+            >
+              {busy === "save-filed" ? "Saving…" : "Save filed ticket"}
+            </button>
+          </div>
+          {notice && <div className="dt-request811__notice">{notice}</div>}
         </div>
         {ticket.iticPdfUrl && (
           <a

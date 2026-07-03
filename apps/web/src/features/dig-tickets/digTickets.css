@@ -349,4 +349,26 @@
 }
 .dt-equip__btn--on { background: #ff6a00; border-color: #ff6a00; color: #2a1000; font-weight: 700; }
 .dt-form__actions { display: flex; gap: 8px; margin-top: 6px; }
+
+/* Request 811 (human-in-the-loop ITIC filing) */
+.dt-request811 { display: flex; flex-direction: column; gap: 12px; }
+.dt-request811__summary {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px;
+  font-size: 14px;
+}
+.dt-request811__summary > div { display: flex; flex-direction: column; gap: 2px; }
+.dt-request811__summary span { font-size: 12px; letter-spacing: 0.05em; color: #ffb37a; }
+.dt-request811__summary b { color: #e8edf2; font-weight: 700; }
+.dt-request811__filed {
+  display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+}
+.dt-request811__filed .dt-field { margin-bottom: 0; flex: 1 1 220px; }
+.dt-request811__notice {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #d7f0e2;
+  background: rgba(20, 90, 60, 0.5);
+  border: 1px solid rgba(47, 230, 168, 0.4);
+}
 .dt-form__note { font-size: 13px; color: #8b95a1; margin-top: 10px; line-height: 1.55; }

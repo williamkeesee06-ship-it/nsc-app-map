@@ -107,7 +107,7 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
               setSelectedId(null);
             }}
           >
-            + New
+            Request 811
           </button>
         </div>
 

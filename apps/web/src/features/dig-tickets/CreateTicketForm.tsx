@@ -61,7 +61,7 @@ export default function CreateTicketForm({ jobs, username, onCreated, onCancel }
   if (jobs.length === 0) {
     return (
       <div className="dt-form">
-        <h2 className="dt-form__title">New Dig Ticket</h2>
+        <h2 className="dt-form__title">Request 811</h2>
         <p className="dt-placeholder__hint">
           No jobs have a dig shape yet. Open a job, switch to the Telecom tab, and
           draw a radius/route/polygon shape first.
@@ -73,7 +73,7 @@ export default function CreateTicketForm({ jobs, username, onCreated, onCancel }
 
   return (
     <div className="dt-form">
-      <h2 className="dt-form__title">New Dig Ticket</h2>
+      <h2 className="dt-form__title">Request 811</h2>
 
       <label className="dt-field">
         <span>Job</span>
