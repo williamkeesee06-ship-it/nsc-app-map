@@ -5,13 +5,12 @@
 //   - Schedule Date            → click to open date picker
 //   - Traffic Control          → click toggle
 // Saves write directly to Smartsheet via the nsc-smartapp Worker.
-import { useEffect, useState, type ReactNode } from "react";
-import type { DigShape, DigTicket, Job } from "@nsc/types";
+import { useEffect, useState } from "react";
+import type { DigTicket, Job } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
-import { useDigPolygon } from "../dig-polygon/digPolygonContext.js";
 
 interface Props {
   job: Job;
@@ -297,10 +296,6 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
           Open in As-Built →
         </a>
       </footer>
-
-      {/* 811 LOCATE — shape summary, ticket status & expiration. Mirrors the
-          LAYERS panel header/divider treatment so the two read as one system. */}
-      <Eight11Section job={job} />
     </div>
   );
 }
@@ -390,309 +385,6 @@ function Eight11ExpiryPill({ job }: { job: Job }) {
 }
 
 // -----------------------------------------------------------------------------
-// 811 LOCATE section — lives at the bottom of the JobCard, directly above the
-// LAYERS panel in the right rail. Surfaces the current dig shape, its 811
-// ticket status, and expiration, with state-aware action buttons. All routes
-// back to the 811 tab reuse the nsc:map:openDigTicketForJob bridge shipped in
-// fec5e44 so the tab pre-loads this job. Styling mirrors the LAYERS panel:
-// same divider, same 10px/700/uppercase header treatment.
-// -----------------------------------------------------------------------------
-const DIG_DAY_MS = 24 * 60 * 60 * 1000;
-const LIVE_TICKET_STATUSES = new Set<DigTicket["status"]>(["Filed", "Active", "Expiring"]);
-
-// Route to the 811 tab for a given job (mirrors DigPolygonOverlay's Save & Open 811).
-function openDigTicketForJob(jobId: string) {
-  try {
-    sessionStorage.setItem("nsc.map.openDigTicketForJob", JSON.stringify({ jobId }));
-  } catch {
-    /* ignore disabled storage */
-  }
-  window.dispatchEvent(new CustomEvent("nsc:map:openDigTicketForJob", { detail: { jobId } }));
-  window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "811-tickets" } }));
-}
-
-function shapeTypeLabel(t: DigShape["type"]): string {
-  return t === "radius" ? "Radius" : t === "route" ? "Route" : "Polygon";
-}
-
-function Eight11Section({ job }: { job: Job }) {
-  const { existing, setTool } = useDigPolygon();
-  const [ticket, setTicket] = useState<DigTicket | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .listDigTickets()
-      .then(({ tickets }) => {
-        if (cancelled) return;
-        const byActive = job.activeTicketId
-          ? tickets.find((t) => t.id === job.activeTicketId)
-          : undefined;
-        setTicket(byActive ?? tickets.find((t) => t.jobId === job.jobId) ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTicket(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [job.jobId, job.activeTicketId]);
-
-  // The shape we summarise: prefer the live job shape, fall back to the ticket
-  // snapshot (e.g. shape was cleared on the job but the ticket still holds one).
-  const shape: DigShape | null = existing ?? ticket?.shape ?? null;
-  const status = ticket?.status;
-  const expiresAt = ticket?.dates.expiresAt ?? null;
-  const daysLeft = expiresAt != null ? Math.floor((expiresAt - Date.now()) / DIG_DAY_MS) : null;
-
-  // Determine which of the four states we're in.
-  type State = "A" | "B" | "C" | "D";
-  let state: State;
-  if (!shape) state = "A";
-  else if (ticket && status === "Expired") state = "D";
-  else if (ticket && status && LIVE_TICKET_STATUSES.has(status)) state = "C";
-  else state = "B";
-
-  // Header pill (label + colors) per state.
-  let pillLabel: string;
-  let pillBg: string;
-  let pillColor: string;
-  if (state === "A") {
-    pillLabel = "NO LOCATE";
-    pillBg = "#3a3a3a";
-    pillColor = "#888";
-  } else if (state === "B") {
-    pillLabel = "READY TO FILE";
-    pillBg = "#ff9a3a";
-    pillColor = "#1a1a1a";
-  } else if (state === "D") {
-    pillLabel = "EXPIRED";
-    pillBg = "#8b1a1a";
-    pillColor = "#fff";
-  } else if (daysLeft != null && daysLeft <= 0) {
-    pillLabel = "EXPIRES TODAY";
-    pillBg = "#ff7043";
-    pillColor = "#fff";
-  } else if (status === "Expiring" || (daysLeft != null && daysLeft <= 7)) {
-    pillLabel = `EXPIRING ${daysLeft}d`;
-    pillBg = "#ff7043";
-    pillColor = "#fff";
-  } else {
-    pillLabel = "ACTIVE";
-    pillBg = "#3ecf6b";
-    pillColor = "#0a1a0f";
-  }
-
-  const redrawType: DigShape["type"] = shape?.type ?? "radius";
-
-  return (
-    <section
-      style={{
-        marginTop: 12,
-        paddingTop: 10,
-        borderTop: "1.5px solid var(--border)",
-      }}
-    >
-      {/* Header — mirrors LAYERS: 10px / 700 / uppercase + right-side pill */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 2px 8px",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "1.2px",
-            textTransform: "uppercase",
-            color: "var(--text-muted)",
-          }}
-        >
-          811 Locate
-        </span>
-        <span
-          style={{
-            fontSize: 9,
-            fontWeight: 700,
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            padding: "2px 8px",
-            borderRadius: 999,
-            background: pillBg,
-            color: pillColor,
-            fontVariantNumeric: "tabular-nums",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {pillLabel}
-        </span>
-      </div>
-
-      {/* Body */}
-      {state === "A" ? (
-        <div style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 2px 8px" }}>
-          No dig shape drawn yet.
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "2px 2px 8px" }}>
-          {shape && (
-            <Eight11Line icon="●" iconColor="#ff6a00" label="SHAPE">
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                {shapeTypeLabel(shape.type)} · {Math.round(shape.areaSqFt).toLocaleString()} ft² ·{" "}
-                {Math.round(shape.perimeterFt).toLocaleString()} ft perimeter
-              </span>
-            </Eight11Line>
-          )}
-
-          {state === "B" && (
-            <Eight11Line icon="⚠" iconColor="#ff9a3a" label="TICKET">
-              Not filed yet
-            </Eight11Line>
-          )}
-
-          {(state === "C" || state === "D") && (
-            <>
-              <Eight11Line icon="◆" iconColor="#3aa7ff" label="TICKET">
-                <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                  ITIC #{ticket?.ticketNumber || "— not filed —"}
-                </span>
-              </Eight11Line>
-              <Eight11Line icon="◷" iconColor={state === "D" ? "#ff7043" : "#c8d0da"} label="EXPIRES">
-                {daysLeft != null && expiresAt != null ? (
-                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {state === "D"
-                      ? `${Math.abs(daysLeft)} days ago`
-                      : `${daysLeft} days`}{" "}
-                    · {shortDate(expiresAt)}
-                  </span>
-                ) : (
-                  "—"
-                )}
-              </Eight11Line>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Actions */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingTop: 2 }}>
-        {state === "A" && (
-          <Eight11Button variant="primary" onClick={() => setTool("radius")}>
-            Draw Shape
-          </Eight11Button>
-        )}
-        {state === "B" && (
-          <>
-            <Eight11Button variant="primary" onClick={() => openDigTicketForJob(job.jobId)}>
-              Open 811 Ticket
-            </Eight11Button>
-            <Eight11Button variant="secondary" onClick={() => setTool(redrawType)}>
-              Redraw Shape
-            </Eight11Button>
-          </>
-        )}
-        {state === "C" && (
-          <>
-            <Eight11Button variant="primary" onClick={() => openDigTicketForJob(job.jobId)}>
-              Open Ticket
-            </Eight11Button>
-            <Eight11Button variant="secondary" onClick={() => setTool(redrawType)}>
-              Redraw
-            </Eight11Button>
-          </>
-        )}
-        {state === "D" && (
-          <>
-            <Eight11Button variant="primary" onClick={() => openDigTicketForJob(job.jobId)}>
-              Renew Ticket
-            </Eight11Button>
-            <Eight11Button variant="secondary" onClick={() => setTool(redrawType)}>
-              Redraw
-            </Eight11Button>
-          </>
-        )}
-      </div>
-    </section>
-  );
-}
-
-// A single labelled body line: symbol + fixed-width label + value.
-function Eight11Line({
-  icon,
-  iconColor,
-  label,
-  children,
-}: {
-  icon: string;
-  iconColor: string;
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 11 }}>
-      <span style={{ color: iconColor, flexShrink: 0, width: 12, textAlign: "center" }}>{icon}</span>
-      <span
-        style={{
-          color: "var(--text-muted)",
-          fontWeight: 700,
-          letterSpacing: "0.05em",
-          fontSize: 9,
-          width: 52,
-          flexShrink: 0,
-        }}
-      >
-        {label}
-      </span>
-      <span style={{ color: "#e6f0ff", flex: 1, minWidth: 0 }}>{children}</span>
-    </div>
-  );
-}
-
-// Pill-style action button matching the JobCard's "Open in As-Built" treatment.
-function Eight11Button({
-  variant,
-  onClick,
-  children,
-}: {
-  variant: "primary" | "secondary";
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  const primary = variant === "primary";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        padding: "6px 12px",
-        borderRadius: 999,
-        background: primary ? "rgba(255,106,0,0.14)" : "rgba(200,208,218,0.08)",
-        border: primary ? "1px solid rgba(255,106,0,0.55)" : "1px solid rgba(200,208,218,0.3)",
-        color: primary ? "#ff8a3a" : "#c8d0da",
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: "0.05em",
-        textTransform: "uppercase",
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function shortDate(epochMs: number): string {
-  return new Date(epochMs).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-// -----------------------------------------------------------------------------
 // Secondary-status pill: click to open a dropdown of all valid options.
 // -----------------------------------------------------------------------------
 function SecondaryStatusEditablePill({
@@ -725,14 +417,15 @@ function SecondaryStatusEditablePill({
           display: "inline-flex",
           alignItems: "center",
           gap: 4,
-          padding: "1px 7px",
+          padding: "2px 8px",
           borderRadius: 10,
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: 700,
-          letterSpacing: "0.05em",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
           background: `${color.core}22`,
-          border: `1px solid ${color.core}88`,
-          color: color.core,
+          border: `1px solid ${color.core}`,
+          color: "#1a1a1a",
           cursor: "pointer",
           whiteSpace: "nowrap",
         }}
@@ -877,9 +570,9 @@ function EditableRow({
               alignItems: "center",
               gap: 4,
               cursor: "pointer",
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: 600,
-              color: toggleValue ? "#ff6b00" : "#93d4ff",
+              color: toggleValue ? "#c25000" : "var(--text-secondary)",
             }}
           >
             <input
@@ -957,12 +650,13 @@ function EditableRow({
             minWidth: value ? undefined : 110,
             padding: value ? undefined : "3px 10px",
             borderRadius: value ? undefined : 6,
-            border: value ? undefined : "1px dashed rgba(147,212,255,0.55)",
-            background: value ? undefined : "rgba(147,212,255,0.08)",
-            borderBottom: value ? "1px dotted rgba(147,212,255,0.35)" : undefined,
-            color: value ? undefined : "#93d4ff",
-            fontSize: value ? undefined : 10,
+            border: value ? undefined : "1px dashed rgba(0,132,212,0.6)",
+            background: value ? undefined : "rgba(30,167,255,0.14)",
+            borderBottom: value ? "1px dotted rgba(0,132,212,0.45)" : undefined,
+            color: value ? undefined : "#1a1a1a",
+            fontSize: value ? undefined : 11,
             fontWeight: value ? undefined : 700,
+            textTransform: value ? undefined : "uppercase",
             letterSpacing: value ? undefined : "0.06em",
           }}
         >
@@ -991,9 +685,8 @@ function EditableNotes({ value, onCommit }: { value: string; onCommit: (v: strin
         style={{
           cursor: "pointer",
           minHeight: 24,
-          borderBottom: "1px dotted rgba(147,212,255,0.35)",
-          color: value ? undefined : "#93d4ff",
-          opacity: value ? 1 : 0.6,
+          borderBottom: "1px dotted rgba(0,132,212,0.35)",
+          color: value ? undefined : "var(--text-muted)",
         }}
       >
         {value || <em>Click to add notes…</em>}

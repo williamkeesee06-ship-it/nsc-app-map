@@ -1171,6 +1171,11 @@ a { color: var(--accent); }
   padding: 14px;
   font-size: 13px;
   box-shadow: var(--shadow-glass);
+  /* Bebas Neue (the app-wide display face) is a condensed all-caps font that's
+     hard to read for the card's dense data. Use Inter here — clean, modern, and
+     still all-caps via text-transform — for legibility. */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+  letter-spacing: 0.02em;
 }
 .job-card--panel { box-shadow: none; }
 .job-card__head {
@@ -1201,24 +1206,31 @@ a { color: var(--accent); }
 }
 .job-card__row-label {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.05em;
   padding-top: 2px;
 }
-.job-card__row-value { color: var(--text); }
+.job-card__row-value {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
 .job-card__notes {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1.5px solid var(--border);
 }
 .job-card__notes-label {
-  font-size: 10px; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.6px;
+  font-size: 10px; color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
   margin-bottom: 4px;
 }
 .job-card__notes-body {
-  font-size: 12px; line-height: 1.5;
+  font-size: 14px; font-weight: 500; line-height: 1.5;
   max-height: 140px; overflow-y: auto;
   white-space: pre-wrap;
   background: var(--chrome-light); padding: 8px;

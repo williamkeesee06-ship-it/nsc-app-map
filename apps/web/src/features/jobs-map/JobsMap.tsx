@@ -12,6 +12,7 @@ import CalendarTab from "./CalendarTab.js";
 import DashboardPage from "../dashboard/DashboardPage.js";
 import type { StatusBucket } from "./markerStyle.js";
 import JobCard from "./JobCard.js";
+import Eight11Section from "./Eight11Section.js";
 import LayersPanel from "../workspace/LayersPanel.js";
 import type { Job } from "@nsc/types";
 import { normalizeDigShape } from "@nsc/types";
@@ -410,6 +411,9 @@ function JobsMapInner({
               }}
               variant="panel"
             />
+          </div>
+          <div className="job-right-panel__811">
+            <Eight11Section job={selected} />
           </div>
           <div className="job-right-panel__layers">
             <LayersPanel />
