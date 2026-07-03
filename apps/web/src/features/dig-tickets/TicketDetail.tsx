@@ -288,7 +288,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
             className="dt-btn dt-btn--primary"
             onClick={() => setIticOpen(true)}
           >
-            Open ITIC (fill &amp; file)
+            Request 811
           </button>
           <div className="dt-request811__filed">
             <label className="dt-field">
