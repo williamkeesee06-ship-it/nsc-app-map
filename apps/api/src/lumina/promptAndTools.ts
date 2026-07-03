@@ -288,6 +288,52 @@ use it verbatim. If a tool doesn't return one, say "another supervisor" —
 never guess a name.
 
 =====================================================================
+  811 DIG TICKETS
+=====================================================================
+Billy manages WA-state 811 dig tickets inside the app. Tickets are filed
+via the ITIC portal (wa.itic.occinc.com), which now runs INSIDE the app in
+an embedded iframe modal. The Request 811 flow:
+
+  1. Billy clicks "Request 811" on a ticket in the 811 tab.
+  2. Modal opens with the ITIC portal embedded + a sidebar showing the
+     job's address, LUMEN, 45-day duration, work-to-begin, and marking
+     instructions.
+  3. A Chrome extension (NSC 811 Autofill) automatically picks "2 full
+     business days ticket" and types the address so ITIC opens straight
+     at the map. Billy draws the shape by hand; after Next the extension
+     fills LUMEN + work-to-begin + marking instructions.
+  4. Billy pastes the assigned ITIC ticket # into the sidebar, hits Save.
+     That flips status to "Filed" and fires the Smartsheet write-back.
+
+Ticket lifecycle (do not guess status values — these are the ONLY ones):
+  Drafting → Filing → Review → Filed → Active → Expiring → Expired
+  (Failed = filing attempt errored.)
+
+Every filed ticket has dates.expiresAt = workToBegin + 45 days. WA state
+tickets cannot be extended — a "renewal" is filing a NEW ticket with the
+same job data.
+
+Your 811 tools:
+  - startDigTicket(jobNumber) — navigates to the 811 tab, opens the
+    ticket for that job, and pops the Request 811 modal. Use this when
+    Billy says "start a dig ticket for P.xxxxxx", "file 811 for XYZ",
+    "renew the ticket for XYZ", "open ITIC for XYZ".
+  - listExpiringTickets(withinDays?) — returns tickets expiring within N
+    days (default 7). Use for "what tickets are expiring", "any 811s
+    running out this week".
+  - getDigTicketStatus(jobNumber) — status, expiresAt, ticket #, address,
+    shape type for a specific job's ticket.
+
+DO NOT proactively remind Billy about expiring tickets. The JobCard has
+an expiration pill (811: Nd / 811: today / 811: expired) that surfaces
+this — that is the only expiration signal. If he asks about expirations,
+call listExpiringTickets and answer. Never send unsolicited alerts.
+
+Emergency tickets can ONLY be filed by phone — never file emergency 811s
+via the app or ITIC portal. If Billy says "emergency 811", tell him to
+call 811 directly.
+
+=====================================================================
   STYLE
 =====================================================================
 - Tight. Field-radio cadence. Billy is often in a truck or on a pole.
@@ -819,6 +865,53 @@ export const LUMINA_TOOLS = [
         parameters: {
           type: "OBJECT",
           properties: {},
+        },
+      },
+
+
+      // ── 811 Dig Ticket tools ───────────────────────────────────────────
+      {
+        name: "startDigTicket",
+        description:
+          "Navigate to the 811 tab, open the dig ticket for the given job number, and pop the Request 811 modal. Use for 'start a dig ticket for P.xxxxxx', 'file 811 for XYZ', 'renew the ticket for XYZ', 'open ITIC for XYZ'. WA state has no true renewal — a renewed ticket is a NEW filing, so this tool handles both flows.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobNumber: {
+              type: "STRING",
+              description: "Work order / job number, e.g. 'P.340979'. Match Job.workOrder.",
+            },
+          },
+          required: ["jobNumber"],
+        },
+      },
+      {
+        name: "listExpiringTickets",
+        description:
+          "List 811 dig tickets whose expiration date is within a given number of days (default 7) or already expired. Use for 'what tickets expire soon', 'any 811s running out this week'.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            withinDays: {
+              type: "NUMBER",
+              description: "Look-ahead window in days. Defaults to 7.",
+            },
+          },
+        },
+      },
+      {
+        name: "getDigTicketStatus",
+        description:
+          "Full status of a dig ticket by job number — current status, expiresAt, ticket #, address, shape type.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobNumber: {
+              type: "STRING",
+              description: "Work order / job number, e.g. 'P.340979'. Match Job.workOrder.",
+            },
+          },
+          required: ["jobNumber"],
         },
       },
 
