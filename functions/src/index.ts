@@ -101,11 +101,16 @@ export const fileTicketBot = onCall(
     // "Request 811" flow (clipboard prep + manual draw/submit, ticket # pasted
     // back). The Playwright code below is intentionally kept in place in case we
     // revive automation, but the entry point is guarded off so it can't be
-    // invoked accidentally while the new flow is validated.
-    throw new HttpsError(
-      "failed-precondition",
-      "fileTicketBot is deprecated; use the Request 811 flow instead."
-    );
+    // invoked accidentally while the new flow is validated. The guard is a
+    // `boolean`-typed flag (not a literal) so the legacy body below stays
+    // reachable for type-checking.
+    const FILE_TICKET_BOT_DEPRECATED: boolean = true;
+    if (FILE_TICKET_BOT_DEPRECATED) {
+      throw new HttpsError(
+        "failed-precondition",
+        "fileTicketBot is deprecated; use the Request 811 flow instead."
+      );
+    }
 
     const { ticket, job } = await loadTicketAndJob(ticketId);
     const botRunId = `run-${Date.now()}`;
