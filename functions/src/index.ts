@@ -37,7 +37,7 @@ const ITIC_USERNAME = defineSecret("ITIC_USERNAME");
 const ITIC_PASSWORD = defineSecret("ITIC_PASSWORD");
 const SMARTSHEET_ACCESS_TOKEN = defineSecret("SMARTSHEET_ACCESS_TOKEN");
 
-const HEAVY = { memory: "2GiB" as const, timeoutSeconds: 540, region: "us-west1" };
+const HEAVY = { memory: "2GiB" as const, cpu: 2, timeoutSeconds: 540, region: "us-west1" };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function db() {

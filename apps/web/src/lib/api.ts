@@ -34,8 +34,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 // The functions are deployed in us-west1, so the SDK must target that region.
 const functions = getFunctions(app, "us-west1");
 
+// The ITIC callables drive Playwright through many steps and legitimately run for
+// several minutes. The client SDK's default callable timeout is 70s, which would
+// abort with deadline-exceeded long before the function (540s) finishes, so match
+// the client timeout to the server ceiling.
 async function callFunction<T>(name: string, data: Record<string, unknown>): Promise<T> {
-  const callable = httpsCallable<Record<string, unknown>, T>(functions, name);
+  const callable = httpsCallable<Record<string, unknown>, T>(functions, name, {
+    timeout: 540_000,
+  });
   const res = await callable(data);
   return res.data;
 }
