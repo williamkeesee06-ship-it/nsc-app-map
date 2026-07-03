@@ -26,6 +26,8 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // Auto-open flag driven by Lumina's startDigTicket tool.
+  const [autoOpenModal, setAutoOpenModal] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -43,6 +45,33 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Lumina hook: startDigTicket dispatches nsc:lumina:openDigTicket with
+  // { ticketId, openIticModal }. Also honor a sessionStorage flag set at
+  // the same time so the request survives an intervening tab switch.
+  useEffect(() => {
+    const applyDetail = (detail: { ticketId?: string; openIticModal?: boolean } | null) => {
+      if (!detail?.ticketId) return;
+      setCreating(false);
+      setSelectedId(detail.ticketId);
+      if (detail.openIticModal) setAutoOpenModal(true);
+    };
+    try {
+      const raw = sessionStorage.getItem("nsc.lumina.openDigTicket");
+      if (raw) {
+        applyDetail(JSON.parse(raw));
+        sessionStorage.removeItem("nsc.lumina.openDigTicket");
+      }
+    } catch {
+      /* ignore malformed / disabled storage */
+    }
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      applyDetail(detail);
+    };
+    window.addEventListener("nsc:lumina:openDigTicket", handler);
+    return () => window.removeEventListener("nsc:lumina:openDigTicket", handler);
+  }, []);
 
   const selected = useMemo(
     () => tickets.find((t) => t.id === selectedId) ?? null,
@@ -176,6 +205,8 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
             onUpdated={onTicketUpdated}
             onDeleted={onTicketDeleted}
             onOpenJob={onOpenJob}
+            autoOpenIticModal={autoOpenModal}
+            onIticModalAcknowledged={() => setAutoOpenModal(false)}
           />
         ) : (
           <div className="dt-placeholder">

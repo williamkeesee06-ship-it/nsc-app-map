@@ -1,7 +1,7 @@
 // Detail view for one dig ticket: shape stats, editable marking instructions
 // (Gemini-generated, regenerable), hazards + safe guidelines, the utility
 // response panel, status transitions, and the renewal flow.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DigTicket, DigTicketStatus, Job, UtilityStatus } from "@nsc/types";
 import { canDeleteDigTicket } from "@nsc/types";
 import { api } from "../../lib/api.js";
@@ -14,6 +14,8 @@ interface Props {
   onUpdated: (t: DigTicket) => void;
   onDeleted: (ticketId: string) => void;
   onOpenJob: (job: Job) => void;
+  autoOpenIticModal?: boolean;
+  onIticModalAcknowledged?: () => void;
 }
 
 // Forward status transitions available from each state (the ITIC bot / poller
@@ -55,7 +57,7 @@ function addBusinessDays(from: Date, days: number): Date {
   return d;
 }
 
-export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpenJob }: Props) {
+export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpenJob, autoOpenIticModal, onIticModalAcknowledged }: Props) {
   const [marking, setMarking] = useState(ticket.markingInstructions);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +67,14 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
 
   // Reset local edit buffer when a different ticket loads.
   const [lastId, setLastId] = useState(ticket.id);
+  // Lumina's startDigTicket tool can request this modal to open when the
+  // ticket becomes the selected one. Ack back so the parent clears the flag.
+  useEffect(() => {
+    if (autoOpenIticModal) {
+      setIticOpen(true);
+      onIticModalAcknowledged?.();
+    }
+  }, [autoOpenIticModal, onIticModalAcknowledged]);
   if (lastId !== ticket.id) {
     setLastId(ticket.id);
     setMarking(ticket.markingInstructions);

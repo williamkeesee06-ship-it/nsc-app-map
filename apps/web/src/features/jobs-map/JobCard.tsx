@@ -6,7 +6,7 @@
 //   - Traffic Control          → click toggle
 // Saves write directly to Smartsheet via the nsc-smartapp Worker.
 import { useEffect, useState } from "react";
-import type { Job } from "@nsc/types";
+import type { DigTicket, Job } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
@@ -179,6 +179,7 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
           {!job.inTracker && (
             <span className="status-pill status-archived">Archived</span>
           )}
+          <Eight11ExpiryPill job={job} />
         </div>
 
         <div className="job-card__head-actions">
@@ -296,6 +297,90 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
         </a>
       </footer>
     </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// 811 expiration pill — surfaces a filed/active dig ticket that is expiring
+// within 7 days. Clicking it jumps to the 811 tab, selects the ticket, and
+// opens the ITIC modal (same nsc:lumina:openDigTicket contract the Lumina
+// startDigTicket tool uses; sessionStorage flag survives the tab switch).
+// -----------------------------------------------------------------------------
+const EXPIRY_STATUSES = new Set<DigTicket["status"]>(["Filed", "Active", "Expiring"]);
+const EXPIRY_DAY_MS = 24 * 60 * 60 * 1000;
+
+function Eight11ExpiryPill({ job }: { job: Job }) {
+  const [ticket, setTicket] = useState<DigTicket | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listDigTickets()
+      .then(({ tickets }) => {
+        if (cancelled) return;
+        const match = tickets.find(
+          (t) => t.jobId === job.jobId && EXPIRY_STATUSES.has(t.status),
+        );
+        setTicket(match ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setTicket(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [job.jobId]);
+
+  if (!ticket || ticket.dates.expiresAt == null) return null;
+
+  const daysLeft = Math.floor((ticket.dates.expiresAt - Date.now()) / EXPIRY_DAY_MS);
+  if (daysLeft > 7) return null;
+
+  let label: string;
+  let bg: string;
+  let color: string;
+  if (daysLeft <= 0) {
+    label = "811: expired";
+    bg = "#c33";
+    color = "#fff";
+  } else if (daysLeft < 1) {
+    label = "811: today";
+    bg = "#c33";
+    color = "#fff";
+  } else {
+    label = `811: ${daysLeft}d`;
+    bg = "#f5a623";
+    color = "#1a1a1a";
+  }
+
+  const openTicket = () => {
+    const detail = { ticketId: ticket.id, openIticModal: true };
+    try {
+      sessionStorage.setItem("nsc.lumina.openDigTicket", JSON.stringify(detail));
+    } catch {
+      /* ignore disabled storage */
+    }
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "811-tickets" } }));
+    window.dispatchEvent(new CustomEvent("nsc:lumina:openDigTicket", { detail }));
+  };
+
+  return (
+    <button
+      type="button"
+      className="status-pill"
+      onClick={openTicket}
+      title={`Dig ticket ${ticket.ticketNumber || ""} — open on the 811 tab`}
+      style={{
+        marginLeft: 6,
+        background: bg,
+        color,
+        border: "none",
+        cursor: "pointer",
+        fontWeight: 700,
+      }}
+    >
+      {label}
+    </button>
   );
 }
 
