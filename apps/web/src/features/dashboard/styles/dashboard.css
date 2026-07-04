@@ -1079,8 +1079,8 @@
 }
 .status-bar .bezel__inner {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.12)),
-    url("/dashboard/status-telemetry-bg.jpg") !important;
+    linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.2)),
+    url("/dashboard/carbon-fiber-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1097,7 +1097,7 @@
 /* 2. Calendar Card */
 .calendar-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.06)),
+    linear-gradient(rgba(15, 23, 42, 0.93), rgba(15, 23, 42, 0.96)),
     url("/dashboard/dashboard-blueprint-bg.png") !important;
   background-size: cover;
   background-position: center;
@@ -1132,8 +1132,14 @@
   color: #ffffff !important;
 }
 .calendar-card__crew {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(61, 169, 255, 0.15) !important;
+  border-left: 3px solid var(--neon-blue) !important;
+  border-radius: 8px !important;
+  padding: 6px 12px !important;
+  margin-bottom: 4px;
 }
 .calendar-card__crew-name {
   color: #ffffff !important;
@@ -1157,8 +1163,8 @@
 /* 3. Active Dig Tickets Card */
 .digtix-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.12)),
-    url("/dashboard/digtix-radar-bg.jpg") !important;
+    linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.2)),
+    url("/dashboard/dark-steel-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1187,7 +1193,7 @@
 /* 4. At Risk Jobs Card */
 .atrisk-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.12)),
+    linear-gradient(rgba(14, 18, 26, 0.94), rgba(7, 9, 13, 0.96)),
     url("/dashboard/atrisk-caution-bg.jpg") !important;
   background-size: cover;
   background-position: center;
@@ -1222,7 +1228,7 @@
 /* 5. Lumina Briefing Card */
 .lumina-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08)),
+    linear-gradient(rgba(14, 18, 26, 0.94), rgba(7, 9, 13, 0.96)),
     url("/dashboard/lumina-nebula-bg.jpg") !important;
   background-size: cover;
   background-position: center;
