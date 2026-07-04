@@ -914,6 +914,33 @@ export const LUMINA_TOOLS = [
           required: ["jobNumber"],
         },
       },
+      {
+        name: "updateDigTicketUtilityStatus",
+        description:
+          "Update/log the locate clearance status of a utility (e.g. gas, water, electric) for a job's 811 ticket.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobNumber: {
+              type: "STRING",
+              description: "Work order / job number, e.g. 'P.340979'. Match Job.workOrder.",
+            },
+            utility: {
+              type: "STRING",
+              description: "The name of the utility authority to update (e.g. 'gas', 'water', 'electric', 'Comcast').",
+            },
+            status: {
+              type: "STRING",
+              description: "The locate clearance status. Must be one of: 'pending', 'in-progress', 'marked', 'clear', 'conflict'.",
+            },
+            notes: {
+              type: "STRING",
+              description: "Optional notes about the update, e.g. 'marked with yellow paint', 'cleared via phone call'.",
+            },
+          },
+          required: ["jobNumber", "utility", "status"],
+        },
+      },
 
       // ── Memory tools ───────────────────────────────────────────────────
       {

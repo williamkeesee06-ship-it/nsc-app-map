@@ -11,6 +11,9 @@ import { useEffect, useRef, useState } from "react";
 import type { DrawingObject, DrawingStyle } from "@nsc/types";
 import { useDrawing } from "./drawingContext.js";
 import { railSvgForTool } from "./icons/telecomIcons.js";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
 // IconPicker / IconKey imports removed — Billy 6/10: no per-object icon swap.
 // Icons are still bound to each object's style at draw time; we just don't
 // expose a way to change them after the fact.
@@ -622,23 +625,9 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
           <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
             Description / Notes
           </label>
-          <textarea
-            value={description}
-            onChange={(e) => handleDescChange(e.target.value)}
-            placeholder="Add notes or details…"
-            rows={3}
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(200,208,218,0.14)",
-              borderRadius: 5,
-              color: "#c8d0da",
-              fontFamily: "inherit",
-              fontSize: 11,
-              padding: "6px 8px",
-              outline: "none",
-              resize: "vertical",
-              lineHeight: 1.5,
-            }}
+          <RichTextEditor
+            content={description}
+            onChange={handleDescChange}
           />
         </div>
 
@@ -697,6 +686,25 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
                 style={{ flex: 1 }}
               />
               <span style={{ fontSize: 10, color: "#8a96a3", width: 28, textAlign: "right" }}>{obj.style.strokeWidth}px</span>
+            </div>
+          )}
+
+          {/* Cable Flow Animation Toggle */}
+          {isCableOrLine && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", width: 52, flexShrink: 0 }}>Flow</span>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 10, color: "#c8d0da" }}>
+                <input
+                  type="checkbox"
+                  checked={!!obj.style.animateFlow}
+                  onChange={(e) => patchStyle({ animateFlow: e.target.checked })}
+                  style={{
+                    cursor: "pointer",
+                    accentColor: "#1ea7ff"
+                  }}
+                />
+                Animate Cable Flow
+              </label>
             </div>
           )}
 
@@ -788,6 +796,148 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
           }}
         >Delete</button>
       </div>
+    </div>
+  );
+}
+
+// ── RichTextEditor component using Tiptap (#10) ─────────────────────────────
+interface RichTextEditorProps {
+  content: string;
+  onChange: (html: string) => void;
+}
+
+function RichTextEditor({ content, onChange }: RichTextEditorProps) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+    ],
+    content,
+    onUpdate: ({ editor }) => {
+      onChange(editor.getHTML());
+    },
+    editorProps: {
+      attributes: {
+        class: "tiptap-editor-content focus:outline-none",
+        style: "min-height: 80px; max-height: 150px; overflow-y: auto; font-size: 11px; line-height: 1.4; color: #c8d0da; outline: none; padding: 6px 8px; border-radius: 5px; background: rgba(255,255,255,0.04); border: 1px solid rgba(200,208,218,0.14);",
+      }
+    }
+  });
+
+  useEffect(() => {
+    if (editor && content !== editor.getHTML()) {
+      editor.commands.setContent(content);
+    }
+  }, [content, editor]);
+
+  if (!editor) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {/* Mini toolbar */}
+      <div 
+        style={{ 
+          display: "flex", 
+          gap: 4, 
+          padding: "2px 4px", 
+          background: "rgba(255,255,255,0.03)", 
+          border: "1px solid rgba(200,208,218,0.1)", 
+          borderRadius: 4,
+          alignItems: "center"
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          style={{
+            background: editor.isActive("bold") ? "rgba(30, 167, 255, 0.25)" : "transparent",
+            color: editor.isActive("bold") ? "#1ea7ff" : "#8a96a3",
+            border: "none",
+            borderRadius: 3,
+            padding: "2px 6px",
+            fontSize: 9,
+            fontWeight: 700,
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Bold"
+        >
+          B
+        </button>
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          style={{
+            background: editor.isActive("italic") ? "rgba(30, 167, 255, 0.25)" : "transparent",
+            color: editor.isActive("italic") ? "#1ea7ff" : "#8a96a3",
+            border: "none",
+            borderRadius: 3,
+            padding: "2px 6px",
+            fontSize: 9,
+            fontStyle: "italic",
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Italic"
+        >
+          I
+        </button>
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          style={{
+            background: editor.isActive("underline") ? "rgba(30, 167, 255, 0.25)" : "transparent",
+            color: editor.isActive("underline") ? "#1ea7ff" : "#8a96a3",
+            border: "none",
+            borderRadius: 3,
+            padding: "2px 6px",
+            fontSize: 9,
+            textDecoration: "underline",
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Underline"
+        >
+          U
+        </button>
+        <div style={{ width: 1, height: 10, background: "rgba(200,208,218,0.15)" }} />
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          style={{
+            background: editor.isActive("bulletList") ? "rgba(30, 167, 255, 0.25)" : "transparent",
+            color: editor.isActive("bulletList") ? "#1ea7ff" : "#8a96a3",
+            border: "none",
+            borderRadius: 3,
+            padding: "2px 4px",
+            fontSize: 9,
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Bullet List"
+        >
+          • List
+        </button>
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          style={{
+            background: editor.isActive("orderedList") ? "rgba(30, 167, 255, 0.25)" : "transparent",
+            color: editor.isActive("orderedList") ? "#1ea7ff" : "#8a96a3",
+            border: "none",
+            borderRadius: 3,
+            padding: "2px 4px",
+            fontSize: 9,
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Numbered List"
+        >
+          1. List
+        </button>
+      </div>
+
+      <EditorContent editor={editor} />
     </div>
   );
 }

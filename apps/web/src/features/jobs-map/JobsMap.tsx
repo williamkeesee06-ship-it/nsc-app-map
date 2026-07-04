@@ -167,6 +167,10 @@ function JobsMapInner({
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
   const { setTarget: setDigTarget } = useDigPolygon();
 
+  // ── Dual-Pane Street View (#5) ──────────────────────────
+  const panoRef = useRef<HTMLDivElement>(null);
+  const [streetViewActive, setStreetViewActive] = useState(false);
+
   // When selected job changes, update the drawing target
   useEffect(() => {
     if (selected) {
@@ -291,43 +295,57 @@ function JobsMapInner({
       <div className="jobs-map__main">
         <ModifiersPanel />
         <JobsShownPill shown={mapped.length} total={allJobs.length} />
-        <div className="map-host" style={{ position: "absolute", inset: 0, top: 0 }}>
-          <Map
-            defaultCenter={DEFAULT_CENTER}
-            defaultZoom={DEFAULT_ZOOM}
-            styles={stylesFor(theme)}
-            gestureHandling="greedy"
-            disableDefaultUI={false}
-            streetViewControl={true}
-            mapTypeControl={false} // We use our custom MapTypeToggle instead
-            zoomControl={false}     // Hide Google's gamepad — Lumina orb owns the bottom-right corner
-            fullscreenControl={false}
-            rotateControl={false}
-            scaleControl={false}
-          >
-            <MapHandle mapRef={mapRef} />
-            <JobMarkers
-              jobs={mapped}
-              onSelect={handleSelect}
-              allJobs={allJobs}
-            />
-            <AllJobsMarkupsOverlay
-              onMarkupClick={(jobId) => {
-                const j = allJobs.find((x) => x.jobId === jobId);
-                if (j) void handleSelect(j);
-              }}
-            />
-            <CentralOfficesOverlay visible={showCOs} />
-            <DrawingOverlay />
-            <SavedDigShapeOverlay />
-            <DigPolygonOverlay />
-            {/* MapTypeToggle is in the topbar; this applier (inside the Map
-                context) actually applies the chosen style to the live map. */}
-            <MapTypeApplier />
-            {/* Lumina map bridge — registers an imperative handle the
-                navigation tools call into. Renders nothing. */}
-            <LuminaMapBridge />
-          </Map>
+        <div className="map-host" style={{ position: "absolute", inset: 0, top: 0, display: "flex", flexDirection: "row" }}>
+          <div style={{ flex: 1, height: "100%", position: "relative" }}>
+            <Map
+              defaultCenter={DEFAULT_CENTER}
+              defaultZoom={DEFAULT_ZOOM}
+              styles={stylesFor(theme)}
+              gestureHandling="greedy"
+              disableDefaultUI={false}
+              streetViewControl={true}
+              mapTypeControl={false} // We use our custom MapTypeToggle instead
+              zoomControl={false}     // Hide Google's gamepad — Lumina orb owns the bottom-right corner
+              fullscreenControl={false}
+              rotateControl={false}
+              scaleControl={false}
+            >
+              <MapHandle mapRef={mapRef} />
+              <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
+              <JobMarkers
+                jobs={mapped}
+                onSelect={handleSelect}
+                allJobs={allJobs}
+              />
+              <AllJobsMarkupsOverlay
+                onMarkupClick={(jobId) => {
+                  const j = allJobs.find((x) => x.jobId === jobId);
+                  if (j) void handleSelect(j);
+                }}
+              />
+              <CentralOfficesOverlay visible={showCOs} />
+              <DrawingOverlay />
+              <SavedDigShapeOverlay />
+              <DigPolygonOverlay />
+              {/* MapTypeToggle is in the topbar; this applier (inside the Map
+                  context) actually applies the chosen style to the live map. */}
+              <MapTypeApplier />
+              {/* Lumina map bridge — registers an imperative handle the
+                  navigation tools call into. Renders nothing. */}
+              <LuminaMapBridge />
+            </Map>
+          </div>
+          <div
+            ref={panoRef}
+            style={{
+              display: streetViewActive ? "block" : "none",
+              width: "50%",
+              height: "100%",
+              position: "relative",
+              borderLeft: "2.5px solid var(--chrome-trim-dark, #6e757f)",
+              boxShadow: "inset 5px 0 15px rgba(0,0,0,0.3)"
+            }}
+          />
           {/* Lumina orb — floats above Google's pan/Pegman controls. */}
           <LuminaOrb />
 
@@ -434,6 +452,96 @@ function MapHandle({ mapRef }: { mapRef: React.MutableRefObject<google.maps.Map 
       if (mapRef.current === map) mapRef.current = null;
     };
   }, [map, mapRef]);
+  return null;
+}
+
+// ── Dual-Pane Street View Cone component (#5) ──────────────────────────────
+interface StreetViewConeProps {
+  panoRef: React.RefObject<HTMLDivElement>;
+  onActiveChange: (active: boolean) => void;
+}
+
+function StreetViewCone({ panoRef, onActiveChange }: StreetViewConeProps) {
+  const map = useMap();
+  const cameraConeMarkerRef = useRef<google.maps.Marker | null>(null);
+
+  useEffect(() => {
+    if (!map || !panoRef.current) return;
+    
+    const sv = new google.maps.StreetViewPanorama(panoRef.current, {
+      enableCloseButton: true,
+      visible: false,
+    });
+    map.setStreetView(sv);
+
+    const updateCone = (heading: number, position: google.maps.LatLng | null, visible: boolean) => {
+      if (!visible || !position) {
+        if (cameraConeMarkerRef.current) {
+          cameraConeMarkerRef.current.setMap(null);
+          cameraConeMarkerRef.current = null;
+        }
+        return;
+      }
+
+      const rotatedConeSvg = (h: number) => `
+        <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+          <g transform="rotate(${h} 30 30)">
+            <path d="M 30 30 L 10 5 A 25 25 0 0 1 50 5 Z" fill="rgba(30, 167, 255, 0.35)" stroke="#1ea7ff" stroke-width="1.5" />
+            <circle cx="30" cy="30" r="5" fill="#ffffff" stroke="#1ea7ff" stroke-width="2" />
+          </g>
+        </svg>
+      `;
+
+      const svg = rotatedConeSvg(heading);
+      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+
+      if (!cameraConeMarkerRef.current) {
+        cameraConeMarkerRef.current = new google.maps.Marker({
+          position,
+          map,
+          zIndex: 99999,
+          icon: {
+            url,
+            scaledSize: new google.maps.Size(60, 60),
+            anchor: new google.maps.Point(30, 30),
+          },
+        });
+      } else {
+        cameraConeMarkerRef.current.setPosition(position);
+        cameraConeMarkerRef.current.setIcon({
+          url,
+          scaledSize: new google.maps.Size(60, 60),
+          anchor: new google.maps.Point(30, 30),
+        });
+      }
+    };
+
+    const visListener = sv.addListener("visible_changed", () => {
+      const v = sv.getVisible();
+      onActiveChange(v);
+      updateCone(sv.getPov().heading, sv.getPosition(), v);
+    });
+
+    const povListener = sv.addListener("pov_changed", () => {
+      updateCone(sv.getPov().heading, sv.getPosition(), sv.getVisible());
+    });
+
+    const posListener = sv.addListener("position_changed", () => {
+      updateCone(sv.getPov().heading, sv.getPosition(), sv.getVisible());
+    });
+
+    return () => {
+      google.maps.event.removeListener(visListener);
+      google.maps.event.removeListener(povListener);
+      google.maps.event.removeListener(posListener);
+      if (cameraConeMarkerRef.current) {
+        cameraConeMarkerRef.current.setMap(null);
+        cameraConeMarkerRef.current = null;
+      }
+      map.setStreetView(null);
+    };
+  }, [map, panoRef, onActiveChange]);
+
   return null;
 }
 
@@ -650,8 +758,21 @@ function escapeHtml(s: string): string {
 
 function focusMapOnLatLng(map: google.maps.Map, lat: number, lng: number) {
   map.panTo({ lat, lng });
-  const currentZoom = map.getZoom() ?? 0;
-  if (currentZoom < FOCUS_ZOOM) {
-    map.setZoom(FOCUS_ZOOM);
-  }
+  
+  const targetZoom = FOCUS_ZOOM;
+  const currentZoom = map.getZoom() ?? 12;
+  if (currentZoom === targetZoom) return;
+
+  const step = currentZoom < targetZoom ? 1 : -1;
+  let nextZoom = currentZoom;
+
+  const runZoom = () => {
+    if (nextZoom !== targetZoom) {
+      nextZoom += step;
+      map.setZoom(nextZoom);
+      setTimeout(runZoom, 100);
+    }
+  };
+  // Wait for the pan to initiate, then animate the zoom levels smoothly
+  setTimeout(runZoom, 200);
 }

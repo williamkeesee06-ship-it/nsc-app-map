@@ -53,6 +53,25 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
   const tool = obj.tool as string;
   const style = obj.style;
 
+  if (style.animateFlow && (tool === "placed_cable" || tool === "line" || tool === "arrow")) {
+    const color = tool === "placed_cable" ? PLACED_COLOR : (style.strokeColor || "#1ea7ff");
+    return {
+      strokeColor: color,
+      strokeWeight: style.strokeWidth,
+      strokeOpacity: 0.35,
+      icons: [{
+        icon: {
+          path: "M 0,-1.5 0,1.5",
+          strokeOpacity: 1,
+          scale: style.strokeWidth * 1.2,
+          strokeColor: color,
+        },
+        offset: "0px",
+        repeat: "30px"
+      }]
+    };
+  }
+
   if (tool === "placed_cable") {
     return {
       strokeColor: PLACED_COLOR,
@@ -389,6 +408,24 @@ export default function DrawingOverlay() {
   // Stable ref to cardObj for event listeners
   const cardObjRef = useRef<DrawingObject | null>(null);
   cardObjRef.current = cardObj;
+
+  // ── Cable Flow Animation Loop (#3) ───────────────────────────────────────
+  useEffect(() => {
+    let offset = 0;
+    const interval = setInterval(() => {
+      offset = (offset + 1.2) % 30;
+      overlaysRef.current.forEach((val) => {
+        if (val instanceof google.maps.Polyline) {
+          const icons = val.get("icons");
+          if (icons && icons.length > 0 && icons[0].icon && icons[0].repeat === "30px") {
+            icons[0].offset = `${offset}px`;
+            val.set("icons", icons);
+          }
+        }
+      });
+    }, 40);
+    return () => clearInterval(interval);
+  }, []);
 
   // Keep card object in sync with state (live style updates flow through)
   useEffect(() => {

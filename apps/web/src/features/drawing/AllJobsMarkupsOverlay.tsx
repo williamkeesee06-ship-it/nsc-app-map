@@ -72,6 +72,25 @@ function computeSymbolPx(zoom: number, pointSize: number): number {
 function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partial<google.maps.PolylineOptions> {
   const tool = obj.tool as string;
   const style = obj.style;
+  if (style.animateFlow && (tool === "placed_cable" || tool === "line" || tool === "arrow")) {
+    const color = tool === "placed_cable" ? PLACED_COLOR : (style.strokeColor || "#1ea7ff");
+    return {
+      strokeColor: color,
+      strokeWeight: style.strokeWidth,
+      strokeOpacity: 0.35,
+      icons: [{
+        icon: {
+          path: "M 0,-1.5 0,1.5",
+          strokeOpacity: 1,
+          scale: style.strokeWidth * 1.2,
+          strokeColor: color,
+        },
+        offset: "0px",
+        repeat: "30px"
+      }]
+    };
+  }
+
   if (tool === "placed_cable") {
     return { strokeColor: PLACED_COLOR, strokeWeight: style.strokeWidth, strokeOpacity: style.opacity };
   }
@@ -454,6 +473,24 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
   const map = useMap();
   const { state } = useDrawing();
   const overlaysRef = useRef<Map<string, OverlayRef>>(new Map());
+
+  // ── Cable Flow Animation Loop (#3) ───────────────────────────────────────
+  useEffect(() => {
+    let offset = 0;
+    const interval = setInterval(() => {
+      offset = (offset + 1.2) % 30;
+      overlaysRef.current.forEach((val) => {
+        if (val instanceof google.maps.Polyline) {
+          const icons = val.get("icons");
+          if (icons && icons.length > 0 && icons[0].icon && icons[0].repeat === "30px") {
+            icons[0].offset = `${offset}px`;
+            val.set("icons", icons);
+          }
+        }
+      });
+    }, 40);
+    return () => clearInterval(interval);
+  }, []);
   const docsRef = useRef<Array<{ jobId: string; objects: DrawingObject[] }>>([]);
   // Billy 6/8: per-job label / callout-line containers so sharedRebuildAllLabels
   // can use its plain (non-prefixed) `${objId}_label` keys without collisions

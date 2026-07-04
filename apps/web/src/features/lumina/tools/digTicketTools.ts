@@ -250,8 +250,66 @@ const getDigTicketStatusTool: LuminaTool<GetStatusInput, GetStatusData> = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// updateDigTicketUtilityStatus
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface UpdateUtilityInput {
+  jobNumber: string;
+  utility: string;
+  status: "pending" | "in-progress" | "marked" | "clear" | "conflict";
+  notes?: string;
+}
+
+interface UpdateUtilityData {
+  jobNumber: string;
+  ticketId: string;
+  utility: string;
+  status: string;
+  notes?: string;
+}
+
+const updateDigTicketUtilityStatusTool: LuminaTool<UpdateUtilityInput, UpdateUtilityData> = {
+  name: "updateDigTicketUtilityStatus",
+  description:
+    "Update/log the locate clearance status of a utility (e.g. gas, water, electric) for a job's 811 ticket.",
+  kind: "read",
+  async run(input) {
+    const jobNumber = input?.jobNumber?.trim();
+    const utility = input?.utility?.trim();
+    const status = input?.status;
+    const notes = input?.notes;
+
+    if (!jobNumber || !utility || !status) {
+      return { ok: false, message: "updateDigTicketUtilityStatus requires jobNumber, utility, and status." };
+    }
+
+    const { ticket, job } = await findTicketByJobNumber(jobNumber);
+    if (!job) {
+      return { ok: false, message: `No job found matching ${jobNumber}.` };
+    }
+    if (!ticket) {
+      return { ok: false, message: `No 811 ticket exists yet for ${jobNumber}.` };
+    }
+
+    await api.updateUtilityStatus(ticket.id, { utility, status, notes });
+    return {
+      ok: true,
+      message: `Successfully logged status of '${utility}' as '${status}' on 811 ticket for ${jobNumber}.`,
+      data: {
+        jobNumber,
+        ticketId: ticket.id,
+        utility,
+        status,
+        notes,
+      },
+    };
+  },
+};
+
 export const digTicketTools: LuminaTool[] = [
   startDigTicketTool,
   listExpiringTicketsTool,
   getDigTicketStatusTool,
+  updateDigTicketUtilityStatusTool,
 ];

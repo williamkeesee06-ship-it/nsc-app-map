@@ -147,6 +147,8 @@ export interface DrawingStyle {
   labelBorder?: string;
   /** Per-label border thickness override (px). Default 0. */
   labelBorderWidth?: number;
+  /** Cable Flow Animation flag (#3) */
+  animateFlow?: boolean;
 }
 
 // Phase 9+: per-job MyMaps-style layers (elevated for personal desktop use).

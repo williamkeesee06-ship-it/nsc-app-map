@@ -275,6 +275,9 @@ export class LuminaLiveSession {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.setupSent) return;
     const input = e.inputBuffer.getChannelData(0);
 
+    const rms = calculateRMS(input);
+    window.dispatchEvent(new CustomEvent("nsc:audio-volume", { detail: { volume: rms, source: "input" } }));
+
     // If the AudioContext didn't honor our 16kHz request, resample.
     let frame: Float32Array = input;
     const ctxRate = this.inputCtx?.sampleRate ?? INPUT_RATE;
@@ -386,6 +389,9 @@ export class LuminaLiveSession {
     const bytes = base64ToUint8(b64);
     const pcm = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
     const float = int16ToFloat32(pcm);
+
+    const rms = calculateRMS(float);
+    window.dispatchEvent(new CustomEvent("nsc:audio-volume", { detail: { volume: rms, source: "output" } }));
 
     // The output context might not have honored our 24kHz request. Build a buffer
     // at OUTPUT_RATE and let the context resample, OR resample manually.
@@ -696,6 +702,14 @@ function int16ToFloat32(input: Int16Array): Float32Array {
     out[i] = input[i] / 0x8000;
   }
   return out;
+}
+
+function calculateRMS(data: Float32Array): number {
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    sum += data[i] * data[i];
+  }
+  return Math.sqrt(sum / data.length);
 }
 
 function arrayBufferToBase64(buf: ArrayBufferLike): string {

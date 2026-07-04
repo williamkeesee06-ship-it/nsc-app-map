@@ -448,6 +448,9 @@ export default function ChatPanel() {
         ))}
       </div>
 
+      {/* ── Audio Visualizer for voice mode (#6) ───────────────────────── */}
+      <AudioVisualizer active={liveOn} />
+
       {/* ── Composer ─────────────────────────────────────────────────── */}
       <div
         className="lx-px-3 lx-py-2 lx-border-t lx-border-chrome-dark"
@@ -478,6 +481,74 @@ export default function ChatPanel() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AudioVisualizer({ active }: { active: boolean }) {
+  const [volumes, setVolumes] = useState<number[]>(new Array(24).fill(0.04));
+
+  useEffect(() => {
+    if (!active) {
+      setVolumes(new Array(24).fill(0.04));
+      return;
+    }
+
+    const handleVolume = (e: Event) => {
+      const detail = (e as CustomEvent<{ volume: number; source: "input" | "output" }>).detail;
+      const multiplier = detail.source === "output" ? 8 : 6;
+      const vol = Math.max(0.04, detail.volume * multiplier + (Math.random() - 0.5) * 0.02);
+      setVolumes((prev) => [...prev.slice(1), vol]);
+    };
+
+    window.addEventListener("nsc:audio-volume", handleVolume);
+    
+    // Subtle idle ripple when there is no voice data coming in
+    const idleInterval = setInterval(() => {
+      setVolumes((prev) => {
+        const isSilent = prev.slice(-5).every((v) => v < 0.08);
+        if (isSilent) {
+          const t = Date.now() / 150;
+          const ripple = 0.04 + Math.abs(Math.sin(t)) * 0.08;
+          return [...prev.slice(1), ripple];
+        }
+        return prev;
+      });
+    }, 120);
+
+    return () => {
+      window.removeEventListener("nsc:audio-volume", handleVolume);
+      clearInterval(idleInterval);
+    };
+  }, [active]);
+
+  if (!active) return null;
+
+  return (
+    <div 
+      className="lx-flex lx-items-center lx-justify-center lx-gap-[3px] lx-py-2 lx-px-3 lx-border-b lx-border-chrome-dark/30"
+      style={{
+        height: 38,
+        background: "rgba(6, 10, 18, 0.6)",
+        backdropFilter: "blur(4px)"
+      }}
+    >
+      {volumes.map((v, i) => {
+        const h = Math.min(32, Math.max(4, v * 28));
+        return (
+          <div
+            key={i}
+            style={{
+              width: 4,
+              height: h,
+              borderRadius: 2,
+              background: "linear-gradient(180deg, #1ea7ff 0%, #0084d4 100%)",
+              boxShadow: "0 0 6px rgba(30,167,255,0.8)",
+              transition: "height 90ms ease-out",
+            }}
+          />
+        );
+      })}
     </div>
   );
 }

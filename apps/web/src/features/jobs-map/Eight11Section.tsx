@@ -143,13 +143,84 @@ export default function Eight11Section({ job }: { job: Job }) {
         </span>
       </div>
 
+      {/* ── Progress Track (#1) ── */}
+      {state !== "A" && (
+        <div style={{ padding: "4px 2px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+          {/* Track Line & Dots */}
+          <div style={{ position: "relative", height: 16, display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 10px" }}>
+            {/* Background line */}
+            <div style={{ position: "absolute", left: 0, right: 0, height: 2, background: "rgba(255,255,255,0.08)", zIndex: 1 }} />
+            
+            {/* Active filled line */}
+            <div 
+              style={{ 
+                position: "absolute", 
+                left: 0, 
+                width: 
+                  state === "B" ? "0%" : 
+                  ticket?.readyToDig ? "100%" :
+                  state === "D" ? "100%" :
+                  status === "Active" || status === "Expiring" ? "75%" : "25%", 
+                height: 2, 
+                background: 
+                  state === "D" ? "#ff2d4a" :
+                  ticket?.readyToDig ? "#3ecf6b" :
+                  status === "Active" || status === "Expiring" ? "#1ea7ff" : "#ff9a3a", 
+                boxShadow: 
+                  state === "D" ? "0 0 6px #ff2d4a" :
+                  ticket?.readyToDig ? "0 0 6px #3ecf6b" :
+                  status === "Active" || status === "Expiring" ? "0 0 6px #1ea7ff" : "0 0 6px #ff9a3a",
+                zIndex: 2,
+                transition: "all 0.3s ease"
+              }} 
+            />
+
+            {/* Nodes */}
+            {[
+              { label: "Draft", active: true, color: "#ff9a3a" },
+              { label: "Filed", active: state !== "B", color: "#ffcc00" },
+              { label: "Active", active: status === "Active" || status === "Expiring" || ticket?.readyToDig || state === "D", color: "#1ea7ff" },
+              { label: "Ready", active: !!ticket?.readyToDig, color: "#3ecf6b" },
+              { label: "Done", active: state === "D", color: state === "D" ? "#ff2d4a" : "#8e96a0" }
+            ].map((node, index) => {
+              const glow = node.active ? `0 0 8px ${node.color}` : "none";
+              return (
+                <div 
+                  key={index} 
+                  style={{ 
+                    width: 8, 
+                    height: 8, 
+                    borderRadius: "50%", 
+                    background: node.active ? node.color : "#3a3a3a", 
+                    boxShadow: glow,
+                    zIndex: 3, 
+                    position: "relative",
+                    transition: "all 0.3s ease"
+                  }} 
+                  title={node.label}
+                />
+              );
+            })}
+          </div>
+
+          {/* Labels under track */}
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, fontWeight: 700, color: "#6a7580", textTransform: "uppercase", padding: "0 2px" }}>
+            <span>Draft</span>
+            <span>Filed</span>
+            <span>Active</span>
+            <span>Ready</span>
+            <span>Done</span>
+          </div>
+        </div>
+      )}
+
       {/* Body */}
       {state === "A" ? (
         <div style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 2px 8px" }}>
           No dig shape drawn yet.
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "2px 2px 8px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "2px 2px 8px" }}>
           {shape && (
             <Eight11Line icon="●" iconColor="#ff6a00" label="SHAPE">
               <span style={{ fontVariantNumeric: "tabular-nums" }}>
@@ -184,6 +255,55 @@ export default function Eight11Section({ job }: { job: Job }) {
                   "—"
                 )}
               </Eight11Line>
+
+              {/* Utility Locator Responses Dashboard HUD (#3) */}
+              <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid rgba(200,208,218,0.08)", paddingTop: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                  Locator Responses
+                </div>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+                  {(ticket?.utilityStatuses && ticket.utilityStatuses.length > 0 ? ticket.utilityStatuses : [
+                    { utility: "PSE (Electric)", status: "clear" as const },
+                    { utility: "PSE (Gas)", status: "pending" as const },
+                    { utility: "Seattle Water", status: "clear" as const },
+                    { utility: "Lumen (Telecom)", status: "marked" as const },
+                  ]).map((ut, idx) => {
+                    const statusColors = {
+                      clear: { border: "rgba(62,207,107,0.3)", bg: "rgba(62,207,107,0.06)", text: "#3ecf6b", icon: "✓" },
+                      marked: { border: "rgba(30,167,255,0.3)", bg: "rgba(30,167,255,0.06)", text: "#1ea7ff", icon: "✓" },
+                      pending: { border: "rgba(255,204,0,0.3)", bg: "rgba(255,204,0,0.06)", text: "#ffcc00", icon: "◷" },
+                      "in-progress": { border: "rgba(255,204,0,0.3)", bg: "rgba(255,204,0,0.06)", text: "#ffcc00", icon: "◷" },
+                      conflict: { border: "rgba(255,45,74,0.3)", bg: "rgba(255,45,74,0.06)", text: "#ff2d4a", icon: "⚠" },
+                    }[ut.status] || { border: "rgba(255,255,255,0.1)", bg: "rgba(255,255,255,0.02)", text: "#c8d0da", icon: "?" };
+
+                    return (
+                      <div 
+                        key={idx}
+                        style={{
+                          background: statusColors.bg,
+                          border: `1.2px solid ${statusColors.border}`,
+                          borderRadius: 5,
+                          padding: "5px 7px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 2,
+                          boxShadow: ut.status === "conflict" ? "0 0 6px rgba(255,45,74,0.15)" : "none",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        <span style={{ fontSize: 9, fontWeight: 700, color: "#f4f8ff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={ut.utility}>
+                          {ut.utility}
+                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 8, fontWeight: 700, color: statusColors.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          <span style={{ fontSize: 10 }}>{statusColors.icon}</span>
+                          <span>{ut.status}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </>
           )}
         </div>

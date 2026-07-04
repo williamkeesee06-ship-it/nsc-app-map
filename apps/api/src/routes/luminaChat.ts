@@ -25,6 +25,8 @@ import {
   type FunctionDeclaration,
   type Tool,
 } from "@google/generative-ai";
+import { GoogleAICacheManager } from "@google/generative-ai/server";
+import { createHash } from "crypto";
 import {
   LUMINA_SYSTEM_INSTRUCTION,
   LUMINA_FUNCTION_DECLARATIONS,
@@ -34,6 +36,23 @@ import { db } from "../lib/firestore.js";
 import type { Job } from "@nsc/types";
 
 const router = Router();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Context Cache Registry — caches prompt + tools declarations to save latency.
+// ─────────────────────────────────────────────────────────────────────────────
+interface CacheRegistryEntry {
+  cacheName: string;
+  expiresAt: number;
+}
+const cacheRegistry = new Map<string, CacheRegistryEntry>();
+
+function getCacheKey(sys: string, tools: unknown): string {
+  const hash = createHash("sha256");
+  hash.update(sys);
+  hash.update(JSON.stringify(tools));
+  return hash.digest("hex");
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Wire types — what the client sends and what we send back.
@@ -370,29 +389,60 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       { functionDeclarations: normalizeToolDeclarations(LUMINA_FUNCTION_DECLARATIONS) },
     ];
 
-    const model = genai.getGenerativeModel({
-      // Using 2.5-flash intentionally — the deprecated @google/generative-ai
-      // SDK does not surface/forward thoughtSignature, which Gemini 3.x
-      // thinking models REQUIRE on follow-up requests after a functionCall.
-      // Migrating to @google/genai is the proper fix — tracked separately.
-      // 2.5-flash still has excellent tool-calling and no signature needed.
-      model: "gemini-2.5-flash",
-      systemInstruction: { role: "system", parts: [{ text: sys }] },
-      tools,
-      // No automatic function calling — we do roundtrips through the client
-      // so the same dispatchTool registry runs in both text and voice modes.
-      toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
-      generationConfig: {
-        temperature: 0.3,
-        // 1024 was too tight — with a 14k-char system prompt + 30+ tool
-        // declarations, the model sometimes hits MAX_TOKENS while still
-        // emitting its hidden thought tokens, leaving no visible text.
-        // 4096 still produced occasional "(empty reply from model)" after
-        // a successful tool call; 8192 gives enough headroom for thought
-        // + summary on inbox/Smartsheet result sets.
-        maxOutputTokens: 8192,
-      },
-    });
+    const cacheKey = getCacheKey(sys, tools);
+    const cached = cacheRegistry.get(cacheKey);
+    let cacheName = "";
+
+    if (cached && Date.now() < cached.expiresAt - 30000) {
+      cacheName = cached.cacheName;
+      // eslint-disable-next-line no-console
+      console.log(`[lumina/chat] Reusing existing context cache: ${cacheName}`);
+    } else {
+      try {
+        const cacheManager = new GoogleAICacheManager(apiKey);
+        // eslint-disable-next-line no-console
+        console.log("[lumina/chat] Creating new context cache...");
+        const cacheResult = await cacheManager.create({
+          model: "models/gemini-2.5-flash",
+          displayName: `lumina_chat_${(body.username || "billy").replace(/[^a-zA-Z0-9_-]/g, "_")}`,
+          contents: [],
+          systemInstruction: sys,
+          tools: tools as any,
+          ttlSeconds: 600, // 10 minutes cache TTL
+        });
+        cacheName = cacheResult.name || "";
+        const expiresAt = cacheResult.expireTime ? Date.parse(cacheResult.expireTime) : Date.now() + 600 * 1000;
+        cacheRegistry.set(cacheKey, { cacheName, expiresAt });
+        // eslint-disable-next-line no-console
+        console.log(`[lumina/chat] Context cache created: ${cacheName}, expires at: ${cacheResult.expireTime}`);
+      } catch (cacheErr) {
+        // eslint-disable-next-line no-console
+        console.error("[lumina/chat] Failed to create context cache:", cacheErr);
+      }
+    }
+
+    let model: any;
+    if (cacheName) {
+      model = genai.getGenerativeModelFromCachedContent({
+        name: cacheName,
+      } as any, {
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 8192,
+        },
+      });
+    } else {
+      model = genai.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        systemInstruction: { role: "system", parts: [{ text: sys }] },
+        tools,
+        toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 8192,
+        },
+      });
+    }
 
     const contents = toGeminiContents(body);
     // Gemini requires the conversation to start with a user turn. If the
@@ -436,7 +486,7 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       contentsLen: cleaned.length,
       shape: cleaned.map((c) => ({
         role: c.role,
-        kinds: c.parts.map((p) => {
+        kinds: c.parts.map((p: any) => {
           if ((p as { functionCall?: unknown }).functionCall) return "call:" + ((p as { functionCall: { name: string } }).functionCall.name);
           if ((p as { functionResponse?: unknown }).functionResponse) return "resp:" + ((p as { functionResponse: { name: string } }).functionResponse.name);
           if ((p as { text?: string }).text) return "text(" + ((p as { text: string }).text.length) + ")";
@@ -458,7 +508,7 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       console.log("[lumina/chat] turn complete", {
         finishReason,
         partCount: parts.length,
-        partKinds: parts.map((p) => {
+        partKinds: parts.map((p: any) => {
           if ((p as { functionCall?: unknown }).functionCall) return "call";
           if ((p as { text?: string }).text) return "text";
           return "other";
@@ -467,10 +517,10 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       });
 
       const fnCalls = parts
-        .filter((p): p is { functionCall: { name: string; args: Record<string, unknown>; thoughtSignature?: string } } =>
+        .filter((p: any): p is { functionCall: { name: string; args: Record<string, unknown>; thoughtSignature?: string } } =>
           Boolean((p as { functionCall?: unknown }).functionCall)
         )
-        .map((p) => {
+        .map((p: any) => {
           const fc = p.functionCall;
           // Capture thoughtSignature so the client can echo it back next turn.
           // Required by Gemini 3.x — without it, the follow-up request 400s.

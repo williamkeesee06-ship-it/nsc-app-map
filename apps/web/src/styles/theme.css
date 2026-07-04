@@ -143,3 +143,70 @@
       var(--rivet-highlight) 0px, #cdd4dc 2px, var(--rivet-base) 3.5px, #767e88 4.5px, transparent 5.5px);
   background-repeat: no-repeat;
 }
+
+/* ============================================================
+   Neon Blue Hover Glows & Active State Pulses (#2)
+   ============================================================ */
+
+/* Job Card Hover Glow */
+.job-card {
+  transition: border-color 0.22s ease-in-out, box-shadow 0.22s ease-in-out, transform 0.22s ease-in-out;
+}
+.job-card:hover {
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 16px rgba(30, 167, 255, 0.45), var(--panel-elevation) !important;
+  transform: translateY(-1px);
+}
+
+/* Search Bar Focus Glow */
+.search-form {
+  transition: border-color 0.22s ease-in-out, box-shadow 0.22s ease-in-out;
+}
+.search-form:focus-within,
+.search-form--neon:focus-within {
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 12px rgba(30, 167, 255, 0.5) !important;
+}
+
+/* Button & interactive states */
+button, 
+.btn-primary, 
+.drawing-tool-btn,
+.rail-tab-btn {
+  transition: box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+button:hover,
+.btn-primary:hover {
+  box-shadow: 0 0 8px rgba(30, 167, 255, 0.6) !important;
+}
+
+/* Pulsing logo glow in topbar */
+.logo {
+  transition: filter 0.3s ease;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 8px rgba(30, 167, 255, 0.7));
+}
+
+/* Tiptap Rich Text editor overrides */
+.tiptap-editor-content p {
+  margin: 0 0 6px 0;
+}
+.tiptap-editor-content p:last-child {
+  margin-bottom: 0;
+}
+.tiptap-editor-content ul {
+  list-style-type: disc !important;
+  padding-left: 16px !important;
+  margin: 4px 0 !important;
+}
+.tiptap-editor-content ol {
+  list-style-type: decimal !important;
+  padding-left: 16px !important;
+  margin: 4px 0 !important;
+}
+.tiptap-editor-content li {
+  margin-bottom: 2px !important;
+  display: list-item !important;
+}
+
