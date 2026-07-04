@@ -1069,3 +1069,194 @@
     justify-content: flex-start;
   }
 }
+
+/* ── Custom Dashboard Widget Card Backgrounds & Legibility Overrides ── */
+
+/* 1. Gauge Widgets (Job Status Bar) */
+.status-bar {
+  --gauge-face-color: rgba(15, 23, 42, 0.95);
+  --gauge-face-shadow: rgba(15, 23, 42, 0.95);
+}
+.status-bar .bezel__inner {
+  background: radial-gradient(circle at center, rgba(61, 169, 255, 0.08) 0%, transparent 70%),
+              repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 4px),
+              linear-gradient(180deg, #1b2230 0%, #111620 100%) !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+.status-bar .radial-gauge__value {
+  color: #ffffff !important;
+}
+.status-bar .radial-gauge__label {
+  color: #a0aec0 !important;
+}
+
+/* 2. Calendar Card */
+.calendar-card .bezel__inner {
+  background: linear-gradient(rgba(27, 34, 48, 0.95), rgba(27, 34, 48, 0.98)),
+              repeating-linear-gradient(0deg, rgba(61, 169, 255, 0.03) 0px, rgba(61, 169, 255, 0.03) 1px, transparent 1px, transparent 20px),
+              repeating-linear-gradient(90deg, rgba(61, 169, 255, 0.03) 0px, rgba(61, 169, 255, 0.03) 1px, transparent 1px, transparent 20px) !important;
+  color: #e2e8f0 !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+.calendar-card .card__title {
+  color: #ffffff !important;
+}
+.calendar-card__day {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(61, 169, 255, 0.2) !important;
+  color: #c8d0da !important;
+}
+.calendar-card__day:hover {
+  background: rgba(61, 169, 255, 0.1) !important;
+}
+.calendar-card__day--selected {
+  background: rgba(61, 169, 255, 0.25) !important;
+  border-color: #3da9ff !important;
+  color: #ffffff !important;
+}
+.calendar-card__date {
+  color: #ffffff !important;
+}
+.calendar-card__dow {
+  color: #a0aec0 !important;
+}
+.calendar-card__day--selected .calendar-card__dow {
+  color: #ffffff !important;
+}
+.calendar-card__crew {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.calendar-card__crew-name {
+  color: #ffffff !important;
+}
+.calendar-card__crew-meta {
+  color: #a0aec0 !important;
+}
+.calendar-card__open {
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #3da9ff !important;
+}
+.calendar-card__open:hover {
+  background: rgba(61, 169, 255, 0.15) !important;
+  color: #ffffff !important;
+}
+.calendar-card__empty {
+  color: #a0aec0 !important;
+}
+
+/* 3. Active Dig Tickets Card */
+.digtix-card .bezel__inner {
+  background: radial-gradient(circle at 80% 20%, rgba(62, 207, 107, 0.08) 0%, transparent 60%),
+              radial-gradient(circle at 20% 80%, rgba(255, 193, 7, 0.06) 0%, transparent 60%),
+              linear-gradient(180deg, #111622 0%, #0d1017 100%) !important;
+  color: #fafafa !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+.digtix-card .card__title {
+  color: #ffffff !important;
+}
+.digtix-card__table th {
+  background: rgba(255, 255, 255, 0.03) !important;
+  color: #a0aec0 !important;
+}
+.digtix-card__table td {
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #e2e8f0 !important;
+}
+.digtix-card__row:hover {
+  background: rgba(62, 207, 107, 0.08) !important;
+}
+.digtix-card__empty {
+  color: #a0aec0 !important;
+}
+
+/* 4. At Risk Jobs Card */
+.atrisk-card .bezel__inner {
+  background: radial-gradient(circle at center, rgba(255, 59, 92, 0.08) 0%, transparent 70%),
+              linear-gradient(135deg, rgba(255, 59, 92, 0.015) 25%, transparent 25%, transparent 50%, rgba(255, 59, 92, 0.015) 50%, rgba(255, 59, 92, 0.015) 75%, transparent 75%, transparent),
+              linear-gradient(180deg, #181c24 0%, #0f1116 100%) !important;
+  color: #fafafa !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+.atrisk-card__title {
+  color: #ffffff !important;
+}
+.atrisk-card__count {
+  background: rgba(255, 59, 92, 0.15) !important;
+  color: #ff3b5c !important;
+  border: 1.5px solid rgba(255, 59, 92, 0.4) !important;
+}
+.atrisk-card__table th {
+  background: rgba(255, 255, 255, 0.03) !important;
+  color: #a0aec0 !important;
+}
+.atrisk-card__table td {
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #e2e8f0 !important;
+}
+.atrisk-card__row:hover {
+  background: rgba(255, 59, 92, 0.08) !important;
+}
+.atrisk-card__empty {
+  color: #a0aec0 !important;
+}
+
+/* 5. Lumina Briefing Card */
+.lumina-card .bezel__inner {
+  background: radial-gradient(circle at 10% 20%, rgba(180, 140, 255, 0.12) 0%, transparent 50%),
+              radial-gradient(circle at 90% 80%, rgba(61, 169, 255, 0.12) 0%, transparent 50%),
+              linear-gradient(180deg, #0e121a 0%, #07090d 100%) !important;
+  color: #fafafa !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+.lumina-card__brand {
+  color: #ffffff !important;
+}
+.lumina-card__hello {
+  color: #ffffff !important;
+}
+.lumina-card__bullet {
+  color: #e2e8f0 !important;
+}
+.lumina-card__ask-input {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+.lumina-card__ask-input::placeholder {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* 6. Quick Links Card */
+.quicklinks-card .bezel__inner {
+  background: radial-gradient(circle at center, rgba(180, 140, 255, 0.05) 0%, transparent 60%),
+              repeating-linear-gradient(45deg, rgba(255,255,255,0.01) 0px, rgba(255,255,255,0.01) 1px, transparent 1px, transparent 10px),
+              linear-gradient(180deg, #151a24 0%, #0d1017 100%) !important;
+  color: #fafafa !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+.quicklinks-card .card__title {
+  color: #ffffff !important;
+}
+.quicklinks-card__tile {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+.quicklinks-card__tile:hover {
+  border-color: var(--neon-blue) !important;
+  background: rgba(61, 169, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+.quicklinks-card__label {
+  color: #ffffff !important;
+}

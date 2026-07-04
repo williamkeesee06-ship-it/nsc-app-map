@@ -64,9 +64,9 @@ export default function RadialGauge({
       >
         <defs>
           <radialGradient id={faceId} cx="50%" cy="38%" r="70%">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="78%" stopColor="#ffffff" />
-            <stop offset="100%" stopColor="#eef2f7" />
+            <stop offset="0%" stopColor="var(--gauge-face-color, #ffffff)" />
+            <stop offset="78%" stopColor="var(--gauge-face-color, #ffffff)" />
+            <stop offset="100%" stopColor="var(--gauge-face-shadow, #eef2f7)" />
           </radialGradient>
           <linearGradient id={ringId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#e6ebf0" />
