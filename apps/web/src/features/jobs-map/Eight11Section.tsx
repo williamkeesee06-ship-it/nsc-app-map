@@ -178,7 +178,7 @@ export default function Eight11Section({ job }: { job: Job }) {
             {/* Nodes */}
             {[
               { label: "Draft", active: true, color: "#ff9a3a" },
-              { label: "Filed", active: state !== "B", color: "#ffcc00" },
+              { label: "Filed", active: state !== "B", color: "#ffb300" },
               { label: "Active", active: status === "Active" || status === "Expiring" || ticket?.readyToDig || state === "D", color: "#1ea7ff" },
               { label: "Ready", active: !!ticket?.readyToDig, color: "#3ecf6b" },
               { label: "Done", active: state === "D", color: state === "D" ? "#ff2d4a" : "#8e96a0" }
@@ -272,8 +272,8 @@ export default function Eight11Section({ job }: { job: Job }) {
                     const statusColors = {
                       clear: { border: "rgba(62,207,107,0.3)", bg: "rgba(62,207,107,0.06)", text: "#3ecf6b", icon: "✓" },
                       marked: { border: "rgba(30,167,255,0.3)", bg: "rgba(30,167,255,0.06)", text: "#1ea7ff", icon: "✓" },
-                      pending: { border: "rgba(255,204,0,0.3)", bg: "rgba(255,204,0,0.06)", text: "#ffcc00", icon: "◷" },
-                      "in-progress": { border: "rgba(255,204,0,0.3)", bg: "rgba(255,204,0,0.06)", text: "#ffcc00", icon: "◷" },
+                      pending: { border: "rgba(255,193,7,0.35)", bg: "rgba(255,193,7,0.07)", text: "#ffb300", icon: "◷" },
+                      "in-progress": { border: "rgba(255,193,7,0.35)", bg: "rgba(255,193,7,0.07)", text: "#ffb300", icon: "◷" },
                       conflict: { border: "rgba(255,45,74,0.3)", bg: "rgba(255,45,74,0.06)", text: "#ff2d4a", icon: "⚠" },
                     }[ut.status] || { border: "rgba(255,255,255,0.1)", bg: "rgba(255,255,255,0.02)", text: "#c8d0da", icon: "?" };
 
