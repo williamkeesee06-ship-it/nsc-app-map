@@ -16,6 +16,8 @@ interface Props {
   job: Job;
   onClose?: () => void;
   variant?: "popup" | "panel";
+  theme?: "steel" | "cyberpunk" | "titanium" | "glass";
+  onThemeChange?: (theme: "steel" | "cyberpunk" | "titanium" | "glass") => void;
 }
 
 const SS_WORKER = "https://nsc-smartapp.williamkeesee06.workers.dev";
@@ -64,10 +66,18 @@ async function saveField(
   }
 }
 
-export default function JobCard({ job, onClose, variant = "popup" }: Props) {
+export default function JobCard({
+  job,
+  onClose,
+  variant = "popup",
+  theme = "steel",
+  onThemeChange,
+}: Props) {
   const { username, isManager } = useAuth();
   const [minimized, setMinimized] = useState(false);
-  const [cardTheme, setCardTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
+  const [localTheme, setLocalTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
+  const activeTheme = onThemeChange ? theme : localTheme;
+  const setActiveTheme = onThemeChange ? onThemeChange : setLocalTheme;
   const wo = job.workOrder;
   const status = job.jobStatus ?? "—";
 
@@ -161,7 +171,7 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
   const foremanOptions = schema?.foremanOptions ?? [];
 
   return (
-    <div className={`job-card job-card--${variant} theme-${cardTheme}`}>
+    <div className={`job-card job-card--${variant} theme-${activeTheme}`}>
       <header className="job-card__head">
         <div className="job-card__head-left">
           <span className="job-card__wo">{wo}</span>
@@ -185,8 +195,8 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
 
         <div className="job-card__head-actions" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <select
-            value={cardTheme}
-            onChange={(e) => setCardTheme(e.target.value as any)}
+            value={activeTheme}
+            onChange={(e) => setActiveTheme(e.target.value as any)}
             style={{
               background: "rgba(0, 0, 0, 0.35)",
               border: "1px solid rgba(255, 255, 255, 0.12)",
@@ -293,35 +303,6 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
         <EditableNotes value={notes} onCommit={(v) => { setNotes(v); commit("notes", v); }} />
       </div>
 
-      <footer className="job-card__foot" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Link to={`/jobs/${job.jobId}`} className="btn btn--primary">
-          Open workspace →
-        </Link>
-        <a
-          href={`https://nsc-asbuilt-app.vercel.app?jobId=${encodeURIComponent(job.workOrder)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn--secondary"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "6px 12px",
-            borderRadius: 999,
-            background: "rgba(58, 167, 255, 0.12)",
-            border: "1px solid rgba(58, 167, 255, 0.5)",
-            color: "#3aa7ff",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.05em",
-            textTransform: "uppercase",
-            textDecoration: "none",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Open in As-Built →
-        </a>
-      </footer>
     </div>
   );
 }

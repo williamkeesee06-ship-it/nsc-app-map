@@ -166,6 +166,7 @@ function JobsMapInner({
 }) {
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
   const { setTarget: setDigTarget } = useDigPolygon();
+  const [panelTheme, setPanelTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
 
   // ── Dual-Pane Street View (#5) ──────────────────────────
   const panoRef = useRef<HTMLDivElement>(null);
@@ -417,7 +418,7 @@ function JobsMapInner({
           Top style toolbar (ModifiersPanel) is unaffected — it stays
           pinned above the map area in .jobs-map__main. */}
       {selected && (
-        <aside className="job-right-panel">
+        <aside className={`job-right-panel theme-${panelTheme}`}>
           <div className="job-right-panel__card">
             <JobCard
               job={selected}
@@ -428,6 +429,8 @@ function JobsMapInner({
                 window.dispatchEvent(new Event("nsc:markups-saved"));
               }}
               variant="panel"
+              theme={panelTheme}
+              onThemeChange={setPanelTheme}
             />
           </div>
           <div className="job-right-panel__811">

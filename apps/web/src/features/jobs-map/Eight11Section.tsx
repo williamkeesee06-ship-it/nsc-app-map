@@ -100,9 +100,9 @@ export default function Eight11Section({ job }: { job: Job }) {
   return (
     <section
       style={{
-        marginTop: 12,
-        paddingTop: 10,
-        borderTop: "1.5px solid var(--border)",
+        marginTop: 0,
+        paddingTop: 0,
+        borderTop: "none",
       }}
     >
       {/* Header — mirrors LAYERS: 10px / 700 / uppercase + right-side pill */}
@@ -116,9 +116,9 @@ export default function Eight11Section({ job }: { job: Job }) {
       >
         <span
           style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "1.2px",
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: "1.5px",
             textTransform: "uppercase",
             color: "var(--text-secondary)",
           }}
@@ -127,11 +127,11 @@ export default function Eight11Section({ job }: { job: Job }) {
         </span>
         <span
           style={{
-            fontSize: 9,
-            fontWeight: 700,
+            fontSize: 11,
+            fontWeight: 800,
             letterSpacing: "0.06em",
             textTransform: "uppercase",
-            padding: "2px 8px",
+            padding: "3px 10px",
             borderRadius: 999,
             background: pillBg,
             color: pillColor,
