@@ -1078,9 +1078,12 @@
   --gauge-face-shadow: rgba(15, 23, 42, 0.95);
 }
 .status-bar .bezel__inner {
-  background: radial-gradient(circle at center, rgba(61, 169, 255, 0.08) 0%, transparent 70%),
-              repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 4px),
-              linear-gradient(180deg, #1b2230 0%, #111620 100%) !important;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.12)),
+    url("/dashboard/status-telemetry-bg.jpg") !important;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
@@ -1093,9 +1096,12 @@
 
 /* 2. Calendar Card */
 .calendar-card .bezel__inner {
-  background: linear-gradient(rgba(27, 34, 48, 0.95), rgba(27, 34, 48, 0.98)),
-              repeating-linear-gradient(0deg, rgba(61, 169, 255, 0.03) 0px, rgba(61, 169, 255, 0.03) 1px, transparent 1px, transparent 20px),
-              repeating-linear-gradient(90deg, rgba(61, 169, 255, 0.03) 0px, rgba(61, 169, 255, 0.03) 1px, transparent 1px, transparent 20px) !important;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.06)),
+    url("/dashboard/dashboard-blueprint-bg.png") !important;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: #e2e8f0 !important;
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
@@ -1150,9 +1156,12 @@
 
 /* 3. Active Dig Tickets Card */
 .digtix-card .bezel__inner {
-  background: radial-gradient(circle at 80% 20%, rgba(62, 207, 107, 0.08) 0%, transparent 60%),
-              radial-gradient(circle at 20% 80%, rgba(255, 193, 7, 0.06) 0%, transparent 60%),
-              linear-gradient(180deg, #111622 0%, #0d1017 100%) !important;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.12)),
+    url("/dashboard/digtix-radar-bg.jpg") !important;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: #fafafa !important;
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
@@ -1177,9 +1186,12 @@
 
 /* 4. At Risk Jobs Card */
 .atrisk-card .bezel__inner {
-  background: radial-gradient(circle at center, rgba(255, 59, 92, 0.08) 0%, transparent 70%),
-              linear-gradient(135deg, rgba(255, 59, 92, 0.015) 25%, transparent 25%, transparent 50%, rgba(255, 59, 92, 0.015) 50%, rgba(255, 59, 92, 0.015) 75%, transparent 75%, transparent),
-              linear-gradient(180deg, #181c24 0%, #0f1116 100%) !important;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.12)),
+    url("/dashboard/atrisk-caution-bg.jpg") !important;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: #fafafa !important;
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
@@ -1209,9 +1221,12 @@
 
 /* 5. Lumina Briefing Card */
 .lumina-card .bezel__inner {
-  background: radial-gradient(circle at 10% 20%, rgba(180, 140, 255, 0.12) 0%, transparent 50%),
-              radial-gradient(circle at 90% 80%, rgba(61, 169, 255, 0.12) 0%, transparent 50%),
-              linear-gradient(180deg, #0e121a 0%, #07090d 100%) !important;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08)),
+    url("/dashboard/lumina-nebula-bg.jpg") !important;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: #fafafa !important;
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
@@ -1236,9 +1251,12 @@
 
 /* 6. Quick Links Card */
 .quicklinks-card .bezel__inner {
-  background: radial-gradient(circle at center, rgba(180, 140, 255, 0.05) 0%, transparent 60%),
-              repeating-linear-gradient(45deg, rgba(255,255,255,0.01) 0px, rgba(255,255,255,0.01) 1px, transparent 1px, transparent 10px),
-              linear-gradient(180deg, #151a24 0%, #0d1017 100%) !important;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.12)),
+    url("/dashboard/quicklinks-circuit-bg.jpg") !important;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: #fafafa !important;
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
