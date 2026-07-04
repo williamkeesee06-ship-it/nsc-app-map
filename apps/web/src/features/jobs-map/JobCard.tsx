@@ -67,6 +67,7 @@ async function saveField(
 export default function JobCard({ job, onClose, variant = "popup" }: Props) {
   const { username, isManager } = useAuth();
   const [minimized, setMinimized] = useState(false);
+  const [cardTheme, setCardTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
   const wo = job.workOrder;
   const status = job.jobStatus ?? "—";
 
@@ -160,7 +161,7 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
   const foremanOptions = schema?.foremanOptions ?? [];
 
   return (
-    <div className={`job-card job-card--${variant}`}>
+    <div className={`job-card job-card--${variant} theme-${cardTheme}`}>
       <header className="job-card__head">
         <div className="job-card__head-left">
           <span className="job-card__wo">{wo}</span>
@@ -182,7 +183,32 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
           <Eight11ExpiryPill job={job} />
         </div>
 
-        <div className="job-card__head-actions">
+        <div className="job-card__head-actions" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <select
+            value={cardTheme}
+            onChange={(e) => setCardTheme(e.target.value as any)}
+            style={{
+              background: "rgba(0, 0, 0, 0.35)",
+              border: "1px solid rgba(255, 255, 255, 0.12)",
+              color: "#a0aec0",
+              fontSize: 8,
+              fontWeight: 700,
+              borderRadius: 4,
+              padding: "2px 4px",
+              cursor: "pointer",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              outline: "none",
+              marginRight: 4
+            }}
+            title="Choose Preview Theme"
+          >
+            <option value="steel">Steel</option>
+            <option value="cyberpunk">Cyberpunk</option>
+            <option value="titanium">Titanium</option>
+            <option value="glass">Glass</option>
+          </select>
+
           {variant === "popup" && (
             <button
               className="icon-btn"
