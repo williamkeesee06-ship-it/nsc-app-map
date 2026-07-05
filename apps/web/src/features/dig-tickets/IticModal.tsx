@@ -1,18 +1,13 @@
-// Full-screen ITIC filing modal: embeds wa.itic.occinc.com in an iframe (ITIC
-// sends no X-Frame-Options / CSP frame-ancestors, so it frames cleanly) with a
-// right sidebar carrying the job context + the "filed ticket #" write-back.
+// Full-screen ITIC filing modal: guides the user through filing in a new tab.
+// This bypasses browser SameSite cookie restrictions that block third-party logins in iframes.
 //
 // On open we broadcast the job data over window.postMessage on the well-known
 // NSC_811_JOB_DATA channel. The companion Chrome extension (chrome-extension/)
-// listens for it, stashes the payload, and drives the ITIC autofill inside the
-// iframe. The app itself never touches the ITIC DOM.
+// listens for it, stashes the payload, and drives the ITIC autofill inside the new tab.
 import { useEffect } from "react";
 import type { DigTicket, Job } from "@nsc/types";
 
 const ITIC_URL = "https://wa.itic.occinc.com/";
-// ITIC's normal non-emergency ticket. Kept in lockstep with the server bot's
-// DEFAULT_TICKET_TYPE (functions/src/itic.ts) so the extension selects the same
-// dashboard option.
 const TICKET_TYPE = "2 full business days ticket";
 
 export interface Itic811JobData {
@@ -54,9 +49,7 @@ export default function IticModal({
   saving,
   onClose,
 }: Props) {
-  // Broadcast the job data for the extension exactly once, on open. The message
-  // is posted to our own window; the extension's content script on this origin
-  // listens for it and hands it to the ITIC-side content script via storage.
+  // Broadcast the job data for the extension exactly once, on open.
   useEffect(() => {
     const payload: Itic811JobData = {
       address: jobAddress,
@@ -80,6 +73,34 @@ export default function IticModal({
     job?.workOrder,
   ]);
 
+  // Attempt to open the tab automatically on mount (pop-up blockers might block it)
+  useEffect(() => {
+    window.open(ITIC_URL, "_blank");
+  }, []);
+
+  // Listen for the Chrome extension bridging the successfully filed ticket number
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      const data = e.data;
+      if (data && data.type === "NSC_811_FILED_SUCCESS" && data.payload?.ticketNumber) {
+        const ticketNo = data.payload.ticketNumber;
+        console.log("[IticModal] auto-save message captured:", ticketNo);
+        onFiledNumberChange(ticketNo);
+        
+        // Auto-save the ticket number once React finishes state updates
+        setTimeout(() => {
+          const btn = document.querySelector(".itic-save-btn") as HTMLButtonElement;
+          if (btn && !btn.disabled) {
+            btn.click();
+          }
+        }, 300);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [onFiledNumberChange]);
+
   // Close on Escape for keyboard users.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -99,11 +120,55 @@ export default function IticModal({
           </button>
         </header>
         <div className="itic-modal__body">
-          <iframe
-            className="itic-modal__frame"
-            src={ITIC_URL}
-            title="ITIC — WA Utilities Underground Location Center"
-          />
+          <div className="itic-modal__instruction-pane">
+            <div className="itic-instruction__card">
+              <h2 className="itic-instruction__heading">Filing 811 Dig Ticket securely</h2>
+              <p className="itic-instruction__intro">
+                Due to modern browser security restrictions on third-party cookies, ITIC's login session cannot run reliably inside an iframe. We've opened ITIC in a new browser tab for you to file securely.
+              </p>
+              
+              <div className="itic-steps">
+                <div className="itic-step">
+                  <div className="itic-step__num">1</div>
+                  <div className="itic-step__text">
+                    <strong>Launch ITIC Tab</strong>
+                    <p>Log in with your standard credentials in the new browser tab.</p>
+                    <button
+                      onClick={() => window.open(ITIC_URL, "_blank")}
+                      className="dt-btn dt-btn--primary itic-launch-btn"
+                    >
+                      🚀 Open ITIC in New Tab
+                    </button>
+                  </div>
+                </div>
+
+                <div className="itic-step">
+                  <div className="itic-step__num">2</div>
+                  <div className="itic-step__text">
+                    <strong>Extension Autofill</strong>
+                    <p>The companion Chrome extension will automatically pre-fill the job address, work order, and marking instructions in the tab.</p>
+                  </div>
+                </div>
+
+                <div className="itic-step">
+                  <div className="itic-step__num">3</div>
+                  <div className="itic-step__text">
+                    <strong>Draw & Submit</strong>
+                    <p>Draw your excavation boundary shape on the map, confirm the details, and submit the ticket on the ITIC site.</p>
+                  </div>
+                </div>
+
+                <div className="itic-step">
+                  <div className="itic-step__num">4</div>
+                  <div className="itic-step__text">
+                    <strong>Automatic Sync</strong>
+                    <p>Once you click submit, the extension will automatically capture the ticket number, close the tab, and save it back here.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
           <aside className="itic-modal__side">
             <section className="itic-side__card">
               <div className="itic-side__title">JOB</div>
@@ -121,25 +186,24 @@ export default function IticModal({
             </section>
 
             <section className="itic-side__card">
-              <div className="itic-side__title">SAVE FILED TICKET</div>
+              <div className="itic-side__title">SAVE TICKET HANDOFF</div>
               <label className="dt-field">
                 <span>Filed ticket #</span>
                 <input
                   value={filedNumber}
                   onChange={(e) => onFiledNumberChange(e.target.value)}
-                  placeholder="Paste the ITIC ticket # after you submit"
+                  placeholder="Waiting for extension sync..."
                 />
               </label>
               <button
-                className="dt-btn dt-btn--primary dt-btn--sm"
+                className="dt-btn dt-btn--primary dt-btn--sm itic-save-btn"
                 onClick={onSaveFiled}
                 disabled={saving || filedNumber.trim() === ""}
               >
                 {saving ? "Saving…" : "Save filed ticket"}
               </button>
               <p className="itic-side__hint">
-                Draw your shape in ITIC, hit Next, then submit. Paste the assigned
-                ticket # here to mark it Filed.
+                You can manually paste the ticket number here if you don't have the extension active.
               </p>
             </section>
           </aside>

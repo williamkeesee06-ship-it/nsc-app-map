@@ -30,4 +30,24 @@
       console.warn("[NSC811] failed to store job data:", err);
     }
   });
+
+  // Listen for success data written by the ITIC tab and bridge it back to the React app window
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local") return;
+      if (changes.nsc811Success && changes.nsc811Success.newValue) {
+        const success = changes.nsc811Success.newValue;
+        console.log("[NSC811] success data received in bridge:", success);
+        window.postMessage(
+          {
+            type: "NSC_811_FILED_SUCCESS",
+            payload: success,
+          },
+          window.location.origin
+        );
+      }
+    });
+  } catch (err) {
+    console.warn("[NSC811] failed to register storage change listener:", err);
+  }
 })();

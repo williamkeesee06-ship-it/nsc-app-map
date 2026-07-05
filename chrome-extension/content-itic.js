@@ -243,8 +243,51 @@
     }
   }
 
+  async function checkAndReportSuccess() {
+    const selectors = [".ticket-number", "[data-ticket-number]", "#ticketNumber"];
+    let ticketNumber = "";
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el && el.textContent.trim()) {
+        ticketNumber = el.textContent.trim();
+        break;
+      }
+    }
+    if (!ticketNumber) {
+      const bodyText = document.body.innerText || "";
+      const m =
+        bodyText.match(/ticket\s*(?:#|number|no\.?)\s*:?\s*([A-Z0-9-]{5,})/i) ??
+        bodyText.match(/\b(\d{8,})\b/);
+      if (m) ticketNumber = m[1].trim();
+    }
+
+    if (ticketNumber && ticketNumber.length >= 5) {
+      console.log("[NSC811] ticket submission success detected:", ticketNumber);
+      banner(`Ticket Submitted Successfully: #${ticketNumber}! Sending to NSC Map App...`, "ok");
+      try {
+        chrome.storage.local.set({
+          nsc811Success: {
+            ticketNumber,
+            submittedAt: Date.now(),
+          },
+        });
+        await sleep(2500);
+        window.close();
+      } catch (err) {
+        console.warn("[NSC811] failed to record success:", err);
+      }
+      return true;
+    }
+    return false;
+  }
+
   async function route() {
     const path = location.pathname;
+    
+    // Check if we are on a confirmation screen
+    const success = await checkAndReportSuccess();
+    if (success) return;
+
     const job = await getJob();
 
     if (/\/excavatorTickets/i.test(path)) {
