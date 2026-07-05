@@ -1079,12 +1079,12 @@
 }
 .status-bar .bezel__inner {
   background-image:
-    linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.2)),
-    url("/dashboard/carbon-fiber-bg.jpg") !important;
+    linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.1)),
+    url("/dashboard/royal-carbon-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.4) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 .status-bar .radial-gauge__value {
@@ -1097,13 +1097,13 @@
 /* 2. Calendar Card */
 .calendar-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(15, 23, 42, 0.93), rgba(15, 23, 42, 0.96)),
+    linear-gradient(rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.92)),
     url("/dashboard/dashboard-blueprint-bg.png") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   color: #e2e8f0 !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.4) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 .calendar-card .card__title {
@@ -1163,13 +1163,13 @@
 /* 3. Active Dig Tickets Card */
 .digtix-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.2)),
-    url("/dashboard/dark-steel-bg.jpg") !important;
+    linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.1)),
+    url("/dashboard/royal-steel-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   color: #fafafa !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.4) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 .digtix-card .card__title {
@@ -1193,13 +1193,13 @@
 /* 4. At Risk Jobs Card */
 .atrisk-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(14, 18, 26, 0.94), rgba(7, 9, 13, 0.96)),
-    url("/dashboard/atrisk-caution-bg.jpg") !important;
+    linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.1)),
+    url("/dashboard/royal-caution-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   color: #fafafa !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.4) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 .atrisk-card__title {
@@ -1228,13 +1228,13 @@
 /* 5. Lumina Briefing Card */
 .lumina-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(14, 18, 26, 0.94), rgba(7, 9, 13, 0.96)),
-    url("/dashboard/lumina-nebula-bg.jpg") !important;
+    linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.1)),
+    url("/dashboard/royal-nebula-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   color: #fafafa !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.4) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 .lumina-card__brand {
@@ -1258,13 +1258,13 @@
 /* 6. Quick Links Card */
 .quicklinks-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.12)),
-    url("/dashboard/quicklinks-circuit-bg.jpg") !important;
+    linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.1)),
+    url("/dashboard/royal-network-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   color: #fafafa !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.4) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 .quicklinks-card .card__title {
