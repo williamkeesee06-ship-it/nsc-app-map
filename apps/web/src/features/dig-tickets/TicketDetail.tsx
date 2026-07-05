@@ -238,6 +238,25 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
         </div>
       </header>
 
+      {ticket.readyToDig && (
+        <div className="dt-status-banner dt-status-banner--success">
+          <strong>✓ READY TO DIG</strong>
+          <span>All member utilities have responded. White paint lines are verified.</span>
+        </div>
+      )}
+      {ticket.status === "Expired" && (
+        <div className="dt-status-banner dt-status-banner--danger">
+          <strong>⚠ TICKET EXPIRED</strong>
+          <span>Excavation is legally halted. Submit a renewal filing immediately.</span>
+        </div>
+      )}
+      {ticket.status === "Failed" && (
+        <div className="dt-status-banner dt-status-banner--danger">
+          <strong>⚠ FILING FAILED</strong>
+          <span>The automatic filing process failed. Please check bot logs and file manually.</span>
+        </div>
+      )}
+
       {error && <div className="dt-error">{error}</div>}
 
       {/* Shape + specs */}

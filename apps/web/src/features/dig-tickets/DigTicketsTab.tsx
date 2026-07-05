@@ -1,6 +1,6 @@
 // 811 Dig Ticket Manager — full-screen tab mounted over the map by JobsMap.
 //
-// Layout: a left ActiveList of tickets + a right pane that shows either the
+// Layout: a left ActiveList of tickets grouped by status + a right pane that shows either the
 // TicketDetail (with the UtilityResponsePanel and RenewalFlow) or a "create
 // from job" form. Tickets are backed by /api/dig-tickets; the dig shape is
 // snapshotted server-side from the job's saved digPolygon at creation time.
@@ -128,6 +128,22 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
     [jobs]
   );
 
+  // Group tickets by urgency category
+  const urgentTickets = useMemo(
+    () => tickets.filter((t) => ["Expired", "Expiring", "Failed"].includes(t.status)),
+    [tickets]
+  );
+
+  const activeTickets = useMemo(
+    () => tickets.filter((t) => ["Active", "Filed"].includes(t.status)),
+    [tickets]
+  );
+
+  const draftTickets = useMemo(
+    () => tickets.filter((t) => ["Drafting", "Review", "Filing"].includes(t.status)),
+    [tickets]
+  );
+
   const onTicketUpdated = useCallback((updated: DigTicket) => {
     setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
   }, []);
@@ -167,6 +183,54 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
     [tickets, jobById, onTicketDeleted, refresh]
   );
 
+  const renderTicketItem = (t: DigTicket) => {
+    const job = jobById(t.jobId);
+    const hasAlert = ["Expired", "Failed"].includes(t.status);
+    const isExpiring = t.status === "Expiring";
+    
+    let trimColor = "#3b82f6"; // Royal Blue default
+    if (hasAlert) trimColor = "#dc2626"; // Warning Red
+    else if (isExpiring) trimColor = "#d97706"; // Amber
+    else if (t.status === "Active" || t.status === "Filed") trimColor = "#16a34a"; // Success Green
+
+    return (
+      <li key={t.id} className="dt-ticket-item">
+        <button
+          className={`dt-ticket${selectedId === t.id ? " dt-ticket--active" : ""}`}
+          style={{ borderLeft: `4px solid ${trimColor}` }}
+          onClick={() => {
+            setSelectedId(t.id);
+            setCreating(false);
+          }}
+        >
+          <span className="dt-ticket__wo">
+            {job?.workOrder ?? t.jobId}
+          </span>
+          <span
+            className="dt-ticket__status"
+            style={{ background: statusColor(t.status) }}
+          >
+            {t.status}
+          </span>
+          <span className="dt-ticket__meta">
+            {t.ticketNumber || "— draft —"} ·{" "}
+            {t.shape.type} · {Math.round(t.shape.areaSqFt).toLocaleString()} ft²
+          </span>
+        </button>
+        {canDeleteDigTicket(t) && (
+          <button
+            className="dt-ticket__del"
+            title="Delete ticket"
+            aria-label="Delete ticket"
+            onClick={() => void deleteTicket(t)}
+          >
+            ×
+          </button>
+        )}
+      </li>
+    );
+  };
+
   return (
     <div className="dt-root">
       <aside className="dt-list">
@@ -179,8 +243,24 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
               setSelectedId(null);
             }}
           >
-            Request 811
+            + Request 811
           </button>
+        </div>
+
+        {/* Live Dispatches Stats Card */}
+        <div className="dt-list__stats">
+          <div className="dt-stat-pill dt-stat-pill--danger">
+            <span className="dt-stat-val">{urgentTickets.length}</span>
+            <span className="dt-stat-lbl">Alerts</span>
+          </div>
+          <div className="dt-stat-pill dt-stat-pill--success">
+            <span className="dt-stat-val">{activeTickets.length}</span>
+            <span className="dt-stat-lbl">Active</span>
+          </div>
+          <div className="dt-stat-pill dt-stat-pill--draft">
+            <span className="dt-stat-val">{draftTickets.length}</span>
+            <span className="dt-stat-lbl">Drafts</span>
+          </div>
         </div>
 
         {loading && <div className="dt-list__empty">Loading tickets…</div>}
@@ -191,46 +271,37 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
           </div>
         )}
 
-        <ul className="dt-list__items">
-          {tickets.map((t) => {
-            const job = jobById(t.jobId);
-            return (
-              <li key={t.id} className="dt-ticket-item">
-                <button
-                  className={`dt-ticket${selectedId === t.id ? " dt-ticket--active" : ""}`}
-                  onClick={() => {
-                    setSelectedId(t.id);
-                    setCreating(false);
-                  }}
-                >
-                  <span className="dt-ticket__wo">
-                    {job?.workOrder ?? t.jobId}
-                  </span>
-                  <span
-                    className="dt-ticket__status"
-                    style={{ background: statusColor(t.status) }}
-                  >
-                    {t.status}
-                  </span>
-                  <span className="dt-ticket__meta">
-                    {t.ticketNumber || "— not filed —"} ·{" "}
-                    {t.shape.type} · {Math.round(t.shape.areaSqFt).toLocaleString()} ft²
-                  </span>
-                </button>
-                {canDeleteDigTicket(t) && (
-                  <button
-                    className="dt-ticket__del"
-                    title="Delete ticket"
-                    aria-label="Delete ticket"
-                    onClick={() => void deleteTicket(t)}
-                  >
-                    ×
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <div className="dt-list__groups">
+          {/* Group 1: Action Required */}
+          {urgentTickets.length > 0 && (
+            <div className="dt-list-group">
+              <div className="dt-list-group__title dt-list-group__title--urgent">ACTION REQUIRED</div>
+              <ul className="dt-list__items">
+                {urgentTickets.map(renderTicketItem)}
+              </ul>
+            </div>
+          )}
+
+          {/* Group 2: Active */}
+          {activeTickets.length > 0 && (
+            <div className="dt-list-group">
+              <div className="dt-list-group__title dt-list-group__title--active">ACTIVE TICKETS</div>
+              <ul className="dt-list__items">
+                {activeTickets.map(renderTicketItem)}
+              </ul>
+            </div>
+          )}
+
+          {/* Group 3: Drafts */}
+          {draftTickets.length > 0 && (
+            <div className="dt-list-group">
+              <div className="dt-list-group__title dt-list-group__title--draft">DRAFTS & IN-PROGRESS</div>
+              <ul className="dt-list__items">
+                {draftTickets.map(renderTicketItem)}
+              </ul>
+            </div>
+          )}
+        </div>
       </aside>
 
       <main className="dt-detail">
