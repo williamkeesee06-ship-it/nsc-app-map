@@ -253,8 +253,8 @@ async function clickLatLng(page: Page, lat: number, lng: number, dblclick = fals
   const pos = await latLngToPixel(page, ITIC_SELECTORS.mapContainer, lat, lng);
   if (!pos) throw new Error("Map projection not reachable for lat/lng→pixel conversion");
   const map = page.locator(ITIC_SELECTORS.mapContainer).first();
-  if (dblclick) await map.dblclick({ position: pos });
-  else await map.click({ position: pos });
+  if (dblclick) await map.dblclick({ position: pos, force: true });
+  else await map.click({ position: pos, force: true });
 }
 
 // ── step wrapper: logging + screenshot-on-failure ────────────────────────────
