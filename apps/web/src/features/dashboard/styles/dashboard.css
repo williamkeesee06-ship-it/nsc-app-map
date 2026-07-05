@@ -1072,107 +1072,105 @@
 
 /* ── Custom Dashboard Widget Card Backgrounds & Legibility Overrides ── */
 
+/* Scoped variables for clean contrast */
+.nsc-dashboard .bezel__inner {
+  background-image: none !important;
+  background-color: #ffffff !important;
+  border-top: 3px solid #1d4ed8 !important; /* Royal Blue Accent Line */
+  border-radius: 8px !important;
+  color: #0f172a !important; /* Dark Slate Text */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), 0 2px 4px rgba(15, 23, 42, 0.05) !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
 /* 1. Gauge Widgets (Job Status Bar) */
 .status-bar {
-  --gauge-face-color: rgba(15, 23, 42, 0.95);
-  --gauge-face-shadow: rgba(15, 23, 42, 0.95);
+  --gauge-face-color: #f1f5f9;
+  --gauge-face-shadow: #cbd5e1;
 }
 .status-bar .bezel__inner {
-  background-image: url("/dashboard/royal-steel-clean-bg.jpg") !important;
-  background-size: 100% 100% !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-top: 3px solid #1d4ed8 !important;
 }
 .status-bar .radial-gauge__value {
-  color: #ffffff !important;
+  color: #0f172a !important; /* High contrast dark value */
 }
 .status-bar .radial-gauge__label {
-  color: #0f172a !important;
+  color: #475569 !important; /* Soft slate label */
   font-weight: 700 !important;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+  text-shadow: none !important;
 }
 
 /* 2. Calendar Card */
 .calendar-card .bezel__inner {
-  background-image: url("/dashboard/royal-steel-clean-bg.jpg") !important;
-  background-size: 100% 100% !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  color: #e2e8f0 !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #1e293b !important;
 }
 .calendar-card .card__title {
   color: #0f172a !important;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+  text-shadow: none !important;
 }
 .calendar-card__day {
-  background: rgba(15, 23, 42, 0.65) !important;
-  border-color: rgba(61, 169, 255, 0.3) !important;
-  color: #ffffff !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
 }
 .calendar-card__day:hover {
-  background: rgba(15, 23, 42, 0.8) !important;
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
 }
 .calendar-card__day--selected {
-  background: rgba(61, 169, 255, 0.75) !important;
-  border-color: #3da9ff !important;
+  background: #2563eb !important; /* Royal Blue selection */
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+.calendar-card__day--selected .calendar-card__date,
+.calendar-card__day--selected .calendar-card__dow {
   color: #ffffff !important;
 }
 .calendar-card__date {
-  color: #ffffff !important;
+  color: #0f172a !important;
 }
 .calendar-card__dow {
-  color: rgba(255, 255, 255, 0.7) !important;
-}
-.calendar-card__day--selected .calendar-card__dow {
-  color: #ffffff !important;
+  color: #64748b !important;
 }
 .calendar-card__crew {
   display: flex !important;
   flex-direction: column !important;
-  background: rgba(15, 23, 42, 0.75) !important;
-  border: 1px solid rgba(61, 169, 255, 0.15) !important;
-  border-left: 3px solid var(--neon-blue) !important;
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  border-left: 4px solid #2563eb !important; /* Royal Blue accent stripe */
   border-radius: 8px !important;
-  padding: 6px 12px !important;
+  padding: 8px 12px !important;
   margin-bottom: 4px;
 }
 .calendar-card__crew-name {
-  color: #ffffff !important;
+  color: #0f172a !important;
+  font-weight: 700 !important;
 }
 .calendar-card__crew-meta {
-  color: rgba(255, 255, 255, 0.7) !important;
+  color: #64748b !important;
 }
 .calendar-card__open {
-  border: 1px solid rgba(15, 23, 42, 0.25) !important;
-  background: rgba(15, 23, 42, 0.6) !important;
-  color: #3da9ff !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #2563eb !important;
+  font-weight: 700 !important;
 }
 .calendar-card__open:hover {
-  background: rgba(15, 23, 42, 0.8) !important;
-  color: #ffffff !important;
+  background: #f1f5f9 !important;
+  color: #1d4ed8 !important;
 }
 .calendar-card__empty {
-  color: #0f172a !important;
+  color: #64748b !important;
   font-weight: 600 !important;
 }
 
 /* 3. Active Dig Tickets Card */
 .digtix-card .bezel__inner {
-  background-image: url("/dashboard/royal-steel-clean-bg.jpg") !important;
-  background-size: 100% 100% !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  color: #fafafa !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #1e293b !important;
 }
 .digtix-card .card__title {
   color: #0f172a !important;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+  text-shadow: none !important;
 }
 .digtix-card__list {
   display: flex !important;
@@ -1184,19 +1182,19 @@
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
-  background: rgba(15, 23, 42, 0.65) !important;
-  border: 1px solid rgba(61, 169, 255, 0.15) !important;
-  border-left: 4px solid var(--neon-blue) !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-left: 4px solid #2563eb !important;
   border-radius: 8px !important;
   padding: 10px 14px !important;
   transition: all 0.2s ease !important;
   cursor: pointer !important;
 }
 .digtix-card__item:hover {
-  background: rgba(15, 23, 42, 0.8) !important;
-  border-color: rgba(61, 169, 255, 0.35) !important;
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
 }
 .digtix-card__item:has(.digtix-card__pill--red) {
   border-left-color: var(--neon-red) !important;
@@ -1228,121 +1226,110 @@
 .digtix-card__item-header {
   font-size: 11px !important;
   text-transform: uppercase !important;
-  color: rgba(255, 255, 255, 0.6) !important;
+  color: #64748b !important;
   letter-spacing: 0.05em !important;
 }
 .digtix-card__item-text {
   font-size: 14px !important;
   font-weight: 600 !important;
-  color: #ffffff !important;
+  color: #0f172a !important;
 }
 .digtix-card__empty {
-  color: #0f172a !important;
+  color: #64748b !important;
   font-weight: 600 !important;
 }
 
 /* 4. At Risk Jobs Card */
 .atrisk-card .bezel__inner {
-  background-image: url("/dashboard/royal-steel-clean-bg.jpg") !important;
-  background-size: 100% 100% !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  color: #fafafa !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #1e293b !important;
 }
 .atrisk-card__title {
   color: #0f172a !important;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+  text-shadow: none !important;
 }
 .atrisk-card__count {
-  background: rgba(255, 59, 92, 0.15) !important;
-  color: #ff3b5c !important;
-  border: 1.5px solid rgba(255, 59, 92, 0.4) !important;
+  background: #fee2e2 !important; /* Soft alert red count badge */
+  color: #ef4444 !important;
+  border: 1px solid #fca5a5 !important;
 }
 .atrisk-card__table th {
-  background: rgba(15, 23, 42, 0.75) !important;
-  color: rgba(255, 255, 255, 0.8) !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
 }
 .atrisk-card__table td {
-  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
-  color: #ffffff !important;
+  border-top: 1px solid #e2e8f0 !important;
+  color: #1e293b !important;
 }
 .atrisk-card__row {
-  background: rgba(15, 23, 42, 0.65) !important;
+  background: #ffffff !important;
   transition: all 0.2s ease !important;
 }
 .atrisk-card__row:hover {
-  background: rgba(15, 23, 42, 0.85) !important;
+  background: #f8fafc !important;
 }
 .atrisk-card__empty {
-  color: #0f172a !important;
+  color: #64748b !important;
   font-weight: 600 !important;
 }
 
 /* 5. Lumina Briefing Card */
 .lumina-card .bezel__inner {
-  background-image: url("/dashboard/royal-steel-clean-bg.jpg") !important;
-  background-size: 100% 100% !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  color: #fafafa !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #1e293b !important;
+  border-top: 3px solid #8b5cf6 !important; /* Lumina Purple accent top stripe */
 }
 .lumina-card__brand {
-  color: #0f172a !important;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+  color: #8b5cf6 !important;
+  text-shadow: none !important;
 }
 .lumina-card__hello {
   color: #0f172a !important;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+  text-shadow: none !important;
 }
 .lumina-card__bullet {
-  background: rgba(15, 23, 42, 0.65) !important;
-  border: 1px solid rgba(61, 169, 255, 0.15) !important;
-  border-left: 3px solid var(--neon-blue) !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-left: 3px solid #8b5cf6 !important; /* Purple trim */
   border-radius: 8px !important;
   padding: 8px 12px !important;
   margin-bottom: 6px !important;
-  color: #ffffff !important;
+  color: #1e293b !important;
 }
 .lumina-card__ask-input {
-  background: rgba(15, 23, 42, 0.7) !important;
-  border-color: rgba(61, 169, 255, 0.2) !important;
-  color: #ffffff !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
 }
 .lumina-card__ask-input::placeholder {
-  color: rgba(255, 255, 255, 0.5) !important;
+  color: #94a3b8 !important;
+}
+.lumina-card__ask-input:focus {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15) !important;
 }
 
 /* 6. Quick Links Card */
 .quicklinks-card .bezel__inner {
-  background-image: url("/dashboard/royal-steel-clean-bg.jpg") !important;
-  background-size: 100% 100% !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  color: #fafafa !important;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #1e293b !important;
 }
 .quicklinks-card .card__title {
   color: #0f172a !important;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+  text-shadow: none !important;
 }
 .quicklinks-card__tile {
-  background: rgba(15, 23, 42, 0.65) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
   box-shadow: none !important;
-  color: #ffffff !important;
+  color: #1e293b !important;
+  transition: all 0.2s ease !important;
 }
 .quicklinks-card__tile:hover {
-  border-color: var(--neon-blue) !important;
-  background: rgba(15, 23, 42, 0.8) !important;
-  color: #ffffff !important;
+  border-color: #2563eb !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
 }
 .quicklinks-card__label {
-  color: #ffffff !important;
+  color: #334155 !important;
 }
 
 /* ── Dashboard Sizing & Glowing Title Effects ── */
