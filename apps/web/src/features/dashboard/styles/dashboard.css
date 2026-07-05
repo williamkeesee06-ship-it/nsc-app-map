@@ -1193,8 +1193,8 @@
 /* 4. At Risk Jobs Card */
 .atrisk-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.9)),
-    url("/dashboard/royal-caution-bg.jpg") !important;
+    linear-gradient(rgba(45, 15, 20, 0.88), rgba(25, 10, 12, 0.93)),
+    url("/dashboard/royal-carbon-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1228,8 +1228,8 @@
 /* 5. Lumina Briefing Card */
 .lumina-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.9)),
-    url("/dashboard/royal-nebula-bg.jpg") !important;
+    linear-gradient(rgba(25, 15, 45, 0.88), rgba(15, 10, 25, 0.93)),
+    url("/dashboard/royal-carbon-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1258,8 +1258,8 @@
 /* 6. Quick Links Card */
 .quicklinks-card .bezel__inner {
   background-image:
-    linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.9)),
-    url("/dashboard/royal-network-bg.jpg") !important;
+    linear-gradient(rgba(15, 25, 45, 0.88), rgba(10, 15, 25, 0.93)),
+    url("/dashboard/royal-carbon-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
