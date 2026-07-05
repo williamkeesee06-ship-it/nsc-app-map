@@ -232,6 +232,24 @@ async function waitForMapProjection(page: Page, timeoutMs = 30_000): Promise<voi
 // Click a lat/lng on the map canvas. Throws if the projection is unreachable so
 // the caller can fall back to the address-search + radius flow.
 async function clickLatLng(page: Page, lat: number, lng: number, dblclick = false): Promise<void> {
+  // Center the map on the target LatLng first.
+  // This ensures the point is visible on the screen and positioned correctly relative to the canvas.
+  await page.evaluate(
+    ({ lat, lng }) => {
+      const w = window as any;
+      const map =
+        (w.oimc && w.oimc.map && w.oimc.map.googleMap) ||
+        ((document.querySelector("#oimc_mapCanvas") as any)?.__gm?.map);
+      if (map && w.google && w.google.maps) {
+        map.setCenter(new w.google.maps.LatLng(lat, lng));
+      }
+    },
+    { lat, lng }
+  );
+
+  // Give the map a moment to finish centering and render tiles
+  await page.waitForTimeout(400);
+
   const pos = await latLngToPixel(page, ITIC_SELECTORS.mapContainer, lat, lng);
   if (!pos) throw new Error("Map projection not reachable for lat/lng→pixel conversion");
   const map = page.locator(ITIC_SELECTORS.mapContainer).first();

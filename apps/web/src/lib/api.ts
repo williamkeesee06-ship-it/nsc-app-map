@@ -347,9 +347,12 @@ export const api = {
     ),
 
   // ── ITIC automation (Firebase Callable Functions) ──────────────────────
-  // NOTE: the end-to-end fileTicketBot flow is deprecated (too fragile on
-  // ITIC's Google-Maps draw step). Filing is now human-in-the-loop via the
-  // Request 811 flow in the 811 tab. The response poller below is still used.
+  // Trigger background automated filing bot on ITIC
+  fileTicketBot: (ticketId: string) =>
+    callFunction<{ ok: boolean; status: string; ticketNumber: string; expiresAt: number; iticPdfUrl: string }>(
+      "fileTicketBot",
+      { ticketId }
+    ),
   // Scrape live utility responses for a filed ticket.
   checkTicketResponses: (ticketId: string) =>
     callFunction<{ ok: boolean; utilityStatuses: DigTicket["utilityStatuses"]; readyToDig: boolean }>(

@@ -1002,3 +1002,29 @@
   line-height: 1.45;
   margin: 8px 0 0;
 }
+
+/* Automated filing progress and spinner styles */
+.dt-request811__progress-banner {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+  color: #1e40af;
+  font-size: 13px;
+}
+
+.dt-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #3b82f6;
+  border-top-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: dt-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes dt-spin {
+  to { transform: rotate(360deg); }
+}

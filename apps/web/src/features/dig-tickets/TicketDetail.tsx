@@ -119,18 +119,25 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       return t;
     });
 
+  const runAutoFiler = () =>
+    run("auto-file", async () => {
+      setNotice("Bot starting up: launching Chromium and logging in to ITIC...");
+      // Trigger the background filing bot
+      const res = await api.fileTicketBot(ticket.id);
+      if (res.ok) {
+        setNotice(`Successfully filed ITIC #${res.ticketNumber}! Syncing Smartsheet...`);
+      }
+      return refetch();
+    });
+
   // ITIC automation runs as a Firebase Function and mutates the ticket in
   // Firestore; the callables return summary data, so we re-fetch to get the
   // authoritative ticket back into local state.
   const refetch = async () => (await api.getDigTicket(ticket.id)).ticket;
 
-  // ── Request 811 (human-in-the-loop) ──────────────────────────────────────
-  // The fully-automated bot proved too fragile on ITIC's Google-Maps draw step,
-  // so filing is now driven by hand inside an embedded ITIC iframe (IticModal).
-  // The companion Chrome extension autofills login + address so ITIC opens
-  // straight to the map; the user draws the shape → submits, then pastes the
-  // assigned ticket number back here, which flips the ticket to Filed (firing
-  // the onTicketFiled Smartsheet write-back).
+  // ── Request 811 ──────────────────────────────────────────────────────────
+  // The primary option is the fully-automated background bot. The manual option
+  // uses the guided browser tab launcher.
   const jobAddress = [job?.address, job?.city, job?.zipCode].filter(Boolean).join(", ");
   // Work-to-begin = today + 2 business days (ITIC's 48hr notice). Computed here
   // so both saveFiledTicket and the extension payload agree on the date.
@@ -313,13 +320,39 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
             <div><span>Work for</span><b>LUMEN</b></div>
             <div><span>Duration</span><b>45 days</b></div>
           </div>
-          <button
-            className="dt-btn dt-btn--primary"
-            onClick={() => setIticOpen(true)}
-          >
-            Request 811
-          </button>
-          <div className="dt-request811__filed">
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px", width: "100%" }}>
+            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+              <button
+                className="dt-btn dt-btn--primary"
+                style={{ flex: "1 1 50%", background: "#1d4ed8", fontWeight: 700 }}
+                onClick={runAutoFiler}
+                disabled={!!busy}
+              >
+                {busy === "auto-file" ? "Filing with Bot..." : "File Automatically (Auto-Bot)"}
+              </button>
+              <button
+                className="dt-btn dt-btn--secondary"
+                style={{ flex: "1 1 50%", border: "1px solid #cbd5e1", background: "#ffffff", color: "#1e293b", fontWeight: 700 }}
+                onClick={() => setIticOpen(true)}
+                disabled={!!busy}
+              >
+                File Manually (Guided Tab)
+              </button>
+            </div>
+
+            {busy === "auto-file" && (
+              <div className="dt-request811__progress-banner">
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span className="dt-spinner"></span>
+                  <span>
+                    <b>Automating ITIC Filing...</b> Please wait while our background worker logs in, enters specs, and draws your geocoded marks on the ITIC Google Map. This takes about 45 seconds.
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="dt-request811__filed" style={{ marginTop: "16px" }}>
             <label className="dt-field">
               <span>Filed ticket #</span>
               <input

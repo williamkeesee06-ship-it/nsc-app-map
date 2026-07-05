@@ -96,15 +96,8 @@ export const fileTicketBot = onCall(
     const ticketId = req.data?.ticketId as string | undefined;
     if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
 
-    // DEPRECATED: the fully-automated ITIC bot proved too fragile on the Google
-    // Maps draw step. The 811 tab now drives ITIC via the human-in-the-loop
-    // "Request 811" flow (clipboard prep + manual draw/submit, ticket # pasted
-    // back). The Playwright code below is intentionally kept in place in case we
-    // revive automation, but the entry point is guarded off so it can't be
-    // invoked accidentally while the new flow is validated. The guard is a
-    // `boolean`-typed flag (not a literal) so the legacy body below stays
-    // reachable for type-checking.
-    const FILE_TICKET_BOT_DEPRECATED: boolean = true;
+    // Re-enabled fully-automated background bot filing.
+    const FILE_TICKET_BOT_DEPRECATED: boolean = false;
     if (FILE_TICKET_BOT_DEPRECATED) {
       throw new HttpsError(
         "failed-precondition",
