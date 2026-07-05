@@ -391,7 +391,7 @@ function JobsMapInner({
           {ticketsFullscreen && (
             <div
               className="tickets-fullscreen-overlay"
-              style={{ position: "absolute", inset: 0, zIndex: 50, background: "#0b1118" }}
+              style={{ position: "absolute", inset: 0, zIndex: 50, background: "#f8fafc" }}
             >
               <DigTicketsTab
                 jobs={allJobs}
