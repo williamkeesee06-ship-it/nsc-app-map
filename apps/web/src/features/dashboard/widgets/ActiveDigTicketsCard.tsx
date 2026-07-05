@@ -125,43 +125,42 @@ export default function ActiveDigTicketsCard({ jobs }: ActiveDigTicketsCardProps
         </p>
       ) : (
         <div className="digtix-card__scroll">
-          <table className="digtix-card__table">
-            <thead>
-              <tr>
-                <th>Job #</th>
-                <th>Ticket #</th>
-                <th>Expires</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr
-                  key={r.ticket.id}
-                  className="digtix-card__row"
-                  tabIndex={0}
-                  role="button"
-                  aria-label={`Open dig ticket ${r.ticket.ticketNumber} on the 811 tab`}
-                  onClick={openTicketsTab}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      openTicketsTab();
-                    }
-                  }}
-                >
-                  <td className="digtix-card__job">{r.jobNumber}</td>
-                  <td className="digtix-card__ticket">{r.ticket.ticketNumber}</td>
-                  <td className="digtix-card__expiry">{formatExpiry(r.expiresAt)}</td>
-                  <td>
-                    <span className={`digtix-card__pill ${r.pill.className}`}>
-                      {r.pill.label}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="digtix-card__list">
+            {rows.map((r) => (
+              <div
+                key={r.ticket.id}
+                className="digtix-card__item"
+                tabIndex={0}
+                role="button"
+                aria-label={`Open dig ticket ${r.ticket.ticketNumber} on the 811 tab`}
+                onClick={openTicketsTab}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openTicketsTab();
+                  }
+                }}
+              >
+                <div className="digtix-card__col digtix-card__col--job">
+                  <span className="digtix-card__item-header">Job #</span>
+                  <span className="digtix-card__item-text">{r.jobNumber}</span>
+                </div>
+                <div className="digtix-card__col digtix-card__col--ticket">
+                  <span className="digtix-card__item-header">Ticket #</span>
+                  <span className="digtix-card__item-text">{r.ticket.ticketNumber}</span>
+                </div>
+                <div className="digtix-card__col digtix-card__col--expiry">
+                  <span className="digtix-card__item-header">Expires</span>
+                  <span className="digtix-card__item-text">{formatExpiry(r.expiresAt)}</span>
+                </div>
+                <div className="digtix-card__col digtix-card__col--status">
+                  <span className={`digtix-card__pill ${r.pill.className}`}>
+                    {r.pill.label}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </Bezel>
