@@ -16,7 +16,7 @@ export async function downloadScreenshot(
     const target = document.body;
     const canvas = await html2canvas(target, {
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       backgroundColor: "#0b0f13",
       logging: false,
       // Capture at the device-pixel resolution for crisp output.

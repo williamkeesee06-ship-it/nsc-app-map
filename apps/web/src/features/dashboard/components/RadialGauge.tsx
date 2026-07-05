@@ -44,10 +44,22 @@ export default function RadialGauge({
   const r = center - ringStroke;
   const circumference = 2 * Math.PI * r;
 
-  const numberSize = Math.round(size * 0.22);
-  const labelSize = Math.max(8, Math.round(size * 0.075));
-  const iconSize = Math.round(size * 0.13);
   const shown = display ?? String(value);
+
+  // Calculate dynamic font size based on text length to prevent circle overflow.
+  let numberSize = Math.round(size * 0.22);
+  if (shown.length > 9) {
+    numberSize = Math.round(size * 0.11);
+  } else if (shown.length > 7) {
+    numberSize = Math.round(size * 0.135);
+  } else if (shown.length > 5) {
+    numberSize = Math.round(size * 0.165);
+  } else if (shown.length > 3) {
+    numberSize = Math.round(size * 0.195);
+  }
+
+  const labelSize = Math.max(10, Math.round(size * 0.09));
+  const iconSize = Math.round(size * 0.14);
 
   return (
     <div

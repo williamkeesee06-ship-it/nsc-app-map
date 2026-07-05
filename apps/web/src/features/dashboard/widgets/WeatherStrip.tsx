@@ -74,8 +74,17 @@ function buildDials(w: WeatherPayload): Dial[] {
   const now = w.periods[0];
   const humidity = now?.relativeHumidityPct ?? null;
   const precip = now?.precipitationChancePct ?? null;
-  const windText = now ? `${now.windSpeed} ${now.windDirection}`.trim() : "—";
-  const windNum = now ? firstNumber(now.windSpeed) : 0;
+  
+  let windText = "—";
+  let windNum = 0;
+  if (now) {
+    const cleanSpeed = now.windSpeed
+      .toLowerCase()
+      .replace(/\s*to\s*/g, "-")
+      .replace(/\s*mph\s*/g, " mph");
+    windText = `${cleanSpeed} ${now.windDirection}`.trim();
+    windNum = firstNumber(now.windSpeed);
+  }
 
   return [
     {

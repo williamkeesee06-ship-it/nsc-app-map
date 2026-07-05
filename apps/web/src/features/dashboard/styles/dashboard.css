@@ -1284,3 +1284,112 @@
 .quicklinks-card__label {
   color: #ffffff !important;
 }
+
+/* ── Dashboard Sizing & Glowing Title Effects ── */
+
+/* 1. Scale Up Dashboard Category Titles & Add Cyberpunk Accent Glows */
+.nsc-dashboard .card__title {
+  display: inline-flex !important;
+  align-items: center !important;
+  position: relative !important;
+  padding-left: 14px !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 0 8px rgba(61, 169, 255, 0.45) !important;
+  color: #ffffff !important;
+}
+
+.nsc-dashboard .card__title::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 4px !important;
+  height: 14px !important;
+  background: #3da9ff !important;
+  border-radius: 2px !important;
+  box-shadow: 0 0 8px rgba(61, 169, 255, 0.85) !important;
+}
+
+/* Red accent title for At-Risk Jobs card */
+.nsc-dashboard .atrisk-card__title {
+  color: var(--neon-red) !important;
+  text-shadow: 0 0 8px rgba(255, 59, 92, 0.45) !important;
+}
+.nsc-dashboard .atrisk-card__title::before {
+  background: var(--neon-red) !important;
+  box-shadow: 0 0 8px rgba(255, 59, 92, 0.85) !important;
+}
+
+/* 2. Scale Up Dashboard Typography (General Elements, Tables, Lists) */
+
+/* Active Dig Tickets Table & At-Risk Table */
+.digtix-card__table,
+.atrisk-card__table {
+  font-size: 14px !important; /* Scaled up from 12px */
+}
+.digtix-card__table th,
+.atrisk-card__table th {
+  font-size: 12px !important; /* Scaled up from 10px */
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+.digtix-card__table td,
+.atrisk-card__table td {
+  font-size: 14px !important;
+  padding: 8px 10px !important;
+}
+
+/* Calendar Days */
+.calendar-card__dow {
+  font-size: 12px !important; /* Scaled up from 9px */
+}
+.calendar-card__date {
+  font-size: 17px !important; /* Scaled up from 15px */
+}
+
+/* Calendar Crew Lists */
+.calendar-card__crew {
+  display: flex !important;
+  flex-direction: column !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(61, 169, 255, 0.15) !important;
+  border-left: 3px solid var(--neon-blue) !important;
+  border-radius: 8px !important;
+  padding: 6px 12px !important;
+  margin-bottom: 4px;
+}
+.calendar-card__crew-name {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+.calendar-card__crew-meta {
+  font-size: 13px !important; /* Scaled up from 11px */
+}
+
+/* Lumina Card */
+.lumina-card__bullet {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+.lumina-card__ask-input {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+.lumina-card__brand {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+
+/* Quick Links Card */
+.quicklinks-card__label {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+.quicklinks-card__open {
+  font-size: 13px !important; /* Scaled up from 11px */
+}
+
+/* Empty State / Standby text */
+.digtix-card__empty,
+.calendar-card__empty,
+.atrisk-card__empty {
+  font-size: 15px !important; /* Scaled up from 13px */
+}

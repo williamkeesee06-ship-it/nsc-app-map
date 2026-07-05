@@ -321,25 +321,23 @@ function MeasureIcon() {
 }
 
 function ScreenshotIcon() {
-  // Snip / screenshot — a rounded square capture frame (gray) with a pair of
-  // scissors (cyan blades + two ring handles) crossing inside it. Stroke-only,
-  // no knockouts, so it reads cleanly on any background.
-  const FRAME = "#cdd3dc";   // bright gray frame so it pops on the dark button
-  const CYAN = "#2bb3ff";    // bright cyan scissors
+  // A modern camera icon matching the cyan and gray cyberpunk theme.
+  const BODY = "#cdd3dc";    // bright gray body
+  const CYAN = "#2bb3ff";    // neon blue lens and accent
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      {/* Capture frame — bracket corners, not a full box, so it reads as a snip */}
+      {/* Camera Body */}
       <path
-        d="M5 8.5 V7 A2 2 0 0 1 7 5 H8.5 M15.5 5 H17 A2 2 0 0 1 19 7 V8.5 M19 15.5 V17 A2 2 0 0 1 17 19 H15.5 M8.5 19 H7 A2 2 0 0 1 5 17 V15.5"
-        stroke={FRAME} strokeWidth="2.1"
+        d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+        stroke={BODY} strokeWidth="2.1"
       />
-      {/* Scissors blades — two strokes crossing from the handles up to the tips */}
-      <path d="M8.2 16.4 L15.8 8.8" stroke={CYAN} strokeWidth="2.1" />
-      <path d="M15.8 16.4 L8.2 8.8" stroke={CYAN} strokeWidth="2.1" />
-      {/* Two ring handles at the bottom */}
-      <circle cx="7.9" cy="16.7" r="1.7" stroke={CYAN} strokeWidth="1.9" />
-      <circle cx="16.1" cy="16.7" r="1.7" stroke={CYAN} strokeWidth="1.9" />
+      {/* Lens outer circle */}
+      <circle cx="12" cy="13" r="4" stroke={CYAN} strokeWidth="2.1" />
+      {/* Lens center dot */}
+      <circle cx="12" cy="13" r="1" fill={CYAN} />
+      {/* Flash indicator */}
+      <circle cx="19" cy="9" r="1.2" fill={BODY} />
     </svg>
   );
 }
