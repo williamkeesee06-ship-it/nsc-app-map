@@ -142,55 +142,7 @@ function formatMDY(d: Date): string {
 
 // ── map projection helpers ─────────────────────────────────────────────────
 // Convert a lat/lng to a pixel offset within the map container using the live
-// Google Maps projection (approach 1 from the spec). Runs inside the page so it
-// can read window.google.maps. Returns null if the map instance/projection is
-// not reachable, letting the caller fall back to the radius flow.
-async function latLngToPixel(
-  page: Page,
-  mapSelector: string,
-  lat: number,
-  lng: number
-): Promise<{ x: number; y: number } | null> {
-  // Google Maps' getProjection() returns undefined until the projection_changed
-  // event fires (after the first idle + tile load). Even when we gate on
-  // waitForMapProjection before tracing, re-poll here so a per-point transient
-  // (e.g. a tile reload after a pan) doesn't throw. Up to 20 × 250ms.
-  void mapSelector; // discovery is now via the oimc/#oimc_mapCanvas chain below.
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const pos = await page.evaluate(
-      ({ lat, lng }) => {
-        const w = window as any;
-        const g = w.google;
-        if (!g?.maps) return null;
-        // Preferred: ITIC's own global (documented in their gmap-combined.js
-        // source). Fallback: undocumented internal Google Maps handle on the
-        // #oimc_mapCanvas container.
-        const map =
-          (w.oimc && w.oimc.map && w.oimc.map.googleMap) ||
-          ((document.querySelector("#oimc_mapCanvas") as any)?.__gm?.map) ||
-          null;
-        if (!map || typeof map.getProjection !== "function") return null;
-        const proj = map.getProjection();
-        const bounds = map.getBounds?.();
-        if (!proj || !bounds) return null;
-        const scale = Math.pow(2, map.getZoom());
-        const ne = bounds.getNorthEast();
-        const sw = bounds.getSouthWest();
-        const topRight = proj.fromLatLngToPoint(ne);
-        const bottomLeft = proj.fromLatLngToPoint(sw);
-        const point = proj.fromLatLngToPoint(new g.maps.LatLng(lat, lng));
-        return {
-          x: (point.x - bottomLeft.x) * scale,
-          y: (point.y - topRight.y) * scale,
-        };
-      },
-      { lat, lng }
-    );
-    if (pos) return pos;
-    await page.waitForTimeout(250);
-  }
-  return null;
-}
+// latLngToPixel is removed in favor of direct center-clicking which is more robust.
 
 // Poll until the live Google Maps projection is reachable so lat/lng→pixel
 // conversion won't throw. getProjection() is undefined until the
@@ -248,10 +200,19 @@ async function clickLatLng(page: Page, lat: number, lng: number, dblclick = fals
   );
 
   // Give the map a moment to finish centering and render tiles
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(500);
 
-  const pos = await latLngToPixel(page, ITIC_SELECTORS.mapContainer, lat, lng);
-  if (!pos) throw new Error("Map projection not reachable for lat/lng→pixel conversion");
+  // Since the map was centered on (lat, lng), that coordinate is positioned exactly in the center of the canvas.
+  // We can calculate the exact center pixel of the map canvas container element.
+  const pos = await page.evaluate(() => {
+    const el = document.querySelector("#oimc_mapCanvas") || document.querySelector("#map");
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.width / 2), y: Math.round(r.height / 2) };
+  });
+
+  if (!pos) throw new Error("Map canvas element not found for center pixel click");
+
   const map = page.locator(ITIC_SELECTORS.mapContainer).first();
   if (dblclick) await map.dblclick({ position: pos, force: true });
   else await map.click({ position: pos, force: true });
