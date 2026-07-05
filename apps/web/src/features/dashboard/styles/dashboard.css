@@ -1080,7 +1080,7 @@
 .status-bar .bezel__inner {
   background-image:
     linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.9)),
-    url("/dashboard/royal-carbon-bg.jpg") !important;
+    url("/dashboard/royal-steel-clean-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1098,7 +1098,7 @@
 .calendar-card .bezel__inner {
   background-image:
     linear-gradient(rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.92)),
-    url("/dashboard/dashboard-blueprint-bg.png") !important;
+    url("/dashboard/royal-steel-clean-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1164,7 +1164,7 @@
 .digtix-card .bezel__inner {
   background-image:
     linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.9)),
-    url("/dashboard/royal-carbon-bg.jpg") !important;
+    url("/dashboard/royal-steel-clean-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1245,7 +1245,7 @@
 .atrisk-card .bezel__inner {
   background-image:
     linear-gradient(rgba(45, 15, 20, 0.88), rgba(25, 10, 12, 0.93)),
-    url("/dashboard/royal-carbon-bg.jpg") !important;
+    url("/dashboard/royal-steel-clean-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1280,7 +1280,7 @@
 .lumina-card .bezel__inner {
   background-image:
     linear-gradient(rgba(25, 15, 45, 0.88), rgba(15, 10, 25, 0.93)),
-    url("/dashboard/royal-carbon-bg.jpg") !important;
+    url("/dashboard/royal-steel-clean-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1310,7 +1310,7 @@
 .quicklinks-card .bezel__inner {
   background-image:
     linear-gradient(rgba(15, 25, 45, 0.88), rgba(10, 15, 25, 0.93)),
-    url("/dashboard/royal-carbon-bg.jpg") !important;
+    url("/dashboard/royal-steel-clean-bg.jpg") !important;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
