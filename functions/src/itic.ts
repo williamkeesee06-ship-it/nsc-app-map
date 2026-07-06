@@ -500,55 +500,55 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
 
   await step(page, "Step 2: location of work + remarks", async () => {
     const loc = page.locator("textarea#location").filter({ visible: true }).first();
-    if ((await loc.count()) > 0) await loc.fill(ticket.markingInstructions ?? "");
+    await loc.waitFor({ state: "visible", timeout: 15_000 });
+    await loc.fill(ticket.markingInstructions ?? "");
+    
     const remarks = page.locator("textarea#remarks1").filter({ visible: true }).first();
-    if ((await remarks.count()) > 0) {
-      await remarks.fill(ticket.hazardsWarning || describeDigSite(ticket, job));
-    }
+    await remarks.waitFor({ state: "visible", timeout: 5000 });
+    await remarks.fill(ticket.hazardsWarning || describeDigSite(ticket, job));
   });
 
   await step(page, "Step 2: work-begin date", async () => {
     // Soonest allowed start = today + 2 business days, at midnight (12:00 AM).
     const start = addBusinessDays(new Date(), 2);
     const dateField = page.locator("input#tkt-A-start-date").filter({ visible: true }).first();
-    if ((await dateField.count()) > 0) {
-      await dateField.fill(formatMDY(start));
-      await dateField.press("Tab");
-    }
+    await dateField.waitFor({ state: "visible", timeout: 5000 });
+    await dateField.fill(formatMDY(start));
+    await dateField.press("Tab");
+
     const timeField = page.locator("input#timepicker").filter({ visible: true }).first();
-    if ((await timeField.count()) > 0) {
-      await timeField.fill("12:00 AM");
-      await timeField.press("Tab");
-    }
+    await timeField.waitFor({ state: "visible", timeout: 5000 });
+    await timeField.fill("12:00 AM");
+    await timeField.press("Tab");
   });
 
   await step(page, "Step 2: type of work", async () => {
     const tow = page.locator("input#type_of_work").filter({ visible: true }).first();
-    if ((await tow.count()) > 0) await tow.fill(specs.workType);
+    await tow.waitFor({ state: "visible", timeout: 5000 });
+    await tow.fill(specs.workType);
   });
 
   await step(page, "Step 2: directional drilling / white lined", async () => {
     const drilling = page.locator("select#boring").filter({ visible: true }).first();
-    if ((await drilling.count()) > 0) {
-      await drilling.selectOption({ label: specs.directionalBoring ? "Yes" : "No" });
-    }
+    await drilling.waitFor({ state: "visible", timeout: 5000 });
+    await drilling.selectOption({ label: specs.directionalBoring ? "Yes" : "No" });
+
     const whiteLined = page.locator("select#area_marked").filter({ visible: true }).first();
-    if ((await whiteLined.count()) > 0) {
-      await whiteLined.selectOption({ label: specs.whiteLined ? "Yes" : "No" });
-    }
+    await whiteLined.waitFor({ state: "visible", timeout: 5000 });
+    await whiteLined.selectOption({ label: specs.whiteLined ? "Yes" : "No" });
   });
 
   await step(page, "Step 2: excavation equipment", async () => {
     const listbox = page.locator("select#type_of_equipment").filter({ visible: true }).first();
-    if ((await listbox.count()) > 0) {
-      const options = mapEquipment(specs.equipment);
-      await listbox.selectOption(options.map(label => ({ label })));
-    }
+    await listbox.waitFor({ state: "visible", timeout: 5000 });
+    const options = mapEquipment(specs.equipment);
+    await listbox.selectOption(options.map(label => ({ label })));
   });
 
   await step(page, "Step 2: work being done for", async () => {
     const forField = page.locator("input#work_done_for").filter({ visible: true }).first();
-    if ((await forField.count()) > 0) await forField.fill("LUMEN");
+    await forField.waitFor({ state: "visible", timeout: 5000 });
+    await forField.fill("LUMEN");
   });
 }
 
