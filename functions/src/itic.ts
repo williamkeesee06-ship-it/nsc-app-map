@@ -343,10 +343,10 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   // since entering the radius text deactivated it. If this click collapses the panel,
   // click it a second time to re-expand and activate it.
   const toolButton = page.locator('a:has(img[src*="circle-tool"])').first();
-  await toolButton.click({ force: true });
+  await toolButton.evaluate((el) => (el as HTMLAnchorElement).click());
   await page.waitForTimeout(300);
   if (!(await radiusInput.isVisible())) {
-    await toolButton.click({ force: true });
+    await toolButton.evaluate((el) => (el as HTMLAnchorElement).click());
     await radiusInput.waitFor({ state: "visible", timeout: 5000 });
   }
 
@@ -448,8 +448,8 @@ async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<vo
           ? 'a:has(img[src*="route-tool"])'
           : 'a:has(img[src*="polygon-tool"])';
     const toolButton = page.locator(toolSelector).first();
-    await toolButton.waitFor({ state: "visible", timeout: 10_000 });
-    await toolButton.click();
+    await toolButton.waitFor({ state: "attached", timeout: 10_000 });
+    await toolButton.evaluate((el) => (el as HTMLAnchorElement).click());
 
     // Polygon ("Other") pops a confirmation dialog that must be dismissed.
     if (shape.type === "polygon") {
