@@ -119,21 +119,60 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       return t;
     });
 
-  const runAutoFiler = () =>
-    run("auto-file", async () => {
-      setNotice("Bot starting up: launching Chromium and logging in to ITIC...");
-      // Trigger the background filing bot
-      const res = await api.fileTicketBot(ticket.id);
-      if (res.ok) {
-        setNotice(`Successfully filed ITIC #${res.ticketNumber}! Syncing Smartsheet...`);
-      }
-      return refetch();
-    });
+  const runExtensionFiler = () => {
+    const payload = {
+      ticketId: ticket.id,
+      address: jobAddress,
+      street: job?.address || "",
+      city: job?.city || "",
+      zip: job?.zipCode || "",
+      workType: ticket.specs.workType || "PED SWAP",
+      workDoneFor: "LUMEN",
+      directionalBoring: ticket.specs.directionalBoring || false,
+      markingInstructions: marking,
+      equipment: ticket.specs.equipment || [],
+      workToBeginDate: workToBeginMDY,
+      duration: ticket.specs.duration || 45,
+      whiteLined: ticket.specs.whiteLined || false,
+      explosives: ticket.specs.explosives || false,
+    };
+    
+    window.postMessage({ type: "NSC_START_ITIC_AUTOMATION", payload }, "*");
+    setNotice("Chrome Extension triggered! A new tab will open to ITIC. Follow the on-screen instructions!");
+  };
 
-  // ITIC automation runs as a Firebase Function and mutates the ticket in
-  // Firestore; the callables return summary data, so we re-fetch to get the
-  // authoritative ticket back into local state.
   const refetch = async () => (await api.getDigTicket(ticket.id)).ticket;
+
+  useEffect(() => {
+    const handleExtensionMessage = async (e: MessageEvent) => {
+      if (e.data?.type === "NSC_ITIC_FILING_COMPLETED" && e.data?.ticketNumber) {
+        setFiledNumber(e.data.ticketNumber);
+        setNotice(`Scraped ITIC #${e.data.ticketNumber} from Chrome Extension! Saving...`);
+        const num = e.data.ticketNumber;
+        const now = Date.now();
+        const startsAt = addBusinessDays(new Date(now), 2).getTime();
+        const expiresAt = startsAt + ticket.specs.duration * DAY_MS;
+        try {
+          const { ticket: t } = await api.updateDigTicket(ticket.id, {
+            ticketNumber: num,
+            status: "Filed",
+            dates: {
+              createdAt: ticket.dates.createdAt,
+              submittedAt: now,
+              startsAt,
+              expiresAt,
+            },
+          });
+          setNotice(`Filed ITIC #${num} successfully!`);
+          onUpdated(t);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Failed to save ticket number");
+        }
+      }
+    };
+    window.addEventListener("message", handleExtensionMessage);
+    return () => window.removeEventListener("message", handleExtensionMessage);
+  }, [ticket, refetch, onUpdated]);
 
   // ── Request 811 ──────────────────────────────────────────────────────────
   // The primary option is the fully-automated background bot. The manual option
@@ -325,10 +364,10 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
               <button
                 className="dt-btn dt-btn--primary"
                 style={{ flex: "1 1 50%", background: "#1d4ed8", fontWeight: 700 }}
-                onClick={runAutoFiler}
+                onClick={runExtensionFiler}
                 disabled={!!busy}
               >
-                {busy === "auto-file" ? "Filing with Bot..." : "File Automatically (Auto-Bot)"}
+                File via Chrome Extension
               </button>
               <button
                 className="dt-btn dt-btn--secondary"
@@ -340,16 +379,14 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
               </button>
             </div>
 
-            {busy === "auto-file" && (
-              <div className="dt-request811__progress-banner">
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span className="dt-spinner"></span>
-                  <span>
-                    <b>Automating ITIC Filing...</b> Please wait while our background worker logs in, enters specs, and draws your geocoded marks on the ITIC Google Map. This takes about 45 seconds.
-                  </span>
-                </div>
-              </div>
-            )}
+            <div style={{ marginTop: "12px", padding: "12px", border: "1px dashed #cbd5e1", borderRadius: "6px", backgroundColor: "#f8fafc", fontSize: "13px", color: "#475569" }}>
+              <strong>How to use the NSC ITIC Copilot:</strong>
+              <ol style={{ paddingLeft: "16px", marginTop: "4px", marginBottom: "0" }}>
+                <li>Make sure you have loaded the unpacked extension from <code style={{ background: "#e2e8f0", padding: "2px 4px", borderRadius: "4px" }}>apps/extension</code> into Chrome (via <code style={{ background: "#e2e8f0", padding: "2px 4px", borderRadius: "4px" }}>chrome://extensions</code> in Developer Mode).</li>
+                <li>Click <strong>File via Chrome Extension</strong>. It will open a new ITIC tab and autofill the forms for you, pausing at the map for you to draw locates.</li>
+                <li>Once you submit the ticket, the extension will automatically scrape the ticket number and save it back to this page.</li>
+              </ol>
+            </div>
           </div>
 
           <div className="dt-request811__filed" style={{ marginTop: "16px" }}>
