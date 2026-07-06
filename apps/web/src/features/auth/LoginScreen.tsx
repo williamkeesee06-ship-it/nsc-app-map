@@ -14,7 +14,7 @@ export default function LoginScreen() {
 
   // Billy 6/5: app access is restricted. Only these three users may sign in.
   // Match is case-insensitive and whitespace-trimmed.
-  const ALLOWED_USERS = ["billy keesee", "robbie thoman", "joe watson"];
+  const ALLOWED_USERS = ["billy keesee", "robbie thoman", "joe watson", "james forte"];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
