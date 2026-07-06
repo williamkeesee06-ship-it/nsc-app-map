@@ -239,8 +239,8 @@ async function clickLatLng(
   
   console.log(`[ITIC] clickLatLng: target (${lat}, ${lng}) -> pixel: ${JSON.stringify(pos)}, gm-style bounding box: ${JSON.stringify(rect)}`);
 
-  if (dblclick) await map.dblclick({ position: pos, force: true });
-  else await map.click({ position: pos, force: true });
+  if (dblclick) await map.dblclick({ position: pos });
+  else await map.click({ position: pos });
 }
 
 // ── step wrapper: logging + screenshot-on-failure ────────────────────────────
