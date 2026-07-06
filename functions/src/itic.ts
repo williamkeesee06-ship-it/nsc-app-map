@@ -222,6 +222,25 @@ async function waitForMapProjection(page: Page, timeoutMs = 30_000): Promise<voi
   }
 }
 
+async function hideOverlays(page: Page): Promise<void> {
+  try {
+    await page.evaluate(() => {
+      const elements = Array.from(document.querySelectorAll("div, footer, span, p"));
+      elements.forEach(el => {
+        const text = el.textContent || "";
+        if (text.includes("One Call Concepts") || text.includes("ONE CALL CONCEPTS") || text.includes("Copyright ©")) {
+          const rect = el.getBoundingClientRect();
+          if (rect.height < 150 && rect.width > 150) {
+            (el as HTMLElement).style.setProperty("display", "none", "important");
+          }
+        }
+      });
+    });
+  } catch (e) {
+    // Ignore evaluation errors
+  }
+}
+
 // Click a lat/lng on the map canvas. Throws if the projection is unreachable so
 // the caller can fall back to the address-search + radius flow.
 async function clickLatLng(
@@ -341,6 +360,9 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   // Give it a brief moment to register the input value and remove focus
   await page.waitForTimeout(300);
 
+  // Hide any overlapping copyright/branding overlays before clicking
+  await hideOverlays(page);
+
   // 2. Click the tool button (accordion header) to reactivate drawing mode on the map
   // since entering the radius text deactivated it. If this click collapses the panel,
   // click it a second time to re-expand and activate it.
@@ -434,6 +456,9 @@ async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<vo
   await step(page, "Step 1: opening drawing panel", async () => {
     // Wait for map projection to be fully loaded first to ensure map drawing engine is ready!
     await waitForMapProjection(page);
+
+    // Hide any overlapping copyright/branding overlays that might block clicking
+    await hideOverlays(page);
 
     // Two-step opener. The "Click for drawing tool" banner (draw-white.svg) is
     // injected after geocoding but can be display:none / opacity:0 during the map
