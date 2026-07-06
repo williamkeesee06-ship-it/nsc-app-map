@@ -11,12 +11,24 @@ import RadialGauge from "../components/RadialGauge.js";
 
 const CACHE_MS = 15 * 60 * 1000;
 
-let cache: { at: number; data: WeatherPayload } | null = null;
+let cache: { at: number; data: WeatherPayload; lat: number; lng: number } | null = null;
 
-async function loadWeather(): Promise<WeatherPayload> {
-  if (cache && Date.now() - cache.at < CACHE_MS) return cache.data;
-  const data = await api.getWeather(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng);
-  cache = { at: Date.now(), data };
+async function loadWeather(lat: number, lng: number): Promise<WeatherPayload> {
+  // Round to ~1km accuracy for cache hits to prevent tiny GPS jitter from busting cache
+  const cacheLat = Number(lat.toFixed(2));
+  const cacheLng = Number(lng.toFixed(2));
+  
+  if (
+    cache && 
+    Date.now() - cache.at < CACHE_MS &&
+    cache.lat === cacheLat &&
+    cache.lng === cacheLng
+  ) {
+    return cache.data;
+  }
+  
+  const data = await api.getWeather(lat, lng);
+  cache = { at: Date.now(), data, lat: cacheLat, lng: cacheLng };
   return data;
 }
 
@@ -135,16 +147,35 @@ export default function WeatherStrip() {
 
   useEffect(() => {
     let cancelled = false;
-    loadWeather()
-      .then((w) => {
+
+    const fetchLocalWeather = async (lat: number, lng: number) => {
+      try {
+        const w = await loadWeather(lat, lng);
         if (!cancelled) {
           setWeather(w);
           setError(false);
         }
-      })
-      .catch(() => {
+      } catch (err) {
+        console.error("Failed to load weather:", err);
         if (!cancelled) setError(true);
-      });
+      }
+    };
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          fetchLocalWeather(position.coords.latitude, position.coords.longitude);
+        },
+        (err) => {
+          console.warn("Geolocation denied or failed, falling back to default:", err);
+          fetchLocalWeather(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng);
+        },
+        { timeout: 10000, maximumAge: 60000 }
+      );
+    } else {
+      fetchLocalWeather(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng);
+    }
+
     return () => {
       cancelled = true;
     };
