@@ -512,17 +512,32 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
     const start = addBusinessDays(new Date(), 2);
     const dateStr = formatMDY(start);
     
-    // Wait for the elements to be present in DOM first
     await page.locator("input#tkt-A-start-date").first().waitFor({ state: "attached", timeout: 15_000 });
     
     await page.evaluate(({ dateStr }) => {
-      const dateEl = document.getElementById("tkt-A-start-date") as HTMLInputElement;
+      const getVisibleEl = (selector: string) => {
+        const els = Array.from(document.querySelectorAll(selector));
+        return els.find(el => {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            let parent = el.parentElement;
+            while (parent) {
+              if (window.getComputedStyle(parent).display === "none") return false;
+              parent = parent.parentElement;
+            }
+            return true;
+          }
+          return false;
+        });
+      };
+
+      const dateEl = getVisibleEl("input#tkt-A-start-date") as HTMLInputElement;
       if (dateEl) {
         dateEl.value = dateStr;
         const jq = (window as any).$ || (window as any).jQuery;
         if (jq) jq(dateEl).trigger("change");
       }
-      const timeEl = document.getElementById("timepicker") as HTMLInputElement;
+      const timeEl = getVisibleEl("input#timepicker") as HTMLInputElement;
       if (timeEl) {
         timeEl.value = "12:00 AM";
         const jq = (window as any).$ || (window as any).jQuery;
@@ -552,7 +567,23 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
     await page.locator("select#type_of_equipment").first().waitFor({ state: "attached", timeout: 15_000 });
     
     await page.evaluate(({ options }) => {
-      const selectEl = document.getElementById("type_of_equipment") as HTMLSelectElement;
+      const getVisibleEl = (selector: string) => {
+        const els = Array.from(document.querySelectorAll(selector));
+        return els.find(el => {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            let parent = el.parentElement;
+            while (parent) {
+              if (window.getComputedStyle(parent).display === "none") return false;
+              parent = parent.parentElement;
+            }
+            return true;
+          }
+          return false;
+        });
+      };
+
+      const selectEl = getVisibleEl("select#type_of_equipment") as HTMLSelectElement;
       if (selectEl) {
         Array.from(selectEl.options).forEach(opt => {
           opt.selected = options.includes(opt.text) || options.includes(opt.value);
@@ -560,7 +591,6 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
         const jq = (window as any).$ || (window as any).jQuery;
         if (jq) {
           jq(selectEl).trigger("change");
-          // Also call bootstrap-select refresh if present
           if (jq(selectEl).selectpicker) {
             jq(selectEl).selectpicker("refresh");
           }
