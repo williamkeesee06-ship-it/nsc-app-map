@@ -10,9 +10,9 @@
   --neon-violet: #b48cff;
   --neon-amber: #ffb547;
   --neon-red: #ff3b5c;
-  --ink: #f2f6fb;
-  --ink-soft: #94a3b8;
-  --steel-line: #334155;
+  --ink: #1a2230;
+  --ink-soft: #5b6878;
+  --steel-line: #c8d0d9;
   --neon-glow: 0 0 12px rgba(61, 169, 255, 0.55);
 
   position: absolute;
@@ -26,17 +26,11 @@
      translucent light veil covers the full board so the blueprint bleeds
      through softly; widgets carry their own chrome bezels, so the skyline
      peeks through the gaps between them. */
-  /* Redesigned Background inspired by Image 1, 2, and 3: matte steel gradients, cyan-blue ambient underglows, and subtle geometric creases/circuit paths */
-  background-image:
-    radial-gradient(1200px 800px at 0% 0%, rgba(30, 167, 255, 0.15), transparent 75%),
-    radial-gradient(1000px 700px at 100% 100%, rgba(0, 82, 204, 0.12), transparent 65%),
-    linear-gradient(115deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0) 70%, rgba(255, 255, 255, 0.03) 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cpath d='M 0,0 L 240,240 M 240,0 L 0,240' stroke='rgba(255, 255, 255, 0.05)' stroke-width='1.5' stroke-dasharray='2 12'/%3E%3Cpath d='M 120,0 L 240,120 M 0,120 L 120,240 M 120,0 L 0,120 M 240,120 L 120,240' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M 30,40 L 90,40 L 110,60 L 110,130 L 130,150 L 190,150' fill='none' stroke='rgba(30, 167, 255, 0.05)' stroke-width='1.5'/%3E%3Cpath d='M 50,190 L 100,190 L 120,210 L 180,210' fill='none' stroke='rgba(30, 167, 255, 0.04)' stroke-width='1.5'/%3E%3Ccircle cx='30' cy='40' r='3' fill='none' stroke='rgba(30, 167, 255, 0.15)' stroke-width='1'/%3E%3Ccircle cx='190' cy='150' r='3' fill='none' stroke='rgba(30, 167, 255, 0.15)' stroke-width='1'/%3E%3Ccircle cx='50' cy='190' r='2.5' fill='rgba%2830, 167, 255, 0.09%29'/%3E%3Ccircle cx='180' cy='210' r='2.5' fill='rgba%2830, 167, 255, 0.09%29'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='80' cy='20' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='140' cy='20' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='200' cy='20' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='20' cy='80' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='80' cy='80' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='140' cy='80' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='200' cy='80' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='20' cy='140' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='80' cy='140' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='140' cy='140' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='200' cy='140' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='20' cy='200' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='80' cy='200' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='140' cy='200' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='200' cy='200' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3C/svg%3E"),
-    linear-gradient(180deg, #101622 0%, #0a0e17 50%, #06090e 100%);
-  background-repeat: no-repeat, no-repeat, no-repeat, repeat, no-repeat;
-  background-position: center, center, center, center, center;
-  background-size: cover, cover, cover, auto, cover;
-  background-attachment: scroll, scroll, scroll, scroll, scroll;
+  background-image: url("/dashboard/bg1.jpg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
 }
 
 /* Subtle brushed-steel noise overlay. */
@@ -102,18 +96,18 @@
   padding: 18px;
   background: linear-gradient(
     180deg,
-    #2a364a 0%,
-    #1d2636 30%,
-    #151b28 70%,
-    #0f141e 100%
+    #ffffff 0%,
+    #eef2f7 30%,
+    #d4dce5 70%,
+    #b9c3ce 100%
   ) !important;
-  border: 1px solid #3d4f66 !important;
+  border: 1px solid #a6b1bd !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
-    inset 0 -3px 4px rgba(0, 0, 0, 0.55),
-    0 1px 2px rgba(0, 0, 0, 0.5),
-    0 14px 34px -12px rgba(0, 0, 0, 0.8) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    inset 0 -3px 4px rgba(120, 135, 150, 0.55),
+    0 1px 2px rgba(40, 50, 65, 0.15),
+    0 14px 34px -12px rgba(28, 38, 54, 0.4) !important;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -126,11 +120,14 @@
   display: flex;
   flex-direction: column;
   border-radius: 8px;
-  background: #0b111a;
+  background-color: #ffffff;
+  background-image: url("/dashboard/bg2.jpg");
+  background-size: cover;
+  background-position: center;
   padding: 16px 18px;
   box-shadow:
-    inset 0 0 0 1px #1d2938,
-    inset 0 2px 6px rgba(0, 0, 0, 0.6);
+    inset 0 0 0 1px #e4e8ee,
+    inset 0 2px 6px rgba(30, 42, 60, 0.06);
 }
 
 .bezel__accent {
@@ -165,19 +162,19 @@
   border-radius: 50%;
   background: radial-gradient(
     circle at 32% 26%,
-    #e6ecf2 0%,
-    #8c97a3 22%,
-    #5b6878 52%,
-    #334155 78%,
-    #1e293b 100%
+    #ffffff 0%,
+    #e6ecf2 22%,
+    #b3bdc9 52%,
+    #7d8895 78%,
+    #4c5560 100%
   ) !important;
   box-shadow:
     /* recessed hard shadow on bottom-right */
-    inset 0 -1px 2px rgba(0, 0, 0, 0.7),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.4),
     /* specular pop on top-left */
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.4),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.95),
     /* outer drop shadow so the head sits on the frame */
-    0 1px 2px rgba(0, 0, 0, 0.6) !important;
+    0 1px 2px rgba(0, 0, 0, 0.25) !important;
   z-index: 4;
 }
 
@@ -187,10 +184,10 @@
   position: absolute;
   inset: -2px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #7d8895 0%, #4c5560 45%, #1e293b 100%);
+  background: linear-gradient(135deg, #fdfefe 0%, #c4ccd6 45%, #8c97a3 100%);
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.2),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.8);
+    inset 0 1px 1px rgba(255, 255, 255, 0.85),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.3);
   z-index: -1;
 }
 
@@ -495,12 +492,12 @@
   padding: 4px 8px;
   position: sticky;
   top: 0;
-  background: rgba(255, 255, 255, 0.03);
+  background: #f4f8fc;
 }
 
 .digtix-card__table td {
   padding: 7px 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid #eef1f5;
   color: var(--ink);
   vertical-align: middle;
 }
@@ -568,7 +565,7 @@
 
 .calendar-card__open {
   border: 1px solid var(--steel-line);
-  background: linear-gradient(180deg, #1e293b, #0f172a);
+  background: linear-gradient(180deg, #ffffff, #eef2f6);
   color: var(--neon-blue);
   border-radius: 999px;
   padding: 3px 12px;
@@ -593,7 +590,7 @@
   padding: 7px 2px;
   border-radius: 10px;
   border: 1px solid var(--steel-line);
-  background: linear-gradient(180deg, #1e293b, #0f172a);
+  background: linear-gradient(180deg, #ffffff, #eef2f6);
   color: var(--ink);
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease;
@@ -611,7 +608,7 @@
 .calendar-card__day--selected {
   border-color: var(--neon-blue);
   color: var(--neon-blue);
-  background: linear-gradient(180deg, #1e3a5f, #0f274a);
+  background: linear-gradient(180deg, #effaff, #d8eeff);
   box-shadow:
     inset 0 1px 4px rgba(30, 42, 60, 0.12),
     var(--neon-glow);
@@ -1077,43 +1074,18 @@
 /* Scoped variables for clean contrast */
 .nsc-dashboard .bezel__inner {
   background-color: #ffffff !important;
-  /* Redesigned card face inspired by Image 2 (debossed circuits) and Image 3 (geometric creases) */
   background-image: 
-    /* Shadow layer for 3D engraved circuit line paths */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cpath d='M 0,40 L 60,40 L 80,60 L 80,110 L 100,130 L 160,130' fill='none' stroke='rgba(15,23,42,0.035)' stroke-width='1.5'/%3E%3Ccircle cx='60' cy='40' r='3.5' fill='none' stroke='rgba(15,23,42,0.04)' stroke-width='1'/%3E%3Ccircle cx='100' cy='130' r='3.5' fill='none' stroke='rgba(15,23,42,0.04)' stroke-width='1'/%3E%3Cpath d='M 160,0 L 80,80 L 160,160' fill='none' stroke='rgba(15,23,42,0.015)' stroke-width='1'/%3E%3C/svg%3E"),
-    /* Highlight layer shifted slightly for the debossed groove effect */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cpath d='M 0,41 L 59.5,41 L 79.5,61 L 79.5,111 L 99.5,131 L 160,131' fill='none' stroke='rgba(255,255,255,0.75)' stroke-width='1.5'/%3E%3Ccircle cx='60.5' cy='40.5' r='3.5' fill='none' stroke='rgba(255,255,255,0.75)' stroke-width='1'/%3E%3Ccircle cx='100.5' cy='130.5' r='3.5' fill='none' stroke='rgba(255,255,255,0.75)' stroke-width='1'/%3E%3Cpath d='M 160,1 L 80.5,80.5 L 160,161' fill='none' stroke='rgba(255,255,255,0.45)' stroke-width='1'/%3E%3C/svg%3E"),
-    /* Inner card face gradient */
-    linear-gradient(180deg, #ffffff 0%, #fafbfc 60%, #f3f6f9 100%) !important;
-  background-size: 160px 160px, 160px 160px, 100% 100% !important;
-  background-repeat: repeat, repeat, no-repeat !important;
-
-  /* Image 1 inspired solid vertical color band on left instead of top */
-  border-top: none !important;
-  border-left: 4.5px solid var(--bezel-accent, #1d4ed8) !important;
+    linear-gradient(45deg, #f1f5f9 25%, transparent 25%), 
+    linear-gradient(-45deg, #f1f5f9 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #f1f5f9 75%), 
+    linear-gradient(-45deg, transparent 75%, #f1f5f9 75%) !important;
+  background-size: 8px 8px !important;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0 !important;
+  border-top: 3px solid #1d4ed8 !important; /* Royal Blue Accent Line */
   border-radius: 8px !important;
-  color: var(--ink) !important; /* Dark Slate Text */
-  
-  /* Edge underglow inspired by Image 2 & 3 */
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 1), 
-    inset 0 0 10px rgba(61, 169, 255, 0.08),
-    0 2px 4px rgba(15, 23, 42, 0.04) !important;
+  color: #0f172a !important; /* Dark Slate Text */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), 0 2px 4px rgba(15, 23, 42, 0.05) !important;
   border: 1px solid #cbd5e1 !important;
-  border-left-width: 0 !important;
-  
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-/* Hover glow & subtle lift (Image 2 & 3 dynamic lighting) */
-.nsc-dashboard .bezel__inner:hover {
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 1), 
-    inset 0 0 14px rgba(61, 169, 255, 0.16),
-    0 0 10px rgba(61, 169, 255, 0.15),
-    0 8px 24px rgba(15, 23, 42, 0.08) !important;
-  transform: translateY(-2px);
-  border-color: #b2c2d4 !important;
 }
 
 /* 1. Gauge Widgets (Job Status Bar) */
@@ -1122,39 +1094,10 @@
   --gauge-face-shadow: #cbd5e1;
 }
 .status-bar .bezel__inner {
-  --bezel-accent: #1d4ed8;
-}
-
-/* Weather HUD Special Dark Glassmorphism Override (Image 2 & 3 Dark Pane style) */
-.nsc-dashboard .weather-strip .bezel__inner {
-  background-color: #0c1524 !important;
-  background-image:
-    linear-gradient(135deg, rgba(12, 21, 36, 0.82) 0%, rgba(20, 32, 54, 0.88) 100%),
-    url("/dashboard/weather-radar-bg.png") !important;
-  background-size: cover !important;
-  background-position: center right !important;
-  background-repeat: no-repeat !important;
-  border-left: 4.5px solid var(--neon-blue, #3da9ff) !important;
-  color: #f2f6fb !important;
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 0 16px rgba(61, 169, 255, 0.25),
-    0 4px 12px rgba(0, 0, 0, 0.3) !important;
-  border-radius: 8px !important;
-  border: 1px solid rgba(61, 169, 255, 0.2) !important;
-  border-left-width: 0 !important;
-}
-.nsc-dashboard .weather-strip .bezel__inner:hover {
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    inset 0 0 20px rgba(61, 169, 255, 0.35),
-    0 0 12px rgba(61, 169, 255, 0.25),
-    0 8px 24px rgba(0, 0, 0, 0.4) !important;
-  transform: translateY(-2px);
-  border-color: rgba(61, 169, 255, 0.4) !important;
+  border-top: 3px solid #1d4ed8 !important;
 }
 .status-bar .radial-gauge__value {
-  color: var(--ink) !important; /* High contrast dark value */
+  color: #0f172a !important; /* High contrast dark value */
 }
 .status-bar .radial-gauge__label {
   color: #475569 !important; /* Soft slate label */
@@ -1164,25 +1107,24 @@
 
 /* 2. Calendar Card */
 .calendar-card .bezel__inner {
-  color: var(--ink) !important;
-  --bezel-accent: var(--neon-blue);
+  color: #1e293b !important;
 }
 .calendar-card .card__title {
-  color: var(--ink) !important;
+  color: #0f172a !important;
   text-shadow: none !important;
 }
 .calendar-card__day {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  color: var(--ink) !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
 }
 .calendar-card__day:hover {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
 }
 .calendar-card__day--selected {
-  background: rgba(59, 130, 246, 0.2) !important; /* Royal Blue selection */
-  border-color: #3b82f6 !important;
+  background: #2563eb !important; /* Royal Blue selection */
+  border-color: #1d4ed8 !important;
   color: #ffffff !important;
 }
 .calendar-card__day--selected .calendar-card__date,
@@ -1190,50 +1132,49 @@
   color: #ffffff !important;
 }
 .calendar-card__date {
-  color: var(--ink) !important;
+  color: #0f172a !important;
 }
 .calendar-card__dow {
-  color: #94a3b8 !important;
+  color: #64748b !important;
 }
 .calendar-card__crew {
   display: flex !important;
   flex-direction: column !important;
-  background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-left: 4px solid #3b82f6 !important; /* Royal Blue accent stripe */
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  border-left: 4px solid #2563eb !important; /* Royal Blue accent stripe */
   border-radius: 8px !important;
   padding: 8px 12px !important;
   margin-bottom: 4px;
 }
 .calendar-card__crew-name {
-  color: var(--ink) !important;
+  color: #0f172a !important;
   font-weight: 700 !important;
 }
 .calendar-card__crew-meta {
-  color: #94a3b8 !important;
+  color: #64748b !important;
 }
 .calendar-card__open {
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  background: rgba(255, 255, 255, 0.02) !important;
-  color: #3b82f6 !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #2563eb !important;
   font-weight: 700 !important;
 }
 .calendar-card__open:hover {
-  background: rgba(255, 255, 255, 0.06) !important;
-  color: #60a5fa !important;
+  background: #f1f5f9 !important;
+  color: #1d4ed8 !important;
 }
 .calendar-card__empty {
-  color: #94a3b8 !important;
+  color: #64748b !important;
   font-weight: 600 !important;
 }
 
 /* 3. Active Dig Tickets Card */
 .digtix-card .bezel__inner {
-  color: var(--ink) !important;
-  --bezel-accent: var(--neon-mint);
+  color: #1e293b !important;
 }
 .digtix-card .card__title {
-  color: var(--ink) !important;
+  color: #0f172a !important;
   text-shadow: none !important;
 }
 .digtix-card__list {
@@ -1246,19 +1187,19 @@
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
-  background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-left: 4px solid #3b82f6 !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-left: 4px solid #2563eb !important;
   border-radius: 8px !important;
   padding: 10px 14px !important;
   transition: all 0.2s ease !important;
   cursor: pointer !important;
 }
 .digtix-card__item:hover {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
 }
 .digtix-card__item:has(.digtix-card__pill--red) {
   border-left-color: var(--neon-red) !important;
@@ -1290,112 +1231,110 @@
 .digtix-card__item-header {
   font-size: 11px !important;
   text-transform: uppercase !important;
-  color: #94a3b8 !important;
+  color: #64748b !important;
   letter-spacing: 0.05em !important;
 }
 .digtix-card__item-text {
   font-size: 14px !important;
   font-weight: 600 !important;
-  color: var(--ink) !important;
+  color: #0f172a !important;
 }
 .digtix-card__empty {
-  color: #94a3b8 !important;
+  color: #64748b !important;
   font-weight: 600 !important;
 }
 
 /* 4. At Risk Jobs Card */
 .atrisk-card .bezel__inner {
-  color: var(--ink) !important;
-  --bezel-accent: var(--neon-red); /* At-Risk Red accent left stripe */
+  color: #1e293b !important;
 }
 .atrisk-card__title {
-  color: var(--ink) !important;
+  color: #0f172a !important;
   text-shadow: none !important;
 }
 .atrisk-card__count {
-  background: rgba(239, 68, 68, 0.15) !important; /* Soft alert red count badge */
+  background: #fee2e2 !important; /* Soft alert red count badge */
   color: #ef4444 !important;
-  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  border: 1px solid #fca5a5 !important;
 }
 .atrisk-card__table th {
-  background: rgba(255, 255, 255, 0.06) !important;
-  color: #94a3b8 !important;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.1) !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
 }
 .atrisk-card__table td {
-  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
-  color: var(--ink) !important;
+  border-top: 1px solid #e2e8f0 !important;
+  color: #1e293b !important;
 }
 .atrisk-card__row {
-  background: rgba(255, 255, 255, 0.02) !important;
+  background: #ffffff !important;
   transition: all 0.2s ease !important;
 }
 .atrisk-card__row:hover {
-  background: rgba(255, 255, 255, 0.06) !important;
+  background: #f8fafc !important;
 }
 .atrisk-card__empty {
-  color: #94a3b8 !important;
+  color: #64748b !important;
   font-weight: 600 !important;
 }
 
 /* 5. Lumina Briefing Card */
 .lumina-card .bezel__inner {
-  color: var(--ink) !important;
-  --bezel-accent: #8b5cf6; /* Lumina Purple accent left stripe */
+  color: #1e293b !important;
+  border-top: 3px solid #8b5cf6 !important; /* Lumina Purple accent top stripe */
 }
 .lumina-card__brand {
-  color: #a78bfa !important;
+  color: #8b5cf6 !important;
   text-shadow: none !important;
 }
 .lumina-card__hello {
-  color: var(--ink) !important;
+  color: #0f172a !important;
   text-shadow: none !important;
 }
 .lumina-card__bullet {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
   border-left: 3px solid #8b5cf6 !important; /* Purple trim */
   border-radius: 8px !important;
   padding: 8px 12px !important;
   margin-bottom: 6px !important;
-  color: var(--ink) !important;
+  color: #1e293b !important;
 }
 .lumina-card__ask-input {
-  background: rgba(255, 255, 255, 0.02) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  color: var(--ink) !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
 }
 .lumina-card__ask-input::placeholder {
-  color: #64748b !important;
+  color: #94a3b8 !important;
 }
 .lumina-card__ask-input:focus {
   border-color: #8b5cf6 !important;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25) !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15) !important;
 }
 
 /* 6. Quick Links Card */
 .quicklinks-card .bezel__inner {
-  color: var(--ink) !important;
-  --bezel-accent: var(--neon-amber);
+  color: #1e293b !important;
 }
 .quicklinks-card .card__title {
-  color: var(--ink) !important;
+  color: #0f172a !important;
   text-shadow: none !important;
 }
 .quicklinks-card__tile {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
   box-shadow: none !important;
-  color: var(--ink) !important;
+  color: #1e293b !important;
   transition: all 0.2s ease !important;
 }
 .quicklinks-card__tile:hover {
-  border-color: #3b82f6 !important;
-  background: rgba(59, 130, 246, 0.15) !important;
-  color: #60a5fa !important;
+  border-color: #2563eb !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
 }
 .quicklinks-card__label {
-  color: #cbd5e1 !important;
+  color: #334155 !important;
 }
 
 /* ── Dashboard Sizing & Glowing Title Effects ── */
@@ -1411,7 +1350,7 @@
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
   text-shadow: none !important;
-  color: var(--ink) !important;
+  color: #0f172a !important;
 }
 
 .nsc-dashboard .card__title::before {
