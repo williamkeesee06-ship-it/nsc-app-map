@@ -339,7 +339,18 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   // Give it a brief moment to register the input value
   await page.waitForTimeout(200);
 
-  // 2. Click the center LatLng on the map to place the circle
+  // 2. Click the tool button (accordion header) to reactivate drawing mode on the map
+  // since entering the radius text deactivated it. If this click collapses the panel,
+  // click it a second time to re-expand and activate it.
+  const toolButton = page.locator('a:has(img[src*="circle-tool"])').first();
+  await toolButton.click();
+  await page.waitForTimeout(300);
+  if (!(await radiusInput.isVisible())) {
+    await toolButton.click();
+    await radiusInput.waitFor({ state: "visible", timeout: 5000 });
+  }
+
+  // 3. Click the center LatLng on the map to place the circle
   await clickLatLng(page, center.lat, center.lng);
   
   // Wait a moment for the map drawing engine to render the circle
