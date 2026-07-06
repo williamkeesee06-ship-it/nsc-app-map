@@ -299,7 +299,7 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   await waitForMapProjection(page);
   // Tool already selected in the "opening drawing panel" step; just drop points.
   await clickLatLng(page, center.lat, center.lng);
-  const radiusInput = page.locator('input[type="number"]').first();
+  const radiusInput = page.locator("#oimc_circleRadius, input[type='number']").first();
   if ((await radiusInput.count()) > 0) await radiusInput.fill(String(radiusFt));
 }
 
