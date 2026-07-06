@@ -10,9 +10,9 @@
   --neon-violet: #b48cff;
   --neon-amber: #ffb547;
   --neon-red: #ff3b5c;
-  --ink: #1a2230;
-  --ink-soft: #5b6878;
-  --steel-line: #c8d0d9;
+  --ink: #f2f6fb;
+  --ink-soft: #94a3b8;
+  --steel-line: #334155;
   --neon-glow: 0 0 12px rgba(61, 169, 255, 0.55);
 
   position: absolute;
@@ -28,11 +28,11 @@
      peeks through the gaps between them. */
   /* Redesigned Background inspired by Image 1, 2, and 3: matte steel gradients, cyan-blue ambient underglows, and subtle geometric creases/circuit paths */
   background-image:
-    radial-gradient(1200px 800px at 0% 0%, rgba(30, 167, 255, 0.09), transparent 75%),
-    radial-gradient(1000px 700px at 100% 100%, rgba(0, 82, 204, 0.05), transparent 65%),
-    linear-gradient(115deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0) 70%, rgba(255, 255, 255, 0.2) 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cpath d='M 0,0 L 240,240 M 240,0 L 0,240' stroke='rgba(255, 255, 255, 0.45)' stroke-width='1.5' stroke-dasharray='2 12'/%3E%3Cpath d='M 120,0 L 240,120 M 0,120 L 120,240 M 120,0 L 0,120 M 240,120 L 120,240' stroke='rgba(255, 255, 255, 0.35)' stroke-width='1'/%3E%3Cpath d='M 30,40 L 90,40 L 110,60 L 110,130 L 130,150 L 190,150' fill='none' stroke='rgba(30, 167, 255, 0.05)' stroke-width='1.5'/%3E%3Cpath d='M 50,190 L 100,190 L 120,210 L 180,210' fill='none' stroke='rgba(30, 167, 255, 0.04)' stroke-width='1.5'/%3E%3Ccircle cx='30' cy='40' r='3' fill='none' stroke='rgba(30, 167, 255, 0.15)' stroke-width='1'/%3E%3Ccircle cx='190' cy='150' r='3' fill='none' stroke='rgba(30, 167, 255, 0.15)' stroke-width='1'/%3E%3Ccircle cx='50' cy='190' r='2.5' fill='rgba%2830, 167, 255, 0.09%29'/%3E%3Ccircle cx='180' cy='210' r='2.5' fill='rgba%2830, 167, 255, 0.09%29'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='80' cy='20' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='140' cy='20' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='200' cy='20' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='20' cy='80' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='80' cy='80' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='140' cy='80' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='200' cy='80' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='20' cy='140' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='80' cy='140' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='140' cy='140' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='200' cy='140' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='20' cy='200' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='80' cy='200' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='140' cy='200' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3Ccircle cx='200' cy='200' r='1' fill='rgba%28148, 163, 184, 0.1%29'/%3E%3C/svg%3E"),
-    linear-gradient(180deg, #f5f8fc 0%, #eef3f8 50%, #e2eaf4 100%);
+    radial-gradient(1200px 800px at 0% 0%, rgba(30, 167, 255, 0.15), transparent 75%),
+    radial-gradient(1000px 700px at 100% 100%, rgba(0, 82, 204, 0.12), transparent 65%),
+    linear-gradient(115deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0) 70%, rgba(255, 255, 255, 0.03) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cpath d='M 0,0 L 240,240 M 240,0 L 0,240' stroke='rgba(255, 255, 255, 0.05)' stroke-width='1.5' stroke-dasharray='2 12'/%3E%3Cpath d='M 120,0 L 240,120 M 0,120 L 120,240 M 120,0 L 0,120 M 240,120 L 120,240' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M 30,40 L 90,40 L 110,60 L 110,130 L 130,150 L 190,150' fill='none' stroke='rgba(30, 167, 255, 0.05)' stroke-width='1.5'/%3E%3Cpath d='M 50,190 L 100,190 L 120,210 L 180,210' fill='none' stroke='rgba(30, 167, 255, 0.04)' stroke-width='1.5'/%3E%3Ccircle cx='30' cy='40' r='3' fill='none' stroke='rgba(30, 167, 255, 0.15)' stroke-width='1'/%3E%3Ccircle cx='190' cy='150' r='3' fill='none' stroke='rgba(30, 167, 255, 0.15)' stroke-width='1'/%3E%3Ccircle cx='50' cy='190' r='2.5' fill='rgba%2830, 167, 255, 0.09%29'/%3E%3Ccircle cx='180' cy='210' r='2.5' fill='rgba%2830, 167, 255, 0.09%29'/%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='80' cy='20' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='140' cy='20' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='200' cy='20' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='20' cy='80' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='80' cy='80' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='140' cy='80' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='200' cy='80' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='20' cy='140' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='80' cy='140' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='140' cy='140' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='200' cy='140' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='20' cy='200' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='80' cy='200' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='140' cy='200' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3Ccircle cx='200' cy='200' r='1' fill='rgba%28148, 163, 184, 0.05%29'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, #101622 0%, #0a0e17 50%, #06090e 100%);
   background-repeat: no-repeat, no-repeat, no-repeat, repeat, no-repeat;
   background-position: center, center, center, center, center;
   background-size: cover, cover, cover, auto, cover;
@@ -102,18 +102,18 @@
   padding: 18px;
   background: linear-gradient(
     180deg,
-    #ffffff 0%,
-    #eef2f7 30%,
-    #d4dce5 70%,
-    #b9c3ce 100%
+    #2a364a 0%,
+    #1d2636 30%,
+    #151b28 70%,
+    #0f141e 100%
   ) !important;
-  border: 1px solid #a6b1bd !important;
+  border: 1px solid #3d4f66 !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 1),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
-    inset 0 -3px 4px rgba(120, 135, 150, 0.55),
-    0 1px 2px rgba(40, 50, 65, 0.15),
-    0 14px 34px -12px rgba(28, 38, 54, 0.4) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 -3px 4px rgba(0, 0, 0, 0.55),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    0 14px 34px -12px rgba(0, 0, 0, 0.8) !important;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -126,11 +126,11 @@
   display: flex;
   flex-direction: column;
   border-radius: 8px;
-  background: #ffffff;
+  background: #0b111a;
   padding: 16px 18px;
   box-shadow:
-    inset 0 0 0 1px #e4e8ee,
-    inset 0 2px 6px rgba(30, 42, 60, 0.06);
+    inset 0 0 0 1px #1d2938,
+    inset 0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
 .bezel__accent {
@@ -165,19 +165,19 @@
   border-radius: 50%;
   background: radial-gradient(
     circle at 32% 26%,
-    #ffffff 0%,
-    #e6ecf2 22%,
-    #b3bdc9 52%,
-    #7d8895 78%,
-    #4c5560 100%
+    #e6ecf2 0%,
+    #8c97a3 22%,
+    #5b6878 52%,
+    #334155 78%,
+    #1e293b 100%
   ) !important;
   box-shadow:
     /* recessed hard shadow on bottom-right */
-    inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.7),
     /* specular pop on top-left */
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.95),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.4),
     /* outer drop shadow so the head sits on the frame */
-    0 1px 2px rgba(0, 0, 0, 0.25) !important;
+    0 1px 2px rgba(0, 0, 0, 0.6) !important;
   z-index: 4;
 }
 
@@ -187,10 +187,10 @@
   position: absolute;
   inset: -2px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #fdfefe 0%, #c4ccd6 45%, #8c97a3 100%);
+  background: linear-gradient(135deg, #7d8895 0%, #4c5560 45%, #1e293b 100%);
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.85),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.3);
+    inset 0 1px 1px rgba(255, 255, 255, 0.2),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.8);
   z-index: -1;
 }
 
@@ -495,12 +495,12 @@
   padding: 4px 8px;
   position: sticky;
   top: 0;
-  background: #f4f8fc;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .digtix-card__table td {
   padding: 7px 8px;
-  border-top: 1px solid #eef1f5;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
   color: var(--ink);
   vertical-align: middle;
 }
@@ -568,7 +568,7 @@
 
 .calendar-card__open {
   border: 1px solid var(--steel-line);
-  background: linear-gradient(180deg, #ffffff, #eef2f6);
+  background: linear-gradient(180deg, #1e293b, #0f172a);
   color: var(--neon-blue);
   border-radius: 999px;
   padding: 3px 12px;
@@ -593,7 +593,7 @@
   padding: 7px 2px;
   border-radius: 10px;
   border: 1px solid var(--steel-line);
-  background: linear-gradient(180deg, #ffffff, #eef2f6);
+  background: linear-gradient(180deg, #1e293b, #0f172a);
   color: var(--ink);
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease;
@@ -611,7 +611,7 @@
 .calendar-card__day--selected {
   border-color: var(--neon-blue);
   color: var(--neon-blue);
-  background: linear-gradient(180deg, #effaff, #d8eeff);
+  background: linear-gradient(180deg, #1e3a5f, #0f274a);
   box-shadow:
     inset 0 1px 4px rgba(30, 42, 60, 0.12),
     var(--neon-glow);
@@ -1092,7 +1092,7 @@
   border-top: none !important;
   border-left: 4.5px solid var(--bezel-accent, #1d4ed8) !important;
   border-radius: 8px !important;
-  color: #0f172a !important; /* Dark Slate Text */
+  color: var(--ink) !important; /* Dark Slate Text */
   
   /* Edge underglow inspired by Image 2 & 3 */
   box-shadow: 
@@ -1154,7 +1154,7 @@
   border-color: rgba(61, 169, 255, 0.4) !important;
 }
 .status-bar .radial-gauge__value {
-  color: #0f172a !important; /* High contrast dark value */
+  color: var(--ink) !important; /* High contrast dark value */
 }
 .status-bar .radial-gauge__label {
   color: #475569 !important; /* Soft slate label */
@@ -1164,25 +1164,25 @@
 
 /* 2. Calendar Card */
 .calendar-card .bezel__inner {
-  color: #1e293b !important;
+  color: var(--ink) !important;
   --bezel-accent: var(--neon-blue);
 }
 .calendar-card .card__title {
-  color: #0f172a !important;
+  color: var(--ink) !important;
   text-shadow: none !important;
 }
 .calendar-card__day {
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
-  color: #0f172a !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--ink) !important;
 }
 .calendar-card__day:hover {
-  background: #f1f5f9 !important;
-  border-color: #cbd5e1 !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
 }
 .calendar-card__day--selected {
-  background: #2563eb !important; /* Royal Blue selection */
-  border-color: #1d4ed8 !important;
+  background: rgba(59, 130, 246, 0.2) !important; /* Royal Blue selection */
+  border-color: #3b82f6 !important;
   color: #ffffff !important;
 }
 .calendar-card__day--selected .calendar-card__date,
@@ -1190,50 +1190,50 @@
   color: #ffffff !important;
 }
 .calendar-card__date {
-  color: #0f172a !important;
+  color: var(--ink) !important;
 }
 .calendar-card__dow {
-  color: #64748b !important;
+  color: #94a3b8 !important;
 }
 .calendar-card__crew {
   display: flex !important;
   flex-direction: column !important;
-  background: #f8fafc !important;
-  border: 1px solid #cbd5e1 !important;
-  border-left: 4px solid #2563eb !important; /* Royal Blue accent stripe */
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-left: 4px solid #3b82f6 !important; /* Royal Blue accent stripe */
   border-radius: 8px !important;
   padding: 8px 12px !important;
   margin-bottom: 4px;
 }
 .calendar-card__crew-name {
-  color: #0f172a !important;
+  color: var(--ink) !important;
   font-weight: 700 !important;
 }
 .calendar-card__crew-meta {
-  color: #64748b !important;
+  color: #94a3b8 !important;
 }
 .calendar-card__open {
-  border: 1px solid #cbd5e1 !important;
-  background: #ffffff !important;
-  color: #2563eb !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  color: #3b82f6 !important;
   font-weight: 700 !important;
 }
 .calendar-card__open:hover {
-  background: #f1f5f9 !important;
-  color: #1d4ed8 !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #60a5fa !important;
 }
 .calendar-card__empty {
-  color: #64748b !important;
+  color: #94a3b8 !important;
   font-weight: 600 !important;
 }
 
 /* 3. Active Dig Tickets Card */
 .digtix-card .bezel__inner {
-  color: #1e293b !important;
+  color: var(--ink) !important;
   --bezel-accent: var(--neon-mint);
 }
 .digtix-card .card__title {
-  color: #0f172a !important;
+  color: var(--ink) !important;
   text-shadow: none !important;
 }
 .digtix-card__list {
@@ -1246,19 +1246,19 @@
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
-  border-left: 4px solid #2563eb !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-left: 4px solid #3b82f6 !important;
   border-radius: 8px !important;
   padding: 10px 14px !important;
   transition: all 0.2s ease !important;
   cursor: pointer !important;
 }
 .digtix-card__item:hover {
-  background: #f1f5f9 !important;
-  border-color: #cbd5e1 !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25) !important;
 }
 .digtix-card__item:has(.digtix-card__pill--red) {
   border-left-color: var(--neon-red) !important;
@@ -1290,112 +1290,112 @@
 .digtix-card__item-header {
   font-size: 11px !important;
   text-transform: uppercase !important;
-  color: #64748b !important;
+  color: #94a3b8 !important;
   letter-spacing: 0.05em !important;
 }
 .digtix-card__item-text {
   font-size: 14px !important;
   font-weight: 600 !important;
-  color: #0f172a !important;
+  color: var(--ink) !important;
 }
 .digtix-card__empty {
-  color: #64748b !important;
+  color: #94a3b8 !important;
   font-weight: 600 !important;
 }
 
 /* 4. At Risk Jobs Card */
 .atrisk-card .bezel__inner {
-  color: #1e293b !important;
+  color: var(--ink) !important;
   --bezel-accent: var(--neon-red); /* At-Risk Red accent left stripe */
 }
 .atrisk-card__title {
-  color: #0f172a !important;
+  color: var(--ink) !important;
   text-shadow: none !important;
 }
 .atrisk-card__count {
-  background: #fee2e2 !important; /* Soft alert red count badge */
+  background: rgba(239, 68, 68, 0.15) !important; /* Soft alert red count badge */
   color: #ef4444 !important;
-  border: 1px solid #fca5a5 !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
 }
 .atrisk-card__table th {
-  background: #f1f5f9 !important;
-  color: #475569 !important;
-  border-bottom: 2px solid #cbd5e1 !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #94a3b8 !important;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1) !important;
 }
 .atrisk-card__table td {
-  border-top: 1px solid #e2e8f0 !important;
-  color: #1e293b !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--ink) !important;
 }
 .atrisk-card__row {
-  background: #ffffff !important;
+  background: rgba(255, 255, 255, 0.02) !important;
   transition: all 0.2s ease !important;
 }
 .atrisk-card__row:hover {
-  background: #f8fafc !important;
+  background: rgba(255, 255, 255, 0.06) !important;
 }
 .atrisk-card__empty {
-  color: #64748b !important;
+  color: #94a3b8 !important;
   font-weight: 600 !important;
 }
 
 /* 5. Lumina Briefing Card */
 .lumina-card .bezel__inner {
-  color: #1e293b !important;
+  color: var(--ink) !important;
   --bezel-accent: #8b5cf6; /* Lumina Purple accent left stripe */
 }
 .lumina-card__brand {
-  color: #8b5cf6 !important;
+  color: #a78bfa !important;
   text-shadow: none !important;
 }
 .lumina-card__hello {
-  color: #0f172a !important;
+  color: var(--ink) !important;
   text-shadow: none !important;
 }
 .lumina-card__bullet {
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-left: 3px solid #8b5cf6 !important; /* Purple trim */
   border-radius: 8px !important;
   padding: 8px 12px !important;
   margin-bottom: 6px !important;
-  color: #1e293b !important;
+  color: var(--ink) !important;
 }
 .lumina-card__ask-input {
-  background: #ffffff !important;
-  border: 1px solid #cbd5e1 !important;
-  color: #0f172a !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: var(--ink) !important;
 }
 .lumina-card__ask-input::placeholder {
-  color: #94a3b8 !important;
+  color: #64748b !important;
 }
 .lumina-card__ask-input:focus {
   border-color: #8b5cf6 !important;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15) !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25) !important;
 }
 
 /* 6. Quick Links Card */
 .quicklinks-card .bezel__inner {
-  color: #1e293b !important;
+  color: var(--ink) !important;
   --bezel-accent: var(--neon-amber);
 }
 .quicklinks-card .card__title {
-  color: #0f172a !important;
+  color: var(--ink) !important;
   text-shadow: none !important;
 }
 .quicklinks-card__tile {
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow: none !important;
-  color: #1e293b !important;
+  color: var(--ink) !important;
   transition: all 0.2s ease !important;
 }
 .quicklinks-card__tile:hover {
-  border-color: #2563eb !important;
-  background: #eff6ff !important;
-  color: #1d4ed8 !important;
+  border-color: #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
 }
 .quicklinks-card__label {
-  color: #334155 !important;
+  color: #cbd5e1 !important;
 }
 
 /* ── Dashboard Sizing & Glowing Title Effects ── */
@@ -1411,7 +1411,7 @@
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
   text-shadow: none !important;
-  color: #0f172a !important;
+  color: var(--ink) !important;
 }
 
 .nsc-dashboard .card__title::before {
