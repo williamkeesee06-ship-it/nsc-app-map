@@ -335,18 +335,20 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   await radiusInput.pressSequentially(String(radiusFt), { delay: 100 });
   await radiusInput.press("Enter");
   await radiusInput.press("Tab");
+  await radiusInput.blur();
+  await page.locator("body").focus();
   
-  // Give it a brief moment to register the input value
-  await page.waitForTimeout(200);
+  // Give it a brief moment to register the input value and remove focus
+  await page.waitForTimeout(300);
 
   // 2. Click the tool button (accordion header) to reactivate drawing mode on the map
   // since entering the radius text deactivated it. If this click collapses the panel,
   // click it a second time to re-expand and activate it.
-  const toolButton = page.locator('a:has(img[src*="circle-tool"])').first();
-  await toolButton.evaluate((el) => (el as HTMLAnchorElement).click());
+  const toolButton = page.locator("#oimc_circleStart").first();
+  await toolButton.click();
   await page.waitForTimeout(300);
   if (!(await radiusInput.isVisible())) {
-    await toolButton.evaluate((el) => (el as HTMLAnchorElement).click());
+    await toolButton.click();
     await radiusInput.waitFor({ state: "visible", timeout: 5000 });
   }
 
@@ -443,13 +445,13 @@ async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<vo
     // The menu icons are circle-tool / route-tool / polygon-tool — NOT draw*.svg.
     const toolSelector =
       shape.type === "radius"
-        ? 'a:has(img[src*="circle-tool"])'
+        ? "#oimc_circleStart"
         : shape.type === "route"
-          ? 'a:has(img[src*="route-tool"])'
-          : 'a:has(img[src*="polygon-tool"])';
+          ? "#oimc_routeStart"
+          : "#oimc_polygonStart";
     const toolButton = page.locator(toolSelector).first();
-    await toolButton.waitFor({ state: "attached", timeout: 10_000 });
-    await toolButton.evaluate((el) => (el as HTMLAnchorElement).click());
+    await toolButton.waitFor({ state: "visible", timeout: 10_000 });
+    await toolButton.click();
 
     // Polygon ("Other") pops a confirmation dialog that must be dismissed.
     if (shape.type === "polygon") {
