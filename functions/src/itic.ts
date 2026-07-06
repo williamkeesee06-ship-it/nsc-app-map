@@ -499,9 +499,9 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
   await hideOverlays(page);
 
   await step(page, "Step 2: location of work + remarks", async () => {
-    const loc = page.getByLabel(/location of work/i);
+    const loc = page.getByLabel(/location of work/i).filter({ visible: true }).first();
     if ((await loc.count()) > 0) await loc.fill(ticket.markingInstructions ?? "");
-    const remarks = page.getByLabel(/remarks/i);
+    const remarks = page.getByLabel(/remarks/i).filter({ visible: true }).first();
     if ((await remarks.count()) > 0) {
       await remarks.fill(ticket.hazardsWarning || describeDigSite(ticket, job));
     }
@@ -510,31 +510,31 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
   await step(page, "Step 2: work-begin date", async () => {
     // Soonest allowed start = today + 2 business days, at midnight (12:00 AM).
     const start = addBusinessDays(new Date(), 2);
-    const dateField = page.getByLabel(/work to begin date/i);
+    const dateField = page.getByLabel(/work to begin date/i).filter({ visible: true }).first();
     if ((await dateField.count()) > 0) await dateField.fill(formatMDY(start));
-    const timeField = page.getByLabel(/^at$|begin time|work to begin time/i);
+    const timeField = page.getByLabel(/^at$|begin time|work to begin time/i).filter({ visible: true }).first();
     if ((await timeField.count()) > 0) await timeField.fill("12:00 AM");
   });
 
   await step(page, "Step 2: type of work", async () => {
     // Pass the user-typed work type through verbatim — no MEC/HAND/BORE mapping.
-    const tow = page.getByLabel(/type of work/i);
+    const tow = page.getByLabel(/type of work/i).filter({ visible: true }).first();
     if ((await tow.count()) > 0) await tow.fill(specs.workType);
   });
 
   await step(page, "Step 2: directional drilling / white lined", async () => {
-    const drilling = page.getByLabel(/directional drilling/i);
+    const drilling = page.getByLabel(/directional drilling/i).filter({ visible: true }).first();
     if ((await drilling.count()) > 0) {
       await drilling.selectOption({ label: specs.directionalBoring ? "Yes" : "No" });
     }
-    const whiteLined = page.getByLabel(/area white lined/i);
+    const whiteLined = page.getByLabel(/area white lined/i).filter({ visible: true }).first();
     if ((await whiteLined.count()) > 0) {
       await whiteLined.selectOption({ label: specs.whiteLined ? "Yes" : "No" });
     }
   });
 
   await step(page, "Step 2: excavation equipment", async () => {
-    const listbox = page.getByRole("listbox", { name: /excavation equipment/i });
+    const listbox = page.getByRole("listbox", { name: /excavation equipment/i }).filter({ visible: true }).first();
     if ((await listbox.count()) === 0) return;
     for (const label of mapEquipment(specs.equipment)) {
       const opt = listbox.getByRole("option", { name: label, exact: false }).first();
@@ -547,7 +547,7 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
   });
 
   await step(page, "Step 2: work being done for", async () => {
-    const forField = page.getByLabel(/work being done for/i);
+    const forField = page.getByLabel(/work being done for/i).filter({ visible: true }).first();
     if ((await forField.count()) > 0) await forField.fill("LUMEN");
   });
 }
