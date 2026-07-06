@@ -344,7 +344,7 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   // 2. Click the tool button (accordion header) to reactivate drawing mode on the map
   // since entering the radius text deactivated it. If this click collapses the panel,
   // click it a second time to re-expand and activate it.
-  const toolButton = page.locator("#oimc_circleStart").first();
+  const toolButton = page.locator("#oimc_circleStart").filter({ visible: true }).first();
   await toolButton.click();
   await page.waitForTimeout(300);
   if (!(await radiusInput.isVisible())) {
@@ -449,7 +449,7 @@ async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<vo
         : shape.type === "route"
           ? "#oimc_routeStart"
           : "#oimc_polygonStart";
-    const toolButton = page.locator(toolSelector).first();
+    const toolButton = page.locator(toolSelector).filter({ visible: true }).first();
     await toolButton.waitFor({ state: "visible", timeout: 10_000 });
     await toolButton.click();
 
