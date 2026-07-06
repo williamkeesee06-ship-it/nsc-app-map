@@ -496,6 +496,7 @@ async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<vo
 // ── Step 2: write instructions ────────────────────────────────────────────────
 async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promise<void> {
   const specs = ticket.specs;
+  await hideOverlays(page);
 
   await step(page, "Step 2: location of work + remarks", async () => {
     const loc = page.getByLabel(/location of work/i);
@@ -662,12 +663,14 @@ async function extractConfirmation(
 // expiration, and capture a Letter-format PDF of the confirmation page.
 export async function submitAndConfirm(page: Page): Promise<SubmitResult> {
   page.setDefaultTimeout(STEP_TIMEOUT);
+  await hideOverlays(page);
   await step(page, "Step 2: Next → Step 3 (review)", async () => {
     await page.getByRole("button", { name: /next/i }).click();
     await page.waitForURL("**/createTicketStep3", { timeout: STEP_TIMEOUT });
   });
 
   await step(page, "Step 3: submitting ticket", async () => {
+    await hideOverlays(page);
     await page.click(ITIC_SELECTORS.submitButton);
     await page.waitForLoadState("networkidle", { timeout: 120_000 });
   });
