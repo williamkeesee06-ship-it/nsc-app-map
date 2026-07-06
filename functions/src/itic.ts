@@ -140,9 +140,50 @@ function formatMDY(d: Date): string {
   return `${mm}/${dd}/${d.getFullYear()}`;
 }
 
-// ── map projection helpers ─────────────────────────────────────────────────
 // Convert a lat/lng to a pixel offset within the map container using the live
-// latLngToPixel is removed in favor of direct center-clicking which is more robust.
+// Google Maps projection. Runs inside the page so it can read window.google.maps.
+// Returns null if the map instance/projection is not reachable.
+async function latLngToPixel(
+  page: Page,
+  lat: number,
+  lng: number
+): Promise<{ x: number; y: number } | null> {
+  // Google Maps' getProjection() returns undefined until the projection_changed
+  // event fires (after the first idle + tile load). Even when we gate on
+  // waitForMapProjection before tracing, re-poll here so a per-point transient
+  // (e.g. a tile reload after a pan) doesn't throw. Up to 20 × 250ms.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const pos = await page.evaluate(
+      ({ lat, lng }) => {
+        const w = window as any;
+        const g = w.google;
+        if (!g?.maps) return null;
+        const map =
+          (w.oimc && w.oimc.map && w.oimc.map.googleMap) ||
+          ((document.querySelector("#oimc_mapCanvas") as any)?.__gm?.map) ||
+          null;
+        if (!map || typeof map.getProjection !== "function") return null;
+        const proj = map.getProjection();
+        const bounds = map.getBounds?.();
+        if (!proj || !bounds) return null;
+        const scale = Math.pow(2, map.getZoom());
+        const ne = bounds.getNorthEast();
+        const sw = bounds.getSouthWest();
+        const topRight = proj.fromLatLngToPoint(ne);
+        const bottomLeft = proj.fromLatLngToPoint(sw);
+        const point = proj.fromLatLngToPoint(new g.maps.LatLng(lat, lng));
+        return {
+          x: (point.x - bottomLeft.x) * scale,
+          y: (point.y - topRight.y) * scale,
+        };
+      },
+      { lat, lng }
+    );
+    if (pos) return pos;
+    await page.waitForTimeout(250);
+  }
+  return null;
+}
 
 // Poll until the live Google Maps projection is reachable so lat/lng→pixel
 // conversion won't throw. getProjection() is undefined until the
@@ -187,42 +228,13 @@ async function clickLatLng(
   page: Page,
   lat: number,
   lng: number,
-  dblclick = false,
-  toolSelector?: string
+  dblclick = false
 ): Promise<void> {
-  // Center the map on the target LatLng first.
-  // This ensures the point is visible on the screen and positioned correctly relative to the canvas.
-  await page.evaluate(
-    ({ lat, lng }) => {
-      const w = window as any;
-      const map =
-        (w.oimc && w.oimc.map && w.oimc.map.googleMap) ||
-        ((document.querySelector("#oimc_mapCanvas") as any)?.__gm?.map);
-      if (map && w.google && w.google.maps) {
-        map.setCenter(new w.google.maps.LatLng(lat, lng));
-      }
-    },
-    { lat, lng }
-  );
+  const pos = await latLngToPixel(page, lat, lng);
+  if (!pos) throw new Error("Map projection not reachable for lat/lng→pixel conversion");
 
-  // Give the map a moment to finish centering and render tiles
-  await page.waitForTimeout(500);
-
-  // If a tool selector is provided, reactivate it because panning (setCenter) deactivates the drawing tool
-  if (toolSelector) {
-    const toolButton = page.locator(toolSelector).first();
-    await toolButton.waitFor({ state: "visible", timeout: 5000 });
-    await toolButton.click();
-    await page.waitForTimeout(200);
-  }
-
-  // Since the map was centered on (lat, lng), that coordinate is positioned exactly in the center of .gm-style.
   const map = page.locator(".gm-style").first();
   await map.waitFor({ state: "visible", timeout: 10000 });
-  const rect = await map.boundingBox();
-  if (!rect) throw new Error(".gm-style bounding box not found for click");
-  
-  const pos = { x: Math.round(rect.width / 2), y: Math.round(rect.height / 2) };
 
   if (dblclick) await map.dblclick({ position: pos, force: true });
   else await map.click({ position: pos, force: true });
@@ -325,7 +337,7 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   await page.waitForTimeout(200);
 
   // 2. Click the center LatLng on the map to place the circle
-  await clickLatLng(page, center.lat, center.lng, false, 'a:has(img[src*="circle-tool"])');
+  await clickLatLng(page, center.lat, center.lng);
   
   // Wait a moment for the map drawing engine to render the circle
   await page.waitForTimeout(500);
@@ -338,7 +350,7 @@ async function traceRoute(page: Page, shape: DigShape): Promise<void> {
   // Tool already selected in the "opening drawing panel" step; just drop points.
   for (let i = 0; i < path.length; i++) {
     // Double-click the final vertex to finish the polyline.
-    await clickLatLng(page, path[i].lat, path[i].lng, i === path.length - 1, 'a:has(img[src*="route-tool"])');
+    await clickLatLng(page, path[i].lat, path[i].lng, i === path.length - 1);
   }
 }
 
@@ -347,9 +359,9 @@ async function tracePolygon(page: Page, shape: DigShape): Promise<void> {
   if (verts.length < 3) throw new Error("Polygon shape has fewer than 3 vertices");
   await waitForMapProjection(page);
   // Tool already selected (incl. "Proceed to create polygon") in the opener step.
-  for (const v of verts) await clickLatLng(page, v.lat, v.lng, false, 'a:has(img[src*="polygon-tool"])');
+  for (const v of verts) await clickLatLng(page, v.lat, v.lng);
   // Close the ring: double-click the first vertex (standard polygon-close gesture).
-  await clickLatLng(page, verts[0].lat, verts[0].lng, true, 'a:has(img[src*="polygon-tool"])');
+  await clickLatLng(page, verts[0].lat, verts[0].lng, true);
 }
 
 async function traceShape(page: Page, shape: DigShape): Promise<void> {
