@@ -515,29 +515,56 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
     await page.locator("input#tkt-A-start-date").first().waitFor({ state: "attached", timeout: 15_000 });
     
     await page.evaluate(({ dateStr }) => {
-      const getVisibleEl = (selector: string) => {
-        const els = Array.from(document.querySelectorAll(selector));
-        return els.find(el => {
-          const rect = el.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            let parent = el.parentElement;
-            while (parent) {
-              if (window.getComputedStyle(parent).display === "none") return false;
-              parent = parent.parentElement;
+      let dateEl: HTMLInputElement | null = null;
+      const dateEls = Array.from(document.querySelectorAll("input#tkt-A-start-date"));
+      for (let i = 0; i < dateEls.length; i++) {
+        const el = dateEls[i];
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          let parent = el.parentElement;
+          let hidden = false;
+          while (parent) {
+            if (window.getComputedStyle(parent).display === "none") {
+              hidden = true;
+              break;
             }
-            return true;
+            parent = parent.parentElement;
           }
-          return false;
-        });
-      };
+          if (!hidden) {
+            dateEl = el as HTMLInputElement;
+            break;
+          }
+        }
+      }
 
-      const dateEl = getVisibleEl("input#tkt-A-start-date") as HTMLInputElement;
       if (dateEl) {
         dateEl.value = dateStr;
         const jq = (window as any).$ || (window as any).jQuery;
         if (jq) jq(dateEl).trigger("change");
       }
-      const timeEl = getVisibleEl("input#timepicker") as HTMLInputElement;
+
+      let timeEl: HTMLInputElement | null = null;
+      const timeEls = Array.from(document.querySelectorAll("input#timepicker"));
+      for (let i = 0; i < timeEls.length; i++) {
+        const el = timeEls[i];
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          let parent = el.parentElement;
+          let hidden = false;
+          while (parent) {
+            if (window.getComputedStyle(parent).display === "none") {
+              hidden = true;
+              break;
+            }
+            parent = parent.parentElement;
+          }
+          if (!hidden) {
+            timeEl = el as HTMLInputElement;
+            break;
+          }
+        }
+      }
+
       if (timeEl) {
         timeEl.value = "12:00 AM";
         const jq = (window as any).$ || (window as any).jQuery;
@@ -567,23 +594,28 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
     await page.locator("select#type_of_equipment").first().waitFor({ state: "attached", timeout: 15_000 });
     
     await page.evaluate(({ options }) => {
-      const getVisibleEl = (selector: string) => {
-        const els = Array.from(document.querySelectorAll(selector));
-        return els.find(el => {
-          const rect = el.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            let parent = el.parentElement;
-            while (parent) {
-              if (window.getComputedStyle(parent).display === "none") return false;
-              parent = parent.parentElement;
+      let selectEl: HTMLSelectElement | null = null;
+      const selectEls = Array.from(document.querySelectorAll("select#type_of_equipment"));
+      for (let i = 0; i < selectEls.length; i++) {
+        const el = selectEls[i];
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          let parent = el.parentElement;
+          let hidden = false;
+          while (parent) {
+            if (window.getComputedStyle(parent).display === "none") {
+              hidden = true;
+              break;
             }
-            return true;
+            parent = parent.parentElement;
           }
-          return false;
-        });
-      };
+          if (!hidden) {
+            selectEl = el as HTMLSelectElement;
+            break;
+          }
+        }
+      }
 
-      const selectEl = getVisibleEl("select#type_of_equipment") as HTMLSelectElement;
       if (selectEl) {
         Array.from(selectEl.options).forEach(opt => {
           opt.selected = options.includes(opt.text) || options.includes(opt.value);
