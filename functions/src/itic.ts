@@ -343,10 +343,10 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   // since entering the radius text deactivated it. If this click collapses the panel,
   // click it a second time to re-expand and activate it.
   const toolButton = page.locator('a:has(img[src*="circle-tool"])').first();
-  await toolButton.click();
+  await toolButton.click({ force: true });
   await page.waitForTimeout(300);
   if (!(await radiusInput.isVisible())) {
-    await toolButton.click();
+    await toolButton.click({ force: true });
     await radiusInput.waitFor({ state: "visible", timeout: 5000 });
   }
 
