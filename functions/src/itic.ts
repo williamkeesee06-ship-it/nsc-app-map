@@ -299,8 +299,21 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   await waitForMapProjection(page);
   // Tool already selected in the "opening drawing panel" step; just drop points.
   await clickLatLng(page, center.lat, center.lng);
+  
   const radiusInput = page.locator("#oimc_circleRadius, input[type='number']").first();
-  if ((await radiusInput.count()) > 0) await radiusInput.fill(String(radiusFt));
+  await radiusInput.waitFor({ state: "visible", timeout: 5000 });
+  
+  // Robust typing sequence: focus, click, type sequentially, and trigger keypresses (Enter & Tab)
+  // to ensure all event listeners (input, change, keydown, keypress, keyup, blur) on the page fire correctly.
+  await radiusInput.focus();
+  await radiusInput.click();
+  await radiusInput.fill("");
+  await radiusInput.pressSequentially(String(radiusFt), { delay: 100 });
+  await radiusInput.press("Enter");
+  await radiusInput.press("Tab");
+  
+  // Wait a moment for the map drawing engine to render the circle
+  await page.waitForTimeout(500);
 }
 
 async function traceRoute(page: Page, shape: DigShape): Promise<void> {
