@@ -520,27 +520,61 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
       for (let i = 0; i < dateEls.length; i++) {
         const el = dateEls[i];
         const rect = el.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          let parent = el.parentElement;
-          let hidden = false;
-          while (parent) {
-            if (window.getComputedStyle(parent).display === "none") {
-              hidden = true;
-              break;
-            }
-            parent = parent.parentElement;
-          }
-          if (!hidden) {
-            dateEl = el as HTMLInputElement;
+        let parent = el.parentElement;
+        let hidden = false;
+        while (parent) {
+          if (window.getComputedStyle(parent).display === "none") {
+            hidden = true;
             break;
           }
+          parent = parent.parentElement;
+        }
+        if (rect.width > 0 && rect.height > 0 && !hidden) {
+          dateEl = el as HTMLInputElement;
+          break;
         }
       }
 
       if (dateEl) {
-        dateEl.value = dateStr;
         const jq = (window as any).$ || (window as any).jQuery;
-        if (jq) jq(dateEl).trigger("change");
+        let targetDate = "";
+        
+        if (jq) {
+          // 1. Try to read from jQuery UI datepicker settings
+          const dp = jq(dateEl).data("datepicker");
+          if (dp && dp.settings && dp.settings.minDate) {
+            const minDate = dp.settings.minDate;
+            if (minDate instanceof Date) {
+              const m = String(minDate.getMonth() + 1).padStart(2, "0");
+              const d = String(minDate.getDate()).padStart(2, "0");
+              const y = minDate.getFullYear();
+              targetDate = `${m}/${d}/${y}`;
+            } else if (typeof minDate === "string") {
+              targetDate = minDate;
+            }
+          }
+          
+          // 2. Try to read from ticket msg data
+          if (!targetDate) {
+            const msg = jq("#tkt-A").data("msg");
+            if (msg && msg.tm_default_str) {
+              targetDate = msg.tm_default_str.split(" ")[0];
+            }
+          }
+        }
+        
+        if (!targetDate) {
+          targetDate = dateStr;
+        }
+
+        console.log("Setting dateEl value to:", targetDate);
+        dateEl.value = targetDate;
+        if (jq) {
+          console.log("Triggering change on dateEl");
+          jq(dateEl).trigger("change");
+        }
+      } else {
+        console.error("No visible dateEl found!");
       }
 
       let timeEl: HTMLInputElement | null = null;
@@ -548,27 +582,31 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
       for (let i = 0; i < timeEls.length; i++) {
         const el = timeEls[i];
         const rect = el.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          let parent = el.parentElement;
-          let hidden = false;
-          while (parent) {
-            if (window.getComputedStyle(parent).display === "none") {
-              hidden = true;
-              break;
-            }
-            parent = parent.parentElement;
-          }
-          if (!hidden) {
-            timeEl = el as HTMLInputElement;
+        let parent = el.parentElement;
+        let hidden = false;
+        while (parent) {
+          if (window.getComputedStyle(parent).display === "none") {
+            hidden = true;
             break;
           }
+          parent = parent.parentElement;
+        }
+        if (rect.width > 0 && rect.height > 0 && !hidden) {
+          timeEl = el as HTMLInputElement;
+          break;
         }
       }
 
       if (timeEl) {
+        console.log("Setting timeEl value to: 12:00 AM");
         timeEl.value = "12:00 AM";
         const jq = (window as any).$ || (window as any).jQuery;
-        if (jq) jq(timeEl).trigger("change");
+        if (jq) {
+          console.log("Triggering change on timeEl");
+          jq(timeEl).trigger("change");
+        }
+      } else {
+        console.error("No visible timeEl found!");
       }
     }, { dateStr });
   });
@@ -618,13 +656,14 @@ async function writeInstructions(page: Page, ticket: DigTicket, job: Job): Promi
 
       if (selectEl) {
         Array.from(selectEl.options).forEach(opt => {
-          opt.selected = options.includes(opt.text) || options.includes(opt.value);
+          opt.selected = options.some(o => opt.text.toLowerCase().replace(/\s+/g, "") === o.toLowerCase().replace(/\s+/g, ""));
         });
         const jq = (window as any).$ || (window as any).jQuery;
         if (jq) {
           jq(selectEl).trigger("change");
-          if (jq(selectEl).selectpicker) {
-            jq(selectEl).selectpicker("refresh");
+          if (jq(selectEl).multiselect) {
+            console.log("Triggering multiselect('refresh')");
+            jq(selectEl).multiselect("refresh");
           }
         }
       }
