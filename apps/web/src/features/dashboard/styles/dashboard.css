@@ -1447,23 +1447,8 @@
 }
 
 /* Custom Image Backgrounds per User Request */
-.weather-strip .bezel__inner {
-  background-image: url("/dashboard/bg_weather.jpg") !important;
-  background-size: cover !important;
-  background-position: center !important;
-}
-
-.atrisk-card .bezel__inner,
-.lumina-card .bezel__inner {
-  background-image: url("/dashboard/bg_atrisk_lumina.jpg") !important;
-  background-size: cover !important;
-  background-position: center !important;
-}
-
-.digtix-card .bezel__inner,
-.quicklinks-card .bezel__inner,
-.calendar-card .bezel__inner {
-  background-image: url("/dashboard/bg_widget.jpg") !important;
+.nsc-dashboard .bezel__inner {
+  background-image: url("/dashboard/bg_card_mesh.jpg") !important;
   background-size: cover !important;
   background-position: center !important;
 }
