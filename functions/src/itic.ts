@@ -344,7 +344,23 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   // 2. Click the tool button (accordion header) to reactivate drawing mode on the map
   // since entering the radius text deactivated it. If this click collapses the panel,
   // click it a second time to re-expand and activate it.
-  const toolButton = page.locator("#oimc_circleStart").filter({ visible: true }).first();
+  const diag = await page.evaluate(() => {
+    const el = document.getElementById("oimc_circleStart");
+    if (!el) return "Not found";
+    const style = window.getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return {
+      tagName: el.tagName,
+      display: style.display,
+      visibility: style.visibility,
+      opacity: style.opacity,
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      parent: el.parentElement ? { id: el.parentElement.id, className: el.parentElement.className } : null
+    };
+  }).catch((e) => e.message);
+  console.log(`[ITIC] traceCircle toolButton visibility info: ${JSON.stringify(diag)}`);
+
+  const toolButton = page.locator("#oimc_toolSelected #oimc_circleStart").first();
   await toolButton.click();
   await page.waitForTimeout(300);
   if (!(await radiusInput.isVisible())) {
