@@ -235,6 +235,9 @@ async function clickLatLng(
 
   const map = page.locator(".gm-style").first();
   await map.waitFor({ state: "visible", timeout: 10000 });
+  const rect = await map.boundingBox();
+  
+  console.log(`[ITIC] clickLatLng: target (${lat}, ${lng}) -> pixel: ${JSON.stringify(pos)}, gm-style bounding box: ${JSON.stringify(rect)}`);
 
   if (dblclick) await map.dblclick({ position: pos, force: true });
   else await map.click({ position: pos, force: true });
