@@ -202,18 +202,14 @@ async function clickLatLng(page: Page, lat: number, lng: number, dblclick = fals
   // Give the map a moment to finish centering and render tiles
   await page.waitForTimeout(500);
 
-  // Since the map was centered on (lat, lng), that coordinate is positioned exactly in the center of the canvas.
-  // We can calculate the exact center pixel of the map canvas container element.
-  const pos = await page.evaluate(() => {
-    const el = document.querySelector("#oimc_mapCanvas") || document.querySelector("#map");
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return { x: Math.round(r.width / 2), y: Math.round(r.height / 2) };
-  });
+  // Since the map was centered on (lat, lng), that coordinate is positioned exactly in the center of .gm-style.
+  const map = page.locator(".gm-style").first();
+  await map.waitFor({ state: "visible", timeout: 10000 });
+  const rect = await map.boundingBox();
+  if (!rect) throw new Error(".gm-style bounding box not found for click");
+  
+  const pos = { x: Math.round(rect.width / 2), y: Math.round(rect.height / 2) };
 
-  if (!pos) throw new Error("Map canvas element not found for center pixel click");
-
-  const map = page.locator(ITIC_SELECTORS.mapContainer).first();
   if (dblclick) await map.dblclick({ position: pos, force: true });
   else await map.click({ position: pos, force: true });
 }
