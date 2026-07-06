@@ -64,6 +64,31 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
   const [filedNumber, setFiledNumber] = useState(ticket.ticketNumber);
   const [notice, setNotice] = useState<string | null>(null);
   const [iticOpen, setIticOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [extensionActive, setExtensionActive] = useState(false);
+
+  const copyToClipboard = (text: string, fieldName: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  useEffect(() => {
+    const ping = setInterval(() => {
+      window.postMessage({ type: "NSC_PING_EXTENSION" }, "*");
+    }, 1000);
+    const listener = (e: MessageEvent) => {
+      if (e.data?.type === "NSC_PONG_EXTENSION") {
+        setExtensionActive(true);
+        clearInterval(ping);
+      }
+    };
+    window.addEventListener("message", listener);
+    return () => {
+      clearInterval(ping);
+      window.removeEventListener("message", listener);
+    };
+  }, []);
 
   // Reset local edit buffer when a different ticket loads.
   const [lastId, setLastId] = useState(ticket.id);
@@ -284,6 +309,31 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
         </div>
       </header>
 
+      {/* Step Progress Stepper */}
+      {["Drafting", "Review", "Filing", "Failed"].includes(ticket.status) && (
+        <div className="dt-stepper">
+          <div className={`dt-step-indicator ${["Drafting", "Review", "Filing"].includes(ticket.status) ? "active" : "completed"}`}>
+            <div className="step-num">1</div>
+            <div className="step-label">Launch & Center</div>
+          </div>
+          <div className={`dt-step-line ${["Review", "Filing"].includes(ticket.status) ? "completed" : ""}`}></div>
+          <div className={`dt-step-indicator ${ticket.status === "Drafting" ? "" : ticket.status === "Review" ? "active" : "completed"}`}>
+            <div className="step-num">2</div>
+            <div className="step-label">Manual Drawing</div>
+          </div>
+          <div className={`dt-step-line ${ticket.status === "Filing" ? "completed" : ""}`}></div>
+          <div className={`dt-step-indicator ${ticket.status === "Filing" ? "active" : ""}`}>
+            <div className="step-num">3</div>
+            <div className="step-label">Autofill Specs</div>
+          </div>
+          <div className={`dt-step-line`}></div>
+          <div className={`dt-step-indicator`}>
+            <div className="step-num">4</div>
+            <div className="step-label">Submit & Scrape</div>
+          </div>
+        </div>
+      )}
+
       {ticket.readyToDig && (
         <div className="dt-status-banner dt-status-banner--success">
           <strong>✓ READY TO DIG</strong>
@@ -350,96 +400,139 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
 
       {/* Request 811: human-in-the-loop ITIC filing inside an embedded iframe
           (draw + submit in ITIC → paste ticket # back). */}
-      <section className="dt-card">
-        <div className="dt-card__title">REQUEST 811</div>
-        <div className="dt-request811">
-          <div className="dt-request811__summary">
-            <div><span>Address</span><b>{jobAddress || "—"}</b></div>
-            <div><span>Work type</span><b>{ticket.specs.workType || "—"}</b></div>
-            <div><span>Work for</span><b>LUMEN</b></div>
-            <div><span>Duration</span><b>45 days</b></div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px", width: "100%" }}>
-            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
-              <button
-                className="dt-btn dt-btn--primary"
-                style={{ flex: "1 1 50%", background: "#1d4ed8", fontWeight: 700 }}
-                onClick={runExtensionFiler}
-                disabled={!!busy}
-              >
-                File via Chrome Extension
-              </button>
-              <button
-                className="dt-btn dt-btn--secondary"
-                style={{ flex: "1 1 50%", border: "1px solid #cbd5e1", background: "#ffffff", color: "#1e293b", fontWeight: 700 }}
-                onClick={() => setIticOpen(true)}
-                disabled={!!busy}
-              >
-                File Manually (Guided Tab)
-              </button>
-            </div>
+      {/* Redesigned Copilot filing section */}
+      <section className="dt-copilot-card">
+        <div className="dt-copilot-header">
+          <span className="dt-copilot-title">NSC Copilot Filing Center</span>
+          <span className={`dt-extension-status ${extensionActive ? "" : "not-detected"}`}>
+            {extensionActive ? "● Copilot Connected" : "○ Copilot Not Active"}
+          </span>
+        </div>
 
-            <div style={{ marginTop: "12px", padding: "12px", border: "1px dashed #cbd5e1", borderRadius: "6px", backgroundColor: "#f8fafc", fontSize: "13px", color: "#475569" }}>
-              <strong>How to use the NSC ITIC Copilot:</strong>
-              <ol style={{ paddingLeft: "16px", marginTop: "4px", marginBottom: "0" }}>
-                <li>Make sure you have loaded the unpacked extension from <code style={{ background: "#e2e8f0", padding: "2px 4px", borderRadius: "4px" }}>apps/extension</code> into Chrome (via <code style={{ background: "#e2e8f0", padding: "2px 4px", borderRadius: "4px" }}>chrome://extensions</code> in Developer Mode).</li>
-                <li>Click <strong>File via Chrome Extension</strong>. It will open a new ITIC tab and autofill the forms for you, pausing at the map for you to draw locates.</li>
-                <li>Once you submit the ticket, the extension will automatically scrape the ticket number and save it back to this page.</li>
-              </ol>
-            </div>
-          </div>
+        <div className="dt-request811__summary">
+          <div><span>Address</span><b>{jobAddress || "—"}</b></div>
+          <div><span>Work type</span><b>{ticket.specs.workType || "—"}</b></div>
+          <div><span>Work for</span><b>LUMEN</b></div>
+          <div><span>Duration</span><b>45 days</b></div>
+        </div>
 
-          <div className="dt-request811__filed" style={{ marginTop: "16px" }}>
-            <label className="dt-field">
-              <span>Filed ticket #</span>
-              <input
-                value={filedNumber}
-                onChange={(e) => setFiledNumber(e.target.value)}
-                placeholder="Paste the ITIC ticket # after you submit"
-              />
-            </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px", width: "100%" }}>
+          <div style={{ display: "flex", gap: "8px", width: "100%" }}>
             <button
-              className="dt-btn dt-btn--primary dt-btn--sm"
-              onClick={saveFiledTicket}
-              disabled={busy === "save-filed" || filedNumber.trim() === ""}
+              className="dt-btn dt-btn--primary"
+              style={{ flex: "1 1 50%", background: "#1d4ed8", fontWeight: 700 }}
+              onClick={runExtensionFiler}
+              disabled={!!busy}
             >
-              {busy === "save-filed" ? "Saving…" : "Save filed ticket"}
+              Launch NSC Copilot
+            </button>
+            <button
+              className="dt-btn dt-btn--secondary"
+              style={{ flex: "1 1 50%", border: "1px solid #cbd5e1", background: "#ffffff", color: "#1e293b", fontWeight: 700 }}
+              onClick={() => setIticOpen(true)}
+              disabled={!!busy}
+            >
+              File Manually (Guided Tab)
             </button>
           </div>
-          {notice && <div className="dt-request811__notice">{notice}</div>}
+
+          <div className="dt-copilot-instructions">
+            <strong>Chrome Extension Setup Instructions:</strong>
+            <ol className="dt-instruction-steps">
+              <li>Open Chrome and navigate to: <code>chrome://extensions/</code></li>
+              <li>In the top-right corner, toggle <strong>Developer mode</strong> to <strong>ON</strong>.</li>
+              <li>Click <strong>Load unpacked</strong> in the top-left, and select the <code>apps/extension</code> folder in this project directory.</li>
+            </ol>
+            <div style={{ marginTop: "10px", fontSize: "12px", color: "#64748b" }}>
+              *Once installed, click "Launch NSC Copilot" to trigger the automatic page-filling. Follow the green notifications at the top of the ITIC portal pages.
+            </div>
+          </div>
+
+          {/* Manual Backup copy helper list */}
+          <div style={{ marginTop: "12px", borderTop: "1px dashed #e2e8f0", paddingTop: "12px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", display: "block", marginBottom: "8px" }}>
+              Manual Filing Clipboard Helpers
+            </span>
+            <div className="dt-copy-helper">
+              <span>Street Address:</span>
+              <code>{job?.address || "—"}</code>
+              <button 
+                className={`dt-btn-copy ${copiedField === "address" ? "copied" : ""}`}
+                onClick={() => copyToClipboard(job?.address || "", "address")}
+              >
+                {copiedField === "address" ? "Copied!" : "Copy"}
+              </button>
+            </div>
+            <div className="dt-copy-helper">
+              <span>Marking Instructions:</span>
+              <code style={{ maxWidth: "250px" }}>{marking || "—"}</code>
+              <button 
+                className={`dt-btn-copy ${copiedField === "marking" ? "copied" : ""}`}
+                onClick={() => copyToClipboard(marking || "", "marking")}
+              >
+                {copiedField === "marking" ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          </div>
         </div>
-        {ticket.iticPdfUrl && (
-          <a
-            className="dt-link"
-            href={ticket.iticPdfUrl}
-            target="_blank"
-            rel="noreferrer"
+
+        <div className="dt-request811__filed" style={{ marginTop: "18px" }}>
+          <label className="dt-field">
+            <span>Filed ticket #</span>
+            <input
+              value={filedNumber}
+              onChange={(e) => setFiledNumber(e.target.value)}
+              placeholder="Paste the ITIC ticket # after you submit"
+            />
+          </label>
+          <button
+            className="dt-btn dt-btn--primary dt-btn--sm"
+            onClick={saveFiledTicket}
+            disabled={busy === "save-filed" || filedNumber.trim() === ""}
           >
-            View ITIC PDF
-          </a>
+            {busy === "save-filed" ? "Saving…" : "Save filed ticket"}
+          </button>
+        </div>
+        {notice && <div className="dt-request811__notice" style={{ marginTop: "12px" }}>{notice}</div>}
+
+        {/* PDF & Screenshot links */}
+        {(ticket.iticPdfUrl || ticket.automation.reviewScreenshotUrl || ticket.automation.confirmationScreenshotUrl) && (
+          <div style={{ marginTop: "16px", borderTop: "1px solid #f1f5f9", paddingTop: "12px", display: "flex", gap: "12px" }}>
+            {ticket.iticPdfUrl && (
+              <a
+                className="dt-link"
+                href={ticket.iticPdfUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View ITIC PDF
+              </a>
+            )}
+            {ticket.automation.reviewScreenshotUrl && (
+              <a
+                className="dt-link"
+                href={ticket.automation.reviewScreenshotUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View review screenshot
+              </a>
+            )}
+            {ticket.automation.confirmationScreenshotUrl && (
+              <a
+                className="dt-link"
+                href={ticket.automation.confirmationScreenshotUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View confirmation screenshot
+              </a>
+            )}
+          </div>
         )}
-        {ticket.automation.reviewScreenshotUrl && (
-          <a
-            className="dt-link"
-            href={ticket.automation.reviewScreenshotUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            View review screenshot
-          </a>
-        )}
-        {ticket.automation.confirmationScreenshotUrl && (
-          <a
-            className="dt-link"
-            href={ticket.automation.confirmationScreenshotUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            View confirmation screenshot
-          </a>
-        )}
+
         {ticket.automation.botErrors.length > 0 && (
-          <div className="dt-error">{ticket.automation.botErrors.at(-1)}</div>
+          <div className="dt-error" style={{ marginTop: "12px" }}>{ticket.automation.botErrors.at(-1)}</div>
         )}
       </section>
 

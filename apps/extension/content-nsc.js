@@ -14,6 +14,10 @@ window.addEventListener("message", (event) => {
       console.log("[NSC-CS] Background script responded:", response);
     });
   }
+
+  if (event.data?.type === "NSC_PING_EXTENSION") {
+    window.postMessage({ type: "NSC_PONG_EXTENSION" }, "*");
+  }
 });
 
 // Listen for messages from the Background script
