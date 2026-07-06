@@ -418,6 +418,9 @@ async function markLocation(page: Page, ticket: DigTicket, job: Job): Promise<vo
   });
 
   await step(page, "Step 1: opening drawing panel", async () => {
+    // Wait for map projection to be fully loaded first to ensure map drawing engine is ready!
+    await waitForMapProjection(page);
+
     // Two-step opener. The "Click for drawing tool" banner (draw-white.svg) is
     // injected after geocoding but can be display:none / opacity:0 during the map
     // zoom animation, so wait for VISIBLE (not mere DOM attachment) before click.
