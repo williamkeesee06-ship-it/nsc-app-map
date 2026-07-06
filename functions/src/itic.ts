@@ -183,7 +183,13 @@ async function waitForMapProjection(page: Page, timeoutMs = 30_000): Promise<voi
 
 // Click a lat/lng on the map canvas. Throws if the projection is unreachable so
 // the caller can fall back to the address-search + radius flow.
-async function clickLatLng(page: Page, lat: number, lng: number, dblclick = false): Promise<void> {
+async function clickLatLng(
+  page: Page,
+  lat: number,
+  lng: number,
+  dblclick = false,
+  toolSelector?: string
+): Promise<void> {
   // Center the map on the target LatLng first.
   // This ensures the point is visible on the screen and positioned correctly relative to the canvas.
   await page.evaluate(
@@ -201,6 +207,14 @@ async function clickLatLng(page: Page, lat: number, lng: number, dblclick = fals
 
   // Give the map a moment to finish centering and render tiles
   await page.waitForTimeout(500);
+
+  // If a tool selector is provided, reactivate it because panning (setCenter) deactivates the drawing tool
+  if (toolSelector) {
+    const toolButton = page.locator(toolSelector).first();
+    await toolButton.waitFor({ state: "visible", timeout: 5000 });
+    await toolButton.click();
+    await page.waitForTimeout(200);
+  }
 
   // Since the map was centered on (lat, lng), that coordinate is positioned exactly in the center of .gm-style.
   const map = page.locator(".gm-style").first();
@@ -311,7 +325,7 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   await page.waitForTimeout(200);
 
   // 2. Click the center LatLng on the map to place the circle
-  await clickLatLng(page, center.lat, center.lng);
+  await clickLatLng(page, center.lat, center.lng, false, 'a:has(img[src*="circle-tool"])');
   
   // Wait a moment for the map drawing engine to render the circle
   await page.waitForTimeout(500);
@@ -324,7 +338,7 @@ async function traceRoute(page: Page, shape: DigShape): Promise<void> {
   // Tool already selected in the "opening drawing panel" step; just drop points.
   for (let i = 0; i < path.length; i++) {
     // Double-click the final vertex to finish the polyline.
-    await clickLatLng(page, path[i].lat, path[i].lng, i === path.length - 1);
+    await clickLatLng(page, path[i].lat, path[i].lng, i === path.length - 1, 'a:has(img[src*="route-tool"])');
   }
 }
 
@@ -333,9 +347,9 @@ async function tracePolygon(page: Page, shape: DigShape): Promise<void> {
   if (verts.length < 3) throw new Error("Polygon shape has fewer than 3 vertices");
   await waitForMapProjection(page);
   // Tool already selected (incl. "Proceed to create polygon") in the opener step.
-  for (const v of verts) await clickLatLng(page, v.lat, v.lng);
+  for (const v of verts) await clickLatLng(page, v.lat, v.lng, false, 'a:has(img[src*="polygon-tool"])');
   // Close the ring: double-click the first vertex (standard polygon-close gesture).
-  await clickLatLng(page, verts[0].lat, verts[0].lng, true);
+  await clickLatLng(page, verts[0].lat, verts[0].lng, true, 'a:has(img[src*="polygon-tool"])');
 }
 
 async function traceShape(page: Page, shape: DigShape): Promise<void> {
