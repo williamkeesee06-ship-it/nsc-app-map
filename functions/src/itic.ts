@@ -342,40 +342,23 @@ async function traceCircle(page: Page, shape: DigShape): Promise<void> {
   const radiusFt = computeRadiusFt(shape);
   await waitForMapProjection(page);
   
-  // 1. Fill the radius input field FIRST so the drawing engine has the dimension
+  // 1. Fill the radius input field so the form state has the dimension
   const radiusInput = page.locator("#oimc_circleRadius, input[type='number']").first();
   await radiusInput.waitFor({ state: "visible", timeout: 5000 });
-  
-  // Robust typing sequence: focus, click, type sequentially, and trigger keypresses (Enter & Tab)
-  // to ensure all event listeners (input, change, keydown, keypress, keyup, blur) on the page fire correctly.
   await radiusInput.focus();
   await radiusInput.click();
-  await radiusInput.fill("");
-  await radiusInput.pressSequentially(String(radiusFt), { delay: 100 });
+  await radiusInput.fill(String(radiusFt));
   await radiusInput.press("Enter");
   await radiusInput.press("Tab");
   await radiusInput.blur();
   await page.locator("body").focus();
-  
-  // Give it a brief moment to register the input value and remove focus
   await page.waitForTimeout(300);
 
-  // Hide any overlapping copyright/branding overlays before clicking
-  await hideOverlays(page);
-
-  // 2. Click the tool button (accordion header) to reactivate drawing mode on the map
-  // since entering the radius text deactivated it. If this click collapses the panel,
-  // click it a second time to re-expand and activate it.
-  const toolButton = page.locator("#oimc_circleStart").first();
-  await toolButton.evaluate((el) => (el as HTMLAnchorElement).click());
-  await page.waitForTimeout(300);
-  if (!(await radiusInput.isVisible())) {
-    await toolButton.evaluate((el) => (el as HTMLAnchorElement).click());
-    await radiusInput.waitFor({ state: "visible", timeout: 5000 });
-  }
-
-  // 3. Click the center LatLng on the map to place the circle
-  await clickLatLng(page, center.lat, center.lng);
+  // 2. Programmatically add the circle shape using the portal's internal drawing engine
+  await page.evaluate(({ lat, lng, radius }) => {
+    const centerLatLng = new google.maps.LatLng(lat, lng);
+    (window as any).oimc.map.addCircle(centerLatLng, radius, radius, "", "", {});
+  }, { lat: center.lat, lng: center.lng, radius: radiusFt });
   
   // Wait a moment for the map drawing engine to render the circle
   await page.waitForTimeout(500);
