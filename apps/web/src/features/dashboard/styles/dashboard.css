@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700;800&family=Share+Tech+Mono&display=swap');
+
 /* Dashboard home — "Neon Pulse Light" visual system. Light brushed steel,
    chrome bezels with rivets, radial dyson-ring gauges, electric-blue neon
    glow. Tokens are scoped to .nsc-dashboard so they don't leak into the global
@@ -19,7 +21,7 @@
   inset: 0;
   color: var(--ink);
   overflow: hidden;
-  font-family: inherit;
+  font-family: 'Rajdhani', sans-serif !important;
   /* Blueprint skyline tiled behind all widgets across the whole board. The
      navy strip repeats on both axes at native size so cranes, telecom towers,
      and buildings read everywhere, not just in a bottom strip. A single
@@ -130,6 +132,21 @@
     inset 0 2px 6px rgba(30, 42, 60, 0.06);
 }
 
+@keyframes led-pulse {
+  0% {
+    opacity: 0.85;
+    box-shadow: 0 0 8px rgba(61, 169, 255, 0.45);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 15px rgba(61, 169, 255, 0.85);
+  }
+  100% {
+    opacity: 0.85;
+    box-shadow: 0 0 8px rgba(61, 169, 255, 0.45);
+  }
+}
+
 .bezel__accent {
   position: absolute;
   top: 0;
@@ -145,6 +162,7 @@
     transparent
   );
   box-shadow: 0 0 10px color-mix(in srgb, var(--bezel-accent, var(--neon-red)) 65%, transparent);
+  animation: led-pulse 3s infinite ease-in-out;
 }
 
 /* Premium 3D chrome rivets — 4 corners only. Scoped under .nsc-dashboard so
@@ -157,25 +175,36 @@
 .nsc-dashboard .rivet {
   display: block !important;
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle at 32% 26%,
-    #ffffff 0%,
-    #e6ecf2 22%,
-    #b3bdc9 52%,
-    #7d8895 78%,
-    #4c5560 100%
+  background: conic-gradient(
+    from 45deg,
+    #cfd6df 0%,
+    #a2aebc 20%,
+    #ffffff 40%,
+    #8e9ba9 60%,
+    #cfd6df 80%,
+    #a2aebc 100%
   ) !important;
   box-shadow:
-    /* recessed hard shadow on bottom-right */
-    inset 0 -1px 2px rgba(0, 0, 0, 0.4),
-    /* specular pop on top-left */
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.95),
-    /* outer drop shadow so the head sits on the frame */
-    0 1px 2px rgba(0, 0, 0, 0.25) !important;
+    inset 0 1px 1px rgba(255, 255, 255, 0.8),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.4),
+    0 1.5px 3px rgba(0, 0, 0, 0.3) !important;
   z-index: 4;
+}
+
+/* 3D screw slot */
+.nsc-dashboard .rivet::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 15%;
+  right: 15%;
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6));
+  transform: translateY(-50%) rotate(45deg);
+  box-shadow: 0 0.5px 0.5px rgba(255, 255, 255, 0.4);
 }
 
 /* Outer chrome bevel ring around each rivet head. */
@@ -222,6 +251,16 @@
 .radial-gauge {
   position: relative;
   flex: 0 0 auto;
+}
+.radial-gauge::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.05) 100%);
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.5), inset 0 -2px 4px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .radial-gauge__svg {
@@ -1114,13 +1153,14 @@
   text-shadow: none !important;
 }
 .calendar-card__day {
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(226, 232, 240, 0.7) !important;
   color: #0f172a !important;
 }
 .calendar-card__day:hover {
-  background: #f1f5f9 !important;
-  border-color: #cbd5e1 !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  border-color: rgba(203, 213, 225, 0.8) !important;
 }
 .calendar-card__day--selected {
   background: #2563eb !important; /* Royal Blue selection */
@@ -1140,8 +1180,9 @@
 .calendar-card__crew {
   display: flex !important;
   flex-direction: column !important;
-  background: #f8fafc !important;
-  border: 1px solid #cbd5e1 !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(203, 213, 225, 0.7) !important;
   border-left: 4px solid #2563eb !important; /* Royal Blue accent stripe */
   border-radius: 8px !important;
   padding: 8px 12px !important;
@@ -1155,13 +1196,14 @@
   color: #64748b !important;
 }
 .calendar-card__open {
-  border: 1px solid #cbd5e1 !important;
-  background: #ffffff !important;
+  border: 1px solid rgba(203, 213, 225, 0.8) !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(4px) !important;
   color: #2563eb !important;
   font-weight: 700 !important;
 }
 .calendar-card__open:hover {
-  background: #f1f5f9 !important;
+  background: rgba(255, 255, 255, 0.85) !important;
   color: #1d4ed8 !important;
 }
 .calendar-card__empty {
@@ -1187,8 +1229,9 @@
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(226, 232, 240, 0.7) !important;
   border-left: 4px solid #2563eb !important;
   border-radius: 8px !important;
   padding: 10px 14px !important;
@@ -1196,8 +1239,8 @@
   cursor: pointer !important;
 }
 .digtix-card__item:hover {
-  background: #f1f5f9 !important;
-  border-color: #cbd5e1 !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  border-color: rgba(203, 213, 225, 0.8) !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
 }
@@ -1267,11 +1310,12 @@
   color: #1e293b !important;
 }
 .atrisk-card__row {
-  background: #ffffff !important;
+  background: rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(4px) !important;
   transition: all 0.2s ease !important;
 }
 .atrisk-card__row:hover {
-  background: #f8fafc !important;
+  background: rgba(255, 255, 255, 0.55) !important;
 }
 .atrisk-card__empty {
   color: #64748b !important;
@@ -1292,8 +1336,9 @@
   text-shadow: none !important;
 }
 .lumina-card__bullet {
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(226, 232, 240, 0.7) !important;
   border-left: 3px solid #8b5cf6 !important; /* Purple trim */
   border-radius: 8px !important;
   padding: 8px 12px !important;
@@ -1301,8 +1346,8 @@
   color: #1e293b !important;
 }
 .lumina-card__ask-input {
-  background: #ffffff !important;
-  border: 1px solid #cbd5e1 !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(203, 213, 225, 0.8) !important;
   color: #0f172a !important;
 }
 .lumina-card__ask-input::placeholder {
@@ -1322,15 +1367,16 @@
   text-shadow: none !important;
 }
 .quicklinks-card__tile {
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(226, 232, 240, 0.7) !important;
   box-shadow: none !important;
   color: #1e293b !important;
   transition: all 0.2s ease !important;
 }
 .quicklinks-card__tile:hover {
   border-color: #2563eb !important;
-  background: #eff6ff !important;
+  background: rgba(255, 255, 255, 0.65) !important;
   color: #1d4ed8 !important;
 }
 .quicklinks-card__label {
@@ -1349,8 +1395,8 @@
   font-weight: 800 !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  text-shadow: none !important;
-  color: #0f172a !important;
+  text-shadow: -0.5px -0.5px 0.5px rgba(0, 0, 0, 0.35), 0.5px 0.5px 0.5px rgba(255, 255, 255, 0.75) !important;
+  color: #2d3b4e !important;
 }
 
 .nsc-dashboard .card__title::before {
@@ -1451,4 +1497,35 @@
   background-image: url("/dashboard/bg_card_mesh.jpg") !important;
   background-size: cover !important;
   background-position: center !important;
+}
+
+/* 6. Glow-Track LED Scrollbars */
+.nsc-dashboard ::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+.nsc-dashboard ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-radius: 4px !important;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.15) !important;
+}
+.nsc-dashboard ::-webkit-scrollbar-thumb {
+  background: rgba(61, 169, 255, 0.3) !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(61, 169, 255, 0.5) !important;
+  box-shadow: 0 0 6px rgba(61, 169, 255, 0.3) !important;
+  transition: all 0.2s ease !important;
+}
+.nsc-dashboard ::-webkit-scrollbar-thumb:hover {
+  background: rgba(61, 169, 255, 0.6) !important;
+  box-shadow: 0 0 10px rgba(61, 169, 255, 0.7) !important;
+}
+
+/* 7. Modern Tech Font Integration - Value & Condition overrides */
+.nsc-dashboard .radial-gauge__value,
+.nsc-dashboard .weather-strip__temp,
+.nsc-dashboard .weather-strip__condition,
+.nsc-dashboard .digtix-card__item-text {
+  font-family: 'Share Tech Mono', monospace !important;
+  letter-spacing: -0.02em !important;
 }
