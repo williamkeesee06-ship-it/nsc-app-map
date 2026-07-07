@@ -213,6 +213,14 @@ async function buildBriefing(username?: string): Promise<BriefingResponse> {
       text: `Crew ${crew} double-booked on ${date}.`,
     });
   }
+  // 6 — jobs in needs_fielding status.
+  const needsFielding = jobs.filter((j) => (j.secondaryJobStatus || "").trim().toLowerCase() === "needs fielding").length;
+  if (needsFielding > 0) {
+    candidates.push({
+      signal: needsFielding,
+      text: `${needsFielding} new job${needsFielding === 1 ? "" : "s"} waiting in Needs Fielding.`,
+    });
+  }
 
   // Top three by signal strength. If nothing fired, say so plainly.
   candidates.sort((a, b) => b.signal - a.signal);
@@ -223,7 +231,7 @@ async function buildBriefing(username?: string): Promise<BriefingResponse> {
 
   const first = (username ?? "Billy Keesee").trim().split(/\s+/)[0] || "Billy";
   return {
-    greeting: `Good morning, ${first}.`,
+    greeting: `Here is your current operational briefing, ${first}:`,
     bullets,
     modelTurnAt: Date.now(),
   };

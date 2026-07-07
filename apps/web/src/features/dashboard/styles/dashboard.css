@@ -79,9 +79,9 @@
   min-height: 400px;
 }
 
-/* Row 2: Map (small) | Lumina (medium) | At Risk (small) */
+/* Row 2: Map (small) | Lumina (small) | At Risk (large) */
 .nsc-dashboard__row--map-ai {
-  grid-template-columns: 28fr 42fr 30fr;
+  grid-template-columns: 28fr 21fr 51fr;
   min-height: 360px;
 }
 
