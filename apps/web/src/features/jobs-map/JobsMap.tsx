@@ -348,9 +348,13 @@ function JobsMapInner({
               boxShadow: "inset 5px 0 15px rgba(0,0,0,0.3)"
             }}
           />
-          {/* Lumina orb — floats above Google's pan/Pegman controls. */}
-          <LuminaOrb />
-          <LuminaChatPanel />
+          {/* Lumina orb — floats above Google's pan/Pegman controls. Hidden on full-screen dashboard/calendar/tickets overlays */}
+          {!dashboardFullscreen && !calendarFullscreen && !ticketsFullscreen && (
+            <>
+              <LuminaOrb />
+              <LuminaChatPanel />
+            </>
+          )}
 
           {/* Full-screen Calendar overlay — sits above the map and all
               in-map overlays (markers, drawings, Lumina orb) but below the

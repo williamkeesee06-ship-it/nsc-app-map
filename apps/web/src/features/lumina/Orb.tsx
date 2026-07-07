@@ -179,6 +179,22 @@ export default function Orb({ size = 40 }: OrbProps) {
           }}
         />
 
+        {/* Photorealistic 3D Quantum Fusion texture */}
+        <img
+          src="/dashboard/quantum_fusion_orb.jpg"
+          alt=""
+          style={{
+            position: "absolute",
+            width: frame * 0.72,
+            height: frame * 0.72,
+            borderRadius: "50%",
+            objectFit: "cover",
+            pointerEvents: "none",
+            boxShadow: `0 0 20px ${rim}, inset 0 0 10px rgba(255,255,255,0.2)`,
+            opacity: 0.95,
+          }}
+        />
+
         <svg
           width={frame}
           height={frame}
@@ -210,9 +226,9 @@ export default function Orb({ size = 40 }: OrbProps) {
             </filter>
           </defs>
 
-          {/* 1. Free-floating animated shift core */}
-          <circle cx={50} cy={50} r={24} fill={`url(#lx-orb-core-${orbState})`} style={{ filter: "url(#neon-glow)" }} />
-          <circle cx={50} cy={50} r={16} fill="#ffffff" fillOpacity="0.12" style={{ filter: "blur(2px)" }} />
+          {/* 1. Free-floating animated shift core - blended color-dodge on top of the image */}
+          <circle cx={50} cy={50} r={28} fill={`url(#lx-orb-core-${orbState})`} fillOpacity="0.4" style={{ mixBlendMode: "color-dodge", filter: "url(#neon-glow)" }} />
+          <circle cx={50} cy={50} r={16} fill="#ffffff" fillOpacity="0.08" style={{ filter: "blur(2px)" }} />
 
           {/* 2. Quantum Fusion dynamic lightning crackles / electricity */}
           <path d="M 22 28 Q 34 26 38 42 L 50 50" fill="none" stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" opacity="0" style={{ animation: "lx-lightning-1 2.8s infinite", filter: `drop-shadow(0 0 3px ${rim})` }} />

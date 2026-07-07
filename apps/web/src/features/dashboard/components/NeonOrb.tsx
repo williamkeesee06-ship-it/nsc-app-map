@@ -1,5 +1,5 @@
 // NeonOrb — abstract electric-blue sphere for the Lumina briefing (no face).
-// Concentric rings + soft radial glow + Gaussian blur. Presentation only.
+// Upgraded to match the high-fidelity Quantum Fusion Orb 3D layout.
 
 import { useId } from "react";
 
@@ -10,60 +10,99 @@ export interface NeonOrbProps {
 
 export default function NeonOrb({ size = 140 }: NeonOrbProps) {
   const uid = useId().replace(/[:]/g, "");
-  const coreId = `orb-core-${uid}`;
   const glowId = `orb-glow-${uid}`;
 
   const c = size / 2;
 
   return (
-    <div className="neon-orb" style={{ width: size, height: size }} aria-hidden>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <div
+      className="neon-orb"
+      style={{
+        width: size,
+        height: size,
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+      aria-hidden
+    >
+      <style>{`
+        @keyframes neon-spin-${uid} {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes neon-spin-rev-${uid} {
+          to { transform: rotate(-360deg); }
+        }
+      `}</style>
+
+      {/* Photorealistic 3D Quantum Fusion texture */}
+      <img
+        src="/dashboard/quantum_fusion_orb.jpg"
+        alt=""
+        style={{
+          position: "absolute",
+          width: size * 0.85,
+          height: size * 0.85,
+          borderRadius: "50%",
+          objectFit: "cover",
+          pointerEvents: "none",
+          boxShadow: "0 0 20px rgba(0, 240, 255, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.2)",
+        }}
+      />
+
+      {/* Interactive SVG overlay rings */}
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+        }}
+      >
         <defs>
-          <radialGradient id={coreId} cx="42%" cy="38%" r="65%">
-            <stop offset="0%" stopColor="#eaf6ff" />
-            <stop offset="40%" stopColor="#6cc0ff" />
-            <stop offset="80%" stopColor="#2f8fe6" />
-            <stop offset="100%" stopColor="#0b4ea0" />
-          </radialGradient>
-          <filter id={glowId} x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation={size * 0.04} />
+          <filter id={glowId} x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
           </filter>
         </defs>
 
-        <circle cx={c} cy={c} r={c * 0.62} fill={`url(#${coreId})`} filter={`url(#${glowId})`} />
-        <circle cx={c} cy={c} r={c * 0.62} fill={`url(#${coreId})`} />
+        {/* Orbiting Ring 1 */}
+        <g style={{ transformOrigin: `${c}px ${c}px`, animation: `neon-spin-${uid} 10s linear infinite` }}>
+          <ellipse
+            cx={c}
+            cy={c}
+            rx={c * 0.85}
+            ry={c * 0.24}
+            fill="none"
+            stroke="#00F0FF"
+            strokeWidth={size * 0.012}
+            opacity="0.8"
+            transform={`rotate(30 ${c} ${c})`}
+            filter={`url(#${glowId})`}
+          />
+        </g>
 
-        <ellipse
-          cx={c}
-          cy={c}
-          rx={c * 0.86}
-          ry={c * 0.34}
-          fill="none"
-          stroke="#7bc4ff"
-          strokeWidth={size * 0.012}
-          opacity="0.8"
-          transform={`rotate(-22 ${c} ${c})`}
-        />
-        <ellipse
-          cx={c}
-          cy={c}
-          rx={c * 0.72}
-          ry={c * 0.26}
-          fill="none"
-          stroke="#bfe3ff"
-          strokeWidth={size * 0.01}
-          opacity="0.6"
-          transform={`rotate(28 ${c} ${c})`}
-        />
-        <circle
-          cx={c}
-          cy={c}
-          r={c * 0.78}
-          fill="none"
-          stroke="#3da9ff"
-          strokeWidth={size * 0.008}
-          opacity="0.45"
-        />
+        {/* Orbiting Ring 2 */}
+        <g style={{ transformOrigin: `${c}px ${c}px`, animation: `neon-spin-rev-${uid} 12s linear infinite` }}>
+          <ellipse
+            cx={c}
+            cy={c}
+            rx={c * 0.24}
+            ry={c * 0.85}
+            fill="none"
+            stroke="#7000FF"
+            strokeWidth={size * 0.012}
+            opacity="0.75"
+            transform={`rotate(-45 ${c} ${c})`}
+            filter={`url(#${glowId})`}
+          />
+        </g>
       </svg>
     </div>
   );
