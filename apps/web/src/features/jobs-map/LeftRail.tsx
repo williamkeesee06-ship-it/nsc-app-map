@@ -37,7 +37,7 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'dashboard' | 'filters' | 'tools' | 'calendar' | 'lumina' | '811-tickets';
+type TabId = 'dashboard' | 'filters' | 'tools' | 'calendar' | '811-tickets';
 
 export default function LeftRail({
   jobs,
@@ -189,7 +189,6 @@ export default function LeftRail({
     { id: 'filters', label: 'MAP' },
     { id: 'tools', label: 'TOOLS' },
     { id: 'calendar', label: 'CALENDAR' },
-    { id: 'lumina', label: 'LUMINA' },
     { id: '811-tickets', label: '811 TICKETS' },
   ];
 
@@ -227,24 +226,7 @@ export default function LeftRail({
 
       {!collapsed && (
         <>
-          {activeTab === 'lumina' ? (
-            // Lumina owns the full content area (no padding, no scroll wrapper)
-            // so the chat header + composer reach edge-to-edge and the message
-            // list claims all remaining vertical space.
-            <div
-              className="left-rail-lumina-content"
-              style={{
-                flex: "1 1 auto",
-                minWidth: 0,
-                minHeight: 0,
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <LuminaTab width={width} />
-            </div>
-          ) : (
-            <div className="left-rail__scroll">
+          <div className="left-rail__scroll">
               {/* Tab Content */}
               <div className="left-rail-tab-content">
                 {activeTab === 'filters' && (
@@ -263,7 +245,6 @@ export default function LeftRail({
                     on entry so there's nothing visible here. */}
               </div>
             </div>
-          )}
 
           {/* Resize handle */}
           <div

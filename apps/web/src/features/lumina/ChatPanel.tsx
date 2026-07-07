@@ -58,14 +58,91 @@ export default function ChatPanel() {
     clearMessages,
     mapBridgeRef,
     enqueueAction,
+    tabOpen,
+    setTabOpen,
   } = useLumina();
   const { username, isManager } = useAuth();
   const [applyingId, setApplyingId] = useState<string | null>(null);
 
+  const [pos, setPos] = useState(() => ({
+    x: Math.max(20, window.innerWidth - 420),
+    y: Math.max(20, window.innerHeight - 600),
+  }));
+  const [size, setSize] = useState({ width: 380, height: 480 });
+  const [dragging, setDragging] = useState(false);
+  const [resizing, setResizing] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+  const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("button, input, textarea, select")) return;
+    setDragging(true);
+    dragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      posX: pos.x,
+      posY: pos.y,
+    };
+    document.body.style.userSelect = "none";
+  };
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setResizing(true);
+    resizeStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      w: size.width,
+      h: size.height,
+    };
+    document.body.style.userSelect = "none";
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (dragging) {
+        const dx = e.clientX - dragStart.current.x;
+        const dy = e.clientY - dragStart.current.y;
+        setPos({
+          x: Math.max(10, Math.min(window.innerWidth - size.width - 10, dragStart.current.posX + dx)),
+          y: Math.max(10, Math.min(window.innerHeight - size.height - 10, dragStart.current.posY + dy)),
+        });
+      }
+      if (resizing) {
+        const dx = e.clientX - resizeStart.current.x;
+        const dy = e.clientY - resizeStart.current.y;
+        setSize({
+          width: Math.max(280, Math.min(600, resizeStart.current.w + dx)),
+          height: Math.max(300, Math.min(800, resizeStart.current.h + dy)),
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      setDragging(false);
+      setResizing(false);
+      document.body.style.userSelect = "";
+    };
+
+    if (dragging || resizing) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragging, resizing, size]);
+
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  // Memory panel — collapsed by default to preserve chat real estate.
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [opacity, setOpacity] = useState(0.92);
+  const [speechRate, setSpeechRate] = useState(1.0);
+  const [personality, setPersonality] = useState("dispatcher");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -297,191 +374,445 @@ export default function ChatPanel() {
     setBusy(false);
   }
 
+  if (!tabOpen) return null;
+
+  if (!tabOpen) return null;
+
+  const glowClass = 
+    orbState === "listening" 
+      ? "hud-glow-listening" 
+      : orbState === "speaking" 
+      ? "hud-glow-speaking" 
+      : "";
+
   return (
-    <div
-      className="lx-flex lx-flex-col lx-h-full lx-w-full lx-text-sm"
-      style={{ color: "#d6e4f5", minHeight: 0, minWidth: 0 }}
-    >
-      {/* ── Header — steel frame ─────────────────────────────────────── */}
+    <>
+      <style>{`
+        @keyframes pulse-border-listening {
+          0% { box-shadow: 0 0 12px rgba(0, 212, 255, 0.4), 0 10px 25px rgba(0,0,0,0.5); }
+          50% { box-shadow: 0 0 25px rgba(0, 212, 255, 0.85), 0 10px 25px rgba(0,0,0,0.5); }
+          100% { box-shadow: 0 0 12px rgba(0, 212, 255, 0.4), 0 10px 25px rgba(0,0,0,0.5); }
+        }
+        @keyframes pulse-border-speaking {
+          0% { box-shadow: 0 0 12px rgba(34, 197, 94, 0.4), 0 10px 25px rgba(0,0,0,0.5); }
+          50% { box-shadow: 0 0 25px rgba(34, 197, 94, 0.85), 0 10px 25px rgba(0,0,0,0.5); }
+          100% { box-shadow: 0 0 12px rgba(34, 197, 94, 0.4), 0 10px 25px rgba(0,0,0,0.5); }
+        }
+        @keyframes hud-entrance {
+          from { transform: scale(0.1); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .hud-glow-listening {
+          animation: pulse-border-listening 2s infinite !important;
+          border-color: #00d4ff !important;
+        }
+        .hud-glow-speaking {
+          animation: pulse-border-speaking 2s infinite !important;
+          border-color: #22c55e !important;
+        }
+        .hud-entrance {
+          animation: hud-entrance 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          transform-origin: bottom right;
+        }
+      `}</style>
+
       <div
-        className="lx-flex lx-items-center lx-justify-between lx-px-3 lx-py-2 lx-border-b lx-border-chrome-dark"
+        className={`lx-flex lx-flex-col lx-text-sm hud-entrance ${glowClass}`}
         style={{
-          background:
-            "linear-gradient(180deg, var(--steel-base-light) 0%, var(--steel-base) 100%)",
-          fontFamily: "Rajdhani, system-ui, sans-serif",
+          position: "fixed",
+          left: pos.x,
+          top: pos.y,
+          width: size.width,
+          height: size.height,
+          color: "#d6e4f5",
+          minHeight: 300,
+          minWidth: 280,
+          zIndex: 9999999,
+          border: "2.5px solid #2563eb",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
+          borderRadius: "12px",
+          overflow: "hidden",
+          background: `rgba(6, 10, 18, ${opacity})`,
+          backdropFilter: "blur(12px)",
+          display: "flex",
+          flexDirection: "column",
+          transition: "border-color 0.3s ease, background 0.2s ease"
         }}
       >
-        <div className="lx-flex lx-items-center lx-gap-2">
-          <span
-            className="lx-inline-block lx-w-2 lx-h-2 lx-rounded-full"
-            style={{
-              background:
-                orbState === "idle"
-                  ? "#1ea7ff"
-                  : orbState === "thinking"
-                  ? "#ffb84d"
-                  : orbState === "listening"
-                  ? "#00d4ff"
-                  : orbState === "queued"
-                  ? "#ffc857"
-                  : orbState === "error"
-                  ? "#ff4d4d"
-                  : "#a020c0",
-              boxShadow: "0 0 6px currentColor",
-            }}
-          />
-          <span className="lx-tracking-[0.18em] lx-font-bold lx-text-base" style={{ color: "#e6f2ff" }}>
-            LUMINA
-          </span>
-          <span className="lx-text-xs lx-uppercase lx-tracking-wider" style={{ color: "var(--text-muted)" }}>
-            {orbState}
-          </span>
-        </div>
-        <div className="lx-flex lx-items-center lx-gap-2">
-          <button
-            type="button"
-            onClick={() => setMemoryOpen((v) => !v)}
-            className={`lx-px-2 lx-py-1 lx-rounded lx-text-xs lx-font-bold lx-tracking-wider lx-uppercase ${
-              memoryOpen
-                ? "lx-bg-neon lx-text-ink-900 lx-shadow-neon-sm"
-                : "lx-bg-ink-800 lx-text-neon lx-ring-1 lx-ring-neon/40"
-            }`}
-            title={memoryOpen ? "Hide memory panel" : "Show memory panel"}
-          >
-            Mem
-          </button>
-          <button
-            type="button"
-            onClick={() => setLiveOn(!liveOn)}
-            className={`lx-px-2 lx-py-1 lx-rounded lx-text-xs lx-font-bold lx-tracking-wider lx-uppercase ${
-              liveOn
-                ? "lx-bg-neon lx-text-ink-900 lx-shadow-neon-sm"
-                : "lx-bg-ink-800 lx-text-neon lx-ring-1 lx-ring-neon/40"
-            }`}
-            title={liveOn ? "Live voice on" : "Click to enable live voice"}
-          >
-            {liveOn ? "Live • On" : "Live"}
-          </button>
-          <button
-            type="button"
-            onClick={clearMessages}
-            className="lx-text-xs lx-px-2 lx-py-1 lx-rounded lx-bg-ink-800 lx-text-ink-700 hover:lx-text-white"
-            style={{ color: "var(--text-muted)" }}
-            title="Clear chat"
-          >
-            Clear
-          </button>
-        </div>
-      </div>
+        {/* Rivets (#2) */}
+        <div style={{ position: "absolute", top: "5px", left: "5px", width: "4px", height: "4px", background: "#7e8a9c", borderRadius: "50%", opacity: 0.5, zIndex: 10000000, pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: "5px", right: "5px", width: "4px", height: "4px", background: "#7e8a9c", borderRadius: "50%", opacity: 0.5, zIndex: 10000000, pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: "5px", left: "5px", width: "4px", height: "4px", background: "#7e8a9c", borderRadius: "50%", opacity: 0.5, zIndex: 10000000, pointerEvents: "none" }} />
 
-      {/* ── Memory panel (Phase 5d) ────────────────────────────────── */}
-      <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} />
+        {/* ── Header — steel frame with drag handle ──────────────────────── */}
+        <div
+          className="lx-flex lx-items-center lx-justify-between lx-px-3 lx-py-2 lx-border-b lx-border-chrome-dark"
+          onMouseDown={handleMouseDown}
+          style={{
+            background:
+              "linear-gradient(180deg, var(--steel-base-light) 0%, var(--steel-base) 100%)",
+            fontFamily: "Rajdhani, system-ui, sans-serif",
+            cursor: dragging ? "grabbing" : "grab",
+            userSelect: "none"
+          }}
+        >
+          <div className="lx-flex lx-items-center lx-gap-2">
+            <span
+              className="lx-inline-block lx-w-2 lx-h-2 lx-rounded-full"
+              style={{
+                background:
+                  orbState === "idle"
+                    ? "#1ea7ff"
+                    : orbState === "thinking"
+                    ? "#ffb84d"
+                    : orbState === "listening"
+                    ? "#00d4ff"
+                    : orbState === "queued"
+                    ? "#ffc857"
+                    : orbState === "error"
+                    ? "#ff4d4d"
+                    : "#a020c0",
+                boxShadow: "0 0 6px currentColor",
+              }}
+            />
+            <span className="lx-tracking-[0.18em] lx-font-bold lx-text-base" style={{ color: "#e6f2ff" }}>
+              LUMINA
+            </span>
+          </div>
 
-      {/* ── Pending actions — confirmation cards ─────────────────────── */}
-      {pendingActions.length > 0 && (
-        <div className="lx-px-3 lx-py-2 lx-space-y-2 lx-border-b lx-border-chrome-dark lx-bg-ink-900">
-          {pendingActions.map((a) => (
-            <div
-              key={a.id}
-              className="lx-rounded lx-p-3 lx-border lx-border-neon/40 lx-shadow-neon-sm"
-              style={{ background: "rgba(11,16,24,0.85)" }}
+          {/* Message / Live Mode Toggle */}
+          <div style={{ display: "flex", background: "rgba(0,0,0,0.25)", borderRadius: "20px", padding: "2px", border: "1px solid rgba(255,255,255,0.15)" }}>
+            <button
+              type="button"
+              onClick={() => setLiveOn(false)}
+              style={{
+                padding: "2px 8px",
+                borderRadius: "20px",
+                fontSize: "10px",
+                fontWeight: 700,
+                border: "none",
+                cursor: "pointer",
+                background: !liveOn ? "#2563eb" : "transparent",
+                color: !liveOn ? "white" : "#94a3b8",
+                transition: "all 0.15s"
+              }}
             >
-              <div className="lx-text-neon lx-text-xs lx-uppercase lx-tracking-wider lx-mb-1">
-                Action queued
-              </div>
-              <div className="lx-text-white lx-text-sm lx-mb-2">{a.title}</div>
-              {a.diff && a.diff.length > 0 && (
-                <div className="lx-text-xs lx-font-mono lx-space-y-1 lx-mb-3" style={{ color: "#9fb3cc" }}>
-                  {a.diff.map((d, i) => (
-                    <div key={i}>
-                      <span style={{ color: "var(--text-muted)" }}>{d.field}:</span>{" "}
-                      {d.before !== undefined && (
-                        <span style={{ color: "#7a8a9c", textDecoration: "line-through" }}>{d.before}</span>
-                      )}{" "}
-                      {d.after !== undefined && <span style={{ color: "#1ea7ff" }}>→ {d.after}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="lx-flex lx-gap-2">
-                <button
-                  type="button"
-                  disabled={applyingId === a.id}
-                  className="lx-px-3 lx-py-1 lx-rounded lx-bg-neon lx-text-ink-900 lx-text-xs lx-font-bold lx-tracking-wider disabled:lx-opacity-60 disabled:lx-cursor-not-allowed"
-                  onClick={() => applyAction(a)}
-                >
-                  {applyingId === a.id ? "APPLYING\u2026" : "APPLY"}
-                </button>
-                <button
-                  type="button"
-                  disabled={applyingId === a.id}
-                  className="lx-px-3 lx-py-1 lx-rounded lx-bg-ink-800 lx-text-xs lx-tracking-wider disabled:lx-opacity-60"
-                  style={{ color: "var(--text-muted)" }}
-                  onClick={() => dismissAction(a.id)}
-                >
-                  Cancel
-                </button>
+              TEXT
+            </button>
+            <button
+              type="button"
+              onClick={() => setLiveOn(true)}
+              style={{
+                padding: "2px 8px",
+                borderRadius: "20px",
+                fontSize: "10px",
+                fontWeight: 700,
+                border: "none",
+                cursor: "pointer",
+                background: liveOn ? "#16a34a" : "transparent",
+                color: liveOn ? "white" : "#94a3b8",
+                transition: "all 0.15s"
+              }}
+            >
+              LIVE
+            </button>
+          </div>
+
+          <div className="lx-flex lx-items-center lx-gap-1.5">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen((s) => !s)}
+              className={`lx-px-1.5 lx-py-0.5 lx-rounded lx-text-[10px] lx-font-bold lx-tracking-wider lx-uppercase ${
+                settingsOpen
+                  ? "lx-bg-neon lx-text-ink-900 lx-shadow-neon-sm"
+                  : "lx-bg-ink-800 lx-text-neon lx-ring-1 lx-ring-neon/40"
+              }`}
+              title="Aesthetics & Voice Settings"
+            >
+              ⚙
+            </button>
+            <button
+              type="button"
+              onClick={() => setMemoryOpen((v) => !v)}
+              className={`lx-px-1.5 lx-py-0.5 lx-rounded lx-text-[10px] lx-font-bold lx-tracking-wider lx-uppercase ${
+                memoryOpen
+                  ? "lx-bg-neon lx-text-ink-900 lx-shadow-neon-sm"
+                  : "lx-bg-ink-800 lx-text-neon lx-ring-1 lx-ring-neon/40"
+              }`}
+              title={memoryOpen ? "Hide memory panel" : "Show memory panel"}
+            >
+              Mem
+            </button>
+            <button
+              type="button"
+              onClick={clearMessages}
+              className="lx-text-[10px] lx-px-1.5 lx-py-0.5 lx-rounded lx-bg-ink-800 lx-text-ink-700 hover:lx-text-white"
+              style={{ color: "var(--text-muted)" }}
+              title="Clear chat"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => setTabOpen(false)}
+              className="lx-text-[10px] lx-px-1.5 lx-py-0.5 lx-rounded"
+              style={{ color: "white", background: "#ef4444", fontWeight: 700 }}
+              title="Close Lumina"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* ── Settings Panel (#2, #5) ─────────────────────────────────── */}
+        {settingsOpen && (
+          <div 
+            className="lx-px-3 lx-py-2 lx-border-b lx-border-chrome-dark lx-space-y-2"
+            style={{ background: "var(--steel-base)", fontSize: "11px", color: "#94a3b8" }}
+          >
+            <div className="lx-flex lx-items-center lx-justify-between">
+              <span>HUD OPACITY:</span>
+              <div className="lx-flex lx-items-center lx-gap-2">
+                <input
+                  type="range"
+                  min="0.4"
+                  max="1.0"
+                  step="0.05"
+                  value={opacity}
+                  onChange={(e) => setOpacity(parseFloat(e.target.value))}
+                  style={{ width: "80px", accentColor: "#2563eb" }}
+                />
+                <span style={{ fontFamily: "monospace", color: "white" }}>{Math.round(opacity * 100)}%</span>
               </div>
             </div>
-          ))}
-        </div>
-      )}
 
-      {/* ── Message list — dark cosmic interior ──────────────────────── */}
-      <div
-        ref={scrollRef}
-        className="lx-flex-1 lx-overflow-y-auto lx-px-3 lx-py-3 lx-space-y-3"
-        style={{ background: "linear-gradient(180deg, #0b1018 0%, #060a12 100%)" }}
-      >
-        {messages.length === 0 && (
-          <div
-            className="lx-text-xs lx-italic lx-text-center lx-py-8"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Ask me about jobs, markups, addresses, or photos.
-            <br />
-            Hold the orb to talk.
+            <div className="lx-flex lx-items-center lx-justify-between">
+              <span>SPEECH RATE:</span>
+              <div className="lx-flex lx-gap-1">
+                {[0.8, 1.0, 1.2, 1.5].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSpeechRate(s)}
+                    style={{
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      fontSize: "9px",
+                      fontWeight: 700,
+                      background: speechRate === s ? "#2563eb" : "#1e293b",
+                      color: "white",
+                      border: "none",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {s}x
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="lx-flex lx-items-center lx-justify-between">
+              <span>PERSONALITY:</span>
+              <select
+                value={personality}
+                onChange={(e) => setPersonality(e.target.value)}
+                className="lx-rounded lx-bg-ink-900 lx-text-white lx-border lx-border-chrome-dark lx-px-1"
+                style={{ fontSize: "10px", outline: "none" }}
+              >
+                <option value="dispatcher">Ops Dispatcher</option>
+                <option value="engineer">Field Engineer</option>
+                <option value="analyst">Data Analyst</option>
+              </select>
+            </div>
           </div>
         )}
-        {messages.map((m) => (
-          <MessageBubble key={m.id} m={m} />
-        ))}
-      </div>
 
-      {/* ── Audio Visualizer for voice mode (#6) ───────────────────────── */}
-      <AudioVisualizer active={liveOn} />
+        {/* ── Memory panel (Phase 5d) ────────────────────────────────── */}
+        <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} />
 
-      {/* ── Composer ─────────────────────────────────────────────────── */}
-      <div
-        className="lx-px-3 lx-py-2 lx-border-t lx-border-chrome-dark"
-        style={{ background: "var(--steel-base)" }}
-      >
-        <div className="lx-flex lx-gap-2">
-          <input
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            placeholder={busy ? "Lumina is thinking…" : "Ask Lumina…"}
-            disabled={busy}
-            className="lx-flex-1 lx-rounded lx-px-3 lx-py-2 lx-text-sm lx-bg-ink-900 lx-text-white lx-border lx-border-chrome-dark focus:lx-border-neon focus:lx-outline-none disabled:lx-opacity-60"
-          />
-          <button
-            type="button"
-            onClick={send}
-            disabled={busy || !draft.trim()}
-            className="lx-px-3 lx-py-2 lx-rounded lx-bg-neon lx-text-ink-900 lx-text-xs lx-font-bold lx-tracking-wider disabled:lx-opacity-50 disabled:lx-cursor-not-allowed"
-          >
-            {busy ? "…" : "SEND"}
-          </button>
+        {/* ── Pending actions — confirmation cards ─────────────────────── */}
+        {pendingActions.length > 0 && (
+          <div className="lx-px-3 lx-py-2 lx-space-y-2 lx-border-b lx-border-chrome-dark lx-bg-ink-900">
+            {pendingActions.map((a) => (
+              <div
+                key={a.id}
+                className="lx-rounded lx-p-3 lx-border lx-border-neon/40 lx-shadow-neon-sm"
+                style={{ background: "rgba(11,16,24,0.85)" }}
+              >
+                <div className="lx-text-neon lx-text-xs lx-uppercase lx-tracking-wider lx-mb-1">
+                  Action queued
+                </div>
+                <div className="lx-text-white lx-text-sm lx-mb-2">{a.title}</div>
+                {a.diff && a.diff.length > 0 && (
+                  <div className="lx-text-xs lx-font-mono lx-space-y-1 lx-mb-3" style={{ color: "#9fb3cc" }}>
+                    {a.diff.map((d, i) => (
+                      <div key={i}>
+                        <span style={{ color: "var(--text-muted)" }}>{d.field}:</span>{" "}
+                        {d.before !== undefined && (
+                          <span style={{ color: "#7a8a9c", textDecoration: "line-through" }}>{d.before}</span>
+                        )}{" "}
+                        {d.after !== undefined && <span style={{ color: "#1ea7ff" }}>→ {d.after}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="lx-flex lx-gap-2">
+                  <button
+                    type="button"
+                    disabled={applyingId === a.id}
+                    className="lx-px-3 lx-py-1 lx-rounded lx-bg-neon lx-text-ink-900 lx-text-xs lx-font-bold lx-tracking-wider disabled:lx-opacity-60 disabled:lx-cursor-not-allowed"
+                    onClick={() => applyAction(a)}
+                  >
+                    {applyingId === a.id ? "APPLYING\u2026" : "APPLY"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={applyingId === a.id}
+                    className="lx-px-3 lx-py-1 lx-rounded lx-bg-ink-800 lx-text-xs lx-tracking-wider disabled:lx-opacity-60"
+                    style={{ color: "var(--text-muted)" }}
+                    onClick={() => dismissAction(a.id)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Message list / Transcript — dark cosmic interior ─────────── */}
+        <div
+          ref={scrollRef}
+          className="lx-flex-1 lx-overflow-y-auto lx-px-3 lx-py-3 lx-space-y-3"
+          style={{ background: "linear-gradient(180deg, #0b1018 0%, #060a12 100%)" }}
+        >
+          {messages.length === 0 && (
+            <div className="lx-flex lx-flex-col lx-gap-3 lx-py-4">
+              <div
+                className="lx-text-xs lx-italic lx-text-center"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {liveOn 
+                  ? "Lumina Live is active. Speak into your microphone." 
+                  : "Ask me about jobs, markups, addresses, or photos."}
+              </div>
+
+              {/* Quick action suggest cards (#8, #9, #10) */}
+              <div className="lx-grid lx-grid-cols-2 lx-gap-2 lx-px-2">
+                <div 
+                  onClick={() => !liveOn && setDraft("Lumina, show all active fiber lines in the area")}
+                  className="lx-p-2 lx-rounded lx-border lx-border-chrome-dark lx-cursor-pointer hover:lx-border-neon/40"
+                  style={{ background: "rgba(255,255,255,0.02)", fontSize: "10px", transition: "all 0.2s" }}
+                >
+                  <div style={{ color: "#2563eb", fontWeight: 700, textTransform: "uppercase", marginBottom: "2px" }}>Map Control 🌐</div>
+                  <div style={{ color: "var(--text-muted)" }}>"Show active fiber lines in area"</div>
+                </div>
+                <div 
+                  onClick={() => !liveOn && setDraft("Lumina, draw a 50ft buffer circle around Job #1")}
+                  className="lx-p-2 lx-rounded lx-border lx-border-chrome-dark lx-cursor-pointer hover:lx-border-neon/40"
+                  style={{ background: "rgba(255,255,255,0.02)", fontSize: "10px", transition: "all 0.2s" }}
+                >
+                  <div style={{ color: "#ff6a00", fontWeight: 700, textTransform: "uppercase", marginBottom: "2px" }}>Paint Tools 🎨</div>
+                  <div style={{ color: "var(--text-muted)" }}>"Draw 50ft buffer circle around Job #1"</div>
+                </div>
+                <div 
+                  onClick={() => !liveOn && setDraft("Lumina, compile a PDF report of active 811 tickets")}
+                  className="lx-p-2 lx-rounded lx-border lx-border-chrome-dark lx-cursor-pointer hover:lx-border-neon/40"
+                  style={{ background: "rgba(255,255,255,0.02)", fontSize: "10px", transition: "all 0.2s" }}
+                >
+                  <div style={{ color: "#16a34a", fontWeight: 700, textTransform: "uppercase", marginBottom: "2px" }}>Report Builder 📄</div>
+                  <div style={{ color: "var(--text-muted)" }}>"Compile a PDF report of active tickets"</div>
+                </div>
+                <div 
+                  onClick={() => !liveOn && setDraft("Lumina, check weather alerts for this crew")}
+                  className="lx-p-2 lx-rounded lx-border lx-border-chrome-dark lx-cursor-pointer hover:lx-border-neon/40"
+                  style={{ background: "rgba(255,255,255,0.02)", fontSize: "10px", transition: "all 0.2s" }}
+                >
+                  <div style={{ color: "#ef4444", fontWeight: 700, textTransform: "uppercase", marginBottom: "2px" }}>Risk Analysis ⚡</div>
+                  <div style={{ color: "var(--text-muted)" }}>"Check weather alerts for this crew"</div>
+                </div>
+              </div>
+            </div>
+          )}
+          {messages.map((m) => (
+            <MessageBubble key={m.id} m={m} />
+          ))}
         </div>
+
+        {/* ── Audio Visualizer for voice mode (#6) ───────────────────────── */}
+        <AudioVisualizer active={liveOn} />
+
+        {/* ── Live transcript indicator or Composer ────────────────────── */}
+        {liveOn ? (
+          <div 
+            className="lx-px-3 lx-py-3 lx-border-t lx-border-chrome-dark lx-flex lx-flex-col lx-items-center lx-gap-1 lx-text-center"
+            style={{ background: "var(--steel-base)" }}
+          >
+            <div className="lx-flex lx-items-center lx-gap-2">
+              <span 
+                className={`lx-inline-block lx-w-2.5 lx-h-2.5 lx-rounded-full ${
+                  orbState === "listening" ? "lx-bg-green-500 lx-animate-ping" : "lx-bg-blue-500"
+                }`}
+                style={{
+                  boxShadow: orbState === "listening" ? "0 0 8px #22c55e" : "0 0 8px #3b82f6"
+                }}
+              />
+              <span className="lx-font-bold lx-text-[11px] lx-uppercase lx-tracking-wider" style={{ color: "#94a3b8" }}>
+                {orbState === "listening" ? "Lumina Listening..." : orbState === "speaking" ? "Lumina Speaking..." : "Lumina Live Active"}
+              </span>
+            </div>
+            <span className="lx-text-[10px]" style={{ color: "var(--text-muted)" }}>
+              Speak naturally. Click TEXT at the top to toggle manual keyboard entry.
+            </span>
+          </div>
+        ) : (
+          <div
+            className="lx-px-3 lx-py-2 lx-border-t lx-border-chrome-dark"
+            style={{ background: "var(--steel-base)" }}
+          >
+            <div className="lx-flex lx-gap-2">
+              <input
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
+                placeholder={busy ? "Lumina is thinking…" : "Ask Lumina…"}
+                disabled={busy}
+                className="lx-flex-1 lx-rounded lx-px-3 lx-py-2 lx-text-sm lx-bg-ink-900 lx-text-white lx-border lx-border-chrome-dark focus:lx-border-neon focus:lx-outline-none disabled:lx-opacity-60"
+              />
+              <button
+                type="button"
+                onClick={send}
+                disabled={busy || !draft.trim()}
+                className="lx-px-3 lx-py-2 lx-rounded lx-bg-neon lx-text-ink-900 lx-text-xs lx-font-bold lx-tracking-wider disabled:lx-opacity-50 disabled:lx-cursor-not-allowed"
+              >
+                {busy ? "…" : "SEND"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Drag Resize Handle at bottom right corner */}
+        <div
+          onMouseDown={handleResizeMouseDown}
+          style={{
+            position: "absolute",
+            right: 0,
+            bottom: 0,
+            width: "14px",
+            height: "14px",
+            cursor: "se-resize",
+            background: "linear-gradient(135deg, transparent 70%, #2563eb 70%, #2563eb 85%, transparent 85%, transparent 90%, #2563eb 90%)",
+            zIndex: 10000000
+          }}
+        />
       </div>
-    </div>
+    </>
   );
 }
 
