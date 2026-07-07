@@ -49,7 +49,21 @@ router.get("/dig-tickets/:ticketId", async (req, res, next) => {
       res.status(404).json({ error: "Ticket not found" });
       return;
     }
-    res.json({ ticket: doc.data() as DigTicket });
+    const ticket = doc.data() as DigTicket;
+    
+    // Join job details
+    const jobDoc = await db().collection("jobs").doc(ticket.jobId).get();
+    const job = jobDoc.exists ? (jobDoc.data() as Job) : null;
+    
+    res.json({ 
+      ticket: {
+        ...ticket,
+        address: job ? [job.address, job.city, job.zipCode].filter(Boolean).join(", ") : "",
+        street: job?.address || "",
+        city: job?.city || "",
+        zip: job?.zipCode || "",
+      }
+    });
   } catch (err) {
     next(err);
   }
@@ -277,6 +291,55 @@ router.post("/dig-tickets/:ticketId/utility-status", async (req, res, next) => {
 
     await ref.update({ utilityStatuses: statuses, lastCheckedAt: now, readyToDig });
     res.json({ ticket: { ...ticket, utilityStatuses: statuses, lastCheckedAt: now, readyToDig } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+function addBusinessDays(from: Date, days: number): Date {
+  const d = new Date(from);
+  let added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added += 1;
+  }
+  return d;
+}
+
+// POST /api/dig-tickets/:ticketId/file — complete the filing process
+router.post("/dig-tickets/:ticketId/file", async (req, res, next) => {
+  try {
+    const { ticketNumber } = req.body as { ticketNumber?: string };
+    if (!ticketNumber) {
+      res.status(400).json({ error: "ticketNumber is required" });
+      return;
+    }
+    const ref = db().collection("digTickets").doc(req.params.ticketId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
+    const ticket = doc.data() as DigTicket;
+    
+    const now = Date.now();
+    const startsAt = addBusinessDays(new Date(now), 2).getTime();
+    const expiresAt = startsAt + ticket.specs.duration * DAY_MS;
+    
+    const update = {
+      ticketNumber,
+      status: "Filed" as const,
+      dates: {
+        ...ticket.dates,
+        submittedAt: now,
+        startsAt,
+        expiresAt,
+      }
+    };
+    
+    await ref.update(update);
+    res.json({ ticket: { ...ticket, ...update } });
   } catch (err) {
     next(err);
   }

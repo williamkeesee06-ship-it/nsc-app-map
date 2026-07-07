@@ -23,6 +23,19 @@ import luminaStaleTasksRouter from "./routes/luminaStaleTasks.js";
 
 export function createApp() {
   const app = express();
+  
+  // Custom CORS middleware to allow requests from the ITIC portal (bookmarklet)
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") {
+      res.sendStatus(200);
+      return;
+    }
+    next();
+  });
+
   // Photos can push the payload up to ~200KB — raise the body limit so the
   // photo upload route isn't rejected as 413 before reaching the handler.
   app.use(express.json({ limit: "4mb" }));

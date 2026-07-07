@@ -7,6 +7,7 @@ import { canDeleteDigTicket } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { statusColor, utilityStatusColor, UTILITY_STATUS_OPTIONS } from "./ticketStyle.js";
 import IticModal from "./IticModal.js";
+import { getBookmarkletCode } from "./bookmarkletCode.js";
 
 interface Props {
   ticket: DigTicket;
@@ -66,6 +67,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
   const [iticOpen, setIticOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [extensionActive, setExtensionActive] = useState(false);
+  const [filingMethod, setFilingMethod] = useState<"extension" | "bookmarklet">("extension");
 
   const copyToClipboard = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);
@@ -404,9 +406,27 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       <section className="dt-copilot-card">
         <div className="dt-copilot-header">
           <span className="dt-copilot-title">NSC Copilot Filing Center</span>
-          <span className={`dt-extension-status ${extensionActive ? "" : "not-detected"}`}>
-            {extensionActive ? "● Copilot Connected" : "○ Copilot Not Active"}
-          </span>
+          {filingMethod === "extension" && (
+            <span className={`dt-extension-status ${extensionActive ? "" : "not-detected"}`}>
+              {extensionActive ? "● Copilot Connected" : "○ Copilot Not Active"}
+            </span>
+          )}
+        </div>
+
+        {/* Tab selection */}
+        <div style={{ display: "flex", gap: "12px", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px", marginBottom: "16px" }}>
+          <button
+            style={{ background: "none", border: "none", borderBottom: filingMethod === "extension" ? "2px solid #2563eb" : "none", color: filingMethod === "extension" ? "#1e3a8a" : "#64748b", fontWeight: 700, cursor: "pointer", paddingBottom: "4px", fontSize: "13px" }}
+            onClick={() => setFilingMethod("extension")}
+          >
+            Chrome Extension
+          </button>
+          <button
+            style={{ background: "none", border: "none", borderBottom: filingMethod === "bookmarklet" ? "2px solid #2563eb" : "none", color: filingMethod === "bookmarklet" ? "#1e3a8a" : "#64748b", fontWeight: 700, cursor: "pointer", paddingBottom: "4px", fontSize: "13px" }}
+            onClick={() => setFilingMethod("bookmarklet")}
+          >
+            Magic Bookmarklet (IT Fallback)
+          </button>
         </div>
 
         <div className="dt-request811__summary">
@@ -417,36 +437,73 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px", width: "100%" }}>
-          <div style={{ display: "flex", gap: "8px", width: "100%" }}>
-            <button
-              className="dt-btn dt-btn--primary"
-              style={{ flex: "1 1 50%", background: "#1d4ed8", fontWeight: 700 }}
-              onClick={runExtensionFiler}
-              disabled={!!busy}
-            >
-              Launch NSC Copilot
-            </button>
-            <button
-              className="dt-btn dt-btn--secondary"
-              style={{ flex: "1 1 50%", border: "1px solid #cbd5e1", background: "#ffffff", color: "#1e293b", fontWeight: 700 }}
-              onClick={() => setIticOpen(true)}
-              disabled={!!busy}
-            >
-              File Manually (Guided Tab)
-            </button>
-          </div>
+          {filingMethod === "extension" ? (
+            <>
+              <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                <button
+                  className="dt-btn dt-btn--primary"
+                  style={{ flex: "1 1 50%", background: "#1d4ed8", fontWeight: 700 }}
+                  onClick={runExtensionFiler}
+                  disabled={!!busy}
+                >
+                  Launch NSC Copilot
+                </button>
+                <button
+                  className="dt-btn dt-btn--secondary"
+                  style={{ flex: "1 1 50%", border: "1px solid #cbd5e1", background: "#ffffff", color: "#1e293b", fontWeight: 700 }}
+                  onClick={() => setIticOpen(true)}
+                  disabled={!!busy}
+                >
+                  File Manually (Guided Tab)
+                </button>
+              </div>
 
-          <div className="dt-copilot-instructions">
-            <strong>Chrome Extension Setup Instructions:</strong>
-            <ol className="dt-instruction-steps">
-              <li>Open Chrome and navigate to: <code>chrome://extensions/</code></li>
-              <li>In the top-right corner, toggle <strong>Developer mode</strong> to <strong>ON</strong>.</li>
-              <li>Click <strong>Load unpacked</strong> in the top-left, and select the <code>apps/extension</code> folder in this project directory.</li>
-            </ol>
-            <div style={{ marginTop: "10px", fontSize: "12px", color: "#64748b" }}>
-              *Once installed, click "Launch NSC Copilot" to trigger the automatic page-filling. Follow the green notifications at the top of the ITIC portal pages.
-            </div>
-          </div>
+              <div className="dt-copilot-instructions">
+                <strong>Chrome Extension Setup Instructions:</strong>
+                <ol className="dt-instruction-steps">
+                  <li>Open Chrome and navigate to: <code>chrome://extensions/</code></li>
+                  <li>In the top-right corner, toggle <strong>Developer mode</strong> to <strong>ON</strong>.</li>
+                  <li>Click <strong>Load unpacked</strong> in the top-left, and select the <code>apps/extension</code> folder in this project directory.</li>
+                </ol>
+                <div style={{ marginTop: "10px", fontSize: "12px", color: "#64748b" }}>
+                  *Once installed, click "Launch NSC Copilot" to trigger the automatic page-filling. Follow the green notifications at the top of the ITIC portal pages.
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                <a
+                  href={getBookmarkletCode(window.location.origin)}
+                  className="dt-btn dt-btn--primary"
+                  style={{ display: "block", textAlign: "center", textDecoration: "none", background: "#16a34a", borderColor: "#16a34a", padding: "10px", borderRadius: "8px", color: "white", fontWeight: 700 }}
+                  onClick={(e) => {
+                    alert("Drag this green button directly to your Chrome Bookmarks Bar, then click 'Open ITIC in New Tab'!");
+                    e.preventDefault();
+                  }}
+                >
+                  Drag to Bookmarks: NSC Copilot
+                </a>
+                <button
+                  className="dt-btn dt-btn--secondary"
+                  style={{ width: "100%", fontWeight: 700 }}
+                  onClick={() => window.open(`https://wa.itic.occinc.com/#nscTicketId=${ticket.id}`, "_blank")}
+                >
+                  Open ITIC in New Tab
+                </button>
+              </div>
+
+              <div className="dt-copilot-instructions">
+                <strong>Bookmarklet Setup & Instructions:</strong>
+                <ol className="dt-instruction-steps">
+                  <li><strong>Drag the green button above</strong> directly onto your Chrome bookmarks bar.</li>
+                  <li>Click <strong>"Open ITIC in New Tab"</strong> to launch the portal with the ticket context.</li>
+                  <li>At any form page on ITIC (Step 1, Step 2, etc.), **simply click the "NSC Copilot" bookmark** in your bookmarks bar. It will instantly autofill the fields!</li>
+                  <li>Once you submit, click the bookmark on the confirmation page to automatically sync the Ticket Number back to this app!</li>
+                </ol>
+              </div>
+            </>
+          )}
 
           {/* Manual Backup copy helper list */}
           <div style={{ marginTop: "12px", borderTop: "1px dashed #e2e8f0", paddingTop: "12px" }}>
