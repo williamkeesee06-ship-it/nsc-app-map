@@ -17,6 +17,10 @@ import CentralOfficesPill from "./CentralOfficesPill.js";
 import MapTypeFilterSection from "../map/MapTypeFilterSection.js";
 // CalendarTab is mounted full-screen by JobsMap, not inside the rail.
 import LuminaTab from "../lumina/LuminaTab.js";
+import { useActiveContract } from "../workspace/contractStore.js";
+import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
+import ZiplyProductionTab from "../ziply/ZiplyProductionTab.js";
+import ZiplyUploadTab from "../ziply/ZiplyUploadTab.js";
 
 // Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
 // the left while keeping plenty of room for tool tiles to the right.
@@ -38,7 +42,7 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'dashboard' | 'filters' | 'tools' | 'calendar' | '811-tickets';
+type TabId = 'dashboard' | 'filters' | 'tools' | 'calendar' | '811-tickets' | 'production' | 'upload';
 
 export default function LeftRail({
   jobs,
@@ -48,6 +52,7 @@ export default function LeftRail({
   managerMode,
   availableSupervisors,
 }: Props) {
+  const { contract } = useActiveContract();
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
   // Dashboard is the default landing tab (Billy). Like Calendar, it mounts
   // full-screen over the map via JobsMap, so the rail starts collapsed.
@@ -78,15 +83,14 @@ export default function LeftRail({
       const detail = (e as CustomEvent<{ tab: TabId }>).detail;
       if (!detail?.tab) return;
       setActiveTab(detail.tab);
-      setCollapsed(
-        detail.tab === 'calendar' ||
-          detail.tab === 'dashboard' ||
-          detail.tab === '811-tickets'
-      );
+      const shouldCollapse = detail.tab === 'calendar' ||
+        (detail.tab === 'dashboard' && contract !== 'Ziply') ||
+        detail.tab === '811-tickets';
+      setCollapsed(shouldCollapse);
     }
     window.addEventListener("nsc:request-tab", onRequestTab as EventListener);
     return () => window.removeEventListener("nsc:request-tab", onRequestTab as EventListener);
-  }, []);
+  }, [contract]);
 
   // Click an active tab to collapse the rail; click a different tab to switch
   // to it (and uncollapse if currently collapsed).
@@ -99,9 +103,13 @@ export default function LeftRail({
       setActiveTab(id);
       // Calendar, Dashboard, and 811 Tickets mount full-screen over the map and
       // have no rail body of their own, so collapse the rail when entering them.
-      setCollapsed(id === 'calendar' || id === 'dashboard' || id === '811-tickets');
+      const shouldCollapse = id === 'calendar' ||
+        (id === 'dashboard' && contract !== 'Ziply') ||
+        id === '811-tickets';
+      setCollapsed(shouldCollapse);
     }
-  }, [activeTab]);
+  }, [activeTab, contract]);
+
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(DEFAULT_WIDTH);
@@ -185,13 +193,23 @@ export default function LeftRail({
 
   // Always 2 columns — tiles shrink to fit
 
-  const tabs: { id: TabId; label: string; iconSvg?: string }[] = [
-    { id: 'dashboard', label: 'DASHBOARD' },
-    { id: 'filters', label: 'MAP' },
-    { id: 'tools', label: 'TOOLS' },
-    { id: 'calendar', label: 'CALENDAR' },
-    { id: '811-tickets', label: '811 TICKETS' },
-  ];
+  const tabs: { id: TabId; label: string; iconSvg?: string }[] = contract === "Ziply"
+    ? [
+        { id: 'dashboard', label: 'DASHBOARD' },
+        { id: 'filters', label: 'MAP' },
+        { id: 'tools', label: 'TOOLS' },
+        { id: 'calendar', label: 'CREW SCHEDULE' },
+        { id: '811-tickets', label: '811 PROCESS' },
+        { id: 'production', label: 'PRODUCTION' },
+        { id: 'upload', label: 'INGEST PRINT' },
+      ]
+    : [
+        { id: 'dashboard', label: 'DASHBOARD' },
+        { id: 'filters', label: 'MAP' },
+        { id: 'tools', label: 'TOOLS' },
+        { id: 'calendar', label: 'CALENDAR' },
+        { id: '811-tickets', label: '811 TICKETS' },
+      ];
 
   // When collapsed, only the 52px tab strip is visible (no content panel,
   // no resize handle). Click the same tab again to expand back.
@@ -230,7 +248,7 @@ export default function LeftRail({
           <div className="left-rail__scroll">
               {/* Tab Content */}
               <div className="left-rail-tab-content">
-                {activeTab === 'filters' && (
+                 {activeTab === 'filters' && (
                   <FiltersTab
                     jobs={jobs}
                     filters={filters}
@@ -241,6 +259,15 @@ export default function LeftRail({
                   />
                 )}
                 {activeTab === 'tools' && <AnnotateTab />}
+                {activeTab === 'dashboard' && contract === 'Ziply' && (
+                  <ZiplyDashboardTab />
+                )}
+                {activeTab === 'production' && (
+                  <ZiplyProductionTab jobs={jobs} />
+                )}
+                {activeTab === 'upload' && (
+                  <ZiplyUploadTab jobs={jobs} />
+                )}
                 {/* Calendar tab has no rail content — it mounts full-screen
                     over the map (handled by JobsMap). The rail auto-collapses
                     on entry so there's nothing visible here. */}

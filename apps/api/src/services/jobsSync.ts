@@ -60,8 +60,76 @@ export function normalizeRow(
   const workOrder = s(rec["Work Order"]);
   if (!workOrder) return null; // skip rows without a WO
 
-  const workType = s(rec["Work Type"]);
+  const byTitle = new Map(Array.from(colsById.values()).map((c) => [c.title, c]));
+  const isZiply = byTitle.has("NSC Supervisor");
   const now = Date.now();
+
+  if (isZiply) {
+    const workType = s(rec["Work Type"]);
+    let locateExpires: number | null = null;
+    const locatesCalledStr = s(rec["Locates Called"]);
+    if (locatesCalledStr) {
+      const parsed = Date.parse(locatesCalledStr);
+      if (!isNaN(parsed)) {
+        locateExpires = parsed + 45 * 24 * 60 * 60 * 1000; // 45 days WA locate limit
+      }
+    }
+
+    return {
+      jobId: workOrderToJobId(workOrder),
+      workOrder,
+      smartsheetRowId: row.id,
+      inTracker: true,
+      jobStatus: s(rec["Job Status"]),
+      secondaryJobStatus: null,
+      workType,
+      workTypeTags: splitWorkType(workType),
+      constructionSupervisor: s(rec["NSC Supervisor"]),
+      constructionManager: s(rec["APM"]),
+      constructionBase: null,
+      customerProject: "Ziply",
+      wireCenter: s(rec["Hub Number"]),
+      address: s(rec["Address / Project Name"]),
+      city: s(rec["City"]),
+      zipCode: null,
+      scheduleDate: s(rec["Crew Start Forecast"]),
+      actualCompletionDate: s(rec["All Construction Complete"]),
+      trafficControlRequired: null,
+      constructionCrewForeman: s(rec["Crew"]),
+      nscProjectNotes: s(rec["Job Notes"]),
+      dateReceived: s(rec["Date Received"]),
+      actualStartDate: s(rec["Crew Start Actual"]),
+      permitRequired: null,
+      splicingStatus: s(rec["Splicing Complete Actual"]) ? "Complete" : "Pending",
+      smartsheetModified: s(rec["Modified"]),
+      firstSyncedAt: now,
+      lastSyncedAt: now,
+      geocode: null,
+
+      // Ziply specific fields
+      sapSalesOrder: s(rec["SAP Sales Order"]),
+      sapContractId: s(rec["SAP Contract ID"]),
+      hubNumber: s(rec["Hub Number"]),
+      ziplyInspector: s(rec["Ziply Inspector"]),
+      homesPassed: rec["# Homes Passed"] != null ? Number(rec["# Homes Passed"]) : null,
+      softscapeBuriedHomes: rec["SoftScape Buried Homes"] != null ? Number(rec["SoftScape Buried Homes"]) : null,
+      softscapeAerialHomes: rec["SoftScape Aerial Homes"] != null ? Number(rec["SoftScape Aerial Homes"]) : null,
+      crewName: s(rec["Crew"]),
+      approvedToBuild: b(rec["Approved to Build"]),
+      assignedInSiteTracker: b(rec["Assigned in SiteTracker"]),
+      locatesCalled: locatesCalledStr,
+      estBoreFt: rec["Estimated Bore/Trench Footage"] != null ? Number(rec["Estimated Bore/Trench Footage"]) : null,
+      completedBoreFt: rec["Completed Bore/Trench Footage"] != null ? Number(rec["Completed Bore/Trench Footage"]) : null,
+      estPlacingFt: rec["Estimated Placing Footage"] != null ? Number(rec["Estimated Placing Footage"]) : null,
+      completedPlacingFt: rec["Completed Placing Footage"] != null ? Number(rec["Completed Placing Footage"]) : null,
+      estAerialFt: rec["Estimated Aerial Footage"] != null ? Number(rec["Estimated Aerial Footage"]) : null,
+      completedAerialFt: rec["Completed Aerial Footage"] != null ? Number(rec["Completed Aerial Footage"]) : null,
+      locateNumber: s(rec["Locate Ticket"]),
+      locateExpires,
+    };
+  }
+
+  const workType = s(rec["Work Type"]);
   return {
     jobId: workOrderToJobId(workOrder),
     workOrder,
@@ -145,13 +213,39 @@ export async function runJobsSyncForSupervisors(
   await runDoc.set(initial);
 
   try {
-    const sheet = await getSheet();
-    const colsById = buildColumnsById(sheet);
-    const filtered = sheet.rows.filter((r) => {
-      const rec = rowToRecord(r, colsById);
-      const v = s(rec["Construction Supervisor"]) ?? "";
-      return allowSet.has(v.trim().toLowerCase());
-    });
+    const env = getEnv();
+    const sheetsToSync: Array<{ id: string; supervisorKey: string }> = [];
+    if (env.SMARTSHEET_SHEET_ID) {
+      sheetsToSync.push({ id: env.SMARTSHEET_SHEET_ID, supervisorKey: "Construction Supervisor" });
+    }
+    if (env.ZIPLY_SMARTSHEET_SHEET_ID) {
+      sheetsToSync.push({ id: env.ZIPLY_SMARTSHEET_SHEET_ID, supervisorKey: "NSC Supervisor" });
+    }
+
+    const filteredJobs: Job[] = [];
+    let totalRowCount = 0;
+
+    for (const sheetInfo of sheetsToSync) {
+      try {
+        const sheet = await getSheet({}, sheetInfo.id);
+        totalRowCount += sheet.totalRowCount;
+        const colsById = buildColumnsById(sheet);
+        const matchedRows = sheet.rows.filter((r) => {
+          const rec = rowToRecord(r, colsById);
+          const v = s(rec[sheetInfo.supervisorKey]) ?? "";
+          return allowSet.has(v.trim().toLowerCase());
+        });
+
+        for (const row of matchedRows) {
+          const job = normalizeRow(row, colsById);
+          if (job) {
+            filteredJobs.push(job);
+          }
+        }
+      } catch (err) {
+        console.error(`[jobsSync] Error syncing sheet ${sheetInfo.id}:`, err);
+      }
+    }
 
     // Load all existing jobs once so we can:
     //   - keep firstSyncedAt
@@ -170,11 +264,8 @@ export async function runJobsSyncForSupervisors(
     let geocodedCached = 0;
     let geocodeFailed = 0;
 
-    // Smartsheet returns rows in order; process sequentially to keep geocode
-    // calls bounded (~5 req/sec is safe under Google's 50 QPS default).
-    for (const row of filtered) {
-      const job = normalizeRow(row, colsById);
-      if (!job) continue;
+    // Process sequentially to keep geocode calls bounded
+    for (const job of filteredJobs) {
       currentJobIds.add(job.jobId);
 
       const prior = existingJobs.get(job.jobId);
@@ -236,8 +327,8 @@ export async function runJobsSyncForSupervisors(
       ...initial,
       finishedAt: Date.now(),
       status: "success",
-      sheetTotalRows: sheet.totalRowCount,
-      filteredRows: filtered.length,
+      sheetTotalRows: totalRowCount,
+      filteredRows: filteredJobs.length,
       upserted,
       flaggedOffTracker,
       geocodedFresh,

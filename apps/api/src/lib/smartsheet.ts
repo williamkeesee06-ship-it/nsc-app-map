@@ -71,10 +71,11 @@ export interface GetSheetOpts {
   withAttachments?: boolean;
 }
 
-export async function getSheet(opts: GetSheetOpts = {}): Promise<SmartsheetSheet> {
+export async function getSheet(opts: GetSheetOpts = {}, sheetId?: string): Promise<SmartsheetSheet> {
   const env = getEnv();
-  if (!env.SMARTSHEET_SHEET_ID) {
-    throw new Error("[smartsheet] SMARTSHEET_SHEET_ID missing");
+  const targetSheetId = sheetId ?? env.SMARTSHEET_SHEET_ID;
+  if (!targetSheetId) {
+    throw new Error("[smartsheet] Sheet ID missing");
   }
   // Smartsheet's GET /sheets/{id} defaults to 100 rows per page. With our
   // tracker holding 500+ rows we MUST request the whole sheet, otherwise the
@@ -83,7 +84,7 @@ export async function getSheet(opts: GetSheetOpts = {}): Promise<SmartsheetSheet
   if (opts.withAttachments) includes.push("attachments");
   const includeQs = includes.length ? `&include=${includes.join(",")}` : "";
   return ssFetch<SmartsheetSheet>(
-    `/sheets/${env.SMARTSHEET_SHEET_ID}?includeAll=true${includeQs}`
+    `/sheets/${targetSheetId}?includeAll=true${includeQs}`
   );
 }
 
@@ -131,13 +132,15 @@ export function buildColumnsByTitle(sheet: SmartsheetSheet): Map<string, Smartsh
 export async function updateRowCells(
   rowId: number,
   cells: Record<string, string | number | boolean | null>,
-  sheet?: SmartsheetSheet
+  sheet?: SmartsheetSheet,
+  sheetId?: string
 ): Promise<SmartsheetRow> {
   const env = getEnv();
-  if (!env.SMARTSHEET_SHEET_ID) {
-    throw new Error("[smartsheet] SMARTSHEET_SHEET_ID missing");
+  const targetSheetId = sheetId ?? env.SMARTSHEET_SHEET_ID;
+  if (!targetSheetId) {
+    throw new Error("[smartsheet] Sheet ID missing");
   }
-  const resolvedSheet = sheet ?? (await getSheet());
+  const resolvedSheet = sheet ?? (await getSheet({}, targetSheetId));
   const byTitle = buildColumnsByTitle(resolvedSheet);
   const cellPayload: Array<{ columnId: number; value: string | number | boolean | null; strict?: boolean }> = [];
   for (const [title, value] of Object.entries(cells)) {
@@ -152,7 +155,7 @@ export async function updateRowCells(
   }
   const body = [{ id: rowId, cells: cellPayload }];
   const response = await ssFetch<{ result: SmartsheetRow[] | SmartsheetRow }>(
-    `/sheets/${env.SMARTSHEET_SHEET_ID}/rows`,
+    `/sheets/${targetSheetId}/rows`,
     { method: "PUT", body: JSON.stringify(body) }
   );
   // Smartsheet sometimes returns an array, sometimes one row. Normalize.

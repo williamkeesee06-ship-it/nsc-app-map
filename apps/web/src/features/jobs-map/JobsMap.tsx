@@ -21,6 +21,7 @@ import type { Job } from "@nsc/types";
 import { normalizeDigShape } from "@nsc/types";
 import DigTicketsTab from "../dig-tickets/DigTicketsTab.js";
 import { useSearchFocus } from "../search/searchContext.js";
+import { useActiveContract } from "../workspace/contractStore.js";
 import { MARKER_COLORS, colorKeyForJob, isJobCompleted, neonPinDataUrl } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
@@ -28,6 +29,7 @@ import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import { DigPolygonProvider, useDigPolygon } from "../dig-polygon/digPolygonContext.js";
 import DigPolygonOverlay from "../dig-polygon/DigPolygonOverlay.js";
 import SavedDigShapeOverlay from "../dig-polygon/SavedDigShapeOverlay.js";
+import AllDigShapesOverlay from "../dig-polygon/AllDigShapesOverlay.js";
 import AllJobsMarkupsOverlay from "../drawing/AllJobsMarkupsOverlay.js";
 import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
 import { useShowCOs } from "./centralOfficesStore.js";
@@ -48,6 +50,7 @@ export default function JobsMap() {
   const jobsState = useJobs();
   const reload = jobsState.reload;
   const { theme } = useMapTheme();
+  const { contract } = useActiveContract();
   const { username, isManager } = useAuth();
   // Per-supervisor markup scoping (Billy 5/26): each supervisor only sees
   // their own drawings. Managers ALSO see only their own (Robbie explicitly
@@ -64,18 +67,22 @@ export default function JobsMap() {
       .then(({ supervisors }) => setAllSupervisors(supervisors))
       .catch(() => { /* swallow */ });
   }, [isManager]);
-  // Phase 9.7: strict filter by supervisor (case-insensitive).
-  // Managers (e.g. Robbie Thoman) see jobs for EVERY supervisor in the
-  // allowlist — their FilterRail exposes a Supervisor multi-select instead
-  // of the usual status buckets.
+  // Phase 9.7: strict filter by supervisor (case-insensitive) and contract.
   const allJobs = useMemo(() => {
-    if (isManager) return rawJobs;
-    const u = (username ?? "").trim().toLowerCase();
-    if (!u) return [];
-    return rawJobs.filter(
-      (j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === u
-    );
-  }, [rawJobs, username, isManager]);
+    let filtered = rawJobs;
+    if (!isManager) {
+      const u = (username ?? "").trim().toLowerCase();
+      if (!u) return [];
+      filtered = rawJobs.filter(
+        (j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === u
+      );
+    }
+    if (contract === "Ziply") {
+      return filtered.filter((j) => j.customerProject === "Ziply");
+    } else {
+      return filtered.filter((j) => j.customerProject !== "Ziply");
+    }
+  }, [rawJobs, username, isManager, contract]);
   const { filters, setFilters, setJobs: setFiltersJobs } = useFiltersContext();
   // Keep the FiltersContext jobs list in sync with the supervisor-scoped
   // allJobs so the topbar StatusFilterPills show accurate per-bucket counts.
@@ -83,6 +90,9 @@ export default function JobsMap() {
     setFiltersJobs(allJobs);
   }, [allJobs, setFiltersJobs]);
   const [selected, setSelected] = useState<Job | null>(null);
+  useEffect(() => {
+    setSelected(null);
+  }, [contract]);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   // Mirror the locally-tracked `selected` job into the global search context
@@ -168,6 +178,7 @@ function JobsMapInner({
   allSupervisors: string[];
   drawingOwner: string;
 }) {
+  const { contract } = useActiveContract();
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
   const { setTarget: setDigTarget } = useDigPolygon();
   const [panelTheme, setPanelTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
@@ -248,19 +259,19 @@ function JobsMapInner({
   const [calendarFullscreen, setCalendarFullscreen] = useState(false);
   // Dashboard is the default landing tab — it mounts full-screen on first
   // paint (LeftRail starts on 'dashboard' and broadcasts it on mount).
-  const [dashboardFullscreen, setDashboardFullscreen] = useState(true);
+  const [dashboardFullscreen, setDashboardFullscreen] = useState(contract !== "Ziply");
   const [ticketsFullscreen, setTicketsFullscreen] = useState(false);
   useEffect(() => {
     function onActiveTab(e: Event) {
       const detail = (e as CustomEvent<{ tab: string; collapsed: boolean }>).detail;
       if (!detail) return;
       setCalendarFullscreen(detail.tab === "calendar");
-      setDashboardFullscreen(detail.tab === "dashboard");
+      setDashboardFullscreen(detail.tab === "dashboard" && contract !== "Ziply");
       setTicketsFullscreen(detail.tab === "811-tickets");
     }
     window.addEventListener("nsc:active-tab", onActiveTab);
     return () => window.removeEventListener("nsc:active-tab", onActiveTab);
-  }, []);
+  }, [contract]);
 
   // Dashboard → app navigation. Tapping a status segment pre-filters the map;
   // tapping the map/calendar cards switches to that tab. We drive LeftRail via
@@ -335,6 +346,7 @@ function JobsMapInner({
               <CentralOfficesOverlay visible={showCOs} />
               <DrawingOverlay />
               <SavedDigShapeOverlay />
+              <AllDigShapesOverlay jobs={mapped} activeJobId={selected?.jobId} />
               <DigPolygonOverlay />
               <MeasuringOverlay />
               {/* MapTypeToggle is in the topbar; this applier (inside the Map
@@ -593,62 +605,123 @@ function JobMarkers({
     const created = new globalThis.Map<string, google.maps.Marker>();
     const labelMarkers: google.maps.Marker[] = [];
     const currentZoom = map.getZoom() ?? 0;
-    const labelsVisible = currentZoom >= WO_LABEL_MIN_ZOOM;
+    const showClusters = currentZoom < 10;
+    const labelsVisible = currentZoom >= WO_LABEL_MIN_ZOOM && !showClusters;
 
-    jobs.forEach((job) => {
-      const colorKey = colorKeyForJob(job);
-      const color = MARKER_COLORS[colorKey];
-
-      // Pin marker
-      const m = new google.maps.Marker({
-        position: { lat: job.geocode!.lat, lng: job.geocode!.lng },
-        map,
-        title: `${job.workOrder} · ${job.secondaryJobStatus ?? job.jobStatus ?? ""}`,
-        icon: {
-          url: neonPinDataUrl(color, (job.inTracker ? 1 : 0.55) * (isJobCompleted(job) ? 0.6 : 1)),
-          scaledSize: new google.maps.Size(26, 36),
-          anchor: new google.maps.Point(13, 33),
-        },
+    if (showClusters) {
+      // Group mapped jobs by City
+      const cityGroups = new Map<string, Job[]>();
+      jobs.forEach((job) => {
+        const city = (job.city ?? "").trim().toLowerCase();
+        if (!city || !job.geocode) return;
+        if (!cityGroups.has(city)) cityGroups.set(city, []);
+        cityGroups.get(city)!.push(job);
       });
-      m.addListener("click", () => {
-        onSelectRef.current(job);
-        focusMapOnLatLng(map, job.geocode!.lat, job.geocode!.lng);
-      });
-      created.set(job.jobId, m);
 
-      // WO label marker — positioned slightly above the pin
-      if (job.workOrder) {
-        const pinColor = color.core;
-        const woText = job.workOrder;
-        // Build a tiny SVG label pill
-        const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="22">
-  <rect x="0" y="0" width="80" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
-  <text x="40" y="15" text-anchor="middle" font-size="10" font-weight="700"
-    fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${woText}</text>
-</svg>`;
-        const labelUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(labelSvg)}`;
-        const lm = new google.maps.Marker({
-          position: { lat: job.geocode!.lat, lng: job.geocode!.lng },
-          map: labelsVisible ? map : null,
-          icon: {
-            url: labelUrl,
-            scaledSize: new google.maps.Size(80, 22),
-            anchor: new google.maps.Point(40, 48), // above pin tip
-          },
-          clickable: false,
-          zIndex: 1,
+      cityGroups.forEach((cityJobs, cityName) => {
+        // Calculate center of cluster
+        let sumLat = 0;
+        let sumLng = 0;
+        let totalCompleted = 0;
+        let totalEstimated = 0;
+        let count = 0;
+
+        cityJobs.forEach((j) => {
+          sumLat += j.geocode!.lat;
+          sumLng += j.geocode!.lng;
+          totalCompleted += (j.completedBoreFt ?? 0) + (j.completedPlacingFt ?? 0) + (j.completedAerialFt ?? 0);
+          totalEstimated += (j.estBoreFt ?? 0) + (j.estPlacingFt ?? 0) + (j.estAerialFt ?? 0);
+          count++;
         });
-        labelMarkers.push(lm);
-      }
-    });
+
+        if (count === 0) return;
+        const center = { lat: sumLat / count, lng: sumLng / count };
+        const pct = totalEstimated > 0 ? Math.round((totalCompleted / totalEstimated) * 100) : 45; // Default fallback to 45% if no estimated footage
+        const color = pct >= 80 ? "#00E676" : pct >= 50 ? "#ffb300" : "#ff7043";
+
+        // Draw a large glowing radar circle SVG
+        const clusterSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r="30" fill="${color}" fill-opacity="0.15" stroke="${color}" stroke-width="2"/>
+          <circle cx="40" cy="40" r="38" fill="none" stroke="${color}" stroke-width="1.5" stroke-dasharray="4 2" stroke-opacity="0.6"/>
+          <circle cx="40" cy="40" r="10" fill="${color}" fill-opacity="0.8"/>
+          <text x="40" y="44" text-anchor="middle" font-size="10" font-weight="900" fill="white" font-family="sans-serif">${pct}%</text>
+          <text x="40" y="76" text-anchor="middle" font-size="9" font-weight="700" fill="${color}" font-family="sans-serif" letter-spacing="0.05em" text-transform="uppercase">${cityName}</text>
+        </svg>`;
+        const clusterUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(clusterSvg)}`;
+
+        const cm = new google.maps.Marker({
+          position: center,
+          map,
+          title: `${cityName} Area Buildout · ${pct}% Complete (${count} jobs)`,
+          icon: {
+            url: clusterUrl,
+            scaledSize: new google.maps.Size(80, 80),
+            anchor: new google.maps.Point(40, 40),
+          },
+        });
+
+        cm.addListener("click", () => {
+          map.setCenter(center);
+          map.setZoom(12);
+        });
+
+        created.set(`cluster-${cityName}`, cm);
+      });
+    } else {
+      jobs.forEach((job) => {
+        const colorKey = colorKeyForJob(job);
+        const color = MARKER_COLORS[colorKey];
+
+        // Pin marker
+        const m = new google.maps.Marker({
+          position: { lat: job.geocode!.lat, lng: job.geocode!.lng },
+          map,
+          title: `${job.workOrder} · ${job.secondaryJobStatus ?? job.jobStatus ?? ""}`,
+          icon: {
+            url: neonPinDataUrl(color, (job.inTracker ? 1 : 0.55) * (isJobCompleted(job) ? 0.6 : 1)),
+            scaledSize: new google.maps.Size(26, 36),
+            anchor: new google.maps.Point(13, 33),
+          },
+        });
+        m.addListener("click", () => {
+          onSelectRef.current(job);
+          focusMapOnLatLng(map, job.geocode!.lat, job.geocode!.lng);
+        });
+        created.set(job.jobId, m);
+
+        // WO label marker — positioned slightly above the pin
+        if (job.workOrder) {
+          const pinColor = color.core;
+          const woText = job.workOrder;
+          // Build a tiny SVG label pill
+          const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="22">
+    <rect x="0" y="0" width="80" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
+    <text x="40" y="15" text-anchor="middle" font-size="10" font-weight="700"
+      fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${woText}</text>
+  </svg>`;
+          const labelUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(labelSvg)}`;
+          const lm = new google.maps.Marker({
+            position: { lat: job.geocode!.lat, lng: job.geocode!.lng },
+            map: labelsVisible ? map : null,
+            icon: {
+              url: labelUrl,
+              scaledSize: new google.maps.Size(80, 22),
+              anchor: new google.maps.Point(40, 48), // above pin tip
+            },
+            clickable: false,
+            zIndex: 1,
+          });
+          labelMarkers.push(lm);
+        }
+      });
+    }
     markersRef.current = created;
     labelMarkersRef.current = labelMarkers;
 
-    // Zoom listener to toggle label visibility
+    // Zoom listener to toggle label/cluster visibility
     const zoomListener = map.addListener("zoom_changed", () => {
-      const zoom = map.getZoom() ?? 0;
-      const show = zoom >= WO_LABEL_MIN_ZOOM;
-      labelMarkersRef.current.forEach((lm) => lm.setMap(show ? map : null));
+      // Force trigger map redraw by triggering state refresh
+      fittedRef.current = false;
     });
 
     if (!fittedRef.current && jobs.length > 0) {

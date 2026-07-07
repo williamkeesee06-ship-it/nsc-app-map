@@ -23,6 +23,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { api, type CalendarEvent, type CalendarPayload } from "../../lib/api.js";
+import { useActiveContract } from "../workspace/contractStore.js";
 
 // ── Theme tokens (mirrored from styles/theme.css for inline use) ──────────
 const ROYAL       = "#1565C0";   // crew label + active tab accent
@@ -177,6 +178,7 @@ function allocateSlots(
 type Scope = "mine" | "all";
 
 export function CalendarTab() {
+  const { contract } = useActiveContract();
   const [weekStart, setWeekStart] = useState<Date>(() => mondayOf(new Date()));
   const [scope, setScope] = useState<Scope>("mine");
   const [payload, setPayload] = useState<CalendarPayload | null>(null);
@@ -228,12 +230,12 @@ export function CalendarTab() {
   const onToday    = useCallback(() => setWeekStart(mondayOf(new Date())), []);
 
   return (
-    <div className="cal-tab">
+    <div className="cal-tab" style={{ "--cal-accent": contract === "Ziply" ? "var(--ziply, #00b248)" : ROYAL } as React.CSSProperties}>
       {/* ── Header: title, scope toggle, week nav ───────────────────────── */}
       <div className="cal-header">
         <div className="cal-title-row">
           <span className="cal-title">CALENDAR</span>
-          <span className="cal-subtitle">· Lumen Scheduling</span>
+          <span className="cal-subtitle">· {contract === "Ziply" ? "Ziply Crew Schedule" : "Lumen Scheduling"}</span>
         </div>
 
         <div className="cal-controls">
@@ -547,7 +549,7 @@ const _styles = `
 
 .cal-crew-label {
   grid-column: 1;
-  background: ${ROYAL};
+  background: var(--cal-accent, ${ROYAL});
   color: #f4f8ff;
   display: flex; align-items: flex-start;
   padding: 12px 10px;
@@ -594,7 +596,7 @@ const _styles = `
   z-index: 3;
 }
 .cal-event.selected {
-  border-color: ${ROYAL};
+  border-color: var(--cal-accent, ${ROYAL});
   box-shadow: 0 0 0 2px ${ACCENT_CY};
   z-index: 4;
 }

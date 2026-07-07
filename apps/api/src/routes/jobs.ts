@@ -3,9 +3,10 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db } from "../lib/firestore.js";
 import { geocodeAddress } from "../lib/geocode.js";
-import { getSheet, buildColumnsById } from "../lib/smartsheet.js";
+import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
+import { parseZiplyPrint } from "../services/ziplyParser.js";
 import type { DigShape, Job, PolygonData } from "@nsc/types";
 
 const router = Router();
@@ -407,6 +408,163 @@ router.post("/jobs", async (req, res, next) => {
     invalidateJobsCache();
 
     res.status(201).json({ jobId, workOrder, jobName, lat, lng });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/ziply-metrics — calculates Ziply contract KPIs & metrics
+router.get("/jobs/ziply-metrics", async (_req, res, next) => {
+  try {
+    const snap = await db().collection("jobs").where("customerProject", "==", "Ziply").get();
+    const jobs = snap.docs.map((d) => d.data() as Job);
+
+    let totalBoreEst = 0;
+    let totalBoreComp = 0;
+    let totalPlacingEst = 0;
+    let totalPlacingComp = 0;
+    let totalAerialEst = 0;
+    let totalAerialComp = 0;
+    let totalDropsEst = 0;
+    let totalDropsComp = 0;
+
+    const hubProgress: Record<string, { total: number; completed: number }> = {};
+    const crewPerformance: Record<string, { completedBore: number; completedPlacing: number; completedAerial: number }> = {};
+
+    for (const j of jobs) {
+      // Footages
+      totalBoreEst += j.estBoreFt ?? 0;
+      totalBoreComp += j.completedBoreFt ?? 0;
+      totalPlacingEst += j.estPlacingFt ?? 0;
+      totalPlacingComp += j.completedPlacingFt ?? 0;
+      totalAerialEst += j.estAerialFt ?? 0;
+      totalAerialComp += j.completedAerialFt ?? 0;
+
+      // Drops
+      totalDropsEst += j.homesPassed ?? 0; // # Homes Passed acts as drop target
+      if (j.jobStatus === "Billing Complete" || j.jobStatus === "All Construction Complete") {
+        totalDropsComp += j.homesPassed ?? 0;
+      }
+
+      // Hub Progress
+      const hub = j.hubNumber || "Unknown Hub";
+      if (!hubProgress[hub]) {
+        hubProgress[hub] = { total: 0, completed: 0 };
+      }
+      hubProgress[hub].total += (j.estBoreFt ?? 0) + (j.estPlacingFt ?? 0) + (j.estAerialFt ?? 0);
+      hubProgress[hub].completed += (j.completedBoreFt ?? 0) + (j.completedPlacingFt ?? 0) + (j.completedAerialFt ?? 0);
+
+      // Crew Performance
+      const crew = j.crewName || "Unassigned";
+      if (!crewPerformance[crew]) {
+        crewPerformance[crew] = { completedBore: 0, completedPlacing: 0, completedAerial: 0 };
+      }
+      crewPerformance[crew].completedBore += j.completedBoreFt ?? 0;
+      crewPerformance[crew].completedPlacing += j.completedPlacingFt ?? 0;
+      crewPerformance[crew].completedAerial += j.completedAerialFt ?? 0;
+    }
+
+    // Convert Hub Progress to percentages
+    const hubs = Object.entries(hubProgress).map(([name, stats]) => {
+      const pct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+      return { name, pct, completed: stats.completed, total: stats.total };
+    });
+
+    res.json({
+      summary: {
+        bore: { estimated: totalBoreEst, completed: totalBoreComp },
+        placing: { estimated: totalPlacingEst, completed: totalPlacingComp },
+        aerial: { estimated: totalAerialEst, completed: totalAerialComp },
+        drops: { estimated: totalDropsEst, completed: totalDropsComp },
+      },
+      hubs,
+      crews: crewPerformance,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-ingest — Ingests a Ziply FTTH print and parses using Gemini
+router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const body = req.body as { dataUrl?: string };
+    if (!body.dataUrl) {
+      res.status(400).json({ error: "dataUrl required" });
+      return;
+    }
+    const parsed = await parseZiplyPrint(body.dataUrl);
+
+    // Save structured metadata directly into the job document!
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const updates: Partial<Job> = {
+      hubNumber: parsed.hubId,
+      customerProject: "Ziply",
+      ziplyInspector: parsed.ziplyInspector ?? parsed.hubTypeSize,
+      homesPassed: parsed.drops?.total ?? null,
+      softscapeBuriedHomes: parsed.drops?.lu ?? null,
+      softscapeAerialHomes: parsed.drops?.mdu ?? null,
+      nscProjectNotes: parsed.specialNotes ?? null,
+      lastSyncedAt: Date.now(),
+    };
+
+    await ref.update(updates);
+    invalidateJobsCache();
+
+    res.json({ ok: true, parsed, jobId });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-production — Logs daily progress and updates Smartsheet row
+router.post("/jobs/:jobId/ziply-production", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { completedBoreFt, completedPlacingFt, completedAerialFt, notes } = req.body as {
+      completedBoreFt?: number;
+      completedPlacingFt?: number;
+      completedAerialFt?: number;
+      notes?: string;
+    };
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+
+    // Cumulative production ft
+    const newBore = (job.completedBoreFt ?? 0) + (completedBoreFt ?? 0);
+    const newPlacing = (job.completedPlacingFt ?? 0) + (completedPlacingFt ?? 0);
+    const newAerial = (job.completedAerialFt ?? 0) + (completedAerialFt ?? 0);
+
+    const updates: Partial<Job> = {
+      completedBoreFt: newBore,
+      completedPlacingFt: newPlacing,
+      completedAerialFt: newAerial,
+      lastSyncedAt: Date.now(),
+    };
+    if (notes) {
+      updates.nscProjectNotes = notes;
+    }
+
+    await ref.update(updates);
+    invalidateJobsCache();
+
+    // NOTE: Smartsheet row propagation is disabled per user request.
+    // We only record production locally in Firestore until explicitly approved.
+
+    res.json({ ok: true, jobId, completedBoreFt: newBore, completedPlacingFt: newPlacing, completedAerialFt: newAerial });
   } catch (err) {
     next(err);
   }

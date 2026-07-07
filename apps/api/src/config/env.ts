@@ -9,6 +9,7 @@ const Schema = z.object({
   FIREBASE_PRIVATE_KEY: z.string().min(1, "FIREBASE_PRIVATE_KEY is required"),
   SMARTSHEET_API_TOKEN: z.string().optional(),
   SMARTSHEET_SHEET_ID: z.string().optional(),
+  ZIPLY_SMARTSHEET_SHEET_ID: z.string().optional(),
   // Geocoding key for the Google Geocoding API. If unset, we'll fall back to
   // VITE_GOOGLE_MAPS_API_KEY — but a referrer-restricted browser key will
   // reject server-side calls, so a dedicated unrestricted (or IP-restricted)

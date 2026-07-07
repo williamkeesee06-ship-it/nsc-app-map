@@ -57,6 +57,7 @@
   --neon-green:           #39ff7a;
   --neon-red:             #ff2d4a;
   --neon-cyan:            var(--accent-blue);
+  --ziply:                #00b248;
 }
 
 /* ── Reusable brushed-steel surface mixin ──────────────────
@@ -399,5 +400,16 @@ button:hover,
   background: rgba(255, 255, 255, 0.03) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* ── Ziply FTTH Accent Override ── */
+.contract-ziply {
+  --accent-blue: #00E676;
+  --accent-blue-deep: #00b248;
+  --accent-blue-soft: rgba(0, 230, 118, 0.18);
+  --accent: #00E676;
+  --accent-hover: #00b248;
+  --primary: #00E676;
+  --primary-hover: #00b248;
 }
 

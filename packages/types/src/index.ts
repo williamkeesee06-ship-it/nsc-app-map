@@ -284,6 +284,25 @@ export interface Job {
   // Geocode result (lat/lng for the map)
   geocode: JobGeocode | null;
 
+  // ── Ziply FTTH specific fields ───────────────────────────────────────
+  sapSalesOrder?: string | null;
+  sapContractId?: string | null;
+  hubNumber?: string | null;
+  ziplyInspector?: string | null;
+  homesPassed?: number | null;
+  softscapeBuriedHomes?: number | null;
+  softscapeAerialHomes?: number | null;
+  crewName?: string | null;
+  approvedToBuild?: boolean | null;
+  assignedInSiteTracker?: boolean | null;
+  locatesCalled?: string | null;
+  estBoreFt?: number | null;
+  completedBoreFt?: number | null;
+  estPlacingFt?: number | null;
+  completedPlacingFt?: number | null;
+  estAerialFt?: number | null;
+  completedAerialFt?: number | null;
+
   // ── 811 Dig Ticket fields (Phase 1) ──────────────────────────────────
   // All optional so existing job docs (and Smartsheet-normalized rows that
   // never touched 811) stay valid without a migration.

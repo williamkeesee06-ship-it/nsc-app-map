@@ -12,6 +12,7 @@ import LoginScreen from "./features/auth/LoginScreen.js";
 import { FiltersProvider } from "./features/jobs-map/filtersContext.js";
 import JobInfoBoxes from "./features/jobs-map/JobInfoBoxes.js";
 import { LuminaProvider } from "./features/lumina/store/luminaStore.js";
+import { useActiveContract, setActiveContract } from "./features/workspace/contractStore.js";
 import "./features/lumina/lumina.css";
 import "./features/lumina/pegmanTint.css";
 
@@ -35,12 +36,69 @@ export default function App() {
   );
 }
 
+function ContractSelector() {
+  const { contract, setActiveContract } = useActiveContract();
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 4,
+        marginRight: 8,
+        background: "rgba(255,255,255,0.06)",
+        borderRadius: 6,
+        padding: 2,
+        border: "1px solid rgba(255,255,255,0.1)",
+        height: 28,
+        alignItems: "center",
+      }}
+      role="group"
+      aria-label="Active contract workspace"
+    >
+      <button
+        style={{
+          background: contract === "Lumen" ? "var(--primary, #0052cc)" : "transparent",
+          color: "#fff",
+          border: "none",
+          padding: "3px 8px",
+          borderRadius: 4,
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+        }}
+        onClick={() => setActiveContract("Lumen")}
+      >
+        Lumen
+      </button>
+      <button
+        style={{
+          background: contract === "Ziply" ? "var(--ziply, #00b248)" : "transparent",
+          color: "#fff",
+          border: "none",
+          padding: "3px 8px",
+          borderRadius: 4,
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+        }}
+        onClick={() => setActiveContract("Ziply")}
+      >
+        Ziply
+      </button>
+    </div>
+  );
+}
+
 function Shell() {
   const { username } = useAuth();
+  const { contract } = useActiveContract();
   const needsLogin = username === null;
   return (
     <>
-      <div className="app-frame">
+      <div className={`app-frame ${contract === "Ziply" ? "contract-ziply" : ""}`}>
         {/* Industrial rivets at inner corners */}
         <div className="rivet rivet-tl" />
         <div className="rivet rivet-tr" />
@@ -48,8 +106,9 @@ function Shell() {
         <div className="rivet rivet-br" />
         <div className="app-shell">
           <div className="shell">
-            <header className="topbar">
+            <header className="topbar" style={{ gap: 8 }}>
               <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
+              <ContractSelector />
               <SearchBar />
               {/* AsBuilt-style info row: 7 boxes that auto-fill when a job is
                   selected via search or by clicking a pin. Empty otherwise. */}
