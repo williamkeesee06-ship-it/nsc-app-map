@@ -313,7 +313,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
 
       {/* Step Progress Stepper */}
       {["Drafting", "Review", "Filing", "Failed"].includes(ticket.status) && (
-        <div className="dt-stepper">
+        <div className="dt-stepper dt-card-bg-1">
           <div className={`dt-step-indicator ${["Drafting", "Review", "Filing"].includes(ticket.status) ? "active" : "completed"}`}>
             <div className="step-num">1</div>
             <div className="step-label">Launch & Center</div>
@@ -358,7 +358,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       {error && <div className="dt-error">{error}</div>}
 
       {/* Shape + specs */}
-      <section className="dt-card">
+      <section className="dt-card dt-card-bg-2">
         <div className="dt-card__title">EXCAVATION SHAPE</div>
         <div className="dt-stats">
           <div><span>Type</span><b>{ticket.shape.type}</b></div>
@@ -377,7 +377,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       </section>
 
       {/* Marking instructions (editable + regenerate) */}
-      <section className="dt-card">
+      <section className="dt-card dt-card-bg-3">
         <div className="dt-card__title">
           MARKING INSTRUCTIONS
           <button className="dt-btn dt-btn--sm" onClick={regenerate} disabled={busy === "regen"}>
@@ -403,7 +403,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       {/* Request 811: human-in-the-loop ITIC filing inside an embedded iframe
           (draw + submit in ITIC → paste ticket # back). */}
       {/* Redesigned Copilot filing section */}
-      <section className="dt-copilot-card">
+      <section className="dt-copilot-card dt-card-bg-4">
         <div className="dt-copilot-header">
           <span className="dt-copilot-title">NSC Copilot Filing Center</span>
           {filingMethod === "extension" && (
@@ -594,14 +594,14 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       </section>
 
       {ticket.hazardsWarning && (
-        <section className="dt-card dt-card--hazard">
+        <section className="dt-card dt-card--hazard dt-card-bg-5">
           <div className="dt-card__title">⚠ HAZARDS</div>
           <p>{ticket.hazardsWarning}</p>
         </section>
       )}
 
       {guidelines.length > 0 && (
-        <section className="dt-card">
+        <section className="dt-card dt-card-bg-6">
           <div className="dt-card__title">SAFE EXCAVATION GUIDELINES</div>
           <ul className="dt-guidelines">
             {guidelines.map((g, i) => <li key={i}>{g}</li>)}
@@ -610,7 +610,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       )}
 
       {/* Utility response panel */}
-      <section className="dt-card">
+      <section className="dt-card dt-card-bg-1">
         <div className="dt-card__title">
           UTILITY RESPONSES
           {ticket.readyToDig && <span className="dt-chip dt-chip--ready">READY TO DIG</span>}
@@ -644,7 +644,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       </section>
 
       {/* Dates + renewal flow */}
-      <section className="dt-card">
+      <section className="dt-card dt-card-bg-2">
         <div className="dt-card__title">DATES</div>
         <div className="dt-stats">
           <div><span>Start (48hr)</span><b>{fmtDate(ticket.specs.startDate)}</b></div>

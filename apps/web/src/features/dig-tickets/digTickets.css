@@ -1247,3 +1247,59 @@
   color: #15803d;
 }
 
+/* Card Background variations using user-supplied bg2.jpg and bg3.jpg (metallic white/blue premium light theme) */
+.dt-card.dt-card-bg-1,
+.dt-copilot-card.dt-card-bg-1,
+.dt-stepper.dt-card-bg-1 {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), url('/dashboard/bg2.jpg') !important;
+  background-size: cover !important;
+  background-position: top left !important;
+  background-repeat: no-repeat !important;
+}
+
+.dt-card.dt-card-bg-2,
+.dt-copilot-card.dt-card-bg-2,
+.dt-stepper.dt-card-bg-2 {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.94)), url('/dashboard/bg3.jpg') !important;
+  background-size: cover !important;
+  background-position: center right !important;
+  background-repeat: no-repeat !important;
+}
+
+.dt-card.dt-card-bg-3,
+.dt-copilot-card.dt-card-bg-3,
+.dt-stepper.dt-card-bg-3 {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), url('/dashboard/bg2.jpg') !important;
+  background-size: 150% !important;
+  background-position: 70% 30% !important;
+  background-repeat: no-repeat !important;
+}
+
+.dt-card.dt-card-bg-4,
+.dt-copilot-card.dt-card-bg-4,
+.dt-stepper.dt-card-bg-4 {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.93), rgba(255, 255, 255, 0.93)), url('/dashboard/bg3.jpg') !important;
+  background-size: 160% !important;
+  background-position: 20% 80% !important;
+  background-repeat: no-repeat !important;
+}
+
+.dt-card.dt-card-bg-5,
+.dt-copilot-card.dt-card-bg-5,
+.dt-stepper.dt-card-bg-5 {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), url('/dashboard/bg2.jpg') !important;
+  background-size: cover !important;
+  background-position: bottom left !important;
+  background-repeat: no-repeat !important;
+}
+
+.dt-card.dt-card-bg-6,
+.dt-copilot-card.dt-card-bg-6,
+.dt-stepper.dt-card-bg-6 {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.93), rgba(255, 255, 255, 0.93)), url('/dashboard/bg3.jpg') !important;
+  background-size: cover !important;
+  background-position: top right !important;
+  background-repeat: no-repeat !important;
+}
+
+
