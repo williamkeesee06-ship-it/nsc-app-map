@@ -133,6 +133,7 @@ export default function SearchBar() {
     setError(null);
     setTerm(p.description);
     navigate("/");
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
     // Geocode the place_id to get lat/lng (cheaper than PlacesService.getDetails).
     const g = (window as unknown as { google?: { maps?: { Geocoder?: new () => google.maps.Geocoder } } }).google;
     if (!g?.maps?.Geocoder) return;
@@ -176,6 +177,7 @@ export default function SearchBar() {
     setTerm(job.workOrder);
     // Ensure we're on the Jobs Map route so the map exists to receive focus.
     navigate("/");
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
     focusJob(job.jobId);
   }
 
@@ -184,6 +186,7 @@ export default function SearchBar() {
     setError(null);
     setTerm(m.label);
     navigate("/");
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
     // Jump the map to the markup's location. Job card will open via
     // the existing AllJobsMarkupsOverlay click handler the next time the
     // user clicks the markup; we just take them to the spot first.
@@ -251,6 +254,7 @@ export default function SearchBar() {
         setOpen(true);
         return;
       }
+      window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
       focusLatLng(hit.lat, hit.lng, hit.label);
       setOpen(false);
     } finally {

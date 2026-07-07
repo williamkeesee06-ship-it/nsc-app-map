@@ -351,11 +351,13 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
   try {
     const genai = new GoogleGenerativeAI(apiKey);
 
-    // System prompt — same locks as Live mode, with username swapped in.
+    const nowStr = new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
+    const timeContext = `\n\n=====================================================================\n  SYSTEM CONTEXT\n=====================================================================\nThe current local time (Pacific Time) is: ${nowStr}\n`;
+
     const baseSys = LUMINA_SYSTEM_INSTRUCTION.replace(
       "Billy Keesee",
       body.username ? `${body.username}` : "Billy Keesee"
-    );
+    ) + timeContext;
 
     // Phase 5c — inject any durable memories Lumina has saved for this user.
     // We sort pinned-first, recently-updated next in loadMemoriesForPrompt.
