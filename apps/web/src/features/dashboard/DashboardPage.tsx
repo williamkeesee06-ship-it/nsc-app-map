@@ -52,7 +52,7 @@ export default function DashboardPage({
           <Suspense fallback={<div className="dash-skel dash-skel--map" aria-hidden />}>
             <MapPreviewCard jobs={data.myJobs} onOpenMap={onOpenMap} />
           </Suspense>
-          <ActiveDigTicketsCard jobs={jobs} />
+          <LuminaBriefingCard firstName={firstName} username={username} />
           <CalendarCard
             weekStart={data.weekStart}
             weekSchedule={data.weekSchedule}
@@ -62,7 +62,7 @@ export default function DashboardPage({
         </div>
 
         <div className="nsc-dashboard__row nsc-dashboard__row--bottom">
-          <LuminaBriefingCard firstName={firstName} username={username} />
+          <ActiveDigTicketsCard jobs={jobs} />
           <div className="nsc-dashboard__right-stack">
             <AtRiskJobsCard atRiskJobs={data.atRiskJobs} onOpenJob={onOpenJob} />
             <QuickLinksCard />
