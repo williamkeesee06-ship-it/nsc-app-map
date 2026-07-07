@@ -29,12 +29,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const LIVE_STATUSES = new Set(["Filed", "Active", "Expiring"]);
 
 async function findTicketByJobNumber(
-  jobNumber: string
+  jobNumber: string,
+  owner?: string
 ): Promise<{ ticket: DigTicket | null; job: Job | null }> {
   // Fetch both — cheap for Billy's dataset size (~hundreds).
   const [ticketsRes, jobsRes] = await Promise.all([
-    api.listDigTickets(),
-    api.listJobs(),
+    api.listDigTickets(owner),
+    api.listJobs(owner),
   ]);
   const wo = jobNumber.trim().toUpperCase();
   const job = jobsRes.jobs.find((j) => (j.workOrder ?? "").toUpperCase() === wo) ?? null;
@@ -68,12 +69,13 @@ const startDigTicketTool: LuminaTool<StartDigTicketInput, StartDigTicketData> = 
   description:
     "Navigate to the 811 tab, open the dig ticket for the given job number, and pop the Request 811 modal.",
   kind: "navigate",
-  async run(input) {
+  async run(input, ctx) {
     const jobNumber = input?.jobNumber?.trim();
     if (!jobNumber) {
       return { ok: false, message: "startDigTicket requires jobNumber." };
     }
-    const { ticket, job } = await findTicketByJobNumber(jobNumber);
+    const owner = ctx?.isManager ? "*" : ctx?.username || "";
+    const { ticket, job } = await findTicketByJobNumber(jobNumber, owner);
     if (!job) {
       return {
         ok: false,
@@ -139,11 +141,12 @@ const listExpiringTicketsTool: LuminaTool<ListExpiringInput, ListExpiringData> =
   description:
     "List 811 dig tickets expiring within N days (default 7) or already expired.",
   kind: "read",
-  async run(input) {
+  async run(input, ctx) {
     const windowDays = Math.max(1, Math.round(input?.withinDays ?? 7));
+    const owner = ctx?.isManager ? "*" : ctx?.username || "";
     const [ticketsRes, jobsRes] = await Promise.all([
-      api.listDigTickets(),
-      api.listJobs(),
+      api.listDigTickets(owner),
+      api.listJobs(owner),
     ]);
     const jobById = new Map<string, Job>(jobsRes.jobs.map((j) => [j.jobId, j]));
     const now = Date.now();
@@ -202,12 +205,13 @@ const getDigTicketStatusTool: LuminaTool<GetStatusInput, GetStatusData> = {
   description:
     "Return the current status of a dig ticket by job number — status, expiresAt, ticket #, address, shape type.",
   kind: "read",
-  async run(input) {
+  async run(input, ctx) {
     const jobNumber = input?.jobNumber?.trim();
     if (!jobNumber) {
       return { ok: false, message: "getDigTicketStatus requires jobNumber." };
     }
-    const { ticket, job } = await findTicketByJobNumber(jobNumber);
+    const owner = ctx?.isManager ? "*" : ctx?.username || "";
+    const { ticket, job } = await findTicketByJobNumber(jobNumber, owner);
     if (!job) {
       return { ok: false, message: `No job found matching ${jobNumber}.` };
     }
@@ -274,7 +278,7 @@ const updateDigTicketUtilityStatusTool: LuminaTool<UpdateUtilityInput, UpdateUti
   description:
     "Update/log the locate clearance status of a utility (e.g. gas, water, electric) for a job's 811 ticket.",
   kind: "read",
-  async run(input) {
+  async run(input, ctx) {
     const jobNumber = input?.jobNumber?.trim();
     const utility = input?.utility?.trim();
     const status = input?.status;
@@ -284,7 +288,8 @@ const updateDigTicketUtilityStatusTool: LuminaTool<UpdateUtilityInput, UpdateUti
       return { ok: false, message: "updateDigTicketUtilityStatus requires jobNumber, utility, and status." };
     }
 
-    const { ticket, job } = await findTicketByJobNumber(jobNumber);
+    const owner = ctx?.isManager ? "*" : ctx?.username || "";
+    const { ticket, job } = await findTicketByJobNumber(jobNumber, owner);
     if (!job) {
       return { ok: false, message: `No job found matching ${jobNumber}.` };
     }

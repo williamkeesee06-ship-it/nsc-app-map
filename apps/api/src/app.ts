@@ -20,6 +20,8 @@ import luminaSmartsheetRouter from "./routes/luminaSmartsheet.js";
 import luminaBriefRouter from "./routes/luminaBrief.js";
 import tasksRouter from "./routes/tasks.js";
 import luminaStaleTasksRouter from "./routes/luminaStaleTasks.js";
+import luminaCodeRouter from "./routes/luminaCode.js";
+import luminaDataRouter from "./routes/luminaData.js";
 
 export function createApp() {
   const app = express();
@@ -62,6 +64,8 @@ export function createApp() {
   app.use("/api", luminaBriefRouter);
   app.use("/api", tasksRouter);
   app.use("/api", luminaStaleTasksRouter);
+  app.use("/api", luminaCodeRouter);
+  app.use("/api", luminaDataRouter);
 
   // Catch-all error handler — never let an uncaught error crash the function.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

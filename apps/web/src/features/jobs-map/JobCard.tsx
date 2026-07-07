@@ -318,11 +318,13 @@ const EXPIRY_DAY_MS = 24 * 60 * 60 * 1000;
 
 function Eight11ExpiryPill({ job }: { job: Job }) {
   const [ticket, setTicket] = useState<DigTicket | null>(null);
+  const { username, isManager } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
+    const owner = isManager ? "*" : username || "";
     api
-      .listDigTickets()
+      .listDigTickets(owner)
       .then(({ tickets }) => {
         if (cancelled) return;
         const match = tickets.find(
@@ -336,7 +338,7 @@ function Eight11ExpiryPill({ job }: { job: Job }) {
     return () => {
       cancelled = true;
     };
-  }, [job.jobId]);
+  }, [job.jobId, username, isManager]);
 
   if (!ticket || ticket.dates.expiresAt == null) return null;
 

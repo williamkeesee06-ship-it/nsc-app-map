@@ -341,10 +341,82 @@ export const proposeRescheduleTool: LuminaTool<
   run: runProposeReschedule,
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// proposeJobUpdate — REAL write path (Arbitrary Job Field Mutation)
+// God Mode execution tool.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ProposeJobUpdateInput {
+  jobId: string;
+  updates: Record<string, any>;
+}
+
+interface ProposeJobUpdateData {
+  queued: true;
+  pendingActionId: string;
+  jobId: string;
+  updates: Record<string, any>;
+}
+
+async function runProposeJobUpdate(
+  input: ProposeJobUpdateInput,
+  ctx: LuminaToolContext
+): Promise<LuminaToolResult<ProposeJobUpdateData>> {
+  if (!input.jobId || !input.updates || Object.keys(input.updates).length === 0) {
+    return {
+      ok: false,
+      message: "proposeJobUpdate requires jobId and at least one field to update.",
+    };
+  }
+
+  const pendingId = `pju_${crypto.randomUUID()}`;
+  
+  const diff = Object.entries(input.updates).map(([field, after]) => ({
+    field,
+    after: String(after)
+  }));
+
+  const action: import("./types.js").PendingJobUpdate = {
+    id: pendingId,
+    kind: "jobUpdate",
+    createdAt: Date.now(),
+    title: `Update fields on ${input.jobId}`,
+    diff,
+    jobId: String(input.jobId),
+    updates: input.updates,
+  };
+  ctx.enqueueAction(action as any);
+
+  return {
+    ok: true,
+    message:
+      "Queued. Tell Billy verbally that the job update is queued and ask him to approve it on the confirmation card.",
+    pendingActionId: pendingId,
+    data: {
+      queued: true,
+      pendingActionId: pendingId,
+      jobId: String(input.jobId),
+      updates: input.updates,
+    },
+  };
+}
+
+export const proposeJobUpdateTool: LuminaTool<
+  ProposeJobUpdateInput,
+  ProposeJobUpdateData
+> = {
+  name: "proposeJobUpdate",
+  description:
+    "Draft a mutation for ANY field on a job (e.g. assigning a crew, changing a description). Does NOT write — queues a confirmation card that Billy must approve.",
+  kind: "propose",
+  run: runProposeJobUpdate,
+};
+
 // Convenience bundle for the registry.
 export const writeTools = [
   proposeMarkupLabelTool,
   proposeNotesUpdateTool,
   proposeStatusChangeTool,
   proposeRescheduleTool,
+  proposeJobUpdateTool,
 ];

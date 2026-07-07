@@ -7,6 +7,9 @@ import { useJobs } from "./useJobs.js";
 import { applyFilters } from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
 import { useFiltersContext } from "./filtersContext.js";
+import FilterRail from "./FilterRail.js";
+import OverwatchHUD from "./OverwatchHUD.js";
+import MeasuringOverlay from "./MeasuringOverlay.js";
 import LeftRail from "./LeftRail.js";
 import CalendarTab from "./CalendarTab.js";
 import DashboardPage from "../dashboard/DashboardPage.js";
@@ -298,6 +301,7 @@ function JobsMapInner({
         <ModifiersPanel />
         <JobsShownPill shown={mapped.length} total={allJobs.length} />
         <div className="map-host" style={{ position: "absolute", inset: 0, top: 0, display: "flex", flexDirection: "row" }}>
+          <OverwatchHUD />
           <div style={{ flex: 1, height: "100%", position: "relative" }}>
             <Map
               defaultCenter={DEFAULT_CENTER}
@@ -309,8 +313,11 @@ function JobsMapInner({
               mapTypeControl={false} // We use our custom MapTypeToggle instead
               zoomControl={false}     // Hide Google's gamepad — Lumina orb owns the bottom-right corner
               fullscreenControl={false}
-              rotateControl={false}
+              rotateControl={true}
               scaleControl={false}
+              mapId="DEMO_MAP_ID"     // Required to enable WebGL Vector features (3D tilt/rotation)
+              tilt={45}               // Start with a slight 3D isometric tilt
+              heading={0}
             >
               <MapHandle mapRef={mapRef} />
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
@@ -329,6 +336,7 @@ function JobsMapInner({
               <DrawingOverlay />
               <SavedDigShapeOverlay />
               <DigPolygonOverlay />
+              <MeasuringOverlay />
               {/* MapTypeToggle is in the topbar; this applier (inside the Map
                   context) actually applies the chosen style to the live map. */}
               <MapTypeApplier />

@@ -9,6 +9,8 @@ import type { DigShape, DigTicket, Job } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { useDigPolygon } from "../dig-polygon/digPolygonContext.js";
 
+import { useAuth } from "../auth/authContext.js";
+
 const DIG_DAY_MS = 24 * 60 * 60 * 1000;
 const LIVE_TICKET_STATUSES = new Set<DigTicket["status"]>(["Filed", "Active", "Expiring"]);
 
@@ -30,11 +32,13 @@ function shapeTypeLabel(t: DigShape["type"]): string {
 export default function Eight11Section({ job }: { job: Job }) {
   const { existing, setTool } = useDigPolygon();
   const [ticket, setTicket] = useState<DigTicket | null>(null);
+  const { username, isManager } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
+    const owner = isManager ? "*" : username || "";
     api
-      .listDigTickets()
+      .listDigTickets(owner)
       .then(({ tickets }) => {
         if (cancelled) return;
         const byActive = job.activeTicketId
@@ -48,7 +52,7 @@ export default function Eight11Section({ job }: { job: Job }) {
     return () => {
       cancelled = true;
     };
-  }, [job.jobId, job.activeTicketId]);
+  }, [job.jobId, job.activeTicketId, username, isManager]);
 
   // The shape we summarise: prefer the live job shape, fall back to the ticket
   // snapshot (e.g. shape was cleared on the job but the ticket still holds one).

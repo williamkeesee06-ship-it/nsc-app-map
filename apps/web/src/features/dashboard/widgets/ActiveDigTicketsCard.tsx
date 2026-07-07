@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DigTicket, Job } from "@nsc/types";
 import { api } from "../../../lib/api.js";
+import { useAuth } from "../../auth/authContext.js";
 import Bezel from "../components/Bezel.js";
 
 export interface ActiveDigTicketsCardProps {
@@ -65,14 +66,16 @@ interface Row {
 }
 
 export default function ActiveDigTicketsCard({ jobs }: ActiveDigTicketsCardProps) {
+  const { username, isManager } = useAuth();
   const [tickets, setTickets] = useState<DigTicket[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    const owner = isManager ? "*" : username || "";
     api
-      .listDigTickets()
+      .listDigTickets(owner)
       .then(({ tickets: t }) => {
         if (!cancelled) setTickets(t);
       })
@@ -85,7 +88,7 @@ export default function ActiveDigTicketsCard({ jobs }: ActiveDigTicketsCardProps
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [username, isManager]);
 
   const rows = useMemo<Row[]>(() => {
     const now = Date.now();

@@ -48,6 +48,8 @@ import { addTaskTool } from "./addTask.js";
 import { completeTaskTool } from "./completeTask.js";
 import { listOpenTasksTool } from "./listOpenTasks.js";
 import { digTicketTools } from "./digTicketTools.js";
+import { searchCodebaseTool, readSourceFileTool } from "./codeTools.js";
+import { queryFirestoreTool } from "./dataTools.js";
 
 const ALL_TOOLS: LuminaTool<any, any>[] = [
   // NSC reads
@@ -88,6 +90,11 @@ const ALL_TOOLS: LuminaTool<any, any>[] = [
   listOpenTasksTool,
   // 811 Dig Ticket Manager
   ...digTicketTools,
+  // God Mode - Codebase Access
+  searchCodebaseTool,
+  readSourceFileTool,
+  // God Mode - Data Access
+  queryFirestoreTool,
 ];
 
 const REGISTRY: Record<string, LuminaTool<any, any>> = Object.fromEntries(

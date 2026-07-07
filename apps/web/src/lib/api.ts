@@ -294,8 +294,10 @@ export const api = {
     }),
 
   // ── 811 Dig Ticket Manager ─────────────────────────────────────────────
-  listDigTickets: () =>
-    request<{ tickets: DigTicket[]; count: number }>("/api/dig-tickets"),
+  listDigTickets: (owner?: string) => {
+    const q = owner ? `?owner=${encodeURIComponent(owner)}` : "";
+    return request<{ tickets: DigTicket[]; count: number }>(`/api/dig-tickets${q}`);
+  },
   getDigTicket: (ticketId: string) =>
     request<{ ticket: DigTicket }>(
       `/api/dig-tickets/${encodeURIComponent(ticketId)}`
@@ -345,6 +347,16 @@ export const api = {
       `/api/dig-tickets/${encodeURIComponent(ticketId)}/utility-status`,
       { method: "POST", body: JSON.stringify(body) }
     ),
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LUMINA GOD MODE (CODE & DATA)
+  // ─────────────────────────────────────────────────────────────────────────
+  searchCodebase: (args: { query: string; isRegex?: boolean }) =>
+    request<any>("/api/lumina/code/search", { method: "POST", body: JSON.stringify(args) }),
+  readSourceFile: (args: { filePath: string }) =>
+    request<any>("/api/lumina/code/read", { method: "POST", body: JSON.stringify(args) }),
+  queryFirestore: (args: { collection: string; limit?: number; filters?: any[] }) =>
+    request<any>("/api/lumina/data/query", { method: "POST", body: JSON.stringify(args) }),
 
   // ── ITIC automation (Firebase Callable Functions) ──────────────────────
   // Trigger background automated filing bot on ITIC

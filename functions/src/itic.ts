@@ -824,6 +824,9 @@ export async function checkUtilityResponses(
   ticketNumber: string
 ): Promise<UtilityStatus[]> {
   const lookup = page.locator(ITIC_SELECTORS.ticketLookupInput).first();
+  // Wait for the dashboard to finish rendering the search box
+  await lookup.waitFor({ state: "visible", timeout: 30_000 }).catch(() => null);
+  
   if ((await lookup.count()) > 0) {
     await lookup.fill(ticketNumber);
     await Promise.all([
@@ -833,6 +836,9 @@ export async function checkUtilityResponses(
   }
   const now = Date.now();
   const rows = page.locator(ITIC_SELECTORS.responseRow);
+  // Wait for the results to actually render before we count them
+  await rows.first().waitFor({ state: "visible", timeout: 15_000 }).catch(() => null);
+  
   const count = await rows.count();
   const out: UtilityStatus[] = [];
   for (let i = 0; i < count; i++) {

@@ -229,9 +229,8 @@ async function buildBriefing(username?: string): Promise<BriefingResponse> {
       ? ["Nothing flagged across your jobs. All clear."]
       : candidates.slice(0, 3).map((c) => c.text);
 
-  const first = (username ?? "Billy Keesee").trim().split(/\s+/)[0] || "Billy";
   return {
-    greeting: `Here is your current operational briefing, ${first}:`,
+    greeting: `Operational briefing: current status, jobs, and upcoming requirements.`,
     bullets,
     modelTurnAt: Date.now(),
   };

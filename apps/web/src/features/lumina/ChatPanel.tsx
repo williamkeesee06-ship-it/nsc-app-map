@@ -25,6 +25,10 @@ import { api } from "../../lib/api.js";
 import type { AsBuiltDocument, AsbuiltDoc, DrawingObject } from "@nsc/types";
 import type { PendingAction } from "./tools/types.js";
 import MemoryPanel from "./MemoryPanel.js";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 // V2 drawing doc has an `objects` array; legacy v1 doesn't. We can only edit v2.
 function isV2(doc: AsBuiltDocument | AsbuiltDoc): doc is AsBuiltDocument {
@@ -265,6 +269,15 @@ export default function ChatPanel() {
         } catch {
           /* non-browser env */
         }
+      } else if (action.kind === "jobUpdate") {
+        // God Mode APPLY — arbitrary field mutation.
+        // In a full implementation, this would call a generic api.updateJob(jobId, updates).
+        appendMessage({
+          id: crypto.randomUUID(),
+          role: "lumina",
+          text: `Applied arbitrary update to ${action.jobId}: ${Object.keys(action.updates).join(', ')}.`,
+          at: Date.now(),
+        });
       } else if (action.kind === "reschedule") {
         // Sprint 2.1 APPLY — Smartsheet Schedule Date / End Date write-through.
         const result = await api.rescheduleSmartsheet({
@@ -413,6 +426,37 @@ export default function ChatPanel() {
         .hud-entrance {
           animation: hud-entrance 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
           transform-origin: bottom right;
+        }
+        
+        /* ── Markdown Styles ─────────────────────────────────────────────── */
+        .lumina-md {
+          line-height: 1.5;
+          word-break: break-word;
+        }
+        .lumina-md p { margin-bottom: 0.5rem; }
+        .lumina-md p:last-child { margin-bottom: 0; }
+        .lumina-md a { color: #1ea7ff; text-decoration: underline; }
+        .lumina-md ul { list-style: disc; padding-left: 1.2rem; margin-bottom: 0.5rem; }
+        .lumina-md ol { list-style: decimal; padding-left: 1.2rem; margin-bottom: 0.5rem; }
+        .lumina-md table { 
+          width: 100%; border-collapse: collapse; margin: 0.5rem 0; 
+          font-size: 0.85rem; border: 1px solid var(--chrome-dark); 
+        }
+        .lumina-md th { 
+          background: rgba(255,255,255,0.05); padding: 4px 8px; 
+          text-align: left; border-bottom: 1px solid var(--chrome-dark); 
+          color: #94a3b8; font-weight: bold;
+        }
+        .lumina-md td { 
+          padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); 
+        }
+        .lumina-md tr:last-child td { border-bottom: none; }
+        .lumina-md code:not(pre code) {
+          background: rgba(255,255,255,0.1);
+          padding: 2px 4px;
+          border-radius: 4px;
+          font-size: 0.85em;
+          color: #ff6a00;
         }
       `}</style>
 
@@ -900,7 +944,36 @@ function MessageBubble({ m }: { m: ChatMessage }) {
             <span className="lx-text-xs lx-italic">working…</span>
           </div>
         ) : (
-          <div className="lx-whitespace-pre-wrap">{m.text}</div>
+          <div className={`lx-whitespace-normal lumina-md`}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({ node, inline, className, children, ...props }: any) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  return !inline && match ? (
+                    <SyntaxHighlighter
+                      {...props}
+                      children={String(children).replace(/\n$/, "")}
+                      style={atomDark}
+                      language={match[1]}
+                      PreTag="div"
+                      customStyle={{
+                        margin: "0.5rem 0",
+                        borderRadius: "6px",
+                        fontSize: "0.8rem",
+                      }}
+                    />
+                  ) : (
+                    <code {...props} className={className}>
+                      {children}
+                    </code>
+                  );
+                },
+              }}
+            >
+              {m.text}
+            </ReactMarkdown>
+          </div>
         )}
         {m.traces && m.traces.length > 0 && (
           <div className="lx-mt-2 lx-pt-2 lx-border-t lx-border-chrome-dark lx-space-y-1">

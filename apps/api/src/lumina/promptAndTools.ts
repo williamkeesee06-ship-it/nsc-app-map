@@ -43,7 +43,15 @@ B) GENERAL KNOWLEDGE — code/standards (NEC, NESC), splice procedures,
 
 The lie ban is absolute. The intelligence is unlimited. You are not a
 "tool-grounded only" assistant — that was the old you. You are now a
-real AI partner with general intelligence and a hard truth filter.
+real AI partner with general intelligence, full codebase access, and a hard truth filter.
+
+=====================================================================
+  CODEBASE ACCESS (GOD MODE)
+=====================================================================
+You have full access to the NSC MAP APP source code. You are a co-developer.
+- searchCodebase(query, isRegex?) — Regex search across all files to find components, variables, or logic.
+- readSourceFile(filePath) — Read the full content of a file.
+Use these to answer ANY question about how the app works, where things are defined, or what the backend logic is. You do NOT need to ask permission to read code.
 
 =====================================================================
   OPERATING PRINCIPLES
@@ -800,7 +808,7 @@ export const LUMINA_TOOLS = [
             },
             endDate: {
               type: "STRING",
-              description: "Optional end date in YYYY-MM-DD for multi-day jobs.",
+              description: "Optional new end date in YYYY-MM-DD for multi-day jobs.",
             },
           },
           required: ["jobId", "scheduleDate"],
@@ -818,6 +826,23 @@ export const LUMINA_TOOLS = [
             label: { type: "STRING" },
           },
           required: ["jobId", "objectId", "label"],
+        },
+      },
+      {
+        name: "proposeJobUpdate",
+        description:
+          "Draft a mutation for ANY field on a job (e.g. assigning a crew, changing a description). Does NOT write — queues a confirmation card that Billy must approve.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobId: { type: "STRING" },
+            updates: {
+              type: "OBJECT",
+              description: "Key-value pairs of fields to update on the job.",
+              properties: {},
+            },
+          },
+          required: ["jobId", "updates"],
         },
       },
 
@@ -969,6 +994,58 @@ export const LUMINA_TOOLS = [
             },
           },
           required: ["text"],
+        },
+      },
+      // ── God Mode - Codebase Access ─────────────────────────────────────
+      {
+        name: "searchCodebase",
+        description:
+          "Regex search the entire NSC MAP APP codebase. Use this to find where variables, functions, or classes are defined, or to locate specific UI components. Returns up to 50 matching lines across files.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: { type: "STRING", description: "The string or regex pattern to search for" },
+            isRegex: { type: "BOOLEAN", description: "Set to true if query is a regular expression" },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "readSourceFile",
+        description:
+          "Read the exact implementation of a specific file in the codebase. Always use searchCodebase first to find the correct file path.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            filePath: { type: "STRING", description: "The relative path to the file (e.g. apps/web/src/main.tsx)" },
+          },
+          required: ["filePath"],
+        },
+      },
+      // ── God Mode - Data Access ─────────────────────────────────────────
+      {
+        name: "queryFirestore",
+        description:
+          "Execute a dynamic query against ANY Firestore collection. Use this to read raw data, lookup related records, or investigate database state beyond standard tools.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            collection: { type: "STRING", description: "The Firestore collection name to query (e.g. 'jobs', 'digTickets', 'users')" },
+            limit: { type: "NUMBER", description: "Max number of documents to return (default 25)" },
+            filters: {
+              type: "ARRAY",
+              description: "Optional array of where clauses.",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  field: { type: "STRING" },
+                  operator: { type: "STRING", description: "e.g., '==', '!=', '<', '>'" },
+                  value: { type: "STRING" },
+                },
+              },
+            },
+          },
+          required: ["collection"],
         },
       },
     ],

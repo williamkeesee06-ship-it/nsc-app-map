@@ -1,0 +1,178 @@
+/* filtersTab.css - Premium Glassmorphism Theme */
+
+.premium-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px;
+  background: transparent;
+}
+
+.glass-panel {
+  background: rgba(15, 20, 30, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.02);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(62, 207, 107, 0.5), transparent);
+}
+
+.glass-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 15px rgba(62, 207, 107, 0.1), inset 0 0 20px rgba(255, 255, 255, 0.05);
+  border-color: rgba(62, 207, 107, 0.3);
+}
+
+.glow-text {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #3ecf6b;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  text-shadow: 0 0 8px rgba(62, 207, 107, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.glow-text::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #3ecf6b;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #3ecf6b;
+}
+
+/* Enhancing existing components inside the glass panels */
+.premium-filters .filters-tab__group {
+  margin: 0;
+}
+
+.premium-filters .rail-section__divider {
+  display: none; /* Hide default divider since we use panels */
+}
+
+/* FilterRail collapsible styling */
+.filter-collapsible summary {
+  padding: 8px 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.filter-collapsible summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.filter-collapsible-header strong {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: #a0aec0;
+  letter-spacing: 1px;
+}
+
+.filter-collapsible[open] .filter-collapsible-header strong {
+  color: #fff;
+}
+
+.filter-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Beautiful custom checkbox for supervisors */
+.check--swatch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.check--swatch:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.check--swatch input[type="checkbox"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  margin-right: 12px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.check--swatch input[type="checkbox"]:checked {
+  background: #3ecf6b;
+  border-color: #3ecf6b;
+  box-shadow: 0 0 10px rgba(62, 207, 107, 0.4);
+}
+
+.check--swatch input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #0b1118;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.check__label {
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  color: #e2e8f0;
+}
+
+.check__count {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  color: #a0aec0;
+}
+
+.check--swatch input[type="checkbox"]:checked ~ .check__label {
+  color: #fff;
+  font-weight: 600;
+}
+
+.check--swatch input[type="checkbox"]:checked ~ .check__count {
+  background: rgba(62, 207, 107, 0.2);
+  color: #3ecf6b;
+}

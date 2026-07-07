@@ -5,6 +5,7 @@ import type { Job } from "@nsc/types";
 import type { MutableRefObject } from "react";
 import FilterRail from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
+import "./filtersTab.css";
 import { isJobCompleted } from "./markerStyle.js";
 import { useDrawing } from "../drawing/drawingContext.js";
 import { useDigPolygon, type DigTool } from "../dig-polygon/digPolygonContext.js";
@@ -428,23 +429,23 @@ function FiltersTab({
   availableSupervisors?: string[];
 }) {
   return (
-    <section className="rail-section filters-tab">
-      <div className="filters-tab__group">
-        <div className="filters-tab__heading">STATUS</div>
+    <section className="rail-section filters-tab premium-filters">
+      <div className="filters-tab__group glass-panel">
+        <div className="filters-tab__heading glow-text">STATUS</div>
         <StatusFilterPills />
       </div>
 
-      <div className="filters-tab__group">
-        <div className="filters-tab__heading">OVERLAYS</div>
+      <div className="filters-tab__group glass-panel">
+        <div className="filters-tab__heading glow-text">OVERLAYS</div>
         <CentralOfficesPill />
       </div>
 
-      {/* Map type + theme — moved out of the topbar (6/18). */}
-      <MapTypeFilterSection />
+      <div className="glass-panel">
+        <MapTypeFilterSection />
+      </div>
 
-      {!hideFilters && (
-        <div className="filters-tab__group">
-          <div className="rail-section__divider" />
+      {!hideFilters && managerMode && availableSupervisors && availableSupervisors.length > 0 && (
+        <div className="filters-tab__group glass-panel">
           <FilterRail
             jobs={jobs}
             filters={filters}

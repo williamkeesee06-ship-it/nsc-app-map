@@ -20,7 +20,7 @@ interface Props {
 }
 
 export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
-  const { username } = useAuth();
+  const { username, isManager } = useAuth();
   const [tickets, setTickets] = useState<DigTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,14 +36,15 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const { tickets: t } = await api.listDigTickets();
+      const owner = isManager ? "*" : username || "";
+      const { tickets: t } = await api.listDigTickets(owner);
       setTickets(t);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load tickets");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [username, isManager]);
 
   useEffect(() => {
     void refresh();

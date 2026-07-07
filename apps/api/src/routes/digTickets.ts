@@ -28,10 +28,15 @@ function defaultUtilityStatuses(): UtilityStatus[] {
   return DEFAULT_UTILITIES.map((utility) => ({ utility, status: "pending" as const }));
 }
 
-// GET /api/dig-tickets — all tickets, newest first.
-router.get("/dig-tickets", async (_req, res, next) => {
+// GET /api/dig-tickets — all tickets, newest first (optionally scoped by owner).
+router.get("/dig-tickets", async (req, res, next) => {
   try {
-    const snap = await db().collection("digTickets").get();
+    const owner = req.query.owner as string;
+    let query: FirebaseFirestore.Query = db().collection("digTickets");
+    if (owner && owner !== "*") {
+      query = query.where("createdBy", "==", owner);
+    }
+    const snap = await query.get();
     const tickets = snap.docs
       .map((d) => d.data() as DigTicket)
       .sort((a, b) => (b.dates?.createdAt ?? 0) - (a.dates?.createdAt ?? 0));
