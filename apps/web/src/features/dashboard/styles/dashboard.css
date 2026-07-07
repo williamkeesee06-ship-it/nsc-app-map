@@ -1492,11 +1492,54 @@
   font-size: 15px !important; /* Scaled up from 13px */
 }
 
-/* Custom Image Backgrounds per User Request */
-.nsc-dashboard .bezel__inner {
-  background-image: url("/dashboard/bg_card_mesh.jpg") !important;
+/* Custom Image Backgrounds per User Request (alternating and positioning bg2/bg3 watermarks) */
+.nsc-dashboard .status-bar .bezel__inner {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), url('/dashboard/bg2.jpg') !important;
   background-size: cover !important;
-  background-position: center !important;
+  background-position: top center !important;
+  background-repeat: no-repeat !important;
+}
+
+.nsc-dashboard .map-preview-card .bezel__inner {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.94)), url('/dashboard/bg3.jpg') !important;
+  background-size: cover !important;
+  background-position: bottom left !important;
+  background-repeat: no-repeat !important;
+}
+
+.nsc-dashboard .digtix-card .bezel__inner {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), url('/dashboard/bg2.jpg') !important;
+  background-size: 150% !important;
+  background-position: 80% 20% !important;
+  background-repeat: no-repeat !important;
+}
+
+.nsc-dashboard .calendar-card .bezel__inner {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.94)), url('/dashboard/bg3.jpg') !important;
+  background-size: 160% !important;
+  background-position: 25% 75% !important;
+  background-repeat: no-repeat !important;
+}
+
+.nsc-dashboard .lumina-card .bezel__inner {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), url('/dashboard/bg2.jpg') !important;
+  background-size: cover !important;
+  background-position: center left !important;
+  background-repeat: no-repeat !important;
+}
+
+.nsc-dashboard .atrisk-card .bezel__inner {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.94)), url('/dashboard/bg3.jpg') !important;
+  background-size: cover !important;
+  background-position: top right !important;
+  background-repeat: no-repeat !important;
+}
+
+.nsc-dashboard .quicklinks-card .bezel__inner {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), url('/dashboard/bg2.jpg') !important;
+  background-size: 140% !important;
+  background-position: 10% 90% !important;
+  background-repeat: no-repeat !important;
 }
 
 /* 6. Glow-Track LED Scrollbars */
