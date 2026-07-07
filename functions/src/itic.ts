@@ -845,11 +845,13 @@ export async function checkUtilityResponses(
 
   // Step 2: Click into the ticket detail page.
   const ticketLink = page.locator('a[id^="ticketlink-"]').first();
-  const linkCount = await ticketLink.count();
-  if (linkCount === 0) {
-    // Ticket not found in search results — nothing to scrape.
+  try {
+    await ticketLink.waitFor({ state: "visible", timeout: 20_000 });
+  } catch (e) {
+    // Ticket not found in search results or took too long to load — nothing to scrape.
     return [];
   }
+
   await Promise.all([
     page.waitForLoadState("networkidle", { timeout: 60_000 }),
     ticketLink.click(),
@@ -857,41 +859,32 @@ export async function checkUtilityResponses(
   // Extra settle time for the detail page JS to initialize.
   await page.waitForTimeout(3000);
 
-  // Step 3: Extract the districts JSON array from the page's inline JS.
-  // The ITIC detail page initializes a `districts` variable containing an
-  // array of objects with `companyName`, `statusDisplay`, `facilityTypeString`,
-  // `timeStatus`, etc. We pull it out via evaluate().
+  // Step 3: Extract the responses from the HTML table #DistrictNotificationTable.
   const now = Date.now();
-  const districts: Array<{ companyName: string; statusDisplay: string; facilityTypeString: string; timeStatus: string }> =
-    await page.evaluate(() => {
-      // The page sets `districts` as a global var in an inline <script>.
-      const d = (window as any).districts;
-      if (Array.isArray(d)) {
-        return d.map((entry: any) => ({
-          companyName: entry.companyName || "",
-          statusDisplay: entry.statusDisplay || "",
-          facilityTypeString: entry.facilityTypeString || "",
-          timeStatus: entry.timeStatus || "",
-        }));
-      }
-      // Fallback: try to find districts in the DataTable init data.
-      return [];
-    });
-
-  if (districts.length === 0) return [];
-
+  const rows = page.locator("#DistrictNotificationTable tbody tr");
+  const count = await rows.count();
   const out: UtilityStatus[] = [];
-  for (const d of districts) {
-    if (!d.companyName) continue;
-    const label = d.facilityTypeString
-      ? `${d.companyName} (${d.facilityTypeString})`
-      : d.companyName;
+
+  for (let i = 0; i < count; i++) {
+    const row = rows.nth(i);
+    const cells = row.locator("td");
+    const cellCount = await cells.count();
+    if (cellCount < 6) continue;
+
+    const companyName = ((await cells.nth(1).textContent()) ?? "").trim();
+    const statusText = ((await cells.nth(5).textContent()) ?? "").trim();
+
+    if (!companyName) continue;
+
+    // Clean up status text (e.g. strip URL attachments like "Clear (https://...)")
+    const cleanStatus = statusText.replace(/\s*\(https?:\/\/[^\s\)]+\)/gi, "").trim();
+
     out.push({
-      utility: label,
-      status: mapResponseStatus(d.statusDisplay),
+      utility: companyName,
+      status: mapResponseStatus(cleanStatus),
       respondedAt: now,
       lastCheckedAt: now,
-      notes: d.statusDisplay || undefined,
+      notes: cleanStatus || undefined,
     });
   }
   return out;
