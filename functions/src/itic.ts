@@ -815,47 +815,83 @@ function mapResponseStatus(raw: string): UtilityStatus["status"] {
   if (t.includes("marked") || t.includes("located") || t.includes("complete")) return "marked";
   if (t.includes("conflict") || t.includes("hold")) return "conflict";
   if (t.includes("progress") || t.includes("pending")) return "in-progress";
+  if (t.includes("not yet responded")) return "pending";
   return "pending";
 }
 
 // Look a filed ticket up and scrape each utility member's current response.
+// The ITIC portal embeds district response data as a JSON array in the detail
+// page's inline JavaScript — there is NO HTML table to scrape. We extract it
+// via page.evaluate() after navigating to the ticket detail view.
 export async function checkUtilityResponses(
   page: Page,
   ticketNumber: string
 ): Promise<UtilityStatus[]> {
-  const lookup = page.locator(ITIC_SELECTORS.ticketLookupInput).first();
-  // Wait for the dashboard to finish rendering the search box
-  await lookup.waitFor({ state: "visible", timeout: 30_000 }).catch(() => null);
-  
-  if ((await lookup.count()) > 0) {
-    await lookup.fill(ticketNumber);
-    await Promise.all([
-      page.waitForLoadState("networkidle", { timeout: 60_000 }),
-      page.click(ITIC_SELECTORS.ticketLookupButton),
-    ]);
+  // Step 1: We're on the dashboard (/excavatorTickets) after login.
+  // Use JS to fill the search field and trigger search — the search input
+  // has Bootstrap `hidden-sm hidden-xs` classes so .fill() can fail on
+  // small viewports, but evaluate() bypasses visibility checks.
+  await page.evaluate((tn: string) => {
+    const input = document.getElementById("ETMTicketNumber") as HTMLInputElement | null;
+    if (input) input.value = tn;
+    if (typeof (window as any).generalTicketSearch === "function") {
+      (window as any).generalTicketSearch();
+    }
+  }, ticketNumber);
+
+  // Wait for AJAX results to populate the DataTable.
+  await page.waitForTimeout(4000);
+  await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => null);
+
+  // Step 2: Click into the ticket detail page.
+  const ticketLink = page.locator('a[id^="ticketlink-"]').first();
+  const linkCount = await ticketLink.count();
+  if (linkCount === 0) {
+    // Ticket not found in search results — nothing to scrape.
+    return [];
   }
+  await Promise.all([
+    page.waitForLoadState("networkidle", { timeout: 60_000 }),
+    ticketLink.click(),
+  ]);
+  // Extra settle time for the detail page JS to initialize.
+  await page.waitForTimeout(3000);
+
+  // Step 3: Extract the districts JSON array from the page's inline JS.
+  // The ITIC detail page initializes a `districts` variable containing an
+  // array of objects with `companyName`, `statusDisplay`, `facilityTypeString`,
+  // `timeStatus`, etc. We pull it out via evaluate().
   const now = Date.now();
-  const rows = page.locator(ITIC_SELECTORS.responseRow);
-  // Wait for the results to actually render before we count them
-  await rows.first().waitFor({ state: "visible", timeout: 15_000 }).catch(() => null);
-  
-  const count = await rows.count();
+  const districts: Array<{ companyName: string; statusDisplay: string; facilityTypeString: string; timeStatus: string }> =
+    await page.evaluate(() => {
+      // The page sets `districts` as a global var in an inline <script>.
+      const d = (window as any).districts;
+      if (Array.isArray(d)) {
+        return d.map((entry: any) => ({
+          companyName: entry.companyName || "",
+          statusDisplay: entry.statusDisplay || "",
+          facilityTypeString: entry.facilityTypeString || "",
+          timeStatus: entry.timeStatus || "",
+        }));
+      }
+      // Fallback: try to find districts in the DataTable init data.
+      return [];
+    });
+
+  if (districts.length === 0) return [];
+
   const out: UtilityStatus[] = [];
-  for (let i = 0; i < count; i++) {
-    const row = rows.nth(i);
-    const utility = (
-      (await row.locator(ITIC_SELECTORS.responseUtilityCell).first().textContent()) ?? ""
-    ).trim();
-    const statusText = (
-      (await row.locator(ITIC_SELECTORS.responseStatusCell).first().textContent()) ?? ""
-    ).trim();
-    if (!utility) continue;
+  for (const d of districts) {
+    if (!d.companyName) continue;
+    const label = d.facilityTypeString
+      ? `${d.companyName} (${d.facilityTypeString})`
+      : d.companyName;
     out.push({
-      utility,
-      status: mapResponseStatus(statusText),
+      utility: label,
+      status: mapResponseStatus(d.statusDisplay),
       respondedAt: now,
       lastCheckedAt: now,
-      notes: statusText || undefined,
+      notes: d.statusDisplay || undefined,
     });
   }
   return out;

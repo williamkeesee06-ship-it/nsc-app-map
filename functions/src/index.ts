@@ -186,7 +186,7 @@ async function pollResponsesInto(
   ticket: DigTicket
 ): Promise<void> {
   if (!ticket.ticketNumber) return;
-  const page = await browser.newPage();
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
   try {
     await login(page, iticCreds());
     const scraped = await scrapeResponses(page, ticket.ticketNumber);
