@@ -1,6 +1,10 @@
 // Dashboard home — default landing view. Mounted full-screen over the map by
-// JobsMap when the Dashboard tab is active. Map at 58% width; the calendar
-// shows crews scheduled per day. No search bar, no "Good Day to Bore" chip.
+// JobsMap when the Dashboard tab is active.
+//
+// NEW LAYOUT (post-redesign):
+//   Row 0 — Hero card: Weather + Job Status Gauges + Quick Links (merged)
+//   Row 1 — Active Dig Tickets (wide) | Calendar (large)
+//   Row 2 — Map Overview (small) | Lumina Briefing | At Risk Jobs (small)
 
 import { Suspense } from "react";
 import type { Job } from "@nsc/types";
@@ -8,13 +12,11 @@ import { useAuth } from "../auth/authContext.js";
 import { useDashboardData } from "./hooks/useDashboardData.js";
 import type { StatusBucket } from "../jobs-map/markerStyle.js";
 import WeatherStrip from "./widgets/WeatherStrip.js";
-import JobStatusBar from "./widgets/JobStatusBar.js";
 import MapPreviewCard from "./widgets/MapPreviewCard.js";
 import ActiveDigTicketsCard from "./widgets/ActiveDigTicketsCard.js";
 import CalendarCard from "./widgets/CalendarCard.js";
 import LuminaBriefingCard from "./widgets/LuminaBriefingCard.js";
 import AtRiskJobsCard from "./widgets/AtRiskJobsCard.js";
-import QuickLinksCard from "./widgets/QuickLinksCard.js";
 import "./styles/dashboard.css";
 
 export interface DashboardPageProps {
@@ -44,15 +46,16 @@ export default function DashboardPage({
   return (
     <div className="nsc-dashboard" role="region" aria-label="Dashboard home">
       <div className="nsc-dashboard__scroll">
-        <WeatherStrip />
 
-        <JobStatusBar counts={data.statusCounts} onSelectBucket={onFilterStatus} />
+        {/* ── Row 0: Hero card — Weather + Gauges + Quick Links ── */}
+        <WeatherStrip
+          jobCounts={data.statusCounts}
+          onSelectBucket={onFilterStatus}
+        />
 
-        <div className="nsc-dashboard__row nsc-dashboard__row--three">
-          <Suspense fallback={<div className="dash-skel dash-skel--map" aria-hidden />}>
-            <MapPreviewCard jobs={data.myJobs} onOpenMap={onOpenMap} />
-          </Suspense>
-          <LuminaBriefingCard firstName={firstName} username={username} />
+        {/* ── Row 1: Active Dig Tickets | Calendar ───────────────── */}
+        <div className="nsc-dashboard__row nsc-dashboard__row--tickets-cal">
+          <ActiveDigTicketsCard jobs={jobs} />
           <CalendarCard
             weekStart={data.weekStart}
             weekSchedule={data.weekSchedule}
@@ -61,13 +64,15 @@ export default function DashboardPage({
           />
         </div>
 
-        <div className="nsc-dashboard__row nsc-dashboard__row--bottom">
-          <ActiveDigTicketsCard jobs={jobs} />
-          <div className="nsc-dashboard__right-stack">
-            <AtRiskJobsCard atRiskJobs={data.atRiskJobs} onOpenJob={onOpenJob} />
-            <QuickLinksCard />
-          </div>
+        {/* ── Row 2: Map | Lumina | At Risk ───────────────────────── */}
+        <div className="nsc-dashboard__row nsc-dashboard__row--map-ai">
+          <Suspense fallback={<div className="dash-skel dash-skel--map" aria-hidden />}>
+            <MapPreviewCard jobs={data.myJobs} onOpenMap={onOpenMap} />
+          </Suspense>
+          <LuminaBriefingCard firstName={firstName} username={username} />
+          <AtRiskJobsCard atRiskJobs={data.atRiskJobs} onOpenJob={onOpenJob} />
         </div>
+
       </div>
     </div>
   );

@@ -73,21 +73,16 @@
   align-items: stretch;
 }
 
-.nsc-dashboard__row--three {
-  grid-template-columns: 58fr 21fr 21fr;
-  min-height: 480px;
+/* Row 1: Active Dig Tickets (wide) | Calendar (large) */
+.nsc-dashboard__row--tickets-cal {
+  grid-template-columns: 58fr 42fr;
+  min-height: 400px;
 }
 
-.nsc-dashboard__row--bottom {
-  grid-template-columns: 42fr 58fr;
+/* Row 2: Map (small) | Lumina (medium) | At Risk (small) */
+.nsc-dashboard__row--map-ai {
+  grid-template-columns: 28fr 42fr 30fr;
   min-height: 360px;
-}
-
-.nsc-dashboard__right-stack {
-  display: grid;
-  grid-template-rows: 1fr auto;
-  gap: 16px;
-  min-height: 0;
 }
 
 /* ── Chrome bezel ────────────────────────────────────────────────────── */
@@ -307,44 +302,211 @@
   max-width: 90%;
 }
 
-/* ── Weather strip ───────────────────────────────────────────────────── */
+/* ── Hero card (Weather + Gauges + Quick Links merged) ───────────────── */
 
-.weather-strip {
-  min-height: 200px;
+.hero-card {
+  min-height: 220px;
 }
 
-.weather-strip .bezel__inner,
-.weather-strip__body {
-  width: 100%;
-}
-
-.weather-strip .bezel__inner {
-  justify-content: center;
-  /* Steel HUD radar is a dark navy image — keep only a whisper of white veil
-     so the radar reads clearly; a heavier veil washed the old image out. */
+/* Rich dark navy → electric-blue gradient background with subtle radar texture */
+.hero-card .bezel__inner {
+  background-color: #050d1a !important;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.16)),
-    url("/dashboard/weather-radar-bg.png");
-  background-size: cover;
-  background-position: center right;
-  background-repeat: no-repeat;
+    linear-gradient(135deg, #060e20 0%, #0a1a3a 35%, #0d2251 65%, #0a1a3a 100%),
+    url("/dashboard/weather-radar-bg.png") !important;
+  background-blend-mode: overlay !important;
+  background-size: cover !important;
+  background-position: center !important;
+  border-top: 3px solid #3da9ff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(61, 169, 255, 0.25),
+    inset 0 0 80px rgba(0, 80, 200, 0.15),
+    0 4px 24px rgba(0, 30, 80, 0.5) !important;
 }
 
-.weather-strip__body {
+/* Animated top-edge electric glow */
+.hero-card .bezel__inner::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #3da9ff 30%, #7000ff 70%, transparent);
+  opacity: 0.9;
+  animation: hero-glow-scan 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes hero-glow-scan {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.hero-card__body {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: nowrap;
+  gap: 0;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
-.weather-strip--error .bezel__inner {
+/* Glowing vertical divider between zones */
+.hero-card__divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  background: linear-gradient(180deg, transparent, rgba(61, 169, 255, 0.5) 30%, rgba(112, 0, 255, 0.5) 70%, transparent);
+  margin: 8px 20px;
+  box-shadow: 0 0 8px rgba(61, 169, 255, 0.3);
+}
+
+/* LEFT: Weather zone */
+.hero-card__weather {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 24px 0 8px;
+}
+
+.hero-card__weather-skeleton {
+  width: 300px;
+}
+
+/* Override weather text colors for dark hero bg */
+.hero-card .weather-strip__temp {
+  font-size: 52px;
+  font-weight: 200;
+  line-height: 1;
+  color: #e8f4ff;
+  display: flex;
+  align-items: flex-start;
+}
+
+.hero-card .weather-strip__unit {
+  font-size: 18px;
+  font-weight: 400;
+  color: #7aaddc;
+  margin-top: 5px;
+}
+
+.hero-card .weather-strip__lead {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hero-card .weather-strip__condition {
+  font-size: 13px;
+  color: #90b8d8;
+}
+
+.hero-card .weather-strip__area {
+  font-size: 11px;
+  color: #6090b0;
+  opacity: 1;
+}
+
+.hero-card .weather-strip__dials {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* CENTER: Job gauges zone */
+.hero-card__gauges {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 4px;
+  padding: 0 12px;
+  min-width: 0;
+}
+
+/* RIGHT: Quick links zone */
+.hero-card__quicklinks {
+  flex: 0 0 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px 0 4px;
+}
+
+.hero-card__ql-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(61, 169, 255, 0.7);
+  margin: 0 0 4px;
+}
+
+.hero-card__ql-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  border-radius: 10px;
+  border: 1px solid rgba(61, 169, 255, 0.2);
+  background: rgba(10, 30, 70, 0.6);
+  color: #c8dff0;
+  padding: 8px 10px;
+  backdrop-filter: blur(6px);
+  transition: all 0.15s ease;
+}
+
+.hero-card__ql-tile:hover {
+  background: rgba(20, 60, 130, 0.7);
+  border-color: rgba(61, 169, 255, 0.55);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(61, 169, 255, 0.25), inset 0 1px 0 rgba(255,255,255,0.08);
+  transform: translateX(2px);
+}
+
+.hero-card__ql-glyph {
+  flex: 0 0 auto;
+  display: flex;
+  color: #3da9ff;
+}
+
+.hero-card__ql-label {
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.hero-card__ql-arrow {
+  flex: 0 0 auto;
+  color: rgba(61, 169, 255, 0.5);
+  transition: color 0.15s ease;
+}
+
+.hero-card__ql-tile:hover .hero-card__ql-arrow {
+  color: #3da9ff;
+}
+
+/* Shared gauge button — keep across status-bar__seg usages */
+.status-bar__seg {
+  display: flex;
   align-items: center;
   justify-content: center;
-  color: #c3ccd8;
-  font-size: 13px;
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease;
 }
 
+.status-bar__seg:hover {
+  transform: translateY(-2px);
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--seg-color) 55%, transparent));
+}
+
+/* Existing weather-strip lead fields (kept for fallback/error state) */
 .weather-strip__lead {
   display: flex;
   flex-direction: column;
@@ -352,8 +514,6 @@
   min-width: 0;
 }
 
-/* Lead text sits directly on the dark Steel HUD radar (the gauges keep their
-   own white faces), so it uses light ink for contrast against the dark bg. */
 .weather-strip__temp {
   font-size: 56px;
   font-weight: 200;
@@ -386,41 +546,6 @@
   gap: 14px;
   flex-wrap: wrap;
   justify-content: flex-end;
-}
-
-/* ── Hero status bar ─────────────────────────────────────────────────── */
-
-.status-bar {
-  min-height: 220px;
-}
-
-.status-bar .bezel__inner {
-  justify-content: center;
-}
-
-.status-bar__row {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 10px;
-  width: 100%;
-  justify-items: center;
-}
-
-.status-bar__seg {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  background: transparent;
-  padding: 4px;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: transform 0.12s ease, filter 0.12s ease;
-}
-
-.status-bar__seg:hover {
-  transform: translateY(-2px);
-  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--seg-color) 55%, transparent));
 }
 
 /* ── Map preview ─────────────────────────────────────────────────────── */
@@ -1098,25 +1223,30 @@
 
 /* Responsive: stack columns on narrow viewports so nothing clips. */
 @media (max-width: 1100px) {
-  .nsc-dashboard__row--three,
-  .nsc-dashboard__row--bottom {
+  .nsc-dashboard__row--tickets-cal,
+  .nsc-dashboard__row--map-ai {
     grid-template-columns: 1fr;
   }
-  .status-bar__row {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .weather-strip__body {
+  .hero-card__body {
     flex-wrap: wrap;
   }
-  .weather-strip__dials {
-    justify-content: flex-start;
+  .hero-card__weather {
+    padding: 0 0 12px;
+  }
+  .hero-card__divider {
+    display: none;
+  }
+  .hero-card__quicklinks {
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 }
 
 /* ── Custom Dashboard Widget Card Backgrounds & Legibility Overrides ── */
 
-/* Scoped variables for clean contrast */
-.nsc-dashboard .bezel__inner {
+/* Scoped variables for clean contrast — EXCLUDE hero-card which has its own dark bg */
+.nsc-dashboard .bezel__inner:not(.hero-card .bezel__inner) {
   background-color: #ffffff !important;
   background-image: 
     linear-gradient(45deg, #f1f5f9 25%, transparent 25%), 
