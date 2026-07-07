@@ -73,8 +73,8 @@ const PARTICLES = [
 // These match the original LUMINA app's CSS exactly.
 const KEYFRAMES_CSS = `
 @keyframes lx-orb-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.92; }
-  50%      { transform: scale(1.06); opacity: 1; }
+  0%, 100% { transform: scale(0.95); opacity: 0.85; }
+  50%      { transform: scale(1.05); opacity: 1; }
 }
 @keyframes lx-orb-spin {
   0%   { transform: rotate(0deg); }
@@ -89,6 +89,29 @@ const KEYFRAMES_CSS = `
   25%      { opacity: 0.4;  transform: scale(0.7); }
   50%      { opacity: 1;    transform: scale(1.25); }
   75%      { opacity: 0.55; transform: scale(0.85); }
+}
+@keyframes lx-ring-pulse {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -80; }
+}
+@keyframes lx-ring-pulse-reverse {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 80; }
+}
+@keyframes lx-lightning-1 {
+  0%, 86%, 92%, 96%, 100% { opacity: 0; }
+  88%, 94% { opacity: 1; }
+  90% { opacity: 0.4; }
+}
+@keyframes lx-lightning-2 {
+  0%, 82%, 88%, 94%, 100% { opacity: 0; }
+  85%, 91% { opacity: 1; }
+  87% { opacity: 0.3; }
+}
+@keyframes lx-lightning-3 {
+  0%, 75%, 83%, 92%, 100% { opacity: 0; }
+  78%, 87% { opacity: 1; }
+  80% { opacity: 0.4; }
 }
 `;
 
@@ -150,8 +173,8 @@ export default function Orb({ size = 40 }: OrbProps) {
             height: frame,
             borderRadius: "9999px",
             pointerEvents: "none",
-            background: `radial-gradient(circle, ${halo} 0%, transparent 65%)`,
-            animation: "lx-orb-pulse 3.4s ease-in-out infinite",
+            background: `radial-gradient(circle, ${halo} 0%, transparent 68%)`,
+            animation: "lx-orb-pulse 3s ease-in-out infinite",
             transition: "background 500ms ease",
           }}
         />
@@ -168,67 +191,67 @@ export default function Orb({ size = 40 }: OrbProps) {
           }}
         >
           <defs>
-            {/* Gradient is now an *accent* on top of the black core, not a fill replacement.
-                Center is mostly transparent so the black reads through; the rim color
-                bleeds in near the edge to halo the particles. */}
+            {/* Dynamic, shifting quantum fusion gradient core */}
             <radialGradient id={`lx-orb-core-${orbState}`} cx="50%" cy="50%" r="50%">
-              <stop offset="0%"   stopColor={glow} stopOpacity="0"    />
-              <stop offset="55%"  stopColor={glow} stopOpacity="0.15" />
-              <stop offset="85%"  stopColor={rim}  stopOpacity="0.35" />
-              <stop offset="100%" stopColor={rim}  stopOpacity="0"    />
+              <stop offset="0%" stopColor={glow} stopOpacity="0.95">
+                <animate attributeName="stopColor" values={`${glow};#3b82f6;#8b5cf6;${glow}`} dur="7s" repeatCount="indefinite" />
+              </stop>
+              <stop offset="50%" stopColor={rim} stopOpacity="0.5">
+                <animate attributeName="stopColor" values={`${rim};#00d4ff;#a020c0;${rim}`} dur="9s" repeatCount="indefinite" />
+              </stop>
+              <stop offset="100%" stopColor={rim} stopOpacity="0" />
             </radialGradient>
+            <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
           </defs>
 
-          {/* Outer singularity rings — faint dotted/dashed boundaries */}
-          <circle cx={50} cy={50} r={44} fill="none" stroke={rim}  strokeOpacity={0.15} strokeWidth={0.5} strokeDasharray="1 3" />
-          <circle cx={50} cy={50} r={40} fill="none" stroke={glow} strokeOpacity={0.3}  strokeWidth={1}   strokeDasharray="4 4"
-            style={{ transformOrigin: "50px 50px", animation: "lx-orb-spin-reverse 20s linear infinite" }} />
+          {/* 1. Free-floating animated shift core */}
+          <circle cx={50} cy={50} r={24} fill={`url(#lx-orb-core-${orbState})`} style={{ filter: "url(#neon-glow)" }} />
+          <circle cx={50} cy={50} r={16} fill="#ffffff" fillOpacity="0.12" style={{ filter: "blur(2px)" }} />
 
-          {/* Solid black core — makes the colored rim, particles, and glow pop */}
-          <circle cx={50} cy={50} r={36} fill="#000000" />
+          {/* 2. Quantum Fusion dynamic lightning crackles / electricity */}
+          <path d="M 22 28 Q 34 26 38 42 L 50 50" fill="none" stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" opacity="0" style={{ animation: "lx-lightning-1 2.8s infinite", filter: `drop-shadow(0 0 3px ${rim})` }} />
+          <path d="M 78 72 Q 66 74 62 58 L 50 50" fill="none" stroke={rim} strokeWidth="1.5" strokeLinecap="round" opacity="0" style={{ animation: "lx-lightning-2 2s infinite 0.5s", filter: `drop-shadow(0 0 4px ${glow})` }} />
+          <path d="M 78 28 L 64 34 L 50 50" fill="none" stroke="#ffffff" strokeWidth="1" strokeLinecap="round" opacity="0" style={{ animation: "lx-lightning-3 3.3s infinite 1.1s", filter: `drop-shadow(0 0 3px ${rim})` }} />
+          <path d="M 22 72 Q 38 68 44 58 L 50 50" fill="none" stroke={glow} strokeWidth="1.2" strokeLinecap="round" opacity="0" style={{ animation: "lx-lightning-1 2.4s infinite 1.6s", filter: `drop-shadow(0 0 4px ${glow})` }} />
 
-          {/* Inner glow fill — quantum plasma core layered over the black */}
-          <circle cx={50} cy={50} r={36} fill={`url(#lx-orb-core-${orbState})`} />
-
-          {/* THICK BRIGHT RIM RING — the defining outer boundary */}
-          <circle cx={50} cy={50} r={36} fill="none" stroke={rim}
-            strokeOpacity={0.65} strokeWidth={4}
-            style={{ filter: `drop-shadow(0 0 12px ${rim}) drop-shadow(0 0 24px ${glow})` }} />
-          <circle cx={50} cy={50} r={36} fill="none" stroke={rim}
-            strokeOpacity={1} strokeWidth={1.5}
-            style={{ filter: `drop-shadow(0 0 4px ${rim})` }} />
-          <circle cx={50} cy={50} r={36} fill="none" stroke="#ffffff"
-            strokeOpacity={0.9} strokeWidth={0.5} />
-
-          {/* Orbital rings + curved arc sweeps — spin clockwise */}
-          <g style={{
-            transformOrigin: "50px 50px",
-            animation: "lx-orb-spin 15s linear infinite",
-            filter: `drop-shadow(0 0 2px ${glow}) drop-shadow(0 0 4px ${rim})`,
-          }}>
-            <ellipse cx="50" cy="50" rx="36" ry="10" fill="none" stroke={rim}     strokeOpacity="0.8" strokeWidth="1"   transform="rotate(30 50 50)" />
-            <ellipse cx="50" cy="50" rx="36" ry="10" fill="none" stroke="#ffffff" strokeOpacity="0.6" strokeWidth="0.5" transform="rotate(-60 50 50)" />
-            <path d="M 18 38 Q 50 22 82 38" fill="none" stroke="#ffffff" strokeOpacity={0.8} strokeWidth={1.2} strokeLinecap="round" />
-            <path d="M 18 62 Q 50 78 82 62" fill="none" stroke="#ffffff" strokeOpacity={0.8} strokeWidth={1.2} strokeLinecap="round" />
+          {/* 3. Orbiting Rings - Free floating, multi-axis 3D rotation */}
+          {/* Ring 1 - X-axis dominant */}
+          <g style={{ transformOrigin: "50px 50px", animation: "lx-orb-spin 9s linear infinite" }}>
+            <ellipse cx="50" cy="50" rx="38" ry="11" fill="none" stroke={rim} strokeOpacity="0.75" strokeWidth="1.2" transform="rotate(30 50 50)" style={{ filter: "url(#neon-glow)" }} />
+            {/* Sliding energy segment on Ring 1 */}
+            <ellipse cx="50" cy="50" rx="38" ry="11" fill="none" stroke="#ffffff" strokeOpacity="0.95" strokeWidth="1.8" strokeDasharray="12 40" transform="rotate(30 50 50)" style={{ animation: "lx-ring-pulse 2s linear infinite" }} />
           </g>
 
-          {/* Inner geometry — counter-rotating triangle pair */}
-          <g style={{ transformOrigin: "50px 50px", animation: "lx-orb-spin-reverse 10s linear infinite" }}>
-            <polygon points="50,25 68,60 32,60" fill="none" stroke={rim}  strokeWidth="0.5" strokeOpacity="0.3" />
-            <polygon points="50,75 32,40 68,40" fill="none" stroke={glow} strokeWidth="0.5" strokeOpacity="0.3" />
+          {/* Ring 2 - Y-axis dominant */}
+          <g style={{ transformOrigin: "50px 50px", animation: "lx-orb-spin-reverse 11s linear infinite" }}>
+            <ellipse cx="50" cy="50" rx="11" ry="38" fill="none" stroke={glow} strokeOpacity="0.7" strokeWidth="1.2" transform="rotate(-45 50 50)" style={{ filter: "url(#neon-glow)" }} />
+            {/* Sliding energy segment on Ring 2 */}
+            <ellipse cx="50" cy="50" rx="11" ry="38" fill="none" stroke="#ffffff" strokeOpacity="0.95" strokeWidth="1.8" strokeDasharray="16 48" transform="rotate(-45 50 50)" style={{ animation: "lx-ring-pulse-reverse 2.6s linear infinite" }} />
           </g>
 
-          {/* Flickering sparkle particles — concentrated near the center */}
+          {/* Ring 3 - Oblique axis */}
+          <g style={{ transformOrigin: "50px 50px", animation: "lx-orb-spin 14s linear infinite" }}>
+            <ellipse cx="50" cy="50" rx="38" ry="15" fill="none" stroke={rim} strokeOpacity="0.65" strokeWidth="0.8" transform="rotate(115 50 50)" />
+            <ellipse cx="50" cy="50" rx="38" ry="15" fill="none" stroke="#ffffff" strokeOpacity="0.85" strokeWidth="1.2" strokeDasharray="8 32" transform="rotate(115 50 50)" style={{ animation: "lx-ring-pulse 3s linear infinite" }} />
+          </g>
+
+          {/* Flickering sparkle particles inside the core */}
           {PARTICLES.map((p, i) => (
             <circle
               key={i}
               cx={p.x}
               cy={p.y}
-              r={p.r}
+              r={p.r * 0.85}
               fill="#ffffff"
               style={{
-                filter: `drop-shadow(0 0 1.5px ${glow}) drop-shadow(0 0 3px ${glow})`,
-                animation: `lx-sparkle-flicker ${1.4 + (i % 5) * 0.3}s ease-in-out ${p.d}s infinite`,
+                filter: `drop-shadow(0 0 1.5px ${glow})`,
+                animation: `lx-sparkle-flicker ${1.3 + (i % 5) * 0.25}s ease-in-out ${p.d}s infinite`,
                 transformOrigin: `${p.x}px ${p.y}px`,
                 transformBox: "fill-box",
               }}
