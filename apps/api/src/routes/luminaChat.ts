@@ -25,8 +25,6 @@ import {
   type FunctionDeclaration,
   type Tool,
 } from "@google/generative-ai";
-import { GoogleAICacheManager } from "@google/generative-ai/server";
-import { createHash } from "crypto";
 import {
   LUMINA_SYSTEM_INSTRUCTION,
   LUMINA_FUNCTION_DECLARATIONS,
@@ -36,22 +34,6 @@ import { db } from "../lib/firestore.js";
 import type { Job } from "@nsc/types";
 
 const router = Router();
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Context Cache Registry — caches prompt + tools declarations to save latency.
-// ─────────────────────────────────────────────────────────────────────────────
-interface CacheRegistryEntry {
-  cacheName: string;
-  expiresAt: number;
-}
-const cacheRegistry = new Map<string, CacheRegistryEntry>();
-
-function getCacheKey(sys: string, tools: unknown): string {
-  const hash = createHash("sha256");
-  hash.update(sys);
-  hash.update(JSON.stringify(tools));
-  return hash.digest("hex");
-}
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -389,60 +371,16 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       { functionDeclarations: normalizeToolDeclarations(LUMINA_FUNCTION_DECLARATIONS) },
     ];
 
-    const cacheKey = getCacheKey(sys, tools);
-    const cached = cacheRegistry.get(cacheKey);
-    let cacheName = "";
-
-    if (cached && Date.now() < cached.expiresAt - 30000) {
-      cacheName = cached.cacheName;
-      // eslint-disable-next-line no-console
-      console.log(`[lumina/chat] Reusing existing context cache: ${cacheName}`);
-    } else {
-      try {
-        const cacheManager = new GoogleAICacheManager(apiKey);
-        // eslint-disable-next-line no-console
-        console.log("[lumina/chat] Creating new context cache...");
-        const cacheResult = await cacheManager.create({
-          model: "models/gemini-2.5-flash",
-          displayName: `lumina_chat_${(body.username || "billy").replace(/[^a-zA-Z0-9_-]/g, "_")}`,
-          contents: [],
-          systemInstruction: sys,
-          tools: tools as any,
-          ttlSeconds: 600, // 10 minutes cache TTL
-        });
-        cacheName = cacheResult.name || "";
-        const expiresAt = cacheResult.expireTime ? Date.parse(cacheResult.expireTime) : Date.now() + 600 * 1000;
-        cacheRegistry.set(cacheKey, { cacheName, expiresAt });
-        // eslint-disable-next-line no-console
-        console.log(`[lumina/chat] Context cache created: ${cacheName}, expires at: ${cacheResult.expireTime}`);
-      } catch (cacheErr) {
-        // eslint-disable-next-line no-console
-        console.error("[lumina/chat] Failed to create context cache:", cacheErr);
-      }
-    }
-
-    let model: any;
-    if (cacheName) {
-      model = genai.getGenerativeModelFromCachedContent({
-        name: cacheName,
-      } as any, {
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 8192,
-        },
-      });
-    } else {
-      model = genai.getGenerativeModel({
-        model: "gemini-2.5-flash",
-        systemInstruction: { role: "system", parts: [{ text: sys }] },
-        tools,
-        toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 8192,
-        },
-      });
-    }
+    const model = genai.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: { role: "system", parts: [{ text: sys }] },
+      tools,
+      toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 8192,
+      },
+    });
 
     const contents = toGeminiContents(body);
     // Gemini requires the conversation to start with a user turn. If the
