@@ -219,7 +219,9 @@ async function run(
   const scopedToSupervisor = !ctx.isManager && operator.length > 0;
   const scoped = scopedToSupervisor
     ? all.jobs.filter(
-        (j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === operator
+        (j) => 
+          (j.constructionSupervisor ?? "").trim().toLowerCase() === operator ||
+          (j.customerProject === "Ziply" && j.geocode && j.geocode.status === "OK" && j.geocode.lat > 47.3073)
       )
     : all.jobs;
 

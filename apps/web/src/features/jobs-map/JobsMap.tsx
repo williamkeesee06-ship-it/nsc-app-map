@@ -74,7 +74,9 @@ export default function JobsMap() {
       const u = (username ?? "").trim().toLowerCase();
       if (!u) return [];
       filtered = rawJobs.filter(
-        (j) => (j.constructionSupervisor ?? "").trim().toLowerCase() === u
+        (j) => 
+          (j.constructionSupervisor ?? "").trim().toLowerCase() === u ||
+          (j.customerProject === "Ziply" && j.geocode && j.geocode.status === "OK" && j.geocode.lat > 47.3073)
       );
     }
     if (contract === "Ziply") {
