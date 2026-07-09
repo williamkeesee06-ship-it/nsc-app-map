@@ -22,12 +22,17 @@ export interface ZiplyParsedPrint {
   conduitSize: string | null;
   specialNotes: string | null;
   permits: {
-    cityRow: string | null;
-    wsdot: string | null;
-    county: string | null;
-    railroad: string | null;
-    pa: string | null;
-    tcp: string | null;
+    cityRow: "Pending" | "Approved" | "Active" | "Closed" | null;
+    wsdot: "Pending" | "Approved" | "Active" | "Closed" | null;
+    county: "Pending" | "Approved" | "Active" | "Closed" | null;
+    railroad: "Pending" | "Approved" | "Active" | "Closed" | null;
+    pa: "Pending" | "Approved" | "Active" | "Closed" | null;
+    tcp: "Pending" | "Approved" | "Active" | "Closed" | null;
+  } | null;
+  mapObjects?: {
+    cables: Array<{ label: string; fiberCount: string; lengthFt: number | null }>;
+    terminals: Array<{ label: string; type: string }>;
+    notes: string | null;
   } | null;
 }
 
@@ -37,10 +42,22 @@ function dataUrlToPart(dataUrl: string): { inlineData: { data: string; mimeType:
   if (!matches) {
     throw new Error("Invalid base64 data URL");
   }
+  const mimeType = matches[1]!;
+  const data = matches[2]!;
+
+  // Allow only images and PDFs
+  const supported = [
+    "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif",
+    "application/pdf",
+  ];
+  if (!supported.includes(mimeType.toLowerCase())) {
+    throw new Error(`Unsupported file type: ${mimeType}. Use PDF or JPEG/PNG/WEBP.`);
+  }
+
   return {
     inlineData: {
-      data: matches[2]!,
-      mimeType: matches[1]!,
+      data,
+      mimeType,
     },
   };
 }
@@ -67,7 +84,11 @@ FIELDS TO LOOK FOR:
 7. Strand Type: e.g. 10M, 6M.
 8. Conduit Size: default drop or distribution conduit (e.g. 1.25", 2").
 9. Special Notes: General construction or engineering notes.
-10. Permits Status Table: Find status or require check for City, WSDOT, County, Railroad, PGE/PA, TCP (typically under a PERMITS card).
+10. Permits Status Table: Find status or require check for City, WSDOT, County, Railroad, PGE/PA, TCP (typically under a PERMITS card). Status must be: Pending, Approved, Active, Closed, or null.
+11. Map Objects: Look for any specific labeled cables, lines, or MST terminal designations. Extract:
+    - cables: list of items with { label, fiberCount, lengthFt }
+    - terminals: list of items with { label, type }
+    - notes: any location notes or layout remarks.
 
 Return a JSON block strictly complying with this schema:
 {
@@ -93,6 +114,11 @@ Return a JSON block strictly complying with this schema:
     "railroad": "Pending | Approved | Active | Closed | null",
     "pa": "Pending | Approved | Active | Closed | null",
     "tcp": "Pending | Approved | Active | Closed | null"
+  },
+  "mapObjects": {
+    "cables": [{"label": "C-1", "fiberCount": "48F", "lengthFt": 250}],
+    "terminals": [{"label": "MST-1", "type": "8-port MST"}],
+    "notes": "string or null"
   }
 }
 `;

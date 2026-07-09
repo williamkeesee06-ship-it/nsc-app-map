@@ -22,6 +22,7 @@ import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
 import ZiplyProductionTab from "../ziply/ZiplyProductionTab.js";
 import ZiplyUploadTab from "../ziply/ZiplyUploadTab.js";
 import SchematicSLDView from "../ziply/SchematicSLDView.js";
+import ZiplyFilterPanel from "./ZiplyFilterPanel.js";
 
 // Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
 // the left while keeping plenty of room for tool tiles to the right.
@@ -41,6 +42,8 @@ interface Props {
   /** Phase 9.7: manager-mode forwards to FilterRail. */
   managerMode?: boolean;
   availableSupervisors?: string[];
+  ziplyPrintLayerVisible?: boolean;
+  setZiplyPrintLayerVisible?: (v: boolean) => void;
 }
 
 type TabId = 'dashboard' | 'filters' | 'tools' | 'calendar' | '811-tickets' | 'production' | 'upload' | 'sld';
@@ -52,6 +55,8 @@ export default function LeftRail({
   hideFilters,
   managerMode,
   availableSupervisors,
+  ziplyPrintLayerVisible = true,
+  setZiplyPrintLayerVisible = () => {},
 }: Props) {
   const { contract } = useActiveContract();
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
@@ -251,15 +256,25 @@ export default function LeftRail({
               {/* Tab Content */}
               <div className="left-rail-tab-content">
                  {activeTab === 'filters' && (
-                  <FiltersTab
-                    jobs={jobs}
-                    filters={filters}
-                    setFilters={setFilters}
-                    hideFilters={hideFilters}
-                    managerMode={managerMode}
-                    availableSupervisors={availableSupervisors}
-                  />
-                )}
+                   contract === 'Ziply' ? (
+                     <ZiplyFilterPanel
+                       jobs={jobs}
+                       filters={filters}
+                       setFilters={setFilters}
+                       ziplyPrintLayerVisible={ziplyPrintLayerVisible}
+                       setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
+                     />
+                   ) : (
+                     <FiltersTab
+                       jobs={jobs}
+                       filters={filters}
+                       setFilters={setFilters}
+                       hideFilters={hideFilters}
+                       managerMode={managerMode}
+                       availableSupervisors={availableSupervisors}
+                     />
+                   )
+                 )}
                 {activeTab === 'tools' && <AnnotateTab />}
                 {activeTab === 'dashboard' && contract === 'Ziply' && (
                   <ZiplyDashboardTab />

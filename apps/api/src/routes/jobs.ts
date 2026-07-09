@@ -514,6 +514,20 @@ router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
       softscapeAerialHomes: parsed.drops?.mdu ?? null,
       nscProjectNotes: parsed.specialNotes ?? null,
       lastSyncedAt: Date.now(),
+      ziplyPrintLayer: {
+        hubId: parsed.hubId,
+        hubTypeSize: parsed.hubTypeSize,
+        terminalCount: parsed.terminalCount,
+        fiberCountsPerCable: parsed.fiberCountsPerCable,
+        drops: parsed.drops,
+        permittedExcavationMethods: parsed.permittedExcavationMethods,
+        strandType: parsed.strandType,
+        conduitSize: parsed.conduitSize,
+        specialNotes: parsed.specialNotes,
+        permits: parsed.permits,
+        mapObjects: parsed.mapObjects || null,
+        uploadedPermitDocs: {}
+      }
     };
 
     await ref.update(updates);
@@ -656,6 +670,52 @@ router.post("/jobs/:jobId/marking-instructions", async (req, res, next) => {
     instructions += `Method of excavation: Directional boring and trenching. `;
 
     res.json({ instructions });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/permits — Upload a base64 permit PDF/image
+router.post("/jobs/:jobId/permits", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { permitType, fileDataUrl } = req.body as { permitType: string; fileDataUrl: string };
+
+    if (!permitType || !fileDataUrl) {
+      res.status(400).json({ error: "permitType and fileDataUrl are required" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer || {
+      hubId: job.hubNumber || null,
+      hubTypeSize: null,
+      terminalCount: null,
+      uploadedPermitDocs: {}
+    };
+
+    const uploadedDocs = layer.uploadedPermitDocs || {};
+    uploadedDocs[permitType] = fileDataUrl;
+
+    const updates: Partial<Job> = {
+      ziplyPrintLayer: {
+        ...layer,
+        uploadedPermitDocs: uploadedDocs
+      },
+      lastSyncedAt: Date.now()
+    };
+
+    await ref.update(updates);
+    invalidateJobsCache();
+
+    res.json({ ok: true, jobId, permitType });
   } catch (err) {
     next(err);
   }

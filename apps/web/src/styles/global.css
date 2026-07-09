@@ -455,6 +455,14 @@ a { color: var(--accent); }
   padding-top: 8px;
   gap: 2px;
   border-right: 1px solid rgba(0,0,0,0.15);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.left-rail-tabstrip::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
 
 .left-rail-tab {

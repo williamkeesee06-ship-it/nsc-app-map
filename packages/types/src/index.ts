@@ -310,6 +310,39 @@ export interface Job {
   estAerialFt?: number | null;
   completedAerialFt?: number | null;
 
+  /** Structured engineering metrics and map components extracted from visual print ingestion. */
+  ziplyPrintLayer?: {
+    hubId: string | null;
+    hubTypeSize: string | null;
+    terminalCount: number | null;
+    fiberCountsPerCable?: string[] | null;
+    drops?: {
+      lu?: number | null;
+      mdu?: number | null;
+      bu?: number | null;
+      total?: number | null;
+    } | null;
+    permittedExcavationMethods?: string[] | null;
+    strandType?: string | null;
+    conduitSize?: string | null;
+    specialNotes?: string | null;
+    permits?: {
+      cityRow?: "Pending" | "Approved" | "Active" | "Closed" | null;
+      wsdot?: "Pending" | "Approved" | "Active" | "Closed" | null;
+      county?: "Pending" | "Approved" | "Active" | "Closed" | null;
+      railroad?: "Pending" | "Approved" | "Active" | "Closed" | null;
+      pa?: "Pending" | "Approved" | "Active" | "Closed" | null;
+      tcp?: "Pending" | "Approved" | "Active" | "Closed" | null;
+    } | null;
+    // Base64 or object-storage url of permit file uploads
+    uploadedPermitDocs?: Record<string, string>; 
+    mapObjects?: {
+      cables: Array<{ label: string; fiberCount: string; lengthFt: number | null }>;
+      terminals: Array<{ label: string; type: string }>;
+      notes: string | null;
+    } | null;
+  } | null;
+
   // ── 811 Dig Ticket fields (Phase 1) ──────────────────────────────────
   // All optional so existing job docs (and Smartsheet-normalized rows that
   // never touched 811) stay valid without a migration.

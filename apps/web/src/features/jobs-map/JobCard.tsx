@@ -303,6 +303,90 @@ export default function JobCard({
         <EditableNotes value={notes} onCommit={(v) => { setNotes(v); commit("notes", v); }} />
       </div>
 
+      {/* Permits Section (Ziply only) */}
+      {job.customerProject === "Ziply" && (
+        <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
+          <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#00E676", margin: "0 0 8px 0" }}>
+            📋 PERMITS & STATUS
+          </h4>
+          
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {["cityRow", "wsdot", "county", "railroad", "pa", "tcp"].map((type) => {
+              const statusVal = job.ziplyPrintLayer?.permits?.[type as keyof typeof job.ziplyPrintLayer.permits] || "Pending";
+              const docUrl = job.ziplyPrintLayer?.uploadedPermitDocs?.[type];
+              
+              const getStatusColor = (s: string) => {
+                if (s === "Approved" || s === "Active") return "#00E676";
+                if (s === "Closed") return "#6b7280";
+                return "#ffb300";
+              };
+
+              const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                  const base64 = reader.result as string;
+                  try {
+                    const res = await fetch(`/api/jobs/${job.jobId}/permits`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ permitType: type, fileDataUrl: base64 }),
+                    });
+                    if (res.ok) {
+                      window.dispatchEvent(new Event("nsc:jobs-reload"));
+                    }
+                  } catch (err) {
+                    alert("Upload failed.");
+                  }
+                };
+                reader.readAsDataURL(file);
+              };
+
+              return (
+                <div key={type} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(0,0,0,0.2)", padding: 6, borderRadius: 4, border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>
+                      {type === "cityRow" ? "City ROW" : type === "wsdot" ? "WSDOT" : type === "pa" ? "PGE/PA" : type}
+                    </span>
+                    <span style={{ fontSize: 9, color: getStatusColor(statusVal), fontWeight: 700 }}>
+                      ● {statusVal}
+                    </span>
+                  </div>
+                  
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    {docUrl ? (
+                      <button
+                        onClick={() => {
+                          const w = window.open();
+                          if (w) w.document.write(`<iframe src="${docUrl}" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                        }}
+                        style={{ background: "rgba(33,150,243,0.2)", border: "1px solid #2196F3", color: "#2196F3", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 3, cursor: "pointer" }}
+                      >
+                        VIEW DOC
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 9, color: "#6b7280" }}>No file</span>
+                    )}
+
+                    <label style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 3, cursor: "pointer" }}>
+                      UPLOAD
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*"
+                        onChange={handleUpload}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -43,6 +43,7 @@ import { useAuth } from "../auth/authContext.js";
 import LuminaOrb from "../lumina/Orb.js";
 import LuminaChatPanel from "../lumina/ChatPanel.js";
 import LuminaMapBridge from "../lumina/MapBridge.js";
+import ZiplyPrintOverlay from "./ZiplyPrintOverlay.js";
 
 const FOCUS_ZOOM = 17;
 
@@ -190,6 +191,7 @@ function JobsMapInner({
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
   const { setTarget: setDigTarget } = useDigPolygon();
   const [panelTheme, setPanelTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
+  const [ziplyPrintLayerVisible, setZiplyPrintLayerVisible] = useState(true);
 
   // ── Dual-Pane Street View (#5) ──────────────────────────
   const panoRef = useRef<HTMLDivElement>(null);
@@ -314,6 +316,8 @@ function JobsMapInner({
         mapRef={mapRef}
         managerMode={isManager}
         availableSupervisors={allSupervisors}
+        ziplyPrintLayerVisible={ziplyPrintLayerVisible}
+        setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
       />
 
       <div className="jobs-map__main">
@@ -352,6 +356,7 @@ function JobsMapInner({
                 }}
               />
               <CentralOfficesOverlay visible={showCOs} />
+              <ZiplyPrintOverlay jobs={mapped} visible={contract === "Ziply" && ziplyPrintLayerVisible} />
               <DrawingOverlay />
               <SavedDigShapeOverlay />
               <AllDigShapesOverlay jobs={mapped} activeJobId={selected?.jobId} />
