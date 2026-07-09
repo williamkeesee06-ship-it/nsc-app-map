@@ -103,6 +103,12 @@ export default function JobsMap() {
   const { setSelectedJobId } = useSearchFocus();
   useEffect(() => {
     setSelectedJobId(selected?.jobId ?? null);
+    // Broadcast for SLD tab and other consumers
+    try {
+      window.dispatchEvent(new CustomEvent("nsc:job-selected", { detail: { jobId: selected?.jobId ?? null } }));
+      if (selected?.jobId) sessionStorage.setItem("nsc.selectedJobId", selected.jobId);
+      else sessionStorage.removeItem("nsc.selectedJobId");
+    } catch { /* ignore */ }
   }, [selected, setSelectedJobId]);
   const filtered = useMemo(() => applyFilters(allJobs, filters), [allJobs, filters]);
   const mapped = useMemo(() => filtered.filter(

@@ -21,6 +21,7 @@ import { useActiveContract } from "../workspace/contractStore.js";
 import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
 import ZiplyProductionTab from "../ziply/ZiplyProductionTab.js";
 import ZiplyUploadTab from "../ziply/ZiplyUploadTab.js";
+import SchematicSLDView from "../ziply/SchematicSLDView.js";
 
 // Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
 // the left while keeping plenty of room for tool tiles to the right.
@@ -42,7 +43,7 @@ interface Props {
   availableSupervisors?: string[];
 }
 
-type TabId = 'dashboard' | 'filters' | 'tools' | 'calendar' | '811-tickets' | 'production' | 'upload';
+type TabId = 'dashboard' | 'filters' | 'tools' | 'calendar' | '811-tickets' | 'production' | 'upload' | 'sld';
 
 export default function LeftRail({
   jobs,
@@ -202,6 +203,7 @@ export default function LeftRail({
         { id: '811-tickets', label: '811 PROCESS' },
         { id: 'production', label: 'PRODUCTION' },
         { id: 'upload', label: 'INGEST PRINT' },
+        { id: 'sld', label: 'SCHEMATIC' },
       ]
     : [
         { id: 'dashboard', label: 'DASHBOARD' },
@@ -268,6 +270,9 @@ export default function LeftRail({
                 {activeTab === 'upload' && (
                   <ZiplyUploadTab jobs={jobs} />
                 )}
+                {activeTab === 'sld' && contract === 'Ziply' && (
+                  <SLDTabContent />
+                )}
                 {/* Calendar tab has no rail content — it mounts full-screen
                     over the map (handled by JobsMap). The rail auto-collapses
                     on entry so there's nothing visible here. */}
@@ -285,6 +290,58 @@ export default function LeftRail({
         </>
       )}
     </aside>
+  );
+}
+
+// ─── SLD Tab Content ──────────────────────────────────────────────────────────
+// Listens for the globally-selected job (via nsc:job-selected CustomEvent) and
+// renders the Schematic SLD view for it. Falls back to a prompt if no job
+// is actively selected on the map.
+function SLDTabContent() {
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Listen for job selection events (same bus JobCard uses)
+    function onJobSelected(e: Event) {
+      const detail = (e as CustomEvent<{ jobId: string | null }>).detail;
+      setSelectedJobId(detail?.jobId ?? null);
+    }
+    window.addEventListener("nsc:job-selected", onJobSelected as EventListener);
+
+    // Also check sessionStorage for a pre-selected job
+    try {
+      const stored = sessionStorage.getItem("nsc.selectedJobId");
+      if (stored) setSelectedJobId(stored);
+    } catch { /* ignore */ }
+
+    return () => window.removeEventListener("nsc:job-selected", onJobSelected as EventListener);
+  }, []);
+
+  if (!selectedJobId) {
+    return (
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+        gap: 10,
+        padding: 24,
+        textAlign: "center"
+      }}>
+        <div style={{ fontSize: 28 }}>📡</div>
+        <div style={{ color: "#6b7280", fontSize: 11, lineHeight: 1.7 }}>
+          Select a job on the map to<br />
+          <span style={{ color: "#00d4ff" }}>generate the SLD schematic</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height: "calc(100vh - 120px)", minHeight: 300 }}>
+      <SchematicSLDView jobId={selectedJobId} />
+    </div>
   );
 }
 
