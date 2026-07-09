@@ -349,15 +349,17 @@ function JobsMapInner({
                 onSelect={handleSelect}
                 allJobs={allJobs}
               />
-              <AllJobsMarkupsOverlay
-                onMarkupClick={(jobId) => {
-                  const j = allJobs.find((x) => x.jobId === jobId);
-                  if (j) void handleSelect(j);
-                }}
-              />
+              {contract !== "Ziply" && (
+                <AllJobsMarkupsOverlay
+                  onMarkupClick={(jobId) => {
+                    const j = allJobs.find((x) => x.jobId === jobId);
+                    if (j) void handleSelect(j);
+                  }}
+                />
+              )}
               <CentralOfficesOverlay visible={showCOs} />
               <ZiplyPrintOverlay jobs={mapped} visible={contract === "Ziply" && ziplyPrintLayerVisible} />
-              <DrawingOverlay />
+              {contract !== "Ziply" && <DrawingOverlay />}
               <SavedDigShapeOverlay />
               <AllDigShapesOverlay jobs={mapped} activeJobId={selected?.jobId} />
               <DigPolygonOverlay />

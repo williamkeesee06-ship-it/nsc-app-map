@@ -3,10 +3,12 @@ import { useAuth } from "../auth/authContext.js";
 import { api } from "../../lib/api.js";
 import type { Job, DigTicket } from "@nsc/types";
 import { ShieldCheck, Crosshair, Map, Activity } from "lucide-react";
+import { useActiveContract } from "../workspace/contractStore.js";
 import "./overwatchHUD.css";
 
 export default function OverwatchHUD() {
   const { username } = useAuth();
+  const { contract } = useActiveContract();
   const [open, setOpen] = useState(false);
 
   const [metrics, setMetrics] = useState({
@@ -78,13 +80,15 @@ export default function OverwatchHUD() {
               </div>
             </div>
 
-            <div className="metric-box">
-              <Map size={24} className="metric-icon markups-icon" />
-              <div className="metric-details">
-                <span className="metric-value">{metrics.markupsCount}</span>
-                <span className="metric-label">MARKUPS</span>
+            {contract !== "Ziply" && (
+              <div className="metric-box">
+                <Map size={24} className="metric-icon markups-icon" />
+                <div className="metric-details">
+                  <span className="metric-value">{metrics.markupsCount}</span>
+                  <span className="metric-label">MARKUPS</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
