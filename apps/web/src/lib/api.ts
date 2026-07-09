@@ -138,6 +138,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updateJobSchedule: (jobId: string | number, body: { scheduleDate?: string | null; endDate?: string | null; constructionCrewForeman?: string | null }) =>
+    request<{ ok: boolean; jobId: string | number; scheduleDate?: string | null; endDate?: string | null; constructionCrewForeman?: string | null }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/schedule`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
   triggerSync: () =>
     request<SyncRun>(`/api/sync/jobs`, {
       method: "POST",

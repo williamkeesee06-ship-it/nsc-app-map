@@ -35,7 +35,7 @@ async function findTicketByJobNumber(
   // Fetch both — cheap for Billy's dataset size (~hundreds).
   const [ticketsRes, jobsRes] = await Promise.all([
     api.listDigTickets(owner),
-    api.listJobs(owner),
+    api.listJobs(),
   ]);
   const wo = jobNumber.trim().toUpperCase();
   const job = jobsRes.jobs.find((j) => (j.workOrder ?? "").toUpperCase() === wo) ?? null;
@@ -146,7 +146,7 @@ const listExpiringTicketsTool: LuminaTool<ListExpiringInput, ListExpiringData> =
     const owner = ctx?.isManager ? "*" : ctx?.username || "";
     const [ticketsRes, jobsRes] = await Promise.all([
       api.listDigTickets(owner),
-      api.listJobs(owner),
+      api.listJobs(),
     ]);
     const jobById = new Map<string, Job>(jobsRes.jobs.map((j) => [j.jobId, j]));
     const now = Date.now();

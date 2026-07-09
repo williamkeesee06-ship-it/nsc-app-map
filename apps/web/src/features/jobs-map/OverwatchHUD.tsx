@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/authContext.js";
 import { api } from "../../lib/api.js";
-import type { Job, DigTicket, Drawing } from "@nsc/types";
+import type { Job, DigTicket } from "@nsc/types";
 import { ShieldCheck, Crosshair, Map, Activity } from "lucide-react";
 import "./overwatchHUD.css";
 
@@ -24,15 +24,15 @@ export default function OverwatchHUD() {
     
     // Fetch global data by bypassing scoping (isManager logic or explicit wildcard)
     Promise.all([
-      api.listJobs("*").catch(() => ({ jobs: [] })),
-      api.listDigTickets("*").catch(() => ({ tickets: [] })),
-      api.getAllDrawings("*").catch(() => ({ drawings: [] }))
+      api.listJobs().catch(() => ({ jobs: [] as Job[] })),
+      api.listDigTickets().catch(() => ({ tickets: [] as DigTicket[] })),
+      api.getAllDrawings().catch(() => ({ docs: [] }))
     ]).then(([jobsRes, ticketsRes, drawingsRes]) => {
       if (cancelled) return;
       setMetrics({
         jobsCount: jobsRes.jobs.length,
         ticketsCount: ticketsRes.tickets.length,
-        markupsCount: drawingsRes.drawings.length,
+        markupsCount: drawingsRes.docs.length,
       });
     });
 

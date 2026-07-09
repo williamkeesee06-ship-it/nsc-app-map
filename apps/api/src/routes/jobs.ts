@@ -489,12 +489,13 @@ router.get("/jobs/ziply-metrics", async (_req, res, next) => {
 router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
   try {
     const { jobId } = req.params;
-    const body = req.body as { dataUrl?: string };
-    if (!body.dataUrl) {
-      res.status(400).json({ error: "dataUrl required" });
+    const body = req.body as { dataUrl?: string; dataUrls?: string[] };
+    const urls = body.dataUrls ?? (body.dataUrl ? [body.dataUrl] : []);
+    if (urls.length === 0) {
+      res.status(400).json({ error: "dataUrls required" });
       return;
     }
-    const parsed = await parseZiplyPrint(body.dataUrl);
+    const parsed = await parseZiplyPrint(urls);
 
     // Save structured metadata directly into the job document!
     const ref = db().collection("jobs").doc(jobId);
@@ -565,6 +566,96 @@ router.post("/jobs/:jobId/ziply-production", async (req, res, next) => {
     // We only record production locally in Firestore until explicitly approved.
 
     res.json({ ok: true, jobId, completedBoreFt: newBore, completedPlacingFt: newPlacing, completedAerialFt: newAerial });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/schedule — Update schedule dates and crew assignment
+router.post("/jobs/:jobId/schedule", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { scheduleDate, endDate, constructionCrewForeman } = req.body as {
+      scheduleDate?: string | null;
+      endDate?: string | null;
+      constructionCrewForeman?: string | null;
+    };
+
+    let ref = db().collection("jobs").doc(jobId);
+    let doc = await ref.get();
+    if (!doc.exists) {
+      // Fallback: the client might have passed a workOrder instead of a doc ID.
+      const snap = await db().collection("jobs").where("workOrder", "==", jobId).limit(1).get();
+      if (!snap.empty) {
+        ref = snap.docs[0].ref;
+        doc = snap.docs[0];
+      } else {
+        res.status(404).json({ error: "Job not found" });
+        return;
+      }
+    }
+
+    const updates: Partial<Job> = {
+      lastSyncedAt: Date.now(),
+    };
+    if (scheduleDate !== undefined) updates.scheduleDate = scheduleDate;
+    if (endDate !== undefined) updates.actualCompletionDate = endDate;
+    if (constructionCrewForeman !== undefined) updates.constructionCrewForeman = constructionCrewForeman;
+
+    await ref.update(updates);
+    invalidateJobsCache();
+
+    res.json({ ok: true, jobId, scheduleDate, endDate, constructionCrewForeman });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/marking-instructions — Generate 811 marking instructions
+router.post("/jobs/:jobId/marking-instructions", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    let ref = db().collection("jobs").doc(jobId);
+    let doc = await ref.get();
+    
+    if (!doc.exists) {
+      const snap = await db().collection("jobs").where("workOrder", "==", jobId).limit(1).get();
+      if (!snap.empty) {
+        ref = snap.docs[0].ref;
+        doc = snap.docs[0];
+      } else {
+        res.status(404).json({ error: "Job not found" });
+        return;
+      }
+    }
+
+    const job = doc.data() as Job;
+    const shape = (job as any).digPolygon as DigShape | undefined;
+    
+    let instructions = `Please locate and mark all underground utilities for FTTH construction. `;
+    instructions += `Project: ${job.customerProject || "Ziply"} ${job.workOrder || ""}. `;
+    
+    if (job.address) {
+      instructions += `Location: ${job.address}, ${job.city || ""}. `;
+    }
+
+    if (shape) {
+      if (shape.type === "radius") {
+        instructions += `Scope: A ${Math.round(Math.sqrt(shape.areaSqFt / Math.PI))} ft radius around the specified coordinates. `;
+      } else if (shape.type === "route") {
+        instructions += `Scope: A route of approximately ${Math.round(shape.perimeterFt / 2)} ft in length. Mark 10ft on both sides of route. `;
+      } else {
+        instructions += `Scope: A polygon area of approximately ${Math.round(shape.areaSqFt)} sq ft. `;
+      }
+    }
+    
+    if (job.workType) {
+      instructions += `Work involves: ${job.workType}. `;
+    }
+    
+    instructions += `Method of excavation: Directional boring and trenching. `;
+
+    res.json({ instructions });
   } catch (err) {
     next(err);
   }

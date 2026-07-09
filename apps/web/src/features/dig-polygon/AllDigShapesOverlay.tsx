@@ -34,13 +34,14 @@ export default function AllDigShapesOverlay({ jobs, activeJobId }: AllDigShapesO
       if (!shape) return;
 
       // Determine ring geometry
+      // shape may be a legacy PolygonData (no `type` field) or a modern DigShape.
       let ring: LatLngVertex[] = [];
-      if (shape.type === "radius") {
+      if ("type" in shape && shape.type === "radius") {
         ring = radiusCircleVertices(shape.center, shape.radiusFt).map((v) => ({
           lat: v.lat,
           lng: v.lng,
         }));
-      } else if (shape.type === "route") {
+      } else if ("type" in shape && shape.type === "route") {
         ring = routeBufferVertices(shape.path, shape.widthFt).map((v) => ({
           lat: v.lat,
           lng: v.lng,

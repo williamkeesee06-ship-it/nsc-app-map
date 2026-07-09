@@ -45,15 +45,16 @@ function dataUrlToPart(dataUrl: string): { inlineData: { data: string; mimeType:
   };
 }
 
-export async function parseZiplyPrint(dataUrl: string): Promise<ZiplyParsedPrint> {
+export async function parseZiplyPrint(dataUrls: string | string[]): Promise<ZiplyParsedPrint> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY not set in environment");
 
   const genai = new GoogleGenerativeAI(apiKey);
-  const printPart = dataUrlToPart(dataUrl);
+  const urls = Array.isArray(dataUrls) ? dataUrls : [dataUrls];
+  const printParts = urls.map(dataUrlToPart);
 
   const prompt = `
-Analyze the attached engineering print cover sheet or layout print.
+Analyze the attached engineering print cover sheet(s) or layout print(s).
 Extract all key telecom engineering metrics and return them in a structured JSON format.
 
 FIELDS TO LOOK FOR:
@@ -106,7 +107,7 @@ Return a JSON block strictly complying with this schema:
     },
   });
 
-  const result = await model.generateContent([prompt, printPart]);
+  const result = await model.generateContent([prompt, ...printParts]);
   const responseText = result.response.text();
   
   // Clean fences

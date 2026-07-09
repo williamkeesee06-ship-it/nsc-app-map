@@ -618,7 +618,7 @@ function JobMarkers({
 
     if (showClusters) {
       // Group mapped jobs by City
-      const cityGroups = new Map<string, Job[]>();
+      const cityGroups = new globalThis.Map<string, Job[]>();
       jobs.forEach((job) => {
         const city = (job.city ?? "").trim().toLowerCase();
         if (!city || !job.geocode) return;
@@ -626,7 +626,7 @@ function JobMarkers({
         cityGroups.get(city)!.push(job);
       });
 
-      cityGroups.forEach((cityJobs, cityName) => {
+      cityGroups.forEach((cityJobs: Job[], cityName: string) => {
         // Calculate center of cluster
         let sumLat = 0;
         let sumLng = 0;
@@ -634,7 +634,7 @@ function JobMarkers({
         let totalEstimated = 0;
         let count = 0;
 
-        cityJobs.forEach((j) => {
+        cityJobs.forEach((j: Job) => {
           sumLat += j.geocode!.lat;
           sumLng += j.geocode!.lng;
           totalCompleted += (j.completedBoreFt ?? 0) + (j.completedPlacingFt ?? 0) + (j.completedAerialFt ?? 0);

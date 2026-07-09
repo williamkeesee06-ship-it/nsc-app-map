@@ -4,28 +4,36 @@ import { api } from "../../lib/api.js";
 
 export default function ZiplyUploadTab({ jobs }: { jobs: Job[] }) {
   const [selectedJobId, setSelectedJobId] = useState("");
-  const [fileData, setFileData] = useState<string | null>(null);
-  const [fileName, setFileName] = useState("");
+  const [fileDataUrls, setFileDataUrls] = useState<string[]>([]);
+  const [fileNames, setFileNames] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "uploading" | "parsing" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [parsedData, setParsedData] = useState<any>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setFileName(file.name);
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setFileNames(files.map(f => f.name));
     setStatus("uploading");
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFileData(reader.result as string);
-      setStatus("idle");
-    };
-    reader.onerror = () => {
-      setErrorMsg("Failed to read file.");
-      setStatus("error");
-    };
-    reader.readAsDataURL(file);
+    const promises = files.map((file) => {
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(promises)
+      .then((dataUrls) => {
+        setFileDataUrls(dataUrls);
+        setStatus("idle");
+      })
+      .catch(() => {
+        setErrorMsg("Failed to read files.");
+        setStatus("error");
+      });
   };
 
   const handleIngest = async () => {
@@ -34,8 +42,8 @@ export default function ZiplyUploadTab({ jobs }: { jobs: Job[] }) {
       setStatus("error");
       return;
     }
-    if (!fileData) {
-      setErrorMsg("Please select a print file.");
+    if (fileDataUrls.length === 0) {
+      setErrorMsg("Please select print file(s).");
       setStatus("error");
       return;
     }
@@ -47,7 +55,7 @@ export default function ZiplyUploadTab({ jobs }: { jobs: Job[] }) {
       const res = await fetch(`/api/jobs/${selectedJobId}/ziply-ingest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataUrl: fileData }),
+        body: JSON.stringify({ dataUrls: fileDataUrls }),
       });
 
       if (!res.ok) {
@@ -105,12 +113,13 @@ export default function ZiplyUploadTab({ jobs }: { jobs: Job[] }) {
           <input
             type="file"
             accept="image/*,application/pdf"
+            multiple
             onChange={handleFileChange}
             id="print-upload-input"
             style={{ display: "none" }}
           />
           <label htmlFor="print-upload-input" style={{ cursor: "pointer", fontSize: 11, color: "var(--accent)", fontWeight: 600 }}>
-            {fileName ? `File: ${fileName}` : "Click to select print sheet"}
+            {fileNames.length > 0 ? `Selected ${fileNames.length} file(s)` : "Click to select print sheet(s)"}
           </label>
           <div style={{ fontSize: 9, color: "#6b7280", marginTop: 4 }}>Accepts PDF cover page, drop/splice details, or photos</div>
         </div>
@@ -119,7 +128,7 @@ export default function ZiplyUploadTab({ jobs }: { jobs: Job[] }) {
       {/* Actions */}
       <button
         onClick={handleIngest}
-        disabled={status === "parsing" || !selectedJobId || !fileData}
+        disabled={status === "parsing" || !selectedJobId || fileDataUrls.length === 0}
         style={{
           width: "100%",
           background: status === "parsing" ? "#374151" : "var(--accent, #00E676)",
@@ -129,7 +138,7 @@ export default function ZiplyUploadTab({ jobs }: { jobs: Job[] }) {
           borderRadius: 4,
           padding: "8px 12px",
           fontSize: 11,
-          cursor: (status === "parsing" || !selectedJobId || !fileData) ? "not-allowed" : "pointer",
+          cursor: (status === "parsing" || !selectedJobId || fileDataUrls.length === 0) ? "not-allowed" : "pointer",
           textAlign: "center",
           textTransform: "uppercase",
           letterSpacing: "0.05em",

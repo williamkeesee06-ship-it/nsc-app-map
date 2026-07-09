@@ -229,6 +229,20 @@ export function CalendarTab() {
   const onNextWeek = useCallback(() => setWeekStart((d) => addDays(d, 7)), []);
   const onToday    = useCallback(() => setWeekStart(mondayOf(new Date())), []);
 
+  const selectedEvent = useMemo(() => {
+    if (!selectedRowId) return null;
+    return events.find((e) => e.rowId === selectedRowId) ?? null;
+  }, [events, selectedRowId]);
+
+  const handleSaveSchedule = useCallback(async (updates: { scheduleDate: string | null; endDate: string | null; constructionCrewForeman: string | null }) => {
+    if (!selectedEvent) return;
+    // We pass the workOrder as the ID since it is known, and the backend route will handle it.
+    await api.updateJobSchedule(selectedEvent.workOrder, updates);
+    
+    // Optimistic local update or just trigger a refetch
+    setRefreshTick((t) => t + 1);
+  }, [selectedEvent]);
+
   return (
     <div className="cal-tab" style={{ "--cal-accent": contract === "Ziply" ? "var(--ziply, #00b248)" : ROYAL } as React.CSSProperties}>
       {/* ── Header: title, scope toggle, week nav ───────────────────────── */}
@@ -334,6 +348,14 @@ export function CalendarTab() {
           </>
         )}
       </div>
+
+      {selectedEvent && (
+        <EventPopup
+          event={selectedEvent}
+          onClose={() => setSelectedRowId(null)}
+          onSave={handleSaveSchedule}
+        />
+      )}
     </div>
   );
 }
@@ -438,6 +460,71 @@ function EventCard({ event, left, width, top, overflowL, overflowR, selected, on
         </span>
       )}
     </button>
+  );
+}
+
+// ── Event Popup sub-component ─────────────────────────────────────────────
+
+interface EventPopupProps {
+  event: CalendarEvent;
+  onClose: () => void;
+  onSave: (updates: { scheduleDate: string | null; endDate: string | null; constructionCrewForeman: string | null }) => Promise<void>;
+}
+
+function EventPopup({ event, onClose, onSave }: EventPopupProps) {
+  const [scheduleDate, setScheduleDate] = useState(event.scheduleDate || "");
+  const [endDate, setEndDate] = useState(event.endDate || "");
+  const [crew, setCrew] = useState(event.crew || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave({
+        scheduleDate: scheduleDate || null,
+        endDate: endDate || null,
+        constructionCrewForeman: crew || null
+      });
+      onClose();
+    } catch (err: any) {
+      setError(err.message);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="cal-popup-overlay" onClick={onClose}>
+      <div className="cal-popup" onClick={(e) => e.stopPropagation()}>
+        <div className="cal-popup-header">
+          <h3>Edit Schedule: {event.workOrder}</h3>
+          <button type="button" onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="cal-popup-body">
+          {error && <div className="cal-error">{error}</div>}
+          
+          <label>
+            Start Date:
+            <input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} />
+          </label>
+          <label>
+            End Date:
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </label>
+          <label>
+            Crew / Foreman:
+            <input type="text" value={crew} onChange={(e) => setCrew(e.target.value)} />
+          </label>
+          
+          <div className="cal-popup-footer">
+            <button type="button" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="submit" disabled={saving}>{saving ? "Saving..." : "Save"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -657,6 +744,47 @@ const _styles = `
 }
 .cal-footer .cal-dot { color: ${BORDER}; }
 .cal-cache { color: ${TEXT_MD}; }
+
+.cal-popup-overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.cal-popup {
+  background: ${CARD_BG}; border: 1px solid ${BORDER};
+  border-radius: 8px; width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  display: flex; flex-direction: column;
+}
+.cal-popup-header {
+  padding: 12px 16px; border-bottom: 1px solid ${BORDER_LITE};
+  display: flex; align-items: center; justify-content: space-between;
+}
+.cal-popup-header h3 { margin: 0; font-size: 14px; color: ${TEXT_HI}; }
+.cal-popup-header button {
+  background: none; border: none; font-size: 18px; cursor: pointer; color: ${TEXT_MD};
+}
+.cal-popup-body {
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+}
+.cal-popup-body label {
+  display: flex; flex-direction: column; font-size: 12px; color: ${TEXT_MD}; gap: 4px;
+}
+.cal-popup-body input {
+  padding: 6px 8px; border: 1px solid ${BORDER_LITE}; border-radius: 4px;
+  font-family: inherit; font-size: 12px;
+}
+.cal-popup-footer {
+  display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;
+}
+.cal-popup-footer button {
+  padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;
+  border: 1px solid ${BORDER_LITE}; background: ${CELL_BG}; color: ${TEXT_HI};
+}
+.cal-popup-footer button[type="submit"] {
+  background: var(--cal-accent, ${ROYAL}); color: #fff; border: none;
+}
+.cal-popup-footer button:disabled { opacity: 0.6; pointer-events: none; }
 `;
 
 // Inject styles once.
