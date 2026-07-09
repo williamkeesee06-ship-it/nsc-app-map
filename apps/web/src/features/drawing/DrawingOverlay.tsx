@@ -73,8 +73,9 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
   }
 
   if (tool === "placed_cable") {
+    const isComplete = style.ziplyStatus === "Complete";
     return {
-      strokeColor: PLACED_COLOR,
+      strokeColor: isComplete ? "#00ffff" : PLACED_COLOR,
       strokeWeight: style.strokeWidth,
       strokeOpacity: style.opacity,
     };
@@ -405,6 +406,9 @@ export default function DrawingOverlay() {
   const [cardObj, setCardObj] = useState<DrawingObject | null>(null);
   const [cardAnchor, setCardAnchor] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  // Hover tooltip for completed paths
+  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; crew: string; time: string } | null>(null);
+
   // Stable ref to cardObj for event listeners
   const cardObjRef = useRef<DrawingObject | null>(null);
   cardObjRef.current = cardObj;
@@ -420,6 +424,11 @@ export default function DrawingOverlay() {
           if (icons && icons.length > 0 && icons[0].icon && icons[0].repeat === "30px") {
             icons[0].offset = `${offset}px`;
             val.set("icons", icons);
+          }
+          if (val.get("isZiplyPulse")) {
+            const t = Date.now() / 500;
+            const op = 0.15 + 0.3 * (Math.sin(t) * 0.5 + 0.5);
+            val.setOptions({ strokeOpacity: op });
           }
         }
       });
@@ -682,6 +691,8 @@ export default function DrawingOverlay() {
         if (lbl) { lbl.setMap(null); overlaysRef.current.delete(id + "_label"); }
         const callout = calloutLinesRef.current.get(id + "_callout");
         if (callout) { callout.setMap(null); calloutLinesRef.current.delete(id + "_callout"); }
+        const pulse = overlaysRef.current.get(id + "_ziply_pulse");
+        if (pulse) { pulse.setMap(null); overlaysRef.current.delete(id + "_ziply_pulse"); }
         const iw = measureInfoRef.current.get(id);
         if (iw) { iw.close(); measureInfoRef.current.delete(id); }
         labelVersionRef.current.delete(id);
@@ -700,6 +711,8 @@ export default function DrawingOverlay() {
         if (prevLbl) { prevLbl.setMap(null); overlaysRef.current.delete(obj.id + "_label"); }
         const prevCallout = calloutLinesRef.current.get(obj.id + "_callout");
         if (prevCallout) { prevCallout.setMap(null); calloutLinesRef.current.delete(obj.id + "_callout"); }
+        const prevPulse = overlaysRef.current.get(obj.id + "_ziply_pulse");
+        if (prevPulse) { prevPulse.setMap(null); overlaysRef.current.delete(obj.id + "_ziply_pulse"); }
         removeGeoListeners(obj.id);
 
         // Remove selection listener if present
@@ -913,6 +926,58 @@ export default function DrawingOverlay() {
         }
       }
 
+      // Ziply pulse effect and tooltip
+      const pulseKey = obj.id + "_ziply_pulse";
+      let pulseGlow = overlaysRef.current.get(pulseKey) as google.maps.Polyline | undefined;
+      
+      const isZiplyComplete = obj.tool === "placed_cable" && obj.style.ziplyStatus === "Complete";
+      if (isZiplyComplete && "vertices" in obj) {
+        const verts = (obj as any).vertices;
+        if (!pulseGlow) {
+          pulseGlow = new google.maps.Polyline({
+            path: verts.map((v: any) => new google.maps.LatLng(v.lat, v.lng)),
+            strokeColor: "#00ffff",
+            strokeWeight: obj.style.strokeWidth * 3.5,
+            strokeOpacity: 0.3,
+            zIndex: 3,
+            clickable: false,
+            map,
+          });
+          pulseGlow.set("isZiplyPulse", true);
+          overlaysRef.current.set(pulseKey, pulseGlow);
+        } else {
+          pulseGlow.setPath(verts.map((v: any) => new google.maps.LatLng(v.lat, v.lng)));
+          pulseGlow.setOptions({
+            strokeWeight: obj.style.strokeWidth * 3.5
+          });
+        }
+        
+        // Ensure tooltip listeners exist on the main overlay
+        const mainOverlay = overlaysRef.current.get(obj.id);
+        if (mainOverlay && !mainOverlay.get("hasHoverListeners") && obj.style.ziplyCrewId && obj.style.ziplyTimestamp) {
+          mainOverlay.addListener("mouseover", (e: any) => {
+            const dom = e.domEvent as MouseEvent | undefined;
+            if (dom) {
+              setHoverInfo({
+                x: dom.clientX,
+                y: dom.clientY,
+                crew: obj.style.ziplyCrewId!,
+                time: new Date(obj.style.ziplyTimestamp!).toLocaleString(),
+              });
+            }
+          });
+          mainOverlay.addListener("mouseout", () => {
+            setHoverInfo(null);
+          });
+          mainOverlay.set("hasHoverListeners", true);
+        }
+      } else {
+        if (pulseGlow) {
+          pulseGlow.setMap(null);
+          overlaysRef.current.delete(pulseKey);
+        }
+      }
+
       // Label rendering is handled exclusively by rebuildAllLabels() below,
       // which runs anti-collision placement so labels never overlap. The
       // previous per-object label creation here was duplicating every label
@@ -1100,6 +1165,28 @@ export default function DrawingOverlay() {
           y={photos.screen.y}
           onClose={() => setPhotos(null)}
         />
+      )}
+
+      {hoverInfo && (
+        <div style={{
+          position: "fixed",
+          top: hoverInfo.y - 45,
+          left: hoverInfo.x + 15,
+          background: "rgba(0, 15, 25, 0.9)",
+          border: "1px solid #00ffff",
+          borderRadius: 4,
+          padding: "6px 10px",
+          color: "#00ffff",
+          fontSize: 11,
+          fontFamily: "monospace",
+          zIndex: 10000,
+          boxShadow: "0 0 10px rgba(0, 255, 255, 0.3)",
+          pointerEvents: "none"
+        }}>
+          <div><strong>COMPLETED</strong></div>
+          <div>Crew: {hoverInfo.crew}</div>
+          <div>{hoverInfo.time}</div>
+        </div>
       )}
     </>
   );

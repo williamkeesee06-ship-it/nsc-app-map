@@ -142,7 +142,8 @@ function createReadOnlyOverlay(
   /** Callback to register auxiliary overlays (e.g. callout leader polyline)
    *  so the parent can dispose them on clear/unmount. */
   registerAux?: (overlay: OverlayRef) => void,
-  onRightClick?: RightClickHandler
+  onRightClick?: RightClickHandler,
+  onHover?: (info: { x: number; y: number; crew: string; time: string } | null) => void
 ): OverlayRef | null {
   if (obj.style.hidden) return null;
   const clickable = onClick !== null;
@@ -177,13 +178,50 @@ function createReadOnlyOverlay(
         map,
       }));
     }
-    return wireClick(new google.maps.Polyline({
+    const polyline = new google.maps.Polyline({
       path: obj.vertices.map((v) => new google.maps.LatLng(v.lat, v.lng)),
       ...opts,
       zIndex: 4,
       clickable,
       map,
-    }));
+    });
+
+    if (obj.tool === "placed_cable" && obj.style.ziplyStatus === "Complete") {
+      // Glow polyline
+      polyline.setOptions({ strokeColor: "#00ffff" }); // cyan core
+      const glow = new google.maps.Polyline({
+        path: obj.vertices.map((v) => new google.maps.LatLng(v.lat, v.lng)),
+        strokeColor: "#00ffff",
+        strokeWeight: obj.style.strokeWidth * 3.5,
+        strokeOpacity: 0.3,
+        zIndex: 3,
+        clickable: false,
+        map,
+      });
+      registerAux?.(glow);
+      // mark it so the animation loop can find it
+      glow.set("isZiplyPulse", true);
+
+      // Tooltip handling
+      if (onHover && obj.style.ziplyCrewId && obj.style.ziplyTimestamp) {
+        polyline.addListener("mouseover", (e: any) => {
+          const dom = e.domEvent as MouseEvent | undefined;
+          if (dom) {
+            onHover({
+              x: dom.clientX,
+              y: dom.clientY,
+              crew: obj.style.ziplyCrewId!,
+              time: new Date(obj.style.ziplyTimestamp!).toLocaleString(),
+            });
+          }
+        });
+        polyline.addListener("mouseout", () => {
+          onHover(null);
+        });
+      }
+    }
+
+    return wireClick(polyline);
   }
 
   if ("bounds" in obj) {
@@ -486,6 +524,11 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
             icons[0].offset = `${offset}px`;
             val.set("icons", icons);
           }
+          if (val.get("isZiplyPulse")) {
+            const t = Date.now() / 500;
+            const op = 0.15 + 0.3 * (Math.sin(t) * 0.5 + 0.5);
+            val.setOptions({ strokeOpacity: op });
+          }
         }
       });
     }, 40);
@@ -528,6 +571,9 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
       }
     | null
   >(null);
+
+  // Hover tooltip for completed paths
+  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; crew: string; time: string } | null>(null);
 
   async function fetchAll() {
     try {
@@ -596,7 +642,7 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
             // (skip text-tool labels for now — photos belong on assets).
             setPhotos({ obj: target, jobId: doc.jobId, screen });
           };
-          const overlay = createReadOnlyOverlay(obj, map, zoom, handler, registerAux, rightClickHandler);
+          const overlay = createReadOnlyOverlay(obj, map, zoom, handler, registerAux, rightClickHandler, setHoverInfo);
           if (overlay) overlaysRef.current.set(`${doc.jobId}:${obj.id}`, overlay);
         } catch {
           // skip malformed object
@@ -729,25 +775,51 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     );
   }
 
-  if (!editing) return null;
-  const initialText = labelTextForObj(editing.obj) ?? "";
+  if (!editing && !hoverInfo) return null;
+
   return (
-    <LabelEditPopup
-      x={editing.screen.x}
-      y={editing.screen.y}
-      initial={{
-        text: initialText,
-        textColor: editing.obj.style.textColor ?? "#1A2332",
-        fontSize: editing.obj.style.labelFontSize ?? 12,
-        bg: editing.obj.style.labelBg ?? "",
-        border: editing.obj.style.labelBorder ?? "",
-        borderWidth: editing.obj.style.labelBorderWidth ?? 0,
-      }}
-      onSave={(values) => {
-        persistLabelEdit(editing.jobId, editing.obj, values);
-        setEditing(null);
-      }}
-      onCancel={() => setEditing(null)}
-    />
+    <>
+      {editing && (
+        <LabelEditPopup
+          x={editing.screen.x}
+          y={editing.screen.y}
+          initial={{
+            text: labelTextForObj(editing.obj) ?? "",
+            textColor: editing.obj.style.textColor ?? "#1A2332",
+            fontSize: editing.obj.style.labelFontSize ?? 12,
+            bg: editing.obj.style.labelBg ?? "",
+            border: editing.obj.style.labelBorder ?? "",
+            borderWidth: editing.obj.style.labelBorderWidth ?? 0,
+          }}
+          onSave={(values) => {
+            persistLabelEdit(editing.jobId, editing.obj, values);
+            setEditing(null);
+          }}
+          onCancel={() => setEditing(null)}
+        />
+      )}
+
+      {hoverInfo && (
+        <div style={{
+          position: "fixed",
+          top: hoverInfo.y - 45,
+          left: hoverInfo.x + 15,
+          background: "rgba(0, 15, 25, 0.9)",
+          border: "1px solid #00ffff",
+          borderRadius: 4,
+          padding: "6px 10px",
+          color: "#00ffff",
+          fontSize: 11,
+          fontFamily: "monospace",
+          zIndex: 10000,
+          boxShadow: "0 0 10px rgba(0, 255, 255, 0.3)",
+          pointerEvents: "none"
+        }}>
+          <div><strong>COMPLETED</strong></div>
+          <div>Crew: {hoverInfo.crew}</div>
+          <div>{hoverInfo.time}</div>
+        </div>
+      )}
+    </>
   );
 }

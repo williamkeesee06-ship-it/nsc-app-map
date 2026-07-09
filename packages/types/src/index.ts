@@ -113,6 +113,8 @@ export interface DrawingStyle {
   description?: string;
   photos?: Array<{ id: string; dataUrl: string; name?: string }>;
   layerId?: string;
+  
+
   /** PDF editor style grouping */
   groupId?: string;
 
@@ -149,6 +151,11 @@ export interface DrawingStyle {
   labelBorderWidth?: number;
   /** Cable Flow Animation flag (#3) */
   animateFlow?: boolean;
+
+  // Ziply specific tracking fields
+  ziplyStatus?: "planned" | "placed" | "completed" | "Complete" | "Pending" | string;
+  ziplyCrewId?: string;
+  ziplyTimestamp?: number;
 }
 
 // Phase 9+: per-job MyMaps-style layers (elevated for personal desktop use).
