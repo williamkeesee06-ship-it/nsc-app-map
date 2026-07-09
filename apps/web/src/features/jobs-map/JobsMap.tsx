@@ -206,6 +206,25 @@ function JobsMapInner({
     }
   }, [selected, setTarget]);
 
+  // Listener for custom pan events
+  useEffect(() => {
+    const handlePan = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.bounds && mapRef.current) {
+        const bounds = new google.maps.LatLngBounds();
+        detail.bounds.forEach((pt: { lat: number, lng: number }) => {
+          bounds.extend(pt);
+        });
+        mapRef.current.fitBounds(bounds);
+      } else if (detail && detail.lat && detail.lng && mapRef.current) {
+        mapRef.current.panTo({ lat: detail.lat, lng: detail.lng });
+        mapRef.current.setZoom(16);
+      }
+    };
+    window.addEventListener("nsc:pan-to", handlePan);
+    return () => window.removeEventListener("nsc:pan-to", handlePan);
+  }, [mapRef]);
+
   // Mirror the selected job's 811 dig polygon into the DigPolygon context so
   // the Telecom-tab toggle and the on-map drawing surface both know the target
   // and can render/re-edit an existing polygon.
@@ -361,8 +380,12 @@ function JobsMapInner({
               <ZiplyPrintOverlay jobs={mapped} visible={contract === "Ziply" && ziplyPrintLayerVisible} />
               {contract !== "Ziply" && <DrawingOverlay />}
               <SavedDigShapeOverlay />
-              <AllDigShapesOverlay jobs={mapped} activeJobId={selected?.jobId} />
-              <DigPolygonOverlay />
+              {filters.showDigPolygons !== false && (
+                <>
+                  <AllDigShapesOverlay jobs={mapped} activeJobId={selected?.jobId} />
+                  <DigPolygonOverlay />
+                </>
+              )}
               <MeasuringOverlay />
               {/* MapTypeToggle is in the topbar; this applier (inside the Map
                   context) actually applies the chosen style to the live map. */}

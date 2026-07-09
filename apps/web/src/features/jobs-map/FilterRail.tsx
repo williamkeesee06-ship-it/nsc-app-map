@@ -21,6 +21,7 @@ export interface Filters {
   /** Phase 9.7 (manager mode): active supervisor names (case-insensitive).
    *  Empty set = show all supervisors. */
   supervisors: Set<string>;
+  showDigPolygons?: boolean;
 }
 
 export function defaultFilters(): Filters {
@@ -39,6 +40,7 @@ export function defaultFilters(): Filters {
     ]),
     workTypeTags: new Set(),
     supervisors: new Set<string>(),
+    showDigPolygons: true,
   };
 }
 

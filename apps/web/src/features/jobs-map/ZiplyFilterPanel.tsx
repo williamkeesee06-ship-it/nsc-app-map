@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Job } from "@nsc/types";
 import type { Filters } from "./FilterRail.js";
+import { ChevronRight, ChevronDown } from "lucide-react";
 
 interface Props {
   jobs: Job[];
@@ -70,6 +71,39 @@ export default function ZiplyFilterPanel({
     return targetBuckets.some((b: any) => filters.buckets.has(b));
   };
 
+  // Group Ziply FTTH jobs by site for the Sites Navigation
+  const ftthJobs = ziplyJobs.filter((j) => {
+    const wt = (j.workType || "").toUpperCase();
+    return wt.includes("FTTH");
+  });
+
+  const jobsBySite = new Map<string, Job[]>();
+  ftthJobs.forEach(j => {
+    const site = (j.city || "Unknown Site").trim();
+    if (!jobsBySite.has(site)) jobsBySite.set(site, []);
+    jobsBySite.get(site)!.push(j);
+  });
+  const sites = Array.from(jobsBySite.keys()).sort();
+  const [expandedSites, setExpandedSites] = useState<Set<string>>(new Set());
+
+  const toggleSite = (site: string) => {
+    const next = new Set(expandedSites);
+    if (next.has(site)) next.delete(site);
+    else next.add(site);
+    setExpandedSites(next);
+  };
+
+  const handlePanToSite = (site: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const siteJobs = jobsBySite.get(site) || [];
+    const validJobs = siteJobs.filter(j => j.geocode?.status === "OK" && j.geocode.lat && j.geocode.lng);
+    if (validJobs.length > 0) {
+      const bounds = validJobs.map(j => ({ lat: j.geocode!.lat, lng: j.geocode!.lng }));
+      window.dispatchEvent(new CustomEvent("nsc:pan-to", { detail: { bounds } }));
+      setZiplyPrintLayerVisible(true);
+    }
+  };
+
   return (
     <div style={{ padding: 12, color: "#fff", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* 1. Header / Stats Widget */}
@@ -137,7 +171,43 @@ export default function ZiplyFilterPanel({
         </div>
       </div>
 
-      {/* 4. Extra Options */}
+      {/* 4. Sites Navigation */}
+      <div>
+        <span style={{ display: "block", fontSize: 10, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", color: "#9ca3af", letterSpacing: "0.05em" }}>
+          Sites Navigation
+        </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {sites.map((site) => {
+            const isExpanded = expandedSites.has(site);
+            const siteJobs = jobsBySite.get(site)!;
+            return (
+              <div key={site} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <div 
+                  onClick={() => toggleSite(site)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "6px 8px", background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.08)", borderRadius: 4, cursor: "pointer"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {isExpanded ? <ChevronDown size={14} color="#9ca3af" /> : <ChevronRight size={14} color="#9ca3af" />}
+                    <span style={{ fontSize: 11, fontWeight: 600 }}>{site}</span>
+                  </div>
+                  <button 
+                    onClick={(e) => handlePanToSite(site, e)}
+                    style={{ background: "var(--accent, #4facfe)", border: "none", borderRadius: 12, color: "#000", fontSize: 9, fontWeight: 800, padding: "2px 8px", cursor: "pointer" }}
+                  >
+                    GO TO SITE
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 5. Extra Options & 811 */}
       <div>
         <span style={{ display: "block", fontSize: 10, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", color: "#9ca3af", letterSpacing: "0.05em" }}>
           Options
@@ -151,7 +221,7 @@ export default function ZiplyFilterPanel({
           />
           <span>Hide Unmapped Jobs</span>
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, cursor: "pointer" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, cursor: "pointer", marginBottom: 6 }}>
           <input
             type="checkbox"
             checked={filters.inTrackerOnly}
@@ -159,6 +229,17 @@ export default function ZiplyFilterPanel({
             style={{ accentColor: "#00E676" }}
           />
           <span>On Tracker Only</span>
+        </label>
+        
+        {/* 811 Toggle */}
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, cursor: "pointer", marginTop: 8, padding: "6px 8px", background: "rgba(250, 204, 21, 0.1)", border: "1px solid rgba(250, 204, 21, 0.3)", borderRadius: 4 }}>
+          <input
+            type="checkbox"
+            checked={filters.showDigPolygons ?? true}
+            onChange={(e) => setFilters({ ...filters, showDigPolygons: e.target.checked })}
+            style={{ accentColor: "#FACC15" }}
+          />
+          <span style={{ color: "#FACC15", fontWeight: 700 }}>SHOW 811 DIG TICKETS</span>
         </label>
       </div>
     </div>
