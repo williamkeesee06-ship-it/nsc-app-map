@@ -651,7 +651,7 @@ function JobMarkers({
 
         if (count === 0) return;
         const center = { lat: sumLat / count, lng: sumLng / count };
-        const pct = totalEstimated > 0 ? Math.round((totalCompleted / totalEstimated) * 100) : 45; // Default fallback to 45% if no estimated footage
+        const pct = totalEstimated > 0 ? Math.round((totalCompleted / totalEstimated) * 100) : 45; 
         const color = pct >= 80 ? "#00E676" : pct >= 50 ? "#ffb300" : "#ff7043";
 
         // Draw a large glowing radar circle SVG
@@ -659,7 +659,7 @@ function JobMarkers({
           <circle cx="40" cy="40" r="30" fill="${color}" fill-opacity="0.15" stroke="${color}" stroke-width="2"/>
           <circle cx="40" cy="40" r="38" fill="none" stroke="${color}" stroke-width="1.5" stroke-dasharray="4 2" stroke-opacity="0.6"/>
           <circle cx="40" cy="40" r="10" fill="${color}" fill-opacity="0.8"/>
-          <text x="40" y="44" text-anchor="middle" font-size="10" font-weight="900" fill="white" font-family="sans-serif">${pct}%</text>
+          <text x="40" y="44" text-anchor="middle" font-size="10" font-weight="900" fill="white" font-family="sans-serif">${count}</text>
           <text x="40" y="76" text-anchor="middle" font-size="9" font-weight="700" fill="${color}" font-family="sans-serif" letter-spacing="0.05em" text-transform="uppercase">${cityName}</text>
         </svg>`;
         const clusterUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(clusterSvg)}`;
@@ -667,7 +667,7 @@ function JobMarkers({
         const cm = new google.maps.Marker({
           position: center,
           map,
-          title: `${cityName} Area Buildout · ${pct}% Complete (${count} jobs)`,
+          title: `${cityName} Area Buildout (${count} jobs)`,
           icon: {
             url: clusterUrl,
             scaledSize: new google.maps.Size(80, 80),
