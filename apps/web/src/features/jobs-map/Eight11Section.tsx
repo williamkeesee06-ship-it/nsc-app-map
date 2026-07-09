@@ -32,6 +32,7 @@ function shapeTypeLabel(t: DigShape["type"]): string {
 export default function Eight11Section({ job }: { job: Job }) {
   const { existing, setTool } = useDigPolygon();
   const [ticket, setTicket] = useState<DigTicket | null>(null);
+  const [copying, setCopying] = useState(false);
   const { username, isManager } = useAuth();
 
   useEffect(() => {
@@ -56,17 +57,18 @@ export default function Eight11Section({ job }: { job: Job }) {
 
   // The shape we summarise: prefer the live job shape, fall back to the ticket
   // snapshot (e.g. shape was cleared on the job but the ticket still holds one).
-  const shape: DigShape | null = existing ?? ticket?.shape ?? null;
-  const status = ticket?.status;
-  const expiresAt = ticket?.dates.expiresAt ?? null;
+  const shape: DigShape | null = existing ?? ticket?.shape ?? (job.digPolygon as DigShape) ?? null;
+  const expiresAt = ticket?.dates.expiresAt ?? job.locateExpires ?? null;
+  const ticketNumber = ticket?.ticketNumber ?? job.locateNumber ?? null;
   const daysLeft = expiresAt != null ? Math.floor((expiresAt - Date.now()) / DIG_DAY_MS) : null;
+  const status = ticket?.status ?? (expiresAt != null ? (expiresAt < Date.now() ? "Expired" : (expiresAt < Date.now() + 7 * DIG_DAY_MS ? "Expiring" : "Active")) : undefined);
 
   // Determine which of the four states we're in.
   type State = "A" | "B" | "C" | "D";
   let state: State;
   if (!shape) state = "A";
-  else if (ticket && status === "Expired") state = "D";
-  else if (ticket && status && LIVE_TICKET_STATUSES.has(status)) state = "C";
+  else if (status === "Expired") state = "D";
+  else if (status && (LIVE_TICKET_STATUSES.has(status) || status === "Active" || status === "Expiring")) state = "C";
   else state = "B";
 
   // Header pill (label + colors) per state.
@@ -83,7 +85,7 @@ export default function Eight11Section({ job }: { job: Job }) {
     pillColor = "#1a1a1a";
   } else if (state === "D") {
     pillLabel = "EXPIRED";
-    pillBg = "#8b1a1a";
+    pillBg = "#ff2d4a";
     pillColor = "#fafafa";
   } else if (daysLeft != null && daysLeft <= 0) {
     pillLabel = "EXPIRES TODAY";
@@ -91,15 +93,31 @@ export default function Eight11Section({ job }: { job: Job }) {
     pillColor = "#fafafa";
   } else if (status === "Expiring" || (daysLeft != null && daysLeft <= 7)) {
     pillLabel = `EXPIRING ${daysLeft}d`;
-    pillBg = "#ff7043";
-    pillColor = "#fafafa";
+    pillBg = "#ffb300";
+    pillColor = "#1a1a1a";
   } else {
     pillLabel = "ACTIVE";
-    pillBg = "#3ecf6b";
+    pillBg = "#00E676";
     pillColor = "#0a1a0f";
   }
 
   const redrawType: DigShape["type"] = shape?.type ?? "radius";
+
+  const handleCopyInstructions = async () => {
+    setCopying(true);
+    try {
+      const res = await fetch(`/api/jobs/${job.jobId}/marking-instructions`, { method: "POST" });
+      const data = await res.json();
+      if (data.instructions) {
+        await navigator.clipboard.writeText(data.instructions);
+        // Visual feedback could be a toast, for now alert
+        alert("Marking instructions copied to clipboard!");
+      }
+    } catch (err) {
+      alert("Failed to copy marking instructions.");
+    }
+    setCopying(false);
+  };
 
   return (
     <section
@@ -109,6 +127,37 @@ export default function Eight11Section({ job }: { job: Job }) {
         borderTop: "none",
       }}
     >
+      {status === "Expired" && (
+        <div style={{
+          background: "rgba(255,45,74,0.08)",
+          border: "1.2px dashed #ff2d4a",
+          borderRadius: 6,
+          padding: "8px 10px",
+          marginBottom: 12,
+          color: "#ff2d4a",
+          fontSize: 11,
+          fontWeight: 700,
+          lineHeight: "1.3em",
+          boxShadow: "0 0 8px rgba(255,45,74,0.15)",
+        }}>
+          ⚠️ LOCATE TICKET EXPIRED! Call in new 811 dig tickets 72 hours prior to excavation.
+        </div>
+      )}
+      {status === "Expiring" && (
+        <div style={{
+          background: "rgba(255,179,0,0.08)",
+          border: "1.2px dashed #ffb300",
+          borderRadius: 6,
+          padding: "8px 10px",
+          marginBottom: 12,
+          color: "#ffb300",
+          fontSize: 11,
+          fontWeight: 700,
+          lineHeight: "1.3em",
+        }}>
+          ⚠️ LOCATE TICKET EXPIRING SOON! ({daysLeft} days remaining). Please renew promptly.
+        </div>
+      )}
       {/* Header — mirrors LAYERS: 10px / 700 / uppercase + right-side pill */}
       <div
         style={{
@@ -244,7 +293,7 @@ export default function Eight11Section({ job }: { job: Job }) {
             <>
               <Eight11Line icon="◆" iconColor="#0084d4" label="TICKET">
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                  ITIC #{ticket?.ticketNumber || "— not filed —"}
+                  ITIC #{ticketNumber || "— not filed —"}
                 </span>
               </Eight11Line>
               <Eight11Line icon="◷" iconColor={state === "D" ? "#c23a00" : "var(--text-muted)"} label="EXPIRES">
@@ -266,36 +315,32 @@ export default function Eight11Section({ job }: { job: Job }) {
                   Locator Responses
                 </div>
                 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
-                  {(ticket?.utilityStatuses && ticket.utilityStatuses.length > 0 ? ticket.utilityStatuses : [
-                    { utility: "PSE (Electric)", status: "clear" as const },
-                    { utility: "PSE (Gas)", status: "pending" as const },
-                    { utility: "Seattle Water", status: "clear" as const },
-                    { utility: "Lumen (Telecom)", status: "marked" as const },
-                  ]).map((ut, idx) => {
-                    const statusColors = {
-                      clear: { border: "rgba(62,207,107,0.3)", bg: "rgba(62,207,107,0.06)", text: "#3ecf6b", icon: "✓" },
-                      marked: { border: "rgba(30,167,255,0.3)", bg: "rgba(30,167,255,0.06)", text: "#1ea7ff", icon: "✓" },
-                      pending: { border: "rgba(255,193,7,0.35)", bg: "rgba(255,193,7,0.07)", text: "#ffb300", icon: "◷" },
-                      "in-progress": { border: "rgba(255,193,7,0.35)", bg: "rgba(255,193,7,0.07)", text: "#ffb300", icon: "◷" },
-                      conflict: { border: "rgba(255,45,74,0.3)", bg: "rgba(255,45,74,0.06)", text: "#ff2d4a", icon: "⚠" },
-                    }[ut.status] || { border: "rgba(255,255,255,0.1)", bg: "rgba(255,255,255,0.02)", text: "#c8d0da", icon: "?" };
+                {ticket?.utilityStatuses && ticket.utilityStatuses.length > 0 ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+                    {ticket.utilityStatuses.map((ut, idx) => {
+                      const statusColors = {
+                        clear: { border: "rgba(62,207,107,0.8)", bg: "rgba(62,207,107,0.15)", text: "#3ecf6b", icon: "✓", glow: "rgba(62,207,107,0.3)" },
+                        marked: { border: "rgba(62,207,107,0.8)", bg: "rgba(62,207,107,0.15)", text: "#3ecf6b", icon: "✓", glow: "rgba(62,207,107,0.3)" },
+                        pending: { border: "rgba(255,165,0,0.8)", bg: "rgba(255,165,0,0.15)", text: "#ffa500", icon: "◷", glow: "rgba(255,165,0,0.3)" },
+                        "in-progress": { border: "rgba(255,165,0,0.8)", bg: "rgba(255,165,0,0.15)", text: "#ffa500", icon: "◷", glow: "rgba(255,165,0,0.3)" },
+                        conflict: { border: "rgba(255,45,74,0.8)", bg: "rgba(255,45,74,0.15)", text: "#ff2d4a", icon: "⚠", glow: "rgba(255,45,74,0.3)" },
+                      }[ut.status] || { border: "rgba(255,255,255,0.3)", bg: "rgba(255,255,255,0.05)", text: "#c8d0da", icon: "?", glow: "rgba(255,255,255,0.1)" };
 
-                    return (
-                      <div 
-                        key={idx}
-                        style={{
-                          background: statusColors.bg,
-                          border: `1.2px solid ${statusColors.border}`,
-                          borderRadius: 5,
-                          padding: "5px 7px",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 2,
-                          boxShadow: ut.status === "conflict" ? "0 0 6px rgba(255,45,74,0.15)" : "none",
-                          transition: "all 0.2s ease"
-                        }}
-                      >
+                      return (
+                        <div 
+                          key={idx}
+                          style={{
+                            background: statusColors.bg,
+                            border: `1.2px solid ${statusColors.border}`,
+                            borderRadius: 5,
+                            padding: "5px 7px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 2,
+                            boxShadow: `0 0 8px ${statusColors.glow}`,
+                            transition: "all 0.2s ease"
+                          }}
+                        >
                         <span style={{ fontSize: 9, fontWeight: 700, color: "#f4f8ff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={ut.utility}>
                           {ut.utility}
                         </span>
@@ -307,6 +352,11 @@ export default function Eight11Section({ job }: { job: Job }) {
                     );
                   })}
                 </div>
+              ) : (
+                <div style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic", marginTop: 4 }}>
+                  Awaiting locator responses...
+                </div>
+              )}
               </div>
             </>
           )}
@@ -328,6 +378,9 @@ export default function Eight11Section({ job }: { job: Job }) {
             <Eight11Button variant="secondary" onClick={() => setTool(redrawType)}>
               Redraw Shape
             </Eight11Button>
+            <Eight11Button variant="secondary" onClick={handleCopyInstructions}>
+              {copying ? "Copying..." : "Copy Instructions"}
+            </Eight11Button>
           </>
         )}
         {state === "C" && (
@@ -338,6 +391,9 @@ export default function Eight11Section({ job }: { job: Job }) {
             <Eight11Button variant="secondary" onClick={() => setTool(redrawType)}>
               Redraw
             </Eight11Button>
+            <Eight11Button variant="secondary" onClick={handleCopyInstructions}>
+              {copying ? "Copying..." : "Copy Instructions"}
+            </Eight11Button>
           </>
         )}
         {state === "D" && (
@@ -347,6 +403,9 @@ export default function Eight11Section({ job }: { job: Job }) {
             </Eight11Button>
             <Eight11Button variant="secondary" onClick={() => setTool(redrawType)}>
               Redraw
+            </Eight11Button>
+            <Eight11Button variant="secondary" onClick={handleCopyInstructions}>
+              {copying ? "Copying..." : "Copy Instructions"}
             </Eight11Button>
           </>
         )}
