@@ -42,51 +42,59 @@ function ContractSelector() {
     <div
       style={{
         display: "flex",
-        gap: 4,
-        marginRight: 8,
-        background: "rgba(255,255,255,0.06)",
-        borderRadius: 6,
-        padding: 2,
-        border: "1px solid rgba(255,255,255,0.1)",
-        height: 28,
+        gap: 3,
+        marginRight: 10,
+        background: "rgba(0,0,0,0.4)",
+        borderRadius: 8,
+        padding: 3,
+        border: "1px solid rgba(255,255,255,0.12)",
         alignItems: "center",
+        flexShrink: 0,
       }}
       role="group"
       aria-label="Active contract workspace"
     >
       <button
         style={{
-          background: contract === "Lumen" ? "var(--primary, #0052cc)" : "transparent",
-          color: "#fff",
-          border: "none",
-          padding: "3px 8px",
-          borderRadius: 4,
-          fontSize: 9,
+          background: contract === "Lumen" ? "linear-gradient(135deg, #0052cc, #0070f3)" : "transparent",
+          color: contract === "Lumen" ? "#fff" : "rgba(255,255,255,0.4)",
+          border: contract === "Lumen" ? "1px solid rgba(0,112,243,0.8)" : "1px solid transparent",
+          padding: "5px 14px",
+          borderRadius: 6,
+          fontSize: 11,
           fontWeight: 700,
           cursor: "pointer",
-          letterSpacing: "0.05em",
+          letterSpacing: "0.06em",
           textTransform: "uppercase",
+          boxShadow: contract === "Lumen" ? "0 0 12px rgba(0,112,243,0.5)" : "none",
+          transition: "all 0.2s ease",
+          whiteSpace: "nowrap",
         }}
         onClick={() => setActiveContract("Lumen")}
+        title="Switch to Lumen contract jobs"
       >
         Lumen
       </button>
       <button
         style={{
-          background: contract === "Ziply" ? "var(--ziply, #00b248)" : "transparent",
-          color: "#fff",
-          border: "none",
-          padding: "3px 8px",
-          borderRadius: 4,
-          fontSize: 9,
+          background: contract === "Ziply" ? "linear-gradient(135deg, #00843d, #00b248)" : "transparent",
+          color: contract === "Ziply" ? "#fff" : "rgba(255,255,255,0.4)",
+          border: contract === "Ziply" ? "1px solid rgba(0,178,72,0.8)" : "1px solid transparent",
+          padding: "5px 14px",
+          borderRadius: 6,
+          fontSize: 11,
           fontWeight: 700,
           cursor: "pointer",
-          letterSpacing: "0.05em",
+          letterSpacing: "0.06em",
           textTransform: "uppercase",
+          boxShadow: contract === "Ziply" ? "0 0 12px rgba(0,178,72,0.5)" : "none",
+          transition: "all 0.2s ease",
+          whiteSpace: "nowrap",
         }}
         onClick={() => setActiveContract("Ziply")}
+        title="Switch to Ziply contract jobs"
       >
-        Ziply
+        ⚡ Ziply
       </button>
     </div>
   );
