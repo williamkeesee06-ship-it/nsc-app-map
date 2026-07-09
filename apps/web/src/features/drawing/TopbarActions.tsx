@@ -121,11 +121,27 @@ export default function TopbarActions() {
         )}
         <button
           type="button"
-          className="screenshot-btn"
           onClick={handleScreenshot}
           disabled={screenshotting}
-          title="Screenshot entire screen (JPEG) — Ctrl/Cmd + Shift + S"
+          title="Screenshot map (JPEG) — Ctrl/Cmd + Shift + S"
           aria-label="Take full screen screenshot"
+          style={{
+            background: screenshotting ? "rgba(0,212,255,0.15)" : "rgba(0,0,0,0.5)",
+            border: "1px solid rgba(0,212,255,0.4)",
+            boxShadow: screenshotting ? "0 0 16px rgba(0,212,255,0.5)" : "0 0 8px rgba(0,212,255,0.2)",
+            color: "#00d4ff",
+            clipPath: "polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)",
+            padding: "6px 14px",
+            cursor: screenshotting ? "wait" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 9,
+            fontWeight: 800,
+            letterSpacing: "0.1em",
+            fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
+            transition: "all 0.15s ease",
+          }}
         >
           {screenshotting ? "⏳" : <ScreenshotIcon />}
         </button>
@@ -181,11 +197,27 @@ export default function TopbarActions() {
         {/* Screenshot button — always usable, even with no target job */}
         <button
           type="button"
-          className="screenshot-btn"
           onClick={handleScreenshot}
           disabled={screenshotting}
-          title="Screenshot entire screen (JPEG) — Ctrl/Cmd + Shift + S"
+          title="Screenshot map (JPEG) — Ctrl/Cmd + Shift + S"
           aria-label="Take full screen screenshot"
+          style={{
+            background: screenshotting ? "rgba(0,212,255,0.15)" : "rgba(0,0,0,0.5)",
+            border: "1px solid rgba(0,212,255,0.4)",
+            boxShadow: screenshotting ? "0 0 16px rgba(0,212,255,0.5)" : "0 0 8px rgba(0,212,255,0.2)",
+            color: "#00d4ff",
+            clipPath: "polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)",
+            padding: "6px 14px",
+            cursor: screenshotting ? "wait" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 9,
+            fontWeight: 800,
+            letterSpacing: "0.1em",
+            fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
+            transition: "all 0.15s ease",
+          }}
         >
           {screenshotting ? "⏳" : <ScreenshotIcon />}
         </button>

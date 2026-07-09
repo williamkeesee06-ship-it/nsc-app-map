@@ -10,7 +10,7 @@ import JobContextStrip from "./features/workspace/JobContextStrip.js";
 import { AuthProvider, useAuth } from "./features/auth/authContext.js";
 import LoginScreen from "./features/auth/LoginScreen.js";
 import { FiltersProvider } from "./features/jobs-map/filtersContext.js";
-import JobInfoBoxes from "./features/jobs-map/JobInfoBoxes.js";
+// JobInfoBoxes removed from topbar — info shown in JobCard detail panel
 import { LuminaProvider } from "./features/lumina/store/luminaStore.js";
 import { useActiveContract, setActiveContract } from "./features/workspace/contractStore.js";
 import "./features/lumina/lumina.css";
@@ -42,59 +42,63 @@ function ContractSelector() {
     <div
       style={{
         display: "flex",
-        gap: 3,
-        marginRight: 10,
-        background: "rgba(0,0,0,0.4)",
-        borderRadius: 8,
-        padding: 3,
-        border: "1px solid rgba(255,255,255,0.12)",
+        gap: 2,
+        marginRight: 12,
         alignItems: "center",
         flexShrink: 0,
+        background: "rgba(0,0,0,0.5)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        padding: "2px",
+        clipPath: "polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)",
       }}
       role="group"
       aria-label="Active contract workspace"
     >
       <button
         style={{
-          background: contract === "Lumen" ? "linear-gradient(135deg, #0052cc, #0070f3)" : "transparent",
-          color: contract === "Lumen" ? "#fff" : "rgba(255,255,255,0.4)",
-          border: contract === "Lumen" ? "1px solid rgba(0,112,243,0.8)" : "1px solid transparent",
-          padding: "5px 14px",
-          borderRadius: 6,
-          fontSize: 11,
-          fontWeight: 700,
+          background: contract === "Lumen"
+            ? "linear-gradient(135deg, #0052cc 0%, #0077ff 100%)"
+            : "transparent",
+          color: contract === "Lumen" ? "#fff" : "rgba(255,255,255,0.3)",
+          border: "none",
+          padding: "6px 16px",
+          fontSize: 10,
+          fontWeight: 800,
           cursor: "pointer",
-          letterSpacing: "0.06em",
+          letterSpacing: "0.1em",
           textTransform: "uppercase",
-          boxShadow: contract === "Lumen" ? "0 0 12px rgba(0,112,243,0.5)" : "none",
-          transition: "all 0.2s ease",
-          whiteSpace: "nowrap",
+          boxShadow: contract === "Lumen" ? "0 0 16px rgba(0,119,255,0.6), inset 0 1px 0 rgba(255,255,255,0.15)" : "none",
+          transition: "all 0.15s ease",
+          clipPath: "polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%)",
+          fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
         }}
         onClick={() => setActiveContract("Lumen")}
         title="Switch to Lumen contract jobs"
       >
-        Lumen
+        LUMEN
       </button>
       <button
         style={{
-          background: contract === "Ziply" ? "linear-gradient(135deg, #00843d, #00b248)" : "transparent",
-          color: contract === "Ziply" ? "#fff" : "rgba(255,255,255,0.4)",
-          border: contract === "Ziply" ? "1px solid rgba(0,178,72,0.8)" : "1px solid transparent",
-          padding: "5px 14px",
-          borderRadius: 6,
-          fontSize: 11,
-          fontWeight: 700,
+          background: contract === "Ziply"
+            ? "linear-gradient(135deg, #00843d 0%, #00d45a 100%)"
+            : "transparent",
+          color: contract === "Ziply" ? "#fff" : "rgba(255,255,255,0.3)",
+          border: "none",
+          padding: "6px 16px",
+          fontSize: 10,
+          fontWeight: 800,
           cursor: "pointer",
-          letterSpacing: "0.06em",
+          letterSpacing: "0.1em",
           textTransform: "uppercase",
-          boxShadow: contract === "Ziply" ? "0 0 12px rgba(0,178,72,0.5)" : "none",
-          transition: "all 0.2s ease",
-          whiteSpace: "nowrap",
+          boxShadow: contract === "Ziply" ? "0 0 18px rgba(0,212,90,0.65), inset 0 1px 0 rgba(255,255,255,0.15)" : "none",
+          transition: "all 0.15s ease",
+          clipPath: "polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%)",
+          fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
         }}
         onClick={() => setActiveContract("Ziply")}
         title="Switch to Ziply contract jobs"
       >
-        ⚡ Ziply
+        ⚡ ZIPLY
       </button>
     </div>
   );
@@ -118,9 +122,7 @@ function Shell() {
               <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
               <ContractSelector />
               <SearchBar />
-              {/* AsBuilt-style info row: 7 boxes that auto-fill when a job is
-                  selected via search or by clicking a pin. Empty otherwise. */}
-              <JobInfoBoxes />
+              {/* Job info boxes removed — detail shown in JobCard panel */}
               {/* Phase 9.6: inline job-info strip when in workspace mode */}
               <InlineJobContext />
               <TopbarActions />
@@ -160,52 +162,68 @@ function UserChip() {
     <div
       style={{
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
-        gap: 2,
-        marginLeft: 6,
-        fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
-        letterSpacing: "0.04em",
-        color: "var(--text-muted, #8a96a3)",
+        gap: 8,
+        marginLeft: 8,
         flexShrink: 0,
+        background: "rgba(0,0,0,0.45)",
+        border: "1px solid rgba(0,212,255,0.2)",
+        boxShadow: "0 0 10px rgba(0,212,255,0.1)",
+        padding: "5px 12px 5px 8px",
+        clipPath: "polygon(8px 0%, 100% 0%, calc(100% - 0px) 100%, 0% 100%)",
+        fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
       }}
-      title={`Filtering jobs for supervisor: ${username}`}
+      title={`Logged in as: ${username}`}
     >
-      <span
-        style={{
-          padding: "2px 7px",
-          borderRadius: 8,
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(200,208,218,0.18)",
-          color: "var(--text, #f4f8ff)",
+      {/* Avatar circle */}
+      <div style={{
+        width: 22,
+        height: 22,
+        borderRadius: "50%",
+        background: "linear-gradient(135deg, #00d4ff, #0077ff)",
+        boxShadow: "0 0 8px rgba(0,212,255,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 9,
+        fontWeight: 900,
+        color: "#fff",
+        flexShrink: 0,
+        letterSpacing: 0,
+      }}>
+        {username.slice(0, 2).toUpperCase()}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <span style={{
+          color: "#e2e8f0",
           fontWeight: 700,
           fontSize: 9,
-          lineHeight: 1.2,
-          maxWidth: 90,
+          letterSpacing: "0.08em",
+          maxWidth: 80,
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
-        }}
-      >
-        {username}
-      </span>
-      <button
-        type="button"
-        onClick={logout}
-        style={{
-          background: "transparent",
-          border: "none",
-          color: "var(--text-muted, #8a96a3)",
-          fontFamily: "inherit",
-          fontSize: 9,
-          cursor: "pointer",
-          textDecoration: "underline",
-          padding: 0,
-          lineHeight: 1,
-        }}
-      >
-        Log out
-      </button>
+        }}>
+          {username.toUpperCase()}
+        </span>
+        <button
+          type="button"
+          onClick={logout}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "rgba(0,212,255,0.5)",
+            fontFamily: "inherit",
+            fontSize: 8,
+            cursor: "pointer",
+            padding: 0,
+            letterSpacing: "0.06em",
+            textAlign: "left",
+          }}
+        >
+          LOG OUT
+        </button>
+      </div>
     </div>
   );
 }
