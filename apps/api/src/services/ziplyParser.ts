@@ -1,5 +1,21 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+export class ZiplyPrintParseError extends Error {
+  readonly code = "ziply_ai_parse_failed";
+  readonly statusCode = 502;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "ZiplyPrintParseError";
+  }
+}
+
+const ZIPLY_GEMINI_MODEL = "gemini-2.5-flash";
+// Gemini 2.5 Flash supports up to 65,536 output tokens. Large multi-page
+// FTTH prints can require tens of thousands of tokens when extracting all
+// cable, terminal, address, permit, and construction details into JSON.
+const ZIPLY_MAX_OUTPUT_TOKENS = 65_536;
+
 const SYSTEM_INSTRUCTION =
   "You are an expert broadband telecom engineer specialized in reviewing Fiber to the Home (FTTH) engineering prints and construction sheets. " +
   "Analyze the provided document (PDF page image) and extract key engineered units, material logs, and permit specifications. " +
@@ -51,6 +67,86 @@ export interface ZiplyParsedPrint {
     }>;
     notes: string | null;
   } | null;
+}
+
+function stripJsonFences(text: string): string {
+  return text
+    .replace(/^\s*```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+}
+
+function findCompleteJsonPrefix(source: string): string | null {
+  const start = source.search(/[\[{]/);
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < source.length; i += 1) {
+    const char = source[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{" || char === "[") {
+      depth += 1;
+    } else if (char === "}" || char === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(start, i + 1);
+      }
+      if (depth < 0) return null;
+    }
+  }
+
+  return null;
+}
+
+function parseGeminiJson(responseText: string, finishReason: string | undefined): ZiplyParsedPrint {
+  const cleaned = stripJsonFences(responseText);
+
+  try {
+    return JSON.parse(cleaned) as ZiplyParsedPrint;
+  } catch (firstErr) {
+    const completePrefix = findCompleteJsonPrefix(cleaned);
+    if (completePrefix && completePrefix !== cleaned) {
+      try {
+        return JSON.parse(completePrefix) as ZiplyParsedPrint;
+      } catch {
+        // Fall through to the clear client error below.
+      }
+    }
+
+    const firstMessage = firstErr instanceof Error ? firstErr.message : String(firstErr);
+    const rawPreview = cleaned.slice(0, 2_000);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[ziplyParser] Failed to parse Gemini JSON. finishReason=${finishReason ?? "unknown"}; ` +
+        `length=${cleaned.length}; parseError=${firstMessage}; preview=${rawPreview}`
+    );
+
+    const reasonDetail = finishReason ? ` Gemini finish reason: ${finishReason}.` : "";
+    throw new ZiplyPrintParseError(
+      "Ziply AI parsing returned incomplete or invalid JSON after analyzing the uploaded print." +
+        reasonDetail +
+        " The print may be too large or complex for a single extraction pass; retry the ingest or split the print into smaller page groups."
+    );
+  }
 }
 
 // Convert base64 data URL to Gemini part object
@@ -153,25 +249,20 @@ Return a JSON block strictly complying with this schema:
 `;
 
   const model = genai.getGenerativeModel({
-    model: "gemini-2.5-flash",
+    model: ZIPLY_GEMINI_MODEL,
     systemInstruction: { role: "system", parts: [{ text: SYSTEM_INSTRUCTION }] },
     generationConfig: {
       temperature: 0.1,
       responseMimeType: "application/json",
-      // Large FTTH prints carry 30+ terminals each with several detail fields;
-      // 2048 truncated the JSON mid-array. 8192 comfortably fits a full sheet.
-      maxOutputTokens: 8192,
+      // Full Ziply packages can include 30+ pages and dozens of terminals; keep
+      // the ceiling at the Gemini 2.5 Flash maximum so JSON is not cut off mid-array.
+      maxOutputTokens: ZIPLY_MAX_OUTPUT_TOKENS,
     },
   });
 
   const result = await model.generateContent([prompt, ...printParts]);
   const responseText = result.response.text();
-  
-  // Clean fences
-  const cleaned = responseText
-    .replace(/^\s*```(?:json)?\s*/i, "")
-    .replace(/\s*```\s*$/i, "")
-    .trim();
+  const finishReason = result.response.candidates?.[0]?.finishReason;
 
-  return JSON.parse(cleaned) as ZiplyParsedPrint;
+  return parseGeminiJson(responseText, finishReason);
 }

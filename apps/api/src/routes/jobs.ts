@@ -6,7 +6,7 @@ import { geocodeAddress, buildAddressString } from "../lib/geocode.js";
 import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
-import { parseZiplyPrint } from "../services/ziplyParser.js";
+import { parseZiplyPrint, ZiplyPrintParseError } from "../services/ziplyParser.js";
 import type { DigShape, Job, PolygonData, ZiplyObjectStatus, ZiplySectionKind } from "@nsc/types";
 
 const router = Router();
@@ -705,6 +705,10 @@ router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
 
     res.json({ ok: true, parsed, jobId, ziplyPrintLayer: updates.ziplyPrintLayer });
   } catch (err) {
+    if (err instanceof ZiplyPrintParseError) {
+      res.status(err.statusCode).json({ error: err.message, code: err.code });
+      return;
+    }
     next(err);
   }
 });
