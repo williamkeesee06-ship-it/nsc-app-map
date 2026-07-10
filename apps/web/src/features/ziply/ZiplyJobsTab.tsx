@@ -11,6 +11,8 @@ interface Props {
 export default function ZiplyJobsTab({ jobs }: Props) {
   const [expandedSites, setExpandedSites] = useState<Set<string>>(new Set());
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  // §2 city-level rollup: "" = all cities.
+  const [selectedCity, setSelectedCity] = useState<string>("");
 
   // Ingest Print State
   const [fileDataUrls, setFileDataUrls] = useState<string[]>([]);
@@ -31,7 +33,8 @@ export default function ZiplyJobsTab({ jobs }: Props) {
     if (!jobsBySite.has(site)) jobsBySite.set(site, []);
     jobsBySite.get(site)!.push(j);
   });
-  const sites = Array.from(jobsBySite.keys()).sort();
+  const allCities = Array.from(jobsBySite.keys()).sort();
+  const sites = selectedCity ? allCities.filter((c) => c === selectedCity) : allCities;
 
   const toggleSite = (site: string) => {
     const next = new Set(expandedSites);
@@ -77,16 +80,7 @@ export default function ZiplyJobsTab({ jobs }: Props) {
     setErrorMsg("");
 
     try {
-      const res = await fetch(`/api/jobs/${jobId}/ziply-ingest`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataUrls: fileDataUrls }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
+      await api.ziplyIngest(jobId, fileDataUrls);
 
       setIngestStatus("success");
       // Notify map to reload
@@ -224,7 +218,23 @@ export default function ZiplyJobsTab({ jobs }: Props) {
         <h2>ZIPLY SITES</h2>
         <p>Functional tracking and AI ingest.</p>
       </div>
-      
+
+      <div className="city-rollup">
+        <label htmlFor="ziply-city-select">City</label>
+        <select
+          id="ziply-city-select"
+          value={selectedCity}
+          onChange={(e) => setSelectedCity(e.target.value)}
+        >
+          <option value="">All Cities ({allCities.length})</option>
+          {allCities.map((c) => (
+            <option key={c} value={c}>
+              {c} ({jobsBySite.get(c)!.length})
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="sites-list">
         {sites.map(site => {
           const isExpanded = expandedSites.has(site);

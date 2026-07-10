@@ -252,6 +252,11 @@ export interface JobGeocode {
   errorMessage?: string;
 }
 
+// Build status for an individual Ziply map object (hub, terminal, cable).
+// Drives the CAD-blueprint color/symbol system (spec §3) and persists per-object
+// so the supervisor's progress survives reloads (spec §4).
+export type ZiplyObjectStatus = "planned" | "in_progress" | "complete";
+
 // One document per job at jobs/{jobId}. Identity is the Smartsheet "Work Order".
 export interface Job {
   jobId: string; // sanitized version of Work Order (used as Firestore doc id)
@@ -337,8 +342,40 @@ export interface Job {
     // Base64 or object-storage url of permit file uploads
     uploadedPermitDocs?: Record<string, string>; 
     mapObjects?: {
-      cables: Array<{ label: string; fiberCount: string; lengthFt: number | null }>;
-      terminals: Array<{ label: string; type: string }>;
+      /** Georeferenced hub/FDH cabinet position + build status. */
+      hub?: {
+        lat?: number | null;
+        lng?: number | null;
+        status?: ZiplyObjectStatus;
+      } | null;
+      cables: Array<{
+        label: string;
+        fiberCount: string;
+        lengthFt: number | null;
+        /** Georeferenced polyline path when known (else rendered as a spoke). */
+        path?: Array<{ lat: number; lng: number }> | null;
+        /** Placement method drives the CAD dash pattern/color. */
+        buildType?: "bore" | "trench" | "aerial" | null;
+        status?: ZiplyObjectStatus;
+      }>;
+      terminals: Array<{
+        label: string;
+        type: string;
+        /** Drawer detail fields (spec §4). */
+        portCount?: number | null;
+        footageFt?: number | null;
+        /** Raw footage label incl. overlash, e.g. "1000' (593' OL)". */
+        footageLabel?: string | null;
+        /** e.g. "H2051, 205-216". */
+        dvftpRange?: string | null;
+        code?: string | null;
+        fiberSpec?: string | null;
+        addressesServed?: string[] | null;
+        /** Georeferenced terminal position (geocoded address / GPS anchor). */
+        lat?: number | null;
+        lng?: number | null;
+        status?: ZiplyObjectStatus;
+      }>;
       notes: string | null;
     } | null;
   } | null;

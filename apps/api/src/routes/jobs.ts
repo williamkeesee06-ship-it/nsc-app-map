@@ -2,12 +2,12 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db } from "../lib/firestore.js";
-import { geocodeAddress } from "../lib/geocode.js";
+import { geocodeAddress, buildAddressString } from "../lib/geocode.js";
 import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
 import { parseZiplyPrint } from "../services/ziplyParser.js";
-import type { DigShape, Job, PolygonData } from "@nsc/types";
+import type { DigShape, Job, PolygonData, ZiplyObjectStatus } from "@nsc/types";
 
 const router = Router();
 
@@ -504,6 +504,58 @@ router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
       res.status(404).json({ error: "Job not found" });
       return;
     }
+    const existing = doc.data() as Job;
+
+    // ── Georeferencing (spec §1) ─────────────────────────────────────────
+    // Place the hub from its print address (falling back to the job's own
+    // geocode) and each terminal from its first served address. Geocoding is
+    // best-effort: any failure leaves that object's coords null so the client
+    // can fall back to a ring layout around the hub.
+    const geoCache = new Map<string, { lat: number; lng: number } | null>();
+    const geocodeOne = async (raw: string | null): Promise<{ lat: number; lng: number } | null> => {
+      const addr = buildAddressString({ address: raw, city: existing.city, zipCode: existing.zipCode });
+      if (!addr) return null;
+      if (geoCache.has(addr)) return geoCache.get(addr)!;
+      const g = await geocodeAddress(addr);
+      const coords = g.status === "OK" ? { lat: g.lat, lng: g.lng } : null;
+      geoCache.set(addr, coords);
+      return coords;
+    };
+
+    let hubCoords = await geocodeOne(parsed.hubAddress ?? null);
+    if (!hubCoords && existing.geocode?.status === "OK") {
+      hubCoords = { lat: existing.geocode.lat, lng: existing.geocode.lng };
+    }
+
+    const rawTerminals = parsed.mapObjects?.terminals ?? [];
+    const terminals = [];
+    for (const t of rawTerminals) {
+      const firstAddr = t.addressesServed?.[0] ?? null;
+      const coords = firstAddr ? await geocodeOne(firstAddr) : null;
+      terminals.push({
+        label: t.label,
+        type: t.type,
+        portCount: t.portCount ?? null,
+        footageFt: t.footageFt ?? null,
+        footageLabel: t.footageLabel ?? null,
+        dvftpRange: t.dvftpRange ?? null,
+        code: t.code ?? null,
+        fiberSpec: t.fiberSpec ?? null,
+        addressesServed: t.addressesServed ?? null,
+        lat: coords?.lat ?? null,
+        lng: coords?.lng ?? null,
+        status: "planned" as ZiplyObjectStatus,
+      });
+    }
+
+    const cables = (parsed.mapObjects?.cables ?? []).map((c) => ({
+      label: c.label,
+      fiberCount: c.fiberCount,
+      lengthFt: c.lengthFt,
+      path: null,
+      buildType: c.buildType ?? null,
+      status: "planned" as ZiplyObjectStatus,
+    }));
 
     const updates: Partial<Job> = {
       hubNumber: parsed.hubId,
@@ -525,7 +577,12 @@ router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
         conduitSize: parsed.conduitSize,
         specialNotes: parsed.specialNotes,
         permits: parsed.permits,
-        mapObjects: parsed.mapObjects || null,
+        mapObjects: {
+          hub: { lat: hubCoords?.lat ?? null, lng: hubCoords?.lng ?? null, status: "planned" },
+          cables,
+          terminals,
+          notes: parsed.mapObjects?.notes ?? null,
+        },
         uploadedPermitDocs: {}
       }
     };
@@ -533,7 +590,65 @@ router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
     await ref.update(updates);
     invalidateJobsCache();
 
-    res.json({ ok: true, parsed, jobId });
+    res.json({ ok: true, parsed, jobId, ziplyPrintLayer: updates.ziplyPrintLayer });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-object-status — Persist one map object's build
+// status (spec §4). kind identifies the family; ref matches the object's label
+// (or "hub" for the FDH). Writes into ziplyPrintLayer.mapObjects.
+router.post("/jobs/:jobId/ziply-object-status", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { kind, ref: objectRef, status } = req.body as {
+      kind?: "hub" | "terminal" | "cable";
+      ref?: string;
+      status?: ZiplyObjectStatus;
+    };
+    const validStatus: ZiplyObjectStatus[] = ["planned", "in_progress", "complete"];
+    if (!kind || !status || !validStatus.includes(status)) {
+      res.status(400).json({ error: "kind and valid status required" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer;
+    if (!layer?.mapObjects) {
+      res.status(400).json({ error: "Job has no ziply map objects to update" });
+      return;
+    }
+
+    const mapObjects = layer.mapObjects;
+    if (kind === "hub") {
+      mapObjects.hub = { ...(mapObjects.hub ?? {}), status };
+    } else if (kind === "terminal") {
+      const t = mapObjects.terminals?.find((x) => x.label === objectRef);
+      if (!t) {
+        res.status(404).json({ error: `Terminal ${objectRef} not found` });
+        return;
+      }
+      t.status = status;
+    } else {
+      const c = mapObjects.cables?.find((x) => x.label === objectRef);
+      if (!c) {
+        res.status(404).json({ error: `Cable ${objectRef} not found` });
+        return;
+      }
+      c.status = status;
+    }
+
+    await ref.update({ ziplyPrintLayer: layer, lastSyncedAt: Date.now() });
+    invalidateJobsCache();
+
+    res.json({ ok: true, jobId, ziplyPrintLayer: layer });
   } catch (err) {
     next(err);
   }

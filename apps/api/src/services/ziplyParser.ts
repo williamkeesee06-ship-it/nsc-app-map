@@ -29,9 +29,26 @@ export interface ZiplyParsedPrint {
     pa: "Pending" | "Approved" | "Active" | "Closed" | null;
     tcp: "Pending" | "Approved" | "Active" | "Closed" | null;
   } | null;
+  /** Street address of the hub/FDH, used to georeference the print (spec §1). */
+  hubAddress?: string | null;
   mapObjects?: {
-    cables: Array<{ label: string; fiberCount: string; lengthFt: number | null }>;
-    terminals: Array<{ label: string; type: string }>;
+    cables: Array<{
+      label: string;
+      fiberCount: string;
+      lengthFt: number | null;
+      buildType?: "bore" | "trench" | "aerial" | null;
+    }>;
+    terminals: Array<{
+      label: string;
+      type: string;
+      portCount?: number | null;
+      footageFt?: number | null;
+      footageLabel?: string | null;
+      dvftpRange?: string | null;
+      code?: string | null;
+      fiberSpec?: string | null;
+      addressesServed?: string[] | null;
+    }>;
     notes: string | null;
   } | null;
 }
@@ -85,9 +102,20 @@ FIELDS TO LOOK FOR:
 8. Conduit Size: default drop or distribution conduit (e.g. 1.25", 2").
 9. Special Notes: General construction or engineering notes.
 10. Permits Status Table: Find status or require check for City, WSDOT, County, Railroad, PGE/PA, TCP (typically under a PERMITS card). Status must be: Pending, Approved, Active, Closed, or null.
-11. Map Objects: Look for any specific labeled cables, lines, or MST terminal designations. Extract:
-    - cables: list of items with { label, fiberCount, lengthFt }
-    - terminals: list of items with { label, type }
+11. Hub Address: The physical street address where the FDH cabinet is located (used to place it on a map).
+12. Map Objects: Look for EVERY labeled cable, line, and MST/terminal designation across ALL pages. Extract:
+    - cables: list of { label, fiberCount, lengthFt, buildType }. buildType is the placement
+      method for the segment: "bore", "trench", or "aerial" (null if unknown).
+    - terminals: list of ALL service terminals. For each, extract as many of these as the print shows:
+        label      (e.g. "MST-1", "T205")
+        type       (e.g. "8-port MST", "12-port MST")
+        portCount  (number of ports, e.g. 8, 12)
+        footageFt  (numeric footage of the drop/lateral, e.g. 1000)
+        footageLabel (raw footage string including overlash if present, e.g. "1000' (593' OL)")
+        dvftpRange (distribution fiber / port range, e.g. "H2051, 205-216")
+        code       (any engineering code on the terminal)
+        fiberSpec  (fiber specification, e.g. "12F", "48F")
+        addressesServed (array of street addresses served by this terminal — used to place it on a map)
     - notes: any location notes or layout remarks.
 
 Return a JSON block strictly complying with this schema:
@@ -107,6 +135,7 @@ Return a JSON block strictly complying with this schema:
   "strandType": "string or null",
   "conduitSize": "string or null",
   "specialNotes": "string or null",
+  "hubAddress": "string or null",
   "permits": {
     "cityRow": "Pending | Approved | Active | Closed | null",
     "wsdot": "Pending | Approved | Active | Closed | null",
@@ -116,8 +145,8 @@ Return a JSON block strictly complying with this schema:
     "tcp": "Pending | Approved | Active | Closed | null"
   },
   "mapObjects": {
-    "cables": [{"label": "C-1", "fiberCount": "48F", "lengthFt": 250}],
-    "terminals": [{"label": "MST-1", "type": "8-port MST"}],
+    "cables": [{"label": "C-1", "fiberCount": "48F", "lengthFt": 250, "buildType": "bore"}],
+    "terminals": [{"label": "MST-1", "type": "8-port MST", "portCount": 8, "footageFt": 1000, "footageLabel": "1000' (593' OL)", "dvftpRange": "H2051, 205-216", "code": null, "fiberSpec": "12F", "addressesServed": ["13613 Division St"]}],
     "notes": "string or null"
   }
 }
@@ -129,7 +158,9 @@ Return a JSON block strictly complying with this schema:
     generationConfig: {
       temperature: 0.1,
       responseMimeType: "application/json",
-      maxOutputTokens: 2048,
+      // Large FTTH prints carry 30+ terminals each with several detail fields;
+      // 2048 truncated the JSON mid-array. 8192 comfortably fits a full sheet.
+      maxOutputTokens: 8192,
     },
   });
 

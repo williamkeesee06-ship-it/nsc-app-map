@@ -130,6 +130,24 @@ export function stylesFor(theme: "dark" | "light"): google.maps.MapTypeStyle[] {
   return theme === "dark" ? darkTacticalStyle : lightStyle;
 }
 
+// ─── Ziply / CAD-blueprint base map (spec §9) ──────────────────────────────
+// A desaturated, low-contrast basemap so the colored fiber/terminal/hub
+// overlays read like a CAD print laid over muted streets. POI/transit noise is
+// dropped; roads stay visible but pale so the print layer dominates.
+export const ZIPLY_MUTED_STYLE: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#eceff1" }, { saturation: -70 }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#607d8b" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#eceff1" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#e0e0e0" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#d6d6d6" }] },
+  { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#e6eaec" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#cfe3ec" }] },
+  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#b0bec5" }] },
+];
+
 // Snoqualmie / Seattle area default — user is based in WA.
 export const DEFAULT_CENTER = { lat: 47.5301, lng: -121.8255 };
 export const DEFAULT_ZOOM = 11;

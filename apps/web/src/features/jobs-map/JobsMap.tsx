@@ -1,7 +1,7 @@
 // Jobs Map — Phase 3: full drawing toolbar + Firestore persistence
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Map, useMap } from "@vis.gl/react-google-maps";
-import { stylesFor, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
+import { stylesFor, ZIPLY_MUTED_STYLE, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
 import { useMapTheme } from "../map/themeContext.js";
 import { useJobs } from "./useJobs.js";
 import { applyFilters } from "./FilterRail.js";
@@ -74,11 +74,19 @@ export default function JobsMap() {
     if (!isManager) {
       const u = (username ?? "").trim().toLowerCase();
       if (!u) return [];
-      filtered = rawJobs.filter(
-        (j) => 
-          (j.constructionSupervisor ?? "").trim().toLowerCase() === u ||
-          (j.customerProject === "Ziply" && j.geocode && j.geocode.status === "OK" && j.geocode.lat > 47.3073)
-      );
+      // Assignment-based visibility: a supervisor sees a job when they are
+      // named on any of its assignment fields. Ziply jobs are assigned via
+      // crew/foreman/inspector rather than always carrying a constructionSupervisor,
+      // so we match across all of them instead of trusting geography.
+      filtered = rawJobs.filter((j) => {
+        const assignees = [
+          j.constructionSupervisor,
+          j.constructionCrewForeman,
+          j.crewName,
+          j.ziplyInspector,
+        ];
+        return assignees.some((a) => (a ?? "").trim().toLowerCase() === u);
+      });
     }
     if (contract === "Ziply") {
       return filtered.filter((j) => j.customerProject === "Ziply");
@@ -348,7 +356,7 @@ function JobsMapInner({
             <Map
               defaultCenter={DEFAULT_CENTER}
               defaultZoom={DEFAULT_ZOOM}
-              styles={stylesFor(theme)}
+              styles={contract === "Ziply" ? ZIPLY_MUTED_STYLE : stylesFor(theme)}
               gestureHandling="greedy"
               disableDefaultUI={false}
               streetViewControl={true}

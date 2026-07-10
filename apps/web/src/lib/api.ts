@@ -133,6 +133,23 @@ export const api = {
       `/api/jobs/${encodeURIComponent(jobId)}/dig-polygon`,
       { method: "PUT", body: JSON.stringify({ polygon }) }
     ),
+  // Ziply — AI print ingestion. Sends base64 data URLs of engineering prints;
+  // server runs the Gemini parser + georeferencing and writes ziplyPrintLayer.
+  ziplyIngest: (jobId: string, dataUrls: string[]) =>
+    request<{ ok: boolean; jobId: string; ziplyPrintLayer: unknown }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/ziply-ingest`,
+      { method: "POST", body: JSON.stringify({ dataUrls }) }
+    ),
+  // Ziply — persist a single map object's build status (spec §4 click-to-drawer).
+  // kind identifies the object family; ref is the hub/terminal/cable label.
+  updateZiplyObjectStatus: (
+    jobId: string,
+    body: { kind: "hub" | "terminal" | "cable"; ref: string; status: import("@nsc/types").ZiplyObjectStatus }
+  ) =>
+    request<{ ok: boolean; jobId: string; ziplyPrintLayer: unknown }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/ziply-object-status`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
   createJob: (body: { workOrder: string; jobName: string; address?: string; lat?: number; lng?: number }) =>
     request<{ jobId: string; workOrder: string; jobName: string; lat?: number; lng?: number }>("/api/jobs", {
       method: "POST",

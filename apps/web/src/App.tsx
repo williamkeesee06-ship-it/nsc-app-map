@@ -12,7 +12,7 @@ import LoginScreen from "./features/auth/LoginScreen.js";
 import { FiltersProvider } from "./features/jobs-map/filtersContext.js";
 // JobInfoBoxes removed from topbar — info shown in JobCard detail panel
 import { LuminaProvider } from "./features/lumina/store/luminaStore.js";
-import { useActiveContract, setActiveContract } from "./features/workspace/contractStore.js";
+import { useActiveContract } from "./features/workspace/contractStore.js";
 import "./features/lumina/lumina.css";
 import "./features/lumina/pegmanTint.css";
 

@@ -54,14 +54,13 @@ function splitWorkType(raw: string | null): string[] {
 // Normalize one Smartsheet row into a Job (no geocode yet).
 export function normalizeRow(
   row: SmartsheetRow,
-  colsById: Map<number, SmartsheetColumn>
+  colsById: Map<number, SmartsheetColumn>,
+  isZiply = false
 ): Job | null {
   const rec = rowToRecord(row, colsById);
   const workOrder = s(rec["Work Order"]);
   if (!workOrder) return null; // skip rows without a WO
 
-  const byTitle = new Map(Array.from(colsById.values()).map((c) => [c.title, c]));
-  const isZiply = byTitle.has("NSC Supervisor");
   const now = Date.now();
 
   if (isZiply) {
@@ -214,12 +213,12 @@ export async function runJobsSyncForSupervisors(
 
   try {
     const env = getEnv();
-    const sheetsToSync: Array<{ id: string; supervisorKey: string }> = [];
+    const sheetsToSync: Array<{ id: string; supervisorKey: string; isZiply: boolean }> = [];
     if (env.SMARTSHEET_SHEET_ID) {
-      sheetsToSync.push({ id: env.SMARTSHEET_SHEET_ID, supervisorKey: "Construction Supervisor" });
+      sheetsToSync.push({ id: env.SMARTSHEET_SHEET_ID, supervisorKey: "Construction Supervisor", isZiply: false });
     }
     if (env.ZIPLY_SMARTSHEET_SHEET_ID) {
-      sheetsToSync.push({ id: env.ZIPLY_SMARTSHEET_SHEET_ID, supervisorKey: "NSC Supervisor" });
+      sheetsToSync.push({ id: env.ZIPLY_SMARTSHEET_SHEET_ID, supervisorKey: "NSC Supervisor", isZiply: true });
     }
 
     const filteredJobs: Job[] = [];
@@ -237,7 +236,7 @@ export async function runJobsSyncForSupervisors(
         });
 
         for (const row of matchedRows) {
-          const job = normalizeRow(row, colsById);
+          const job = normalizeRow(row, colsById, sheetInfo.isZiply);
           if (job) {
             filteredJobs.push(job);
           }
