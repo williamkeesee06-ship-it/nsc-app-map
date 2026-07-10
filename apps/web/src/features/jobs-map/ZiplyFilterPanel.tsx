@@ -217,6 +217,23 @@ export default function ZiplyFilterPanel({
                     GO TO SITE
                   </button>
                 </div>
+                {isExpanded && (
+                  <div style={{ paddingLeft: 24, marginTop: 4, display: "flex", flexDirection: "column", gap: 4 }}>
+                    {siteJobs.map(job => (
+                      <div 
+                        key={job.jobId} 
+                        style={{ fontSize: 10, color: "#cbd5e1", display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: 2 }}
+                      >
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>
+                          {job.address || job.workOrder}
+                        </span>
+                        <span style={{ color: job.jobStatus === "Complete" ? "#00E676" : "#4facfe" }}>
+                          {job.jobStatus || "Not Started"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

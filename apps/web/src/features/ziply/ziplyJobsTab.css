@@ -1,453 +1,163 @@
-.ziply-jobs-tab {
+.ziply-jobs-tab-fullscreen {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  background: var(--bg-surface, #0B1118);
-  color: var(--text-primary, #fff);
-  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  background: #ffffff;
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 }
 
-.tab-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color, #232a35);
-}
-
-.tab-header h2 {
-  margin: 0 0 4px;
-  font-size: 14px;
-  letter-spacing: 0.1em;
-  color: var(--accent, #4facfe);
-  font-weight: 800;
-}
-
-.tab-header p {
-  margin: 0;
-  font-size: 11px;
-  color: var(--text-secondary, #9ca3af);
-}
-
-.sites-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-}
-
-.site-group {
-  margin-bottom: 8px;
-  background: var(--bg-panel, #121820);
-  border-radius: 6px;
-  border: 1px solid var(--border-color, #232a35);
-  overflow: hidden;
-}
-
-.site-header {
+.ss-header {
   display: flex;
   align-items: center;
-  width: 100%;
-  padding: 10px;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.ss-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ss-header .close-btn {
   background: transparent;
   border: none;
-  color: var(--text-primary, #fff);
+  color: #64748b;
+  font-size: 20px;
   cursor: pointer;
-  text-align: left;
-}
-
-.site-header:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.site-name {
-  flex: 1;
-  font-weight: 700;
-  font-size: 13px;
-  margin-left: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.site-count {
-  font-size: 11px;
-  background: var(--accent, #4facfe);
-  color: #000;
-  font-weight: 800;
-  padding: 2px 8px;
-  border-radius: 12px;
-}
-
-.site-jobs {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.2);
   padding: 4px;
 }
 
-.site-job-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  background: transparent;
-  border: none;
-  color: var(--text-secondary, #9ca3af);
-  cursor: pointer;
-  text-align: left;
-  border-radius: 4px;
+.ss-header .close-btn:hover {
+  color: #ef4444;
 }
 
-.site-job-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
-}
-
-.site-job-item.completed .job-number {
-  text-decoration: line-through;
-  opacity: 0.5;
-}
-
-.site-job-item.completed .job-status {
-  color: #00E676;
-}
-
-.job-item-left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.job-number {
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.job-address {
-  font-size: 11px;
-  color: var(--text-secondary, #9ca3af);
-}
-
-.job-status {
-  font-size: 10px;
-  text-transform: uppercase;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  color: var(--accent, #4facfe);
-}
-
-/* Job Tracker View */
-.ziply-job-tracker {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow-y: auto;
-  background: var(--bg-surface, #0B1118);
-  color: #fff;
-}
-
-.tracker-header {
-  padding: 16px;
-  background: var(--bg-panel, #121820);
-  border-bottom: 1px solid var(--border-color, #232a35);
-}
-
-.back-btn {
-  background: transparent;
-  border: none;
-  color: var(--accent, #4facfe);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-  margin-bottom: 12px;
-}
-
-.back-btn:hover {
-  text-decoration: underline;
-}
-
-.tracker-header h2 {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.job-meta {
+.ss-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.status-badge {
-  font-size: 10px;
-  font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.05em;
-}
-
-.status-badge.active {
-  background: rgba(79, 172, 254, 0.2);
-  color: #4facfe;
-}
-
-.status-badge.completed {
-  background: rgba(0, 230, 118, 0.2);
-  color: #00E676;
-}
-
-.tracker-section {
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color, #232a35);
-}
-
-.tracker-section h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  color: #fff;
-  text-transform: uppercase;
-}
-
-.helper-text {
-  font-size: 11px;
-  color: #9ca3af;
-  margin: 0 0 12px;
-  line-height: 1.4;
-}
-
-.hidden-file-input {
-  display: none;
-}
-
-.upload-dropzone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px dashed var(--border-color, #232a35);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: #9ca3af;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.upload-dropzone:hover {
-  background: rgba(79, 172, 254, 0.05);
-  border-color: var(--accent, #4facfe);
-  color: #fff;
-}
-
-.selected-files {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.file-pill {
-  background: rgba(255, 255, 255, 0.05);
-  padding: 6px 10px;
-  border-radius: 4px;
-  font-size: 11px;
-  word-break: break-all;
-}
-
-.btn-primary {
-  background: var(--accent, #4facfe);
-  color: #000;
-  border: none;
-  padding: 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  width: 100%;
-}
-
-.btn-primary:active, .btn-secondary:active {
-  transform: scale(0.98);
-}
-
-/* Job Details Grid */
-.job-details-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  padding: 8px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #d1d5db;
   gap: 12px;
 }
 
-.detail-field {
+.ss-toolbar button {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 8px;
+  color: #475569;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 4px;
 }
 
-.detail-field label {
-  font-size: 10px;
-  text-transform: uppercase;
-  color: var(--text-secondary, #9ca3af);
-  font-weight: 700;
-  letter-spacing: 0.05em;
+.ss-toolbar button:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
-.detail-field span {
+.ss-table-container {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.ss-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
   font-size: 13px;
-  color: #fff;
-  font-weight: 500;
 }
 
-.job-notes-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.ss-table th {
+  background: #f8f9fa;
+  border: 1px solid #d1d5db;
+  padding: 8px;
+  text-align: left;
+  font-weight: 600;
+  color: #334155;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 1px 0 #d1d5db;
 }
 
-.job-notes-section label {
-  font-size: 11px;
-  text-transform: uppercase;
-  color: var(--accent, #4facfe);
-  font-weight: 700;
-  letter-spacing: 0.05em;
+.ss-table td {
+  border: 1px solid #d1d5db;
+  padding: 6px 8px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
-.job-notes-text {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #d1d5db;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+.ss-table tr:hover td {
+  background: #f1f5f9;
 }
 
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.ss-table tr.selected td {
+  background: #e0f2fe;
 }
 
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
+.ss-row-active-yellow {
+  background-color: #fef08a !important;
+}
+
+.ss-row-active-yellow:hover td {
+  background-color: #fde047 !important;
+}
+
+.ss-row-active-orange {
+  background-color: #fed7aa !important;
+}
+
+.ss-row-active-orange:hover td {
+  background-color: #fdba74 !important;
+}
+
+.ss-btn-map {
+  background: #0284c7;
   color: #fff;
   border: none;
-  padding: 8px;
   border-radius: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.btn-small {
   padding: 4px 8px;
   font-size: 11px;
-}
-
-.success-msg {
-  margin-top: 12px;
-  color: #00E676;
-  font-size: 12px;
   font-weight: 600;
-}
-
-.info-msg {
-  margin-top: 12px;
-  color: #93c5fd;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.error-msg {
-  margin-top: 12px;
-  color: #ff4d4f;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.scope-metrics {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.scope-metric {
-  background: rgba(255, 255, 255, 0.03);
-  padding: 10px;
-  border-radius: 4px;
-  text-align: center;
-}
-
-.scope-metric label {
-  display: block;
-  font-size: 10px;
-  text-transform: uppercase;
-  color: #9ca3af;
-  margin-bottom: 4px;
-}
-
-.scope-metric span {
-  font-size: 18px;
-  font-weight: 800;
-  color: #fff;
-}
-
-.map-objects-list {
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.permit-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.permit-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.city-rollup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 10px 0;
-}
-
-.city-rollup label {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #9ca3af;
-}
-
-.city-rollup select {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-  color: #fff;
-  font-size: 12px;
-  padding: 6px 8px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ss-btn-map:hover {
+  background: #0369a1;
+}
+
+.ss-btn-attach {
+  background: transparent;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ss-btn-attach:hover {
+  background: #f1f5f9;
 }

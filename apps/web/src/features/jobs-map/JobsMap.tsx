@@ -43,6 +43,7 @@ import { useAuth } from "../auth/authContext.js";
 import LuminaOrb from "../lumina/Orb.js";
 import LuminaChatPanel from "../lumina/ChatPanel.js";
 import LuminaMapBridge from "../lumina/MapBridge.js";
+import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 import ZiplyPrintOverlay from "./ZiplyPrintOverlay.js";
 
 const FOCUS_ZOOM = 17;
@@ -300,6 +301,8 @@ function JobsMapInner({
   // paint (LeftRail starts on 'dashboard' and broadcasts it on mount).
   const [dashboardFullscreen, setDashboardFullscreen] = useState(contract !== "Ziply");
   const [ticketsFullscreen, setTicketsFullscreen] = useState(false);
+  const [ziplyJobsFullscreen, setZiplyJobsFullscreen] = useState(false);
+
   useEffect(() => {
     function onActiveTab(e: Event) {
       const detail = (e as CustomEvent<{ tab: string; collapsed: boolean }>).detail;
@@ -307,6 +310,7 @@ function JobsMapInner({
       setCalendarFullscreen(detail.tab === "calendar");
       setDashboardFullscreen(detail.tab === "dashboard" && contract !== "Ziply");
       setTicketsFullscreen(detail.tab === "811-tickets");
+      setZiplyJobsFullscreen(detail.tab === "jobs" && contract === "Ziply");
     }
     window.addEventListener("nsc:active-tab", onActiveTab);
     return () => window.removeEventListener("nsc:active-tab", onActiveTab);
@@ -472,6 +476,21 @@ function JobsMapInner({
               <DigTicketsTab
                 jobs={allJobs}
                 onOpenJob={(job) => onDashboardOpenJob(job.jobId)}
+              />
+            </div>
+          )}
+
+          {/* Ziply Job Tracker Full-screen overlay */}
+          {ziplyJobsFullscreen && contract === "Ziply" && (
+            <div
+              className="ziply-jobs-fullscreen-overlay"
+              style={{ position: "absolute", inset: 0, zIndex: 50, background: "#f8fafc", overflow: "auto" }}
+            >
+              <ZiplyJobsTab 
+                jobs={allJobs} 
+                selected={selected} 
+                setSelected={setSelected}
+                onClose={() => requestTab("filters")}
               />
             </div>
           )}

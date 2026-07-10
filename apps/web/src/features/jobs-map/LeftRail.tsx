@@ -42,8 +42,6 @@ interface Props {
   availableSupervisors?: string[];
   ziplyPrintLayerVisible?: boolean;
   setZiplyPrintLayerVisible?: (v: boolean) => void;
-  ziply811OverlayVisible?: boolean;
-  setZiply811OverlayVisible?: (v: boolean) => void;
 }
 
 type TabId = 'dashboard' | 'jobs' | 'filters' | 'tools' | 'calendar' | '811-tickets' | 'production' | 'upload' | 'sld';
@@ -57,8 +55,6 @@ export default function LeftRail({
   availableSupervisors,
   ziplyPrintLayerVisible = true,
   setZiplyPrintLayerVisible = () => {},
-  ziply811OverlayVisible = false,
-  setZiply811OverlayVisible = () => {},
 }: Props) {
   const { contract } = useActiveContract();
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
@@ -93,7 +89,8 @@ export default function LeftRail({
       setActiveTab(detail.tab);
       const shouldCollapse = detail.tab === 'calendar' ||
         (detail.tab === 'dashboard' && contract !== 'Ziply') ||
-        detail.tab === '811-tickets';
+        detail.tab === '811-tickets' ||
+        (detail.tab === 'jobs' && contract === 'Ziply');
       setCollapsed(shouldCollapse);
     }
     window.addEventListener("nsc:request-tab", onRequestTab as EventListener);
@@ -113,7 +110,8 @@ export default function LeftRail({
       // have no rail body of their own, so collapse the rail when entering them.
       const shouldCollapse = id === 'calendar' ||
         (id === 'dashboard' && contract !== 'Ziply') ||
-        id === '811-tickets';
+        id === '811-tickets' ||
+        (id === 'jobs' && contract === 'Ziply');
       setCollapsed(shouldCollapse);
     }
   }, [activeTab, contract]);
@@ -256,15 +254,13 @@ export default function LeftRail({
               <div className="left-rail-tab-content">
                  {activeTab === 'filters' && (
                    contract === 'Ziply' ? (
-	                     <ZiplyFilterPanel
-	                       jobs={jobs}
-	                       filters={filters}
-	                       setFilters={setFilters}
-	                       ziplyPrintLayerVisible={ziplyPrintLayerVisible}
-	                       setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
-	                       ziply811OverlayVisible={ziply811OverlayVisible}
-	                       setZiply811OverlayVisible={setZiply811OverlayVisible}
-	                     />
+                     <ZiplyFilterPanel
+                       jobs={jobs}
+                       filters={filters}
+                       setFilters={setFilters}
+                       ziplyPrintLayerVisible={ziplyPrintLayerVisible}
+                       setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
+                     />
                    ) : (
                      <FiltersTab
                        jobs={jobs}
@@ -278,13 +274,10 @@ export default function LeftRail({
                  )}
                 {activeTab === 'tools' && <AnnotateTab />}
                 {activeTab === 'dashboard' && contract === 'Ziply' && (
-	                  <ZiplyDashboardTab jobs={jobs} />
-	                )}
-                {activeTab === 'jobs' && contract === 'Ziply' && (
-                  <ZiplyJobsTab jobs={jobs} />
+                  <ZiplyDashboardTab />
                 )}
-                {/* Calendar tab has no rail content — it mounts full-screen
-                    over the map (handled by JobsMap). The rail auto-collapses
+                {/* Calendar, Jobs (Ziply), and Dashboard (Lumen) tabs have no rail content — 
+                    they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
                     on entry so there's nothing visible here. */}
               </div>
             </div>
