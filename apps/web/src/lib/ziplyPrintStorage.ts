@@ -18,8 +18,8 @@ export interface UploadedZiplyPrint {
   storageBucket?: string;
 }
 
-const INITIAL_PROGRESS_TIMEOUT_MS = 45_000;
-const STALLED_PROGRESS_TIMEOUT_MS = 90_000;
+const INITIAL_PROGRESS_TIMEOUT_MS = 3 * 60_000;
+const STALLED_PROGRESS_TIMEOUT_MS = 3 * 60_000;
 const MAX_UPLOAD_TIMEOUT_MS = 10 * 60_000;
 
 function sanitizePathSegment(value: string): string {
@@ -57,7 +57,13 @@ function formatUploadError(err: unknown): Error {
 
 async function ensureFirebaseStorageAuth(): Promise<void> {
   const auth = getAuth(app);
-  if (auth.currentUser) return;
+  if (auth.currentUser) {
+    console.info("[ziply-print-upload] Firebase Auth already available for Storage upload", {
+      uid: auth.currentUser.uid,
+      isAnonymous: auth.currentUser.isAnonymous,
+    });
+    return;
+  }
 
   try {
     const credential = await signInAnonymously(auth);
@@ -95,9 +101,17 @@ export async function uploadZiplyPrint(
   const storagePath = `ziply-prints/${safeJobId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
   const storageRef = ref(storage, storagePath);
   const contentType = file.type || "application/octet-stream";
+  console.info("[ziply-print-upload] Creating Firebase Storage upload task", {
+    storageBucket,
+    storagePath,
+    fileName: file.name,
+    size: file.size,
+    contentType,
+  });
+
   const task = uploadBytesResumable(storageRef, file, { contentType });
 
-  console.info("[ziply-print-upload] Starting Firebase Storage upload", {
+  console.info("[ziply-print-upload] Firebase Storage upload task created", {
     storageBucket,
     storagePath,
     fileName: file.name,
@@ -108,8 +122,13 @@ export async function uploadZiplyPrint(
   onProgress?.(0);
 
   return new Promise((resolve, reject) => {
+    const uploadStartedAt = Date.now();
     let settled = false;
     let lastBytesTransferred = 0;
+    let lastProgressAt = uploadStartedAt;
+    let sawProgressEvent = false;
+    let sawPositiveBytes = false;
+    let lastSnapshotState: UploadTaskSnapshot["state"] | undefined;
     let stallTimer: ReturnType<typeof window.setTimeout> | undefined;
     let maxTimer: ReturnType<typeof window.setTimeout> | undefined;
     let unsubscribe: (() => void) | undefined;
@@ -141,13 +160,36 @@ export async function uploadZiplyPrint(
     const resetStallTimer = (timeoutMs: number) => {
       if (stallTimer) window.clearTimeout(stallTimer);
       stallTimer = window.setTimeout(() => {
+        if (settled) return;
+
+        const now = Date.now();
+        const elapsedSinceStartMs = now - uploadStartedAt;
+        const elapsedSinceProgressMs = now - lastProgressAt;
         const reason = new Error(
           lastBytesTransferred === 0
-            ? "Ziply print upload did not start transferring data. Check Firebase Storage CORS, bucket configuration, and Storage rules."
-            : "Ziply print upload stopped making progress before it completed."
+            ? `Ziply print upload did not transfer any bytes after ${Math.round(
+                elapsedSinceStartMs / 1000
+              )} seconds. The upload request may still be initializing, blocked, or unable to reach Firebase Storage; check the browser Network tab for the Firebase request status.`
+            : `Ziply print upload stopped making progress for ${Math.round(
+                elapsedSinceProgressMs / 1000
+              )} seconds before it completed.`
         );
-        task.cancel();
+
+        console.error("[ziply-print-upload] Firebase Storage upload watchdog timed out", {
+          storageBucket,
+          storagePath,
+          lastBytesTransferred,
+          fileSize: file.size,
+          sawProgressEvent,
+          sawPositiveBytes,
+          lastSnapshotState,
+          elapsedSinceStartMs,
+          elapsedSinceProgressMs,
+          timeoutMs,
+        });
+
         fail(reason);
+        task.cancel();
       }, timeoutMs);
     };
 
@@ -160,9 +202,44 @@ export async function uploadZiplyPrint(
     unsubscribe = task.on(
       "state_changed",
       (snapshot: UploadTaskSnapshot) => {
+        const previousBytesTransferred = lastBytesTransferred;
         const totalBytes = snapshot.totalBytes || file.size;
         const percent = totalBytes > 0 ? (snapshot.bytesTransferred / totalBytes) * 100 : 0;
+        const isFirstProgressEvent = !sawProgressEvent;
+        const madeProgress = snapshot.bytesTransferred > previousBytesTransferred;
+
+        sawProgressEvent = true;
+        lastSnapshotState = snapshot.state;
         lastBytesTransferred = snapshot.bytesTransferred;
+
+        if (snapshot.bytesTransferred > 0) {
+          sawPositiveBytes = true;
+        }
+
+        if (madeProgress || isFirstProgressEvent) {
+          lastProgressAt = Date.now();
+        }
+
+        if (isFirstProgressEvent) {
+          console.info("[ziply-print-upload] First Firebase Storage progress event received", {
+            storageBucket,
+            storagePath,
+            bytesTransferred: snapshot.bytesTransferred,
+            totalBytes,
+            state: snapshot.state,
+            elapsedSinceStartMs: lastProgressAt - uploadStartedAt,
+          });
+        } else if (madeProgress) {
+          console.debug("[ziply-print-upload] Firebase Storage upload progress", {
+            storageBucket,
+            storagePath,
+            bytesTransferred: snapshot.bytesTransferred,
+            totalBytes,
+            percent: Math.round(percent),
+            state: snapshot.state,
+          });
+        }
+
         onProgress?.(Math.max(0, Math.min(100, percent)));
         resetStallTimer(snapshot.bytesTransferred > 0 ? STALLED_PROGRESS_TIMEOUT_MS : INITIAL_PROGRESS_TIMEOUT_MS);
       },
