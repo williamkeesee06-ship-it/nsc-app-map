@@ -84,6 +84,7 @@ export default function ZiplyJobsTab({ jobs }: Props) {
       setFileNames([]);
       setUploadProgress(0);
     } catch (err: any) {
+      console.error("[ziply-print-upload] Upload or ingest failed", err);
       setErrorMsg(err.message || "Failed to upload or parse print.");
       setIngestStatus("error");
     }

@@ -6,6 +6,7 @@ on:
     paths:
       - 'functions/**'
       - 'firebase.json'
+      - 'storage.rules'
       - '.github/workflows/deploy-functions.yml'
   workflow_dispatch:
 
@@ -50,8 +51,8 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
 
-      - name: Deploy Functions
-        run: npx firebase-tools deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive --force
+      - name: Deploy Functions and Storage rules
+        run: npx firebase-tools deploy --only functions,storage --project "$FIREBASE_PROJECT_ID" --non-interactive --force
         env:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID || 'nsc-app-map' }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}

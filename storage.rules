@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// NSC APP MAP — Cloud Storage security rules.
+//
+// Ziply print ingestion uploads PDFs/images directly from the browser to
+// ziply-prints/{jobId}/{fileName}. The web app uses Firebase Auth (anonymous is
+// sufficient) so Storage requests have request.auth populated even though the
+// app's operator login is still the local username whitelist.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSupportedZiplyPrint() {
+      return request.resource != null
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/(jpeg|jpg|png|webp|gif|heic|heif)');
+    }
+
+    match /ziply-prints/{jobId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isSupportedZiplyPrint();
+      allow update, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

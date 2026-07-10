@@ -1,8 +1,8 @@
-// Firebase client app — used only to invoke the 811 Callable Functions
-// (ITIC bot etc.) via the Functions SDK. Auth in this app is the lightweight
-// localStorage username scheme (see authContext), so there is no Firebase Auth
-// user; callables are invoked unauthenticated, which the deployed functions
-// permit. Config is supplied per-environment via VITE_FIREBASE_* vars.
+// Firebase client app — used for 811 Callable Functions and browser-side
+// Firebase Storage uploads. The operator login remains the lightweight
+// localStorage username scheme (see authContext); Storage uploads establish a
+// Firebase Auth session separately so Storage rules can require request.auth.
+// Config is supplied per-environment via VITE_FIREBASE_* vars.
 import { initializeApp, type FirebaseApp } from "firebase/app";
 
 const firebaseConfig = {
