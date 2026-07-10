@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Job } from "@nsc/types";
 import { ChevronDown, ChevronRight, FileText, UploadCloud, FilePlus, Zap } from "lucide-react";
 import { api } from "../../lib/api.js";
@@ -33,6 +33,12 @@ export default function ZiplyJobsTab({ jobs }: Props) {
   });
   const allCities = Array.from(jobsBySite.keys()).sort();
   const sites = selectedCity ? allCities.filter((c) => c === selectedCity) : allCities;
+
+  useEffect(() => {
+    if (!selectedJob) return;
+    const fresh = jobs.find((j) => j.jobId === selectedJob.jobId);
+    if (fresh) setSelectedJob(fresh);
+  }, [jobs, selectedJob?.jobId]);
 
   const toggleSite = (site: string) => {
     const next = new Set(expandedSites);
@@ -76,8 +82,10 @@ export default function ZiplyJobsTab({ jobs }: Props) {
 
       setIngestStatus("parsing");
       await api.ziplyIngest(jobId, storageFiles);
+      const updatedJob = await pollZiplyIngestStatus(jobId);
 
       setIngestStatus("success");
+      setSelectedJob(updatedJob);
       // Notify map to reload
       window.dispatchEvent(new Event("nsc:jobs-reload"));
       setSelectedFiles([]);
@@ -90,9 +98,28 @@ export default function ZiplyJobsTab({ jobs }: Props) {
     }
   };
 
+  const pollZiplyIngestStatus = async (jobId: string): Promise<Job> => {
+    const started = Date.now();
+    const timeoutMs = 30 * 60 * 1000;
+    while (Date.now() - started < timeoutMs) {
+      await new Promise((resolve) => window.setTimeout(resolve, 5000));
+      const { job } = await api.getJob(jobId);
+      setSelectedJob((current) => current?.jobId === jobId ? job : current);
+      const status = job.ziplyIngest?.status;
+      if (status === "complete" || (!status && job.ziplyPrintLayer)) {
+        return job;
+      }
+      if (status === "failed") {
+        throw new Error(job.ziplyIngest?.errorMessage || "AI parsing failed.");
+      }
+    }
+    throw new Error("AI parsing is still running in the background. Reopen this job in a few minutes to check the result.");
+  };
+
   if (selectedJob) {
     // Determine completed status
     const isCompleted = selectedJob.jobStatus === "Complete" || (selectedJob.secondaryJobStatus || "").toLowerCase().startsWith("complete");
+    const ingestIsProcessing = ingestStatus === "parsing" || selectedJob.ziplyIngest?.status === "processing";
 
     return (
       <div className="ziply-job-tracker">
@@ -161,19 +188,24 @@ export default function ZiplyJobsTab({ jobs }: Props) {
               {fileNames.map((f, index) => <div key={`${f}-${index}`} className="file-pill">{f}</div>)}
               <button 
                 className="btn-primary" 
-                disabled={ingestStatus === "uploading" || ingestStatus === "parsing"}
+                disabled={ingestStatus === "uploading" || ingestIsProcessing}
                 onClick={() => handleIngest(selectedJob.jobId)}
               >
                 {ingestStatus === "uploading"
                   ? `Uploading ${Math.round(uploadProgress)}%...`
-                  : ingestStatus === "parsing"
+                  : ingestIsProcessing
                     ? "AI Parsing..."
                     : "Extract Digital Scope"}
               </button>
             </div>
           )}
+          {ingestIsProcessing && (
+            <div className="info-msg">AI Parsing... (this can take a few minutes for large prints)</div>
+          )}
           {ingestStatus === "success" && <div className="success-msg">Print ingested successfully! Map updated.</div>}
-          {ingestStatus === "error" && <div className="error-msg">{errorMsg}</div>}
+          {(ingestStatus === "error" || selectedJob.ziplyIngest?.status === "failed") && (
+            <div className="error-msg">{errorMsg || selectedJob.ziplyIngest?.errorMessage}</div>
+          )}
         </div>
 
         {selectedJob.ziplyPrintLayer && (

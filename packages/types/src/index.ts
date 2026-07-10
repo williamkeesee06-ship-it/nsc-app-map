@@ -330,6 +330,28 @@ export interface Job {
   estAerialFt?: number | null;
   completedAerialFt?: number | null;
 
+  /** Async status for Ziply visual print ingestion. */
+  ziplyIngest?: {
+    status: "processing" | "complete" | "failed";
+    startedAt?: number | null;
+    updatedAt?: number | null;
+    completedAt?: number | null;
+    failedAt?: number | null;
+    storageFiles?: Array<{
+      storagePath?: string;
+      downloadUrl?: string;
+      contentType?: string;
+      name?: string;
+      size?: number;
+      storageBucket?: string;
+    }> | null;
+    legacyDataUrlCount?: number | null;
+    errorMessage?: string | null;
+    errorCode?: string | null;
+    statusCode?: number | null;
+    parsed?: unknown;
+  } | null;
+
   /** Structured engineering metrics and map components extracted from visual print ingestion. */
   ziplyPrintLayer?: {
     hubId: string | null;

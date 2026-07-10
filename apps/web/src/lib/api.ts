@@ -147,7 +147,7 @@ export const api = {
       storageBucket?: string;
     }>
   ) =>
-    request<{ ok: boolean; jobId: string; ziplyPrintLayer: unknown }>(
+    request<{ ok: boolean; jobId: string; status: "processing" }>(
       `/api/jobs/${encodeURIComponent(jobId)}/ziply-ingest`,
       { method: "POST", body: JSON.stringify({ storageFiles }) }
     ),

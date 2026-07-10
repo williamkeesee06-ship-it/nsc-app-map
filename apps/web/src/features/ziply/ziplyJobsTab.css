@@ -362,6 +362,13 @@
   font-weight: 600;
 }
 
+.info-msg {
+  margin-top: 12px;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .error-msg {
   margin-top: 12px;
   color: #ff4d4f;

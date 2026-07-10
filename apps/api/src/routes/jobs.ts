@@ -1,5 +1,6 @@
 // Jobs read/write endpoints. Frontend consumes these to render the Jobs Map + cards.
 import { Router } from "express";
+import { waitUntil } from "@vercel/functions";
 import { randomUUID } from "crypto";
 import { db, storageBucket } from "../lib/firestore.js";
 import { geocodeAddress, buildAddressString } from "../lib/geocode.js";
@@ -592,30 +593,82 @@ async function resolveZiplyPrintDataUrls(body: {
   return Promise.all(fileRefs.map(downloadZiplyStorageFile));
 }
 
-// POST /api/jobs/:jobId/ziply-ingest — Ingests a Ziply FTTH print and parses using Gemini
-router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
+type ZiplyIngestRequestBody = {
+  dataUrl?: unknown;
+  dataUrls?: unknown;
+  storageFiles?: unknown;
+  storagePaths?: unknown;
+  downloadUrls?: unknown;
+};
+
+function sanitizeZiplyStorageFiles(body: ZiplyIngestRequestBody) {
+  const files: Array<{
+    storagePath?: string;
+    downloadUrl?: string;
+    contentType?: string;
+    name?: string;
+    size?: number;
+    storageBucket?: string;
+  }> = [];
+
+  if (Array.isArray(body.storageFiles)) {
+    for (const value of body.storageFiles) {
+      if (value === null || typeof value !== "object") continue;
+      const file = value as ZiplyStorageFileRequest;
+      const storagePath = getString(file.storagePath);
+      const downloadUrl = getString(file.downloadUrl);
+      if (!storagePath && !downloadUrl) continue;
+      const size = typeof file.size === "number" && Number.isFinite(file.size) ? file.size : undefined;
+      files.push({
+        storagePath,
+        downloadUrl,
+        contentType: getString(file.contentType),
+        name: getString(file.name),
+        size,
+        storageBucket: getString(file.storageBucket),
+      });
+    }
+  }
+
+  if (Array.isArray(body.storagePaths)) {
+    for (const value of body.storagePaths) {
+      const storagePath = getString(value);
+      if (storagePath) files.push({ storagePath });
+    }
+  }
+
+  if (Array.isArray(body.downloadUrls)) {
+    for (const value of body.downloadUrls) {
+      const downloadUrl = getString(value);
+      if (downloadUrl) files.push({ downloadUrl });
+    }
+  }
+
+  // Legacy dataUrl/dataUrls payloads can be large, so never mirror them back into
+  // Firestore; keep only a count so operators can tell that an ingest was started.
+  const legacyDataUrlCount = Array.isArray(body.dataUrls)
+    ? body.dataUrls.filter((value) => typeof value === "string").length
+    : typeof body.dataUrl === "string"
+      ? 1
+      : 0;
+
+  return { files, legacyDataUrlCount };
+}
+
+async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): Promise<void> {
+  const ref = db().collection("jobs").doc(jobId);
+
   try {
-    const { jobId } = req.params;
-    const body = req.body as {
-      dataUrl?: unknown;
-      dataUrls?: unknown;
-      storageFiles?: unknown;
-      storagePaths?: unknown;
-      downloadUrls?: unknown;
-    };
     const urls = await resolveZiplyPrintDataUrls(body);
     if (urls.length === 0) {
-      res.status(400).json({ error: "storageFiles required" });
-      return;
+      throw new Error("storageFiles required");
     }
+
     const parsed = await parseZiplyPrint(urls);
 
-    // Save structured metadata directly into the job document!
-    const ref = db().collection("jobs").doc(jobId);
     const doc = await ref.get();
     if (!doc.exists) {
-      res.status(404).json({ error: "Job not found" });
-      return;
+      throw new Error("Job not found");
     }
     const existing = doc.data() as Job;
 
@@ -670,6 +723,7 @@ router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
       status: "planned" as ZiplyObjectStatus,
     }));
 
+    const now = Date.now();
     const updates: Partial<Job> = {
       hubNumber: parsed.hubId,
       customerProject: "Ziply",
@@ -678,7 +732,16 @@ router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
       softscapeBuriedHomes: parsed.drops?.lu ?? null,
       softscapeAerialHomes: parsed.drops?.mdu ?? null,
       nscProjectNotes: parsed.specialNotes ?? null,
-      lastSyncedAt: Date.now(),
+      lastSyncedAt: now,
+      ziplyIngest: {
+        ...(existing.ziplyIngest ?? {}),
+        status: "complete",
+        updatedAt: now,
+        completedAt: now,
+        errorMessage: null,
+        errorCode: null,
+        parsed,
+      },
       ziplyPrintLayer: {
         hubId: parsed.hubId,
         hubTypeSize: parsed.hubTypeSize,
@@ -702,13 +765,62 @@ router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
 
     await ref.update(updates);
     invalidateJobsCache();
-
-    res.json({ ok: true, parsed, jobId, ziplyPrintLayer: updates.ziplyPrintLayer });
   } catch (err) {
-    if (err instanceof ZiplyPrintParseError) {
-      res.status(err.statusCode).json({ error: err.message, code: err.code });
+    const now = Date.now();
+    const statusCode = err instanceof ZiplyPrintParseError ? err.statusCode : undefined;
+    const errorCode = err instanceof ZiplyPrintParseError ? err.code : undefined;
+    const message = err instanceof Error ? err.message : "Unknown Ziply ingest error";
+    console.error(`[ziply-ingest] Background ingest failed for job ${jobId}:`, err);
+    await ref.update({
+      "ziplyIngest.status": "failed",
+      "ziplyIngest.updatedAt": now,
+      "ziplyIngest.failedAt": now,
+      "ziplyIngest.errorMessage": message,
+      "ziplyIngest.errorCode": errorCode ?? null,
+      "ziplyIngest.statusCode": statusCode ?? null,
+      lastSyncedAt: now,
+    });
+    invalidateJobsCache();
+  }
+}
+
+// POST /api/jobs/:jobId/ziply-ingest — starts async Ziply FTTH print parsing.
+router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const body = req.body as ZiplyIngestRequestBody;
+    const { files, legacyDataUrlCount } = sanitizeZiplyStorageFiles(body);
+    if (files.length === 0 && legacyDataUrlCount === 0) {
+      res.status(400).json({ error: "storageFiles required" });
       return;
     }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const now = Date.now();
+    await ref.update({
+      ziplyIngest: {
+        status: "processing",
+        startedAt: now,
+        updatedAt: now,
+        storageFiles: files,
+        legacyDataUrlCount,
+        errorMessage: null,
+        errorCode: null,
+      },
+      lastSyncedAt: now,
+    });
+    invalidateJobsCache();
+
+    waitUntil(processZiplyIngest(jobId, body));
+
+    res.status(202).json({ ok: true, jobId, status: "processing" });
+  } catch (err) {
     next(err);
   }
 });
