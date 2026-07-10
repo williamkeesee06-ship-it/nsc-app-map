@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Job, ZiplyObjectStatus } from "@nsc/types";
+import type { DigTicket, Job, ZiplyObjectStatus, ZiplySectionScope } from "@nsc/types";
 import { InfoWindow, Marker, useMap } from "@vis.gl/react-google-maps";
 import { api } from "../../lib/api.js";
 
@@ -32,9 +32,12 @@ interface Selected {
   job: Job;
   kind: StatusKind;
   ref: string; // label ("hub" for the FDH)
+  scope: ZiplySectionScope;
   title: string;
   position: google.maps.LatLngLiteral;
   status: ZiplyObjectStatus;
+  locateCleared: boolean;
+  crewName: string | null;
   rows: Array<{ label: string; value: string }>;
 }
 
@@ -43,16 +46,24 @@ function CadFiberLine({
   path,
   status,
   buildType,
+  locateCleared,
+  show811Clearance,
 }: {
   path: google.maps.LatLngLiteral[];
   status: ZiplyObjectStatus;
   buildType?: string | null;
+  locateCleared?: boolean;
+  show811Clearance?: boolean;
 }) {
   const map = useMap();
   useEffect(() => {
     if (!map || path.length < 2) return;
-    const color = (buildType && BUILD_COLOR[buildType]) || STATUS_COLOR[status];
-    const solid = status === "complete";
+    const color = show811Clearance
+      ? locateCleared
+        ? "#16A34A"
+        : "#DC2626"
+      : (buildType && BUILD_COLOR[buildType]) || STATUS_COLOR[status];
+    const solid = show811Clearance ? locateCleared : status === "complete";
     const line = new google.maps.Polyline({
       path,
       map,
@@ -76,20 +87,23 @@ function CadFiberLine({
           ],
     });
     return () => line.setMap(null);
-  }, [map, path, status, buildType]);
+  }, [map, path, status, buildType, locateCleared, show811Clearance]);
   return null;
 }
 
 interface Props {
   jobs: Job[];
   visible: boolean;
+  show811Clearance?: boolean;
 }
 
-export default function ZiplyPrintOverlay({ jobs, visible }: Props) {
+export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = false }: Props) {
   const map = useMap();
   const [zoom, setZoom] = useState<number>(map?.getZoom() ?? 12);
   const [selected, setSelected] = useState<Selected | null>(null);
   const [saving, setSaving] = useState(false);
+  const [crewDraft, setCrewDraft] = useState("");
+  const [tickets, setTickets] = useState<DigTicket[]>([]);
   // Optimistic status overrides keyed by `${jobId}:${kind}:${ref}` so the UI
   // reflects a change immediately without waiting for a full jobs reload.
   const [overrides, setOverrides] = useState<Record<string, ZiplyObjectStatus>>({});
@@ -101,6 +115,25 @@ export default function ZiplyPrintOverlay({ jobs, visible }: Props) {
     });
     return () => listener.remove();
   }, [map]);
+
+  useEffect(() => {
+    setCrewDraft(selected?.crewName ?? "");
+  }, [selected]);
+
+  useEffect(() => {
+    if (!visible || !show811Clearance) return;
+    let cancelled = false;
+    api.listDigTickets("*")
+      .then(({ tickets }) => {
+        if (!cancelled) setTickets(tickets);
+      })
+      .catch(() => {
+        if (!cancelled) setTickets([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, show811Clearance]);
 
   if (!visible) return null;
 
@@ -125,6 +158,47 @@ export default function ZiplyPrintOverlay({ jobs, visible }: Props) {
       window.dispatchEvent(new Event("nsc:jobs-reload"));
     } catch {
       /* keep optimistic value; a reload will reconcile */
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const scopeKey = (jobId: string, kind: StatusKind, ref: string) => `${jobId}:${kind}:${ref}`;
+  const activeScopedTickets = new Map<string, DigTicket>();
+  const now = Date.now();
+  tickets.forEach((t) => {
+    if (!t.scope) return;
+    const expires = t.dates?.expiresAt ?? null;
+    const live = (t.status === "Filed" || t.status === "Active" || t.status === "Expiring") && (!expires || expires > now);
+    if (live) activeScopedTickets.set(scopeKey(t.jobId, t.scope.kind, t.scope.ref), t);
+  });
+
+  const locateCleared = (job: Job, kind: StatusKind, ref: string, fallbackExpires?: number | null) => {
+    const scoped = activeScopedTickets.get(scopeKey(job.jobId, kind, ref));
+    if (scoped) return true;
+    return fallbackExpires != null && fallbackExpires > now;
+  };
+
+  const openSection811 = (sel: Selected) => {
+    try {
+      sessionStorage.setItem("nsc.map.openDigTicketForJob", JSON.stringify({ jobId: sel.job.jobId, scope: sel.scope }));
+    } catch {
+      /* ignore */
+    }
+    window.dispatchEvent(new CustomEvent("nsc:map:openDigTicketForJob", { detail: { jobId: sel.job.jobId, scope: sel.scope } }));
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "811-tickets" } }));
+  };
+
+  const saveCrew = async (sel: Selected) => {
+    setSaving(true);
+    try {
+      await api.updateZiplySectionCrew(sel.job.jobId, {
+        kind: sel.kind,
+        ref: sel.ref,
+        crewName: crewDraft.trim() || null,
+      });
+      setSelected((s) => (s ? { ...s, crewName: crewDraft.trim() || null } : s));
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
     } finally {
       setSaving(false);
     }
@@ -164,16 +238,19 @@ export default function ZiplyPrintOverlay({ jobs, visible }: Props) {
         return (
           <div key={job.jobId}>
             {/* Fiber spokes hub → terminal (paths shown at all zooms per §3). */}
-            {terminals.map((t, idx) => {
-              const st = statusOf(job.jobId, "terminal", t.label, t.status);
-              return (
-                <CadFiberLine
-                  key={`${job.jobId}-cable-${idx}`}
-                  path={[hubPos, termPositions[idx]!]}
-                  status={st}
-                />
-              );
-            })}
+	            {terminals.map((t, idx) => {
+	              const st = statusOf(job.jobId, "terminal", t.label, t.status);
+	              const cleared = locateCleared(job, "terminal", t.label, t.locateExpires ?? null);
+	              return (
+	                <CadFiberLine
+	                  key={`${job.jobId}-cable-${idx}`}
+	                  path={[hubPos, termPositions[idx]!]}
+	                  status={st}
+	                  locateCleared={cleared}
+	                  show811Clearance={show811Clearance}
+	                />
+	              );
+	            })}
 
             {/* Hub / FDH beacon — cyan-accented, white fill, ink stroke. */}
             <Marker
@@ -182,11 +259,14 @@ export default function ZiplyPrintOverlay({ jobs, visible }: Props) {
               onClick={() =>
                 setSelected({
                   job,
-                  kind: "hub",
-                  ref: "hub",
-                  title: `FDH Cabinet ${layer.hubId || ""}`,
-                  position: hubPos,
-                  status: hubStatus,
+	                  kind: "hub",
+	                  ref: "hub",
+	                  scope: { kind: "hub", ref: "hub", hubId: layer.hubId, label: `Hub ${layer.hubId || job.workOrder}` },
+	                  title: `FDH Cabinet ${layer.hubId || ""}`,
+	                  position: hubPos,
+	                  status: hubStatus,
+	                  locateCleared: locateCleared(job, "hub", "hub", job.locateExpires ?? null),
+	                  crewName: job.crewName ?? null,
                   rows: [
                     { label: "Hub Type", value: layer.hubTypeSize || "N/A" },
                     { label: "Port Count", value: String(layer.terminalCount ?? "N/A") },
@@ -207,10 +287,11 @@ export default function ZiplyPrintOverlay({ jobs, visible }: Props) {
 
             {/* Terminals — revealed at neighborhood zoom and closer (§3). */}
             {showTerminals &&
-              terminals.map((t, idx) => {
-                const st = statusOf(job.jobId, "terminal", t.label, t.status);
-                const pos = termPositions[idx]!;
-                return (
+	              terminals.map((t, idx) => {
+	                const st = statusOf(job.jobId, "terminal", t.label, t.status);
+	                const pos = termPositions[idx]!;
+	                const cleared = locateCleared(job, "terminal", t.label, t.locateExpires ?? null);
+	                return (
                   <Marker
                     key={`${job.jobId}-term-${idx}`}
                     position={pos}
@@ -218,11 +299,20 @@ export default function ZiplyPrintOverlay({ jobs, visible }: Props) {
                     onClick={() =>
                       setSelected({
                         job,
-                        kind: "terminal",
-                        ref: t.label,
-                        title: `${t.label} — ${t.type}`,
-                        position: pos,
-                        status: st,
+	                        kind: "terminal",
+	                        ref: t.label,
+	                        scope: {
+	                          kind: "terminal",
+	                          ref: t.label,
+	                          hubId: layer.hubId,
+	                          label: `${t.label}${t.dvftpRange ? ` · ${t.dvftpRange}` : ""}`,
+	                          terminalRange: t.dvftpRange ?? null,
+	                        },
+	                        title: `${t.label} — ${t.type}`,
+	                        position: pos,
+	                        status: st,
+	                        locateCleared: cleared,
+	                        crewName: t.crewName ?? null,
                         rows: [
                           { label: "Port Count", value: t.portCount != null ? String(t.portCount) : "N/A" },
                           { label: "Footage", value: t.footageLabel || (t.footageFt != null ? `${t.footageFt}'` : "N/A") },
@@ -233,13 +323,13 @@ export default function ZiplyPrintOverlay({ jobs, visible }: Props) {
                         ],
                       })
                     }
-                    icon={{
-                      path: google.maps.SymbolPath.CIRCLE,
-                      fillColor: TERM_FILL[st],
-                      fillOpacity: 1,
-                      strokeColor: INK,
-                      strokeWeight: 1.5,
-                      scale: 6,
+	                    icon={{
+	                      path: google.maps.SymbolPath.CIRCLE,
+	                      fillColor: show811Clearance ? (cleared ? "#16A34A" : "#FFFFFF") : TERM_FILL[st],
+	                      fillOpacity: 1,
+	                      strokeColor: show811Clearance ? (cleared ? "#166534" : "#DC2626") : INK,
+	                      strokeWeight: show811Clearance ? 2.5 : 1.5,
+	                      scale: 6,
                     }}
                   />
                 );
@@ -265,13 +355,60 @@ export default function ZiplyPrintOverlay({ jobs, visible }: Props) {
             <p style={{ margin: "2px 0", color: "#555" }}>
               <strong>WO:</strong> {selected.job.workOrder}
             </p>
-            {selected.rows.map((r) => (
-              <p key={r.label} style={{ margin: "2px 0" }}>
-                <strong>{r.label}:</strong> {r.value}
-              </p>
-            ))}
+	            {selected.rows.map((r) => (
+	              <p key={r.label} style={{ margin: "2px 0" }}>
+	                <strong>{r.label}:</strong> {r.value}
+	              </p>
+	            ))}
 
-            <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: "#666" }}>STATUS</div>
+	            <div style={{ marginTop: 8, padding: 7, border: "1px solid #e5e7eb", borderRadius: 6, background: "#f9fafb" }}>
+	              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+	                <strong style={{ color: "#374151" }}>811 section</strong>
+	                <span
+	                  style={{
+	                    padding: "2px 7px",
+	                    borderRadius: 999,
+	                    fontSize: 10,
+	                    fontWeight: 800,
+	                    color: selected.locateCleared ? "#14532d" : "#7f1d1d",
+	                    background: selected.locateCleared ? "#dcfce7" : "#fee2e2",
+	                  }}
+	                >
+	                  {selected.locateCleared ? "CLEARED" : "NOT CLEARED"}
+	                </span>
+	              </div>
+	              <button
+	                type="button"
+	                onClick={() => openSection811(selected)}
+	                style={{ marginTop: 6, width: "100%", padding: "6px 0", border: "1px solid #f59e0b", borderRadius: 4, background: "#fffbeb", color: "#92400e", fontWeight: 800, cursor: "pointer" }}
+	              >
+	                File / open 811 for this section
+	              </button>
+	            </div>
+
+	            <div style={{ marginTop: 8 }}>
+	              <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#666", marginBottom: 4 }}>
+	                CREW ASSIGNED TO SECTION
+	              </label>
+	              <div style={{ display: "flex", gap: 4 }}>
+	                <input
+	                  value={crewDraft}
+	                  onChange={(e) => setCrewDraft(e.target.value)}
+	                  placeholder="Crew name"
+	                  style={{ flex: 1, minWidth: 0, padding: "5px 6px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 11 }}
+	                />
+	                <button
+	                  type="button"
+	                  disabled={saving}
+	                  onClick={() => void saveCrew(selected)}
+	                  style={{ padding: "5px 8px", border: "1px solid #0891b2", borderRadius: 4, background: "#ecfeff", color: "#155e75", fontSize: 10, fontWeight: 800, cursor: saving ? "wait" : "pointer" }}
+	                >
+	                  Save
+	                </button>
+	              </div>
+	            </div>
+
+	            <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: "#666" }}>STATUS</div>
             <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
               {(["planned", "in_progress", "complete"] as ZiplyObjectStatus[]).map((st) => (
                 <button

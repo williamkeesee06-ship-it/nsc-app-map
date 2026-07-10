@@ -68,16 +68,21 @@ export default function JobsMap() {
       .then(({ supervisors }) => setAllSupervisors(supervisors))
       .catch(() => { /* swallow */ });
   }, [isManager]);
-  // Phase 9.7: strict filter by supervisor (case-insensitive) and contract.
+  // Phase 9.7: strict Lumen filter by supervisor (case-insensitive) and contract.
+  // Ziply intentionally uses broad contract visibility: every logged-in Ziply
+  // viewer sees every customerProject="Ziply" job, regardless of supervisor,
+  // crew, foreman, or inspector names.
   const allJobs = useMemo(() => {
+    if (contract === "Ziply") {
+      return rawJobs.filter((j) => j.customerProject === "Ziply");
+    }
+
     let filtered = rawJobs;
     if (!isManager) {
       const u = (username ?? "").trim().toLowerCase();
       if (!u) return [];
-      // Assignment-based visibility: a supervisor sees a job when they are
-      // named on any of its assignment fields. Ziply jobs are assigned via
-      // crew/foreman/inspector rather than always carrying a constructionSupervisor,
-      // so we match across all of them instead of trusting geography.
+      // Lumen assignment-based visibility: a supervisor sees a job when they
+      // are named on any of its assignment fields.
       filtered = rawJobs.filter((j) => {
         const assignees = [
           j.constructionSupervisor,
@@ -88,11 +93,7 @@ export default function JobsMap() {
         return assignees.some((a) => (a ?? "").trim().toLowerCase() === u);
       });
     }
-    if (contract === "Ziply") {
-      return filtered.filter((j) => j.customerProject === "Ziply");
-    } else {
-      return filtered.filter((j) => j.customerProject !== "Ziply");
-    }
+    return filtered.filter((j) => j.customerProject !== "Ziply");
   }, [rawJobs, username, isManager, contract]);
   const { filters, setFilters, setJobs: setFiltersJobs } = useFiltersContext();
   // Keep the FiltersContext jobs list in sync with the supervisor-scoped
@@ -200,6 +201,7 @@ function JobsMapInner({
   const { setTarget: setDigTarget } = useDigPolygon();
   const [panelTheme, setPanelTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
   const [ziplyPrintLayerVisible, setZiplyPrintLayerVisible] = useState(true);
+  const [ziply811OverlayVisible, setZiply811OverlayVisible] = useState(false);
 
   // ── Dual-Pane Street View (#5) ──────────────────────────
   const panoRef = useRef<HTMLDivElement>(null);
@@ -345,6 +347,8 @@ function JobsMapInner({
         availableSupervisors={allSupervisors}
         ziplyPrintLayerVisible={ziplyPrintLayerVisible}
         setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
+        ziply811OverlayVisible={ziply811OverlayVisible}
+        setZiply811OverlayVisible={setZiply811OverlayVisible}
       />
 
       <div className="jobs-map__main">
@@ -385,7 +389,11 @@ function JobsMapInner({
                 />
               )}
               <CentralOfficesOverlay visible={showCOs} />
-              <ZiplyPrintOverlay jobs={mapped} visible={contract === "Ziply" && ziplyPrintLayerVisible} />
+              <ZiplyPrintOverlay
+                jobs={mapped}
+                visible={contract === "Ziply" && ziplyPrintLayerVisible}
+                show811Clearance={ziply811OverlayVisible}
+              />
               {contract !== "Ziply" && <DrawingOverlay />}
               <SavedDigShapeOverlay />
               {filters.showDigPolygons !== false && (

@@ -9,6 +9,7 @@ import type {
   Job,
   PolygonData,
   SyncRun,
+  ZiplySectionScope,
 } from "@nsc/types";
 import { app } from "./firebase.js";
 
@@ -142,15 +143,24 @@ export const api = {
     ),
   // Ziply — persist a single map object's build status (spec §4 click-to-drawer).
   // kind identifies the object family; ref is the hub/terminal/cable label.
-  updateZiplyObjectStatus: (
-    jobId: string,
-    body: { kind: "hub" | "terminal" | "cable"; ref: string; status: import("@nsc/types").ZiplyObjectStatus }
-  ) =>
-    request<{ ok: boolean; jobId: string; ziplyPrintLayer: unknown }>(
-      `/api/jobs/${encodeURIComponent(jobId)}/ziply-object-status`,
-      { method: "POST", body: JSON.stringify(body) }
-    ),
-  createJob: (body: { workOrder: string; jobName: string; address?: string; lat?: number; lng?: number }) =>
+	  updateZiplyObjectStatus: (
+	    jobId: string,
+	    body: { kind: "hub" | "terminal" | "cable"; ref: string; status: import("@nsc/types").ZiplyObjectStatus }
+	  ) =>
+	    request<{ ok: boolean; jobId: string; ziplyPrintLayer: unknown }>(
+	      `/api/jobs/${encodeURIComponent(jobId)}/ziply-object-status`,
+	      { method: "POST", body: JSON.stringify(body) }
+	    ),
+	  // Ziply — assign a crew to a hub/terminal/cable section (hub + ref keyed).
+	  updateZiplySectionCrew: (
+	    jobId: string,
+	    body: { kind: "hub" | "terminal" | "cable"; ref: string; crewName: string | null }
+	  ) =>
+	    request<{ ok: boolean; jobId: string; kind: string; ref: string; crewName: string | null; assignedAt: number }>(
+	      `/api/jobs/${encodeURIComponent(jobId)}/ziply-section-crew`,
+	      { method: "POST", body: JSON.stringify(body) }
+	    ),
+	  createJob: (body: { workOrder: string; jobName: string; address?: string; lat?: number; lng?: number }) =>
     request<{ jobId: string; workOrder: string; jobName: string; lat?: number; lng?: number }>("/api/jobs", {
       method: "POST",
       body: JSON.stringify(body),
@@ -326,9 +336,10 @@ export const api = {
     ),
   // Create a ticket from a job's saved dig shape. Server snapshots the shape,
   // generates marking instructions via Gemini, and returns the draft ticket.
-  createDigTicket: (body: {
-    jobId: string;
-    specs: {
+	  createDigTicket: (body: {
+	    jobId: string;
+	    scope?: ZiplySectionScope | null;
+	    specs: {
       handDigOnly: boolean;
       directionalBoring: boolean;
       whiteLined: boolean;

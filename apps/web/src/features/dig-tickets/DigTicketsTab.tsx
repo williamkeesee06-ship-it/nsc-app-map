@@ -5,7 +5,7 @@
 // from job" form. Tickets are backed by /api/dig-tickets; the dig shape is
 // snapshotted server-side from the job's saved digPolygon at creation time.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DigTicket, Job } from "@nsc/types";
+import type { DigTicket, Job, ZiplySectionScope } from "@nsc/types";
 import { canDeleteDigTicket } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
@@ -31,6 +31,7 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
   // Job to pre-select in CreateTicketForm, set when the map's "Save & Open
   // 811" flow targets a job with no active ticket.
   const [initialJobId, setInitialJobId] = useState<string | null>(null);
+  const [initialScope, setInitialScope] = useState<ZiplySectionScope | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -82,21 +83,26 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
   // we open CreateTicketForm pre-selected to the job. A sessionStorage flag
   // mirrors the event so the request survives the 811 tab mounting late.
   useEffect(() => {
-    const applyDetail = (detail: { jobId?: string } | null) => {
+    const applyDetail = (detail: { jobId?: string; scope?: ZiplySectionScope | null } | null) => {
       const jobId = detail?.jobId;
       if (!jobId) return;
       const job = jobs.find((j) => j.jobId === jobId);
       const activeTicketId = job?.activeTicketId;
-      const activeTicket = activeTicketId
-        ? tickets.find((t) => t.id === activeTicketId)
-        : null;
+      const scope = detail.scope ?? null;
+      const activeTicket = scope
+        ? tickets.find((t) => t.jobId === jobId && t.scope?.kind === scope.kind && t.scope?.ref === scope.ref)
+        : activeTicketId
+          ? tickets.find((t) => t.id === activeTicketId)
+          : null;
       if (activeTicket) {
         setCreating(false);
         setInitialJobId(null);
+        setInitialScope(null);
         setSelectedId(activeTicket.id);
       } else {
         setSelectedId(null);
         setInitialJobId(jobId);
+        setInitialScope(scope);
         setCreating(true);
       }
     };
@@ -125,8 +131,8 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
   // Jobs that have a dig shape drawn but no active ticket yet — candidates for
   // "create ticket".
   const ticketableJobs = useMemo(
-    () => jobs.filter((j) => j.digPolygon),
-    [jobs]
+    () => initialScope && initialJobId ? jobs.filter((j) => j.jobId === initialJobId) : jobs.filter((j) => j.digPolygon),
+    [jobs, initialJobId, initialScope]
   );
 
   // Group tickets by urgency category
@@ -213,10 +219,10 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
           >
             {t.status}
           </span>
-          <span className="dt-ticket__meta">
-            {t.ticketNumber || "— draft —"} ·{" "}
-            {t.shape.type} · {Math.round(t.shape.areaSqFt).toLocaleString()} ft²
-          </span>
+	          <span className="dt-ticket__meta">
+	            {t.ticketNumber || "— draft —"} ·{" "}
+	            {t.scope?.label || t.scope?.terminalRange || t.shape.type} · {Math.round(t.shape.areaSqFt).toLocaleString()} ft²
+	          </span>
         </button>
         {canDeleteDigTicket(t) && (
           <button
@@ -309,16 +315,19 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
         {creating ? (
           <CreateTicketForm
             jobs={ticketableJobs}
-            username={username}
-            initialJobId={initialJobId}
-            onCreated={(t) => {
-              setInitialJobId(null);
-              onTicketCreated(t);
-            }}
-            onCancel={() => {
-              setInitialJobId(null);
-              setCreating(false);
-            }}
+	            username={username}
+	            initialJobId={initialJobId}
+	            initialScope={initialScope}
+	            onCreated={(t) => {
+	              setInitialJobId(null);
+	              setInitialScope(null);
+	              onTicketCreated(t);
+	            }}
+	            onCancel={() => {
+	              setInitialJobId(null);
+	              setInitialScope(null);
+	              setCreating(false);
+	            }}
           />
         ) : selected ? (
           <TicketDetail

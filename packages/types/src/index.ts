@@ -257,6 +257,21 @@ export interface JobGeocode {
 // so the supervisor's progress survives reloads (spec §4).
 export type ZiplyObjectStatus = "planned" | "in_progress" | "complete";
 
+export type ZiplySectionKind = "hub" | "terminal" | "cable";
+
+export interface ZiplySectionScope {
+  /** Object family inside ziplyPrintLayer.mapObjects. */
+  kind: ZiplySectionKind;
+  /** Object label/ref ("hub" for the FDH, terminal label, or cable label). */
+  ref: string;
+  /** Stable hub id used by future schedule/calendar boards. */
+  hubId?: string | null;
+  /** Human-readable section or terminal-range label, e.g. "T12 · H2051, 205-216". */
+  label?: string | null;
+  /** Terminal/DVFTP range when present on the print. */
+  terminalRange?: string | null;
+}
+
 // One document per job at jobs/{jobId}. Identity is the Smartsheet "Work Order".
 export interface Job {
   jobId: string; // sanitized version of Work Order (used as Firestore doc id)
@@ -357,6 +372,11 @@ export interface Job {
         /** Placement method drives the CAD dash pattern/color. */
         buildType?: "bore" | "trench" | "aerial" | null;
         status?: ZiplyObjectStatus;
+        /** Section-scoped 811 + crew metadata keyed by hubId + label/range. */
+        locateTicketId?: string | null;
+        locateExpires?: Timestamp | null;
+        crewName?: string | null;
+        crewAssignedAt?: Timestamp | null;
       }>;
       terminals: Array<{
         label: string;
@@ -375,6 +395,11 @@ export interface Job {
         lat?: number | null;
         lng?: number | null;
         status?: ZiplyObjectStatus;
+        /** Section-scoped 811 + crew metadata keyed by hubId + label/range. */
+        locateTicketId?: string | null;
+        locateExpires?: Timestamp | null;
+        crewName?: string | null;
+        crewAssignedAt?: Timestamp | null;
       }>;
       notes: string | null;
     } | null;
@@ -473,6 +498,8 @@ export interface DigTicket {
   jobId: string; // Reference to jobs/{jobId}
   status: DigTicketStatus;
   shape: DigShape; // Snapshot from the job's dig shape at time of filing
+  /** Optional Ziply section/terminal-range scope. Absent means legacy whole-job ticket. */
+  scope?: ZiplySectionScope | null;
   specs: {
     handDigOnly: boolean;
     directionalBoring: boolean;

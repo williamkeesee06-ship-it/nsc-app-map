@@ -285,9 +285,10 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
               </button>
             )}
           </h2>
-          <div className="dt-view__sub">
-            {ticket.ticketNumber || "Not filed with ITIC yet"} · Created {fmtDate(ticket.dates.createdAt)}
-          </div>
+	          <div className="dt-view__sub">
+	            {ticket.ticketNumber || "Not filed with ITIC yet"} · Created {fmtDate(ticket.dates.createdAt)}
+	            {ticket.scope && <> · Section: {ticket.scope.label || ticket.scope.terminalRange || ticket.scope.ref}</>}
+	          </div>
           {ticket.ticketNumber && (
             <div className="dt-filed-banner">
               <span className="dt-filed-banner__num">ITIC #{ticket.ticketNumber}</span>
@@ -360,9 +361,10 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       {/* Shape + specs */}
       <section className="dt-card">
         <div className="dt-card__title">EXCAVATION SHAPE</div>
-        <div className="dt-stats">
-          <div><span>Type</span><b>{ticket.shape.type}</b></div>
-          <div><span>Area</span><b>{Math.round(ticket.shape.areaSqFt).toLocaleString()} ft²</b></div>
+	        <div className="dt-stats">
+	          <div><span>Type</span><b>{ticket.shape.type}</b></div>
+	          {ticket.scope && <div><span>Section</span><b>{ticket.scope.label || ticket.scope.ref}</b></div>}
+	          <div><span>Area</span><b>{Math.round(ticket.shape.areaSqFt).toLocaleString()} ft²</b></div>
           <div><span>Perimeter</span><b>{Math.round(ticket.shape.perimeterFt).toLocaleString()} ft</b></div>
           <div><span>Work type</span><b>{ticket.specs.workType || "—"}</b></div>
           <div><span>Duration</span><b>{ticket.specs.duration} days</b></div>

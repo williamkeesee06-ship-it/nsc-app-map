@@ -20,11 +20,7 @@ export default function ZiplyJobsTab({ jobs }: Props) {
   const [ingestStatus, setIngestStatus] = useState<"idle" | "uploading" | "parsing" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
-  const ziplyJobs = jobs.filter((j) => {
-    if (j.customerProject !== "Ziply") return false;
-    const wt = (j.workType || "").toUpperCase();
-    return wt.includes("FTTH"); // Covers FTTH and WA FTTH
-  });
+  const ziplyJobs = jobs.filter((j) => j.customerProject === "Ziply");
   
   // Group by site (city)
   const jobsBySite = new Map<string, Job[]>();

@@ -7,7 +7,7 @@ import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
 import { parseZiplyPrint } from "../services/ziplyParser.js";
-import type { DigShape, Job, PolygonData, ZiplyObjectStatus } from "@nsc/types";
+import type { DigShape, Job, PolygonData, ZiplyObjectStatus, ZiplySectionKind } from "@nsc/types";
 
 const router = Router();
 
@@ -464,6 +464,15 @@ router.get("/jobs/ziply-metrics", async (_req, res, next) => {
       crewPerformance[crew].completedAerial += j.completedAerialFt ?? 0;
     }
 
+    const ticketsSnap = await db().collection("digTickets").get();
+    const now = Date.now();
+    const ziplyJobIds = new Set(jobs.map((j) => j.jobId));
+    const outstanding811s = ticketsSnap.docs
+      .map((d) => d.data() as import("@nsc/types").DigTicket)
+      .filter((t) => ziplyJobIds.has(t.jobId))
+      .filter((t) => !t.dates?.expiresAt || t.dates.expiresAt <= now || !t.readyToDig)
+      .length;
+
     // Convert Hub Progress to percentages
     const hubs = Object.entries(hubProgress).map(([name, stats]) => {
       const pct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
@@ -479,6 +488,7 @@ router.get("/jobs/ziply-metrics", async (_req, res, next) => {
       },
       hubs,
       crews: crewPerformance,
+      outstanding811s,
     });
   } catch (err) {
     next(err);
@@ -831,6 +841,69 @@ router.post("/jobs/:jobId/permits", async (req, res, next) => {
     invalidateJobsCache();
 
     res.json({ ok: true, jobId, permitType });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-section-crew — assign a live crew to one
+// hub/terminal/cable section. This deliberately keys by hub + section ref so a
+// calendar/Gantt schedule can layer over the same objects later.
+router.post("/jobs/:jobId/ziply-section-crew", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { kind, ref: objectRef, crewName } = req.body as {
+      kind?: ZiplySectionKind;
+      ref?: string;
+      crewName?: string | null;
+    };
+    if (!kind || !["hub", "terminal", "cable"].includes(kind) || !objectRef) {
+      res.status(400).json({ error: "kind and ref are required" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer;
+    const mapObjects = layer?.mapObjects;
+    if (!layer || !mapObjects) {
+      res.status(400).json({ error: "Job has no Ziply map objects to assign" });
+      return;
+    }
+
+    const assignedAt = Date.now();
+    const cleanCrew = typeof crewName === "string" && crewName.trim() ? crewName.trim() : null;
+    if (kind === "terminal") {
+      const t = mapObjects.terminals?.find((x) => x.label === objectRef);
+      if (!t) {
+        res.status(404).json({ error: `Terminal ${objectRef} not found` });
+        return;
+      }
+      t.crewName = cleanCrew;
+      t.crewAssignedAt = cleanCrew ? assignedAt : null;
+    } else if (kind === "cable") {
+      const c = mapObjects.cables?.find((x) => x.label === objectRef);
+      if (!c) {
+        res.status(404).json({ error: `Cable ${objectRef} not found` });
+        return;
+      }
+      c.crewName = cleanCrew;
+      c.crewAssignedAt = cleanCrew ? assignedAt : null;
+    } else {
+      job.crewName = cleanCrew;
+    }
+
+    await ref.update({
+      ...(kind === "hub" ? { crewName: cleanCrew } : { ziplyPrintLayer: layer }),
+      lastSyncedAt: assignedAt,
+    });
+    invalidateJobsCache();
+    res.json({ ok: true, jobId, kind, ref: objectRef, crewName: cleanCrew, assignedAt });
   } catch (err) {
     next(err);
   }

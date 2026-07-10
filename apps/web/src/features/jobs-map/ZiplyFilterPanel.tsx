@@ -10,6 +10,8 @@ interface Props {
   // Extra fields we add for Ziply
   ziplyPrintLayerVisible: boolean;
   setZiplyPrintLayerVisible: (v: boolean) => void;
+  ziply811OverlayVisible: boolean;
+  setZiply811OverlayVisible: (v: boolean) => void;
 }
 
 export default function ZiplyFilterPanel({
@@ -17,7 +19,9 @@ export default function ZiplyFilterPanel({
   filters,
   setFilters,
   ziplyPrintLayerVisible,
-  setZiplyPrintLayerVisible
+  setZiplyPrintLayerVisible,
+  ziply811OverlayVisible,
+  setZiply811OverlayVisible
 }: Props) {
   // Extract Ziply statuses (Not Started, In Progress, Complete)
   const ziplyStatuses = ["Not Started", "In Progress", "Complete"];
@@ -72,10 +76,7 @@ export default function ZiplyFilterPanel({
   };
 
   // Group Ziply FTTH jobs by site for the Sites Navigation
-  const ftthJobs = ziplyJobs.filter((j) => {
-    const wt = (j.workType || "").toUpperCase();
-    return wt.includes("FTTH");
-  });
+  const ftthJobs = ziplyJobs;
 
   const jobsBySite = new Map<string, Job[]>();
   ftthJobs.forEach(j => {
@@ -132,6 +133,21 @@ export default function ZiplyFilterPanel({
         </label>
         <p style={{ margin: "4px 0 0 20px", fontSize: 9, color: "#9ca3af" }}>
           Overlay FDH cabinets, MSTs, and drop counts directly on the map.
+        </p>
+      </div>
+
+      <div style={{ padding: 8, background: "rgba(250,204,21,0.07)", border: "1px solid rgba(250,204,21,0.22)", borderRadius: 6 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>
+          <input
+            type="checkbox"
+            checked={ziply811OverlayVisible}
+            onChange={(e) => setZiply811OverlayVisible(e.target.checked)}
+            style={{ accentColor: "#FACC15" }}
+          />
+          <span style={{ color: "#FACC15" }}>811 CLEARED / NOT CLEARED BY SECTION</span>
+        </label>
+        <p style={{ margin: "4px 0 0 20px", fontSize: 9, color: "#9ca3af" }}>
+          Recolors terminals and section paths by active locate coverage, separate from build progress.
         </p>
       </div>
 

@@ -6,8 +6,8 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db } from "../lib/firestore.js";
 import { generateMarkingInstructions } from "../services/markingInstructions.js";
-import { normalizeDigShape, canDeleteDigTicket } from "@nsc/types";
-import type { DigTicket, Job, UtilityStatus } from "@nsc/types";
+import { normalizeDigShape, canDeleteDigTicket, buildRadiusShape, buildRouteShape } from "@nsc/types";
+import type { DigShape, DigTicket, Job, UtilityStatus, ZiplySectionScope } from "@nsc/types";
 
 const router = Router();
 
@@ -77,6 +77,7 @@ router.get("/dig-tickets/:ticketId", async (req, res, next) => {
 interface CreateBody {
   jobId: string;
   specs: Partial<DigTicket["specs"]>;
+  scope?: ZiplySectionScope | null;
 }
 
 // POST /api/dig-tickets — create a draft ticket from a job's saved dig shape.
@@ -95,9 +96,14 @@ router.post("/dig-tickets", async (req, res, next) => {
     }
     const job = jobDoc.data() as Job;
 
-    const shape = normalizeDigShape(job.digPolygon ?? null);
+    const scope = normalizeScope(body.scope);
+    const shape = scope ? buildShapeForScope(job, scope) : normalizeDigShape(job.digPolygon ?? null);
     if (!shape) {
-      res.status(400).json({ error: "Job has no dig shape to file a ticket for" });
+      res.status(400).json({
+        error: scope
+          ? "Ziply section has no georeferenced shape to file a ticket for"
+          : "Job has no dig shape to file a ticket for",
+      });
       return;
     }
 
@@ -137,6 +143,7 @@ router.post("/dig-tickets", async (req, res, next) => {
       jobId: body.jobId,
       status: "Drafting",
       shape,
+      scope,
       specs,
       markingInstructions: marking.markingInstructions,
       hazardsWarning: marking.hazardsWarning,
@@ -161,8 +168,30 @@ router.post("/dig-tickets", async (req, res, next) => {
     };
 
     await db().collection("digTickets").doc(id).set(ticket);
-    // Point the job at its active ticket.
-    await db().collection("jobs").doc(body.jobId).update({ activeTicketId: id });
+    // Point the job (legacy whole-job) or section object (Ziply scoped tickets)
+    // at its active ticket.
+    if (scope) {
+      const layer = job.ziplyPrintLayer;
+      const mo = layer?.mapObjects;
+      if (layer && mo) {
+        if (scope.kind === "terminal") {
+          const t = mo.terminals?.find((x) => x.label === scope.ref);
+          if (t) t.locateTicketId = id;
+        } else if (scope.kind === "cable") {
+          const c = mo.cables?.find((x) => x.label === scope.ref);
+          if (c) c.locateTicketId = id;
+        } else {
+          job.activeTicketId = id;
+        }
+        await db().collection("jobs").doc(body.jobId).update({
+          ziplyPrintLayer: layer,
+          ...(scope.kind === "hub" ? { activeTicketId: id } : {}),
+          lastSyncedAt: now,
+        });
+      }
+    } else {
+      await db().collection("jobs").doc(body.jobId).update({ activeTicketId: id });
+    }
 
     res.status(201).json({ ticket });
   } catch (err) {
@@ -185,6 +214,14 @@ router.patch("/dig-tickets/:ticketId", async (req, res, next) => {
     delete (patch as { jobId?: unknown }).jobId;
     await ref.update(patch as Record<string, unknown>);
     const updated = (await ref.get()).data() as DigTicket;
+    if (
+      updated.scope &&
+      updated.ticketNumber &&
+      (updated.status === "Filed" || updated.status === "Active" || updated.status === "Expiring") &&
+      updated.dates?.expiresAt
+    ) {
+      await mirrorLocateOntoZiplySection(updated, updated.id, updated.dates.expiresAt);
+    }
     res.json({ ticket: updated });
   } catch (err) {
     next(err);
@@ -344,6 +381,7 @@ router.post("/dig-tickets/:ticketId/file", async (req, res, next) => {
     };
     
     await ref.update(update);
+    await mirrorLocateOntoZiplySection(ticket, ticket.id, expiresAt);
     res.json({ ticket: { ...ticket, ...update } });
   } catch (err) {
     next(err);
@@ -351,3 +389,84 @@ router.post("/dig-tickets/:ticketId/file", async (req, res, next) => {
 });
 
 export default router;
+
+function normalizeScope(scope: ZiplySectionScope | null | undefined): ZiplySectionScope | null {
+  if (!scope?.kind || !scope.ref) return null;
+  if (!["hub", "terminal", "cable"].includes(scope.kind)) return null;
+  return {
+    kind: scope.kind,
+    ref: String(scope.ref),
+    hubId: scope.hubId ?? null,
+    label: scope.label ?? null,
+    terminalRange: scope.terminalRange ?? null,
+  };
+}
+
+function buildShapeForScope(job: Job, scope: ZiplySectionScope): DigShape | null {
+  const layer = job.ziplyPrintLayer;
+  const mo = layer?.mapObjects;
+  const hubLat = mo?.hub?.lat ?? job.geocode?.lat ?? null;
+  const hubLng = mo?.hub?.lng ?? job.geocode?.lng ?? null;
+  const drawnBy = "ziply-section-scope";
+
+  if (scope.kind === "hub") {
+    return hubLat != null && hubLng != null
+      ? buildRadiusShape({ lat: hubLat, lng: hubLng }, 125, drawnBy)
+      : normalizeDigShape(job.digPolygon ?? null);
+  }
+
+  if (scope.kind === "terminal") {
+    const term = mo?.terminals?.find((t) => t.label === scope.ref);
+    if (term?.lat != null && term.lng != null) {
+      return buildRadiusShape({ lat: term.lat, lng: term.lng }, 100, drawnBy);
+    }
+    if (hubLat != null && hubLng != null) {
+      return buildRadiusShape({ lat: hubLat, lng: hubLng }, 100, drawnBy);
+    }
+  }
+
+  if (scope.kind === "cable") {
+    const cable = mo?.cables?.find((c) => c.label === scope.ref);
+    if (cable?.path && cable.path.length >= 2) {
+      return buildRouteShape(cable.path, 30, drawnBy);
+    }
+    if (hubLat != null && hubLng != null) {
+      return buildRadiusShape({ lat: hubLat, lng: hubLng }, 100, drawnBy);
+    }
+  }
+
+  return null;
+}
+
+async function mirrorLocateOntoZiplySection(
+  ticket: DigTicket,
+  ticketId: string,
+  expiresAt: number
+): Promise<void> {
+  const scope = ticket.scope;
+  if (!scope) return;
+  const jobRef = db().collection("jobs").doc(ticket.jobId);
+  const jobDoc = await jobRef.get();
+  if (!jobDoc.exists) return;
+  const job = jobDoc.data() as Job;
+  const layer = job.ziplyPrintLayer;
+  const mo = layer?.mapObjects;
+  if (!layer || !mo) return;
+  if (scope.kind === "terminal") {
+    const t = mo.terminals?.find((x) => x.label === scope.ref);
+    if (t) {
+      t.locateTicketId = ticketId;
+      t.locateExpires = expiresAt;
+    }
+  } else if (scope.kind === "cable") {
+    const c = mo.cables?.find((x) => x.label === scope.ref);
+    if (c) {
+      c.locateTicketId = ticketId;
+      c.locateExpires = expiresAt;
+    }
+  } else {
+    await jobRef.update({ activeTicketId: ticketId, locateExpires: expiresAt });
+    return;
+  }
+  await jobRef.update({ ziplyPrintLayer: layer, lastSyncedAt: Date.now() });
+}

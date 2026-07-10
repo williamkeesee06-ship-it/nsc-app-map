@@ -1,7 +1,7 @@
 // Create a dig ticket from a job that already has a saved dig shape. On submit
 // the server snapshots the shape and generates marking instructions via Gemini.
 import { useState } from "react";
-import type { DigTicket, Job } from "@nsc/types";
+import type { DigTicket, Job, ZiplySectionScope } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { normalizeDigShape } from "@nsc/types";
 
@@ -10,13 +10,14 @@ interface Props {
   username: string | null;
   /** Optional job to pre-select (from the map's "Save & Open 811" flow). */
   initialJobId?: string | null;
+  initialScope?: ZiplySectionScope | null;
   onCreated: (ticket: DigTicket) => void;
   onCancel: () => void;
 }
 
 const EQUIPMENT_OPTIONS = ["Backhoe", "Trencher", "Boring Rig", "Excavator", "Hand Tools", "Vac Truck"];
 
-export default function CreateTicketForm({ jobs, username, initialJobId, onCreated, onCancel }: Props) {
+export default function CreateTicketForm({ jobs, username, initialJobId, initialScope, onCreated, onCancel }: Props) {
   const [jobId, setJobId] = useState(
     initialJobId && jobs.some((j) => j.jobId === initialJobId)
       ? initialJobId
@@ -34,6 +35,7 @@ export default function CreateTicketForm({ jobs, username, initialJobId, onCreat
 
   const job = jobs.find((j) => j.jobId === jobId) ?? null;
   const shape = normalizeDigShape(job?.digPolygon ?? null);
+  const isSectionScoped = !!initialScope && initialScope.kind !== undefined;
 
   const toggleEquip = (e: string) =>
     setEquipment((prev) => (prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]));
@@ -43,9 +45,10 @@ export default function CreateTicketForm({ jobs, username, initialJobId, onCreat
     setSubmitting(true);
     setError(null);
     try {
-      const { ticket } = await api.createDigTicket({
-        jobId,
-        specs: {
+	      const { ticket } = await api.createDigTicket({
+	        jobId,
+	        scope: initialScope ?? null,
+	        specs: {
           handDigOnly,
           directionalBoring,
           whiteLined,
@@ -80,6 +83,13 @@ export default function CreateTicketForm({ jobs, username, initialJobId, onCreat
   return (
     <div className="dt-form">
       <h2 className="dt-form__title">Request 811</h2>
+      {isSectionScoped && (
+        <div className="dt-shape-summary" style={{ marginBottom: 12 }}>
+          <span className="dt-chip">Section scoped</span>
+          <span>{initialScope?.label || initialScope?.ref}</span>
+          {initialScope?.terminalRange && <span>{initialScope.terminalRange}</span>}
+        </div>
+      )}
 
       <label className="dt-field">
         <span>Job</span>
@@ -92,7 +102,7 @@ export default function CreateTicketForm({ jobs, username, initialJobId, onCreat
         </select>
       </label>
 
-      {shape && (
+      {shape && !isSectionScoped && (
         <div className="dt-shape-summary">
           <span className="dt-chip">{shape.type}</span>
           <span>{Math.round(shape.areaSqFt).toLocaleString()} ft²</span>
@@ -114,9 +124,9 @@ export default function CreateTicketForm({ jobs, username, initialJobId, onCreat
         <input
           value={markAround}
           onChange={(e) => setMarkAround(e.target.value)}
-          placeholder="e.g. the full excavation boundary"
-        />
-      </label>
+	          placeholder={isSectionScoped ? "e.g. selected terminal range / section" : "e.g. the full excavation boundary"}
+	        />
+	      </label>
 
       <div className="dt-checks">
         <label><input type="checkbox" checked={handDigOnly} onChange={(e) => setHandDigOnly(e.target.checked)} /> Hand dig only</label>
@@ -154,9 +164,9 @@ export default function CreateTicketForm({ jobs, username, initialJobId, onCreat
         <button
           className="dt-btn dt-btn--primary"
           onClick={submit}
-          disabled={submitting || !shape}
-          title={shape ? undefined : "Selected job has no dig shape"}
-        >
+	          disabled={submitting || (!shape && !isSectionScoped)}
+	          title={shape || isSectionScoped ? undefined : "Selected job has no dig shape"}
+	        >
           {submitting ? "Generating…" : "Create + Generate"}
         </button>
       </div>
