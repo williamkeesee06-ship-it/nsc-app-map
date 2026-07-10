@@ -42,6 +42,8 @@ interface Props {
   availableSupervisors?: string[];
   ziplyPrintLayerVisible?: boolean;
   setZiplyPrintLayerVisible?: (v: boolean) => void;
+  ziply811OverlayVisible?: boolean;
+  setZiply811OverlayVisible?: (v: boolean) => void;
 }
 
 type TabId = 'dashboard' | 'jobs' | 'filters' | 'tools' | 'calendar' | '811-tickets' | 'production' | 'upload' | 'sld';
@@ -55,6 +57,8 @@ export default function LeftRail({
   availableSupervisors,
   ziplyPrintLayerVisible = true,
   setZiplyPrintLayerVisible = () => {},
+  ziply811OverlayVisible = false,
+  setZiply811OverlayVisible = () => {},
 }: Props) {
   const { contract } = useActiveContract();
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
@@ -260,6 +264,8 @@ export default function LeftRail({
                        setFilters={setFilters}
                        ziplyPrintLayerVisible={ziplyPrintLayerVisible}
                        setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
+                       ziply811OverlayVisible={ziply811OverlayVisible}
+                       setZiply811OverlayVisible={setZiply811OverlayVisible}
                      />
                    ) : (
                      <FiltersTab
@@ -274,7 +280,7 @@ export default function LeftRail({
                  )}
                 {activeTab === 'tools' && <AnnotateTab />}
                 {activeTab === 'dashboard' && contract === 'Ziply' && (
-                  <ZiplyDashboardTab />
+                  <ZiplyDashboardTab jobs={jobs} />
                 )}
                 {/* Calendar, Jobs (Ziply), and Dashboard (Lumen) tabs have no rail content — 
                     they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
