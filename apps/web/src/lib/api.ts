@@ -134,12 +134,22 @@ export const api = {
       `/api/jobs/${encodeURIComponent(jobId)}/dig-polygon`,
       { method: "PUT", body: JSON.stringify({ polygon }) }
     ),
-  // Ziply — AI print ingestion. Sends base64 data URLs of engineering prints;
-  // server runs the Gemini parser + georeferencing and writes ziplyPrintLayer.
-  ziplyIngest: (jobId: string, dataUrls: string[]) =>
+  // Ziply — AI print ingestion. Client uploads print files directly to
+  // Firebase Storage first, then sends only small Storage references here.
+  ziplyIngest: (
+    jobId: string,
+    storageFiles: Array<{
+      storagePath: string;
+      downloadUrl?: string;
+      contentType?: string;
+      name?: string;
+      size?: number;
+      storageBucket?: string;
+    }>
+  ) =>
     request<{ ok: boolean; jobId: string; ziplyPrintLayer: unknown }>(
       `/api/jobs/${encodeURIComponent(jobId)}/ziply-ingest`,
-      { method: "POST", body: JSON.stringify({ dataUrls }) }
+      { method: "POST", body: JSON.stringify({ storageFiles }) }
     ),
   // Ziply — persist a single map object's build status (spec §4 click-to-drawer).
   // kind identifies the object family; ref is the hub/terminal/cable label.

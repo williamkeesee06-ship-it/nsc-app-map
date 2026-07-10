@@ -1,7 +1,7 @@
 // Jobs read/write endpoints. Frontend consumes these to render the Jobs Map + cards.
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import { db } from "../lib/firestore.js";
+import { db, storageBucket } from "../lib/firestore.js";
 import { geocodeAddress, buildAddressString } from "../lib/geocode.js";
 import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
@@ -495,14 +495,117 @@ router.get("/jobs/ziply-metrics", async (_req, res, next) => {
   }
 });
 
+
+type ZiplyStorageFileRequest = {
+  storagePath?: unknown;
+  downloadUrl?: unknown;
+  contentType?: unknown;
+  name?: unknown;
+  size?: unknown;
+  storageBucket?: unknown;
+};
+
+const ZIPLY_SUPPORTED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+]);
+
+function normalizeMimeType(value: unknown): string {
+  const mime = typeof value === "string" ? value.split(";")[0]!.trim().toLowerCase() : "";
+  return mime || "application/octet-stream";
+}
+
+function bufferToDataUrl(buffer: Buffer, contentType: string): string {
+  const mimeType = normalizeMimeType(contentType);
+  if (!ZIPLY_SUPPORTED_MIME_TYPES.has(mimeType)) {
+    throw new Error(`Unsupported file type: ${mimeType}. Use PDF or JPEG/PNG/WEBP.`);
+  }
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+async function downloadZiplyStorageFile(fileRef: ZiplyStorageFileRequest): Promise<string> {
+  const storagePath = getString(fileRef.storagePath);
+  const bucketName = getString(fileRef.storageBucket);
+  const providedContentType = getString(fileRef.contentType);
+  const downloadUrl = getString(fileRef.downloadUrl);
+
+  if (storagePath) {
+    try {
+      const file = storageBucket(bucketName).file(storagePath);
+      const [[buffer], [metadata]] = await Promise.all([file.download(), file.getMetadata()]);
+      const contentType = normalizeMimeType(metadata.contentType ?? providedContentType);
+      return bufferToDataUrl(buffer, contentType);
+    } catch (err) {
+      if (!downloadUrl) throw err;
+    }
+  }
+
+  if (!downloadUrl) {
+    throw new Error("storagePath or downloadUrl required for each uploaded print");
+  }
+
+  const response = await fetch(downloadUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to download uploaded print: HTTP ${response.status}`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const contentType = normalizeMimeType(response.headers.get("content-type") ?? providedContentType);
+  return bufferToDataUrl(buffer, contentType);
+}
+
+async function resolveZiplyPrintDataUrls(body: {
+  dataUrl?: unknown;
+  dataUrls?: unknown;
+  storageFiles?: unknown;
+  storagePaths?: unknown;
+  downloadUrls?: unknown;
+}): Promise<string[]> {
+  const legacyDataUrls = Array.isArray(body.dataUrls)
+    ? body.dataUrls.filter((value): value is string => typeof value === "string")
+    : typeof body.dataUrl === "string"
+      ? [body.dataUrl]
+      : [];
+  if (legacyDataUrls.length > 0) return legacyDataUrls;
+
+  const fileRefs: ZiplyStorageFileRequest[] = [];
+  if (Array.isArray(body.storageFiles)) {
+    fileRefs.push(...body.storageFiles.filter((value): value is ZiplyStorageFileRequest => value !== null && typeof value === "object"));
+  }
+  if (Array.isArray(body.storagePaths)) {
+    fileRefs.push(...body.storagePaths.filter((value): value is string => typeof value === "string").map((storagePath) => ({ storagePath })));
+  }
+  if (Array.isArray(body.downloadUrls)) {
+    fileRefs.push(...body.downloadUrls.filter((value): value is string => typeof value === "string").map((downloadUrl) => ({ downloadUrl })));
+  }
+
+  if (fileRefs.length === 0) return [];
+  return Promise.all(fileRefs.map(downloadZiplyStorageFile));
+}
+
 // POST /api/jobs/:jobId/ziply-ingest — Ingests a Ziply FTTH print and parses using Gemini
 router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
   try {
     const { jobId } = req.params;
-    const body = req.body as { dataUrl?: string; dataUrls?: string[] };
-    const urls = body.dataUrls ?? (body.dataUrl ? [body.dataUrl] : []);
+    const body = req.body as {
+      dataUrl?: unknown;
+      dataUrls?: unknown;
+      storageFiles?: unknown;
+      storagePaths?: unknown;
+      downloadUrls?: unknown;
+    };
+    const urls = await resolveZiplyPrintDataUrls(body);
     if (urls.length === 0) {
-      res.status(400).json({ error: "dataUrls required" });
+      res.status(400).json({ error: "storageFiles required" });
       return;
     }
     const parsed = await parseZiplyPrint(urls);

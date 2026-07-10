@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Job } from "@nsc/types";
 import { ChevronDown, ChevronRight, FileText, UploadCloud, FilePlus, Zap } from "lucide-react";
 import { api } from "../../lib/api.js";
+import { uploadZiplyPrint } from "../../lib/ziplyPrintStorage.js";
 import "./ziplyJobsTab.css";
 
 interface Props {
@@ -15,8 +16,9 @@ export default function ZiplyJobsTab({ jobs }: Props) {
   const [selectedCity, setSelectedCity] = useState<string>("");
 
   // Ingest Print State
-  const [fileDataUrls, setFileDataUrls] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [fileNames, setFileNames] = useState<string[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<"idle" | "uploading" | "parsing" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -42,49 +44,47 @@ export default function ZiplyJobsTab({ jobs }: Props) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+    setSelectedFiles(files);
     setFileNames(files.map(f => f.name));
-    setIngestStatus("uploading");
-
-    const promises = files.map((file) => {
-      return new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    });
-
-    Promise.all(promises)
-      .then((dataUrls) => {
-        setFileDataUrls(dataUrls);
-        setIngestStatus("idle");
-      })
-      .catch(() => {
-        setErrorMsg("Failed to read files.");
-        setIngestStatus("error");
-      });
+    setUploadProgress(0);
+    setErrorMsg("");
+    setIngestStatus("idle");
   };
 
   const handleIngest = async (jobId: string) => {
-    if (fileDataUrls.length === 0) {
+    if (selectedFiles.length === 0) {
       setErrorMsg("Please select print file(s).");
       setIngestStatus("error");
       return;
     }
 
-    setIngestStatus("parsing");
+    setIngestStatus("uploading");
+    setUploadProgress(0);
     setErrorMsg("");
 
     try {
-      await api.ziplyIngest(jobId, fileDataUrls);
+      const progressByFile = selectedFiles.map(() => 0);
+      const storageFiles = await Promise.all(
+        selectedFiles.map((file, index) =>
+          uploadZiplyPrint(jobId, file, (percent) => {
+            progressByFile[index] = percent;
+            const total = progressByFile.reduce((sum, value) => sum + value, 0) / progressByFile.length;
+            setUploadProgress(total);
+          })
+        )
+      );
+
+      setIngestStatus("parsing");
+      await api.ziplyIngest(jobId, storageFiles);
 
       setIngestStatus("success");
       // Notify map to reload
       window.dispatchEvent(new Event("nsc:jobs-reload"));
-      setFileDataUrls([]);
+      setSelectedFiles([]);
       setFileNames([]);
+      setUploadProgress(0);
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to parse print.");
+      setErrorMsg(err.message || "Failed to upload or parse print.");
       setIngestStatus("error");
     }
   };
@@ -157,13 +157,17 @@ export default function ZiplyJobsTab({ jobs }: Props) {
           
           {fileNames.length > 0 && (
             <div className="selected-files">
-              {fileNames.map(f => <div key={f} className="file-pill">{f}</div>)}
+              {fileNames.map((f, index) => <div key={`${f}-${index}`} className="file-pill">{f}</div>)}
               <button 
                 className="btn-primary" 
                 disabled={ingestStatus === "uploading" || ingestStatus === "parsing"}
                 onClick={() => handleIngest(selectedJob.jobId)}
               >
-                {ingestStatus === "parsing" ? "AI Parsing..." : "Extract Digital Scope"}
+                {ingestStatus === "uploading"
+                  ? `Uploading ${Math.round(uploadProgress)}%...`
+                  : ingestStatus === "parsing"
+                    ? "AI Parsing..."
+                    : "Extract Digital Scope"}
               </button>
             </div>
           )}

@@ -7,6 +7,8 @@ const Schema = z.object({
   FIREBASE_PROJECT_ID: z.string().min(1, "FIREBASE_PROJECT_ID is required"),
   FIREBASE_CLIENT_EMAIL: z.string().email("FIREBASE_CLIENT_EMAIL must be an email"),
   FIREBASE_PRIVATE_KEY: z.string().min(1, "FIREBASE_PRIVATE_KEY is required"),
+  FIREBASE_STORAGE_BUCKET: z.string().optional(),
+  VITE_FIREBASE_STORAGE_BUCKET: z.string().optional(),
   SMARTSHEET_API_TOKEN: z.string().optional(),
   SMARTSHEET_SHEET_ID: z.string().optional(),
   ZIPLY_SMARTSHEET_SHEET_ID: z.string().optional(),
