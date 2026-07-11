@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { DigTicket, Job, ZiplyObjectStatus, ZiplySectionScope } from "@nsc/types";
 import { InfoWindow, Marker, useMap } from "@vis.gl/react-google-maps";
 import { api } from "../../lib/api.js";
@@ -236,8 +236,31 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
         const termPosByLabel = new Map<string, google.maps.LatLngLiteral>();
         terminals.forEach((t, idx) => termPosByLabel.set(t.label, termPositions[idx]!));
 
+        // BUG FIX (off-screen-print-overlay): this used to be `<div key={job.jobId}>`.
+        // <Map> from @vis.gl/react-google-maps renders `{children}` as PLAIN
+        // DOM SIBLINGS of its internally-created map div (see
+        // node_modules/@vis.gl/react-google-maps/src/components/map/use-map-instance.ts
+        // — `mapDiv.style.height = '100%'` is set with NO `position` style, so
+        // it is a normal static-flow element, not absolutely positioned; see
+        // also map/index.tsx line ~227-238, which appends `{children}` right
+        // after that div inside the same static-flow container). All of this
+        // component's actual markers/polylines are imperative Google Maps API
+        // objects (`<Marker>`/`<Polyline>` render nothing themselves — see
+        // node_modules/@vis.gl/react-google-maps/src/components/marker.tsx:125
+        // `return <></>`), so they were never meant to be wrapped in a real
+        // DOM node. Wrapping each of the (potentially hundreds of) qualifying
+        // Ziply jobs in its own real, unstyled, static-position <div> injects
+        // that many extra block-level siblings into the map container's normal
+        // document flow, after the map's own div. Empty divs contribute ~0px
+        // each, but this pattern is exactly the anti-pattern described in the
+        // bug report ("rendering markers as normal DOM-flow elements instead
+        // of pinning them to the map's projected pixel coordinates") and is
+        // the only non-Google-managed DOM this feature adds to the map tree.
+        // Replaced with <Fragment> (zero DOM footprint) so nothing this
+        // component renders can ever occupy document-flow space inside the
+        // map container, regardless of future content added to this branch.
         return (
-          <div key={job.jobId}>
+          <Fragment key={job.jobId}>
             {/* Fiber cable paths hub → terminal, rendered at all zooms (spec §3).
                 Prefer the cable's own georeferenced path (drawn from the print
                 ingest); fall back to a straight hub→terminal spoke only when
@@ -359,7 +382,7 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                   />
                 );
               })}
-          </div>
+          </Fragment>
         );
       })}
 

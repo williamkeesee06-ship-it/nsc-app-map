@@ -121,7 +121,34 @@ export default function JobsMap() {
       else sessionStorage.removeItem("nsc.selectedJobId");
     } catch { /* ignore */ }
   }, [selected, setSelectedJobId]);
-  const filtered = useMemo(() => applyFilters(allJobs, filters), [allJobs, filters]);
+  // BUG FIX (general-marker-0-rendered): `applyFilters` applies the
+  // status-bucket FilterRail filter, whose default (see useFilters.ts
+  // ACTIVE_BY_DEFAULT / FilterRail.ts defaultFilters()) EXCLUDES the
+  // "completed" bucket. On the Ziply contract, the overwhelming majority of
+  // jobs are bucketed "completed" the moment their build/print work wraps
+  // up — that's precisely when a Ziply print overlay becomes available — so
+  // applying the Lumen-oriented status-bucket default to Ziply jobs
+  // silently filtered `filtered`/`mapped` down to 0 for any account whose
+  // 761 Ziply jobs are mostly Completed, producing the observed
+  // "0 ON MAP · 0 UNMAPPED · 761 TOTAL" counter (0+0, not 761, precisely
+  // because `filtered.length` itself was 0 — this was never a rendering/
+  // projection bug for general pins, it was every job being filtered out
+  // before JobMarkers ever saw them).
+  //
+  // Ziply already bypasses the equivalent supervisor/bucket restriction for
+  // its print overlay (see ziplyPrintReadyJobs below) and for contract
+  // visibility (line ~77). The same bypass must apply to the general pins
+  // and the on-screen counter for Ziply — status-bucket filtering is a
+  // Lumen workflow concept the Ziply contract was never designed around.
+  // Lumen's default (hide Completed unless the user opts in) is preserved
+  // unchanged.
+  const filtered = useMemo(
+    () =>
+      contract === "Ziply"
+        ? applyFilters(allJobs, { ...filters, buckets: new Set() })
+        : applyFilters(allJobs, filters),
+    [allJobs, filters, contract]
+  );
   const mapped = useMemo(() => filtered.filter(
     (j) => j.geocode?.status === "OK" && j.geocode.lat !== 0
   ), [filtered]);

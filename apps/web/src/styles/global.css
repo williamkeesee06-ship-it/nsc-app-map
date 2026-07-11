@@ -354,7 +354,7 @@ a { color: var(--accent); }
   height: 100%;
 }
 
-.map-host { width: 100%; height: 100%; }
+.map-host { width: 100%; height: 100%; overflow: hidden; }
 
 /* ── Generic toolbar (legacy, kept for compat) ──────────────── */
 .toolbar {
@@ -1167,9 +1167,16 @@ a { color: var(--accent); }
   position: relative;
   height: 100%;
   min-height: 0;
+  /* Defensive clip: the Google Map div and any of its React children are
+     appended as plain document-flow siblings inside this container's
+     descendants (see @vis.gl/react-google-maps map/index.tsx + 
+     use-map-instance.ts). Any stray non-absolutely-positioned content
+     accidentally introduced by a future overlay must never be able to
+     visually escape the map viewport into normal page flow below the fold. */
+  overflow: hidden;
 }
 /* Map host takes full area; modifier strip is absolute on top */
-.map-host { width: 100%; height: 100%; }
+.map-host { width: 100%; height: 100%; overflow: hidden; }
 
 /* ── Job Card (light theme) ─────────────────────────────────── */
 .job-card {
