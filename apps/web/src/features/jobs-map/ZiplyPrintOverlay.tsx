@@ -16,12 +16,13 @@ const TERM_FILL: Record<ZiplyObjectStatus, string> = {
   in_progress: "#0891B2",
   planned: "#FFFFFF",
 };
-// Build-method colors override the status hue for cable segments when known.
-const BUILD_COLOR: Record<string, string> = {
-  bore: "#B91C1C", // red
-  trench: "#C2410C", // orange
-  aerial: "#6D28D9", // purple
-};
+// NOTE: a prior version of this file also had a BUILD_COLOR map (bore/
+// trench/aerial) that silently overrode STATUS_COLOR for cable polylines
+// whenever a cable's buildType was known. That contradicted the required
+// "zero-click" status color scheme (green complete / cyan in-progress /
+// gray planned — spec §3) and made every aerial cable render as a faint
+// purple dashed line indistinguishable from a basemap road line. Removed;
+// see CadFiberLine below, which now always keys color off `status`.
 
 type StatusKind = "hub" | "terminal" | "cable";
 
@@ -42,30 +43,44 @@ interface Selected {
 function CadFiberLine({
   path,
   status,
-  buildType,
   locateCleared,
   show811Clearance,
 }: {
   path: google.maps.LatLngLiteral[];
   status: ZiplyObjectStatus;
-  buildType?: string | null;
   locateCleared?: boolean;
   show811Clearance?: boolean;
 }) {
   const map = useMap();
+  // Stable key for the path so this effect only re-runs when the actual
+  // coordinates change, not on every parent re-render (the caller builds a
+  // brand-new array literal/`.map()` result each render, which would
+  // otherwise tear down and recreate every Polyline on every keystroke,
+  // ticket refresh, etc.).
+  const pathKey = path.map((p) => `${p.lat},${p.lng}`).join("|");
   useEffect(() => {
     if (!map || path.length < 2) return;
-    const color = show811Clearance
-      ? locateCleared
-        ? "#16A34A"
-        : "#DC2626"
-      : (buildType && BUILD_COLOR[buildType]) || STATUS_COLOR[status];
+    // BUG FIX (invisible-fiber-cable-paths): this used to resolve to
+    // `(buildType && BUILD_COLOR[buildType]) || STATUS_COLOR[status]`, i.e.
+    // the build method (bore/trench/aerial) silently overrode the required
+    // status color scheme (green complete / cyan in-progress / gray planned)
+    // for every cable that had a buildType set. Every one of wo_6007956's 16
+    // cables has buildType "aerial", so all 16 rendered as a barely-visible
+    // purple dashed line instead of the mandated gray-dashed "planned" style
+    // — indistinguishable from ordinary Google Maps road lines. This is NOT
+    // gated by the unrelated 811-clearance checkbox (`show811Clearance`),
+    // which only swaps in green/red clearance colors when explicitly toggled
+    // on; it was already false/unused here. Fix: always use STATUS_COLOR as
+    // the base color (spec §3 — no toggle required), and boost the dashed
+    // icon's weight/opacity/repeat so planned/in-progress cables are
+    // actually legible against the basemap instead of a thin 3px-scaled hairline.
+    const color = show811Clearance ? (locateCleared ? "#16A34A" : "#DC2626") : STATUS_COLOR[status];
     const solid = show811Clearance ? locateCleared : status === "complete";
     const line = new google.maps.Polyline({
       path,
       map,
       strokeColor: color,
-      strokeWeight: 3,
+      strokeWeight: 4,
       strokeOpacity: solid ? 0.95 : 0,
       zIndex: 10,
       icons: solid
@@ -74,17 +89,19 @@ function CadFiberLine({
             {
               icon: {
                 path: "M 0,-1 0,1",
-                strokeOpacity: 0.9,
+                strokeOpacity: 1,
                 strokeColor: color,
-                scale: 3,
+                strokeWeight: 4,
+                scale: 5,
               },
               offset: "0",
-              repeat: "12px",
+              repeat: "10px",
             },
           ],
     });
     return () => line.setMap(null);
-  }, [map, path, status, buildType, locateCleared, show811Clearance]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, pathKey, status, locateCleared, show811Clearance]);
   return null;
 }
 
@@ -281,7 +298,6 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                       key={`${job.jobId}-cable-${c.label}-${idx}`}
                       path={path}
                       status={st}
-                      buildType={c.buildType ?? null}
                       locateCleared={cleared}
                       show811Clearance={show811Clearance}
                     />
