@@ -127,6 +127,25 @@ export default function JobsMap() {
   ), [filtered]);
   const unmapped = filtered.length - mapped.length;
 
+  // ── Ziply print overlay job set — intentionally NOT derived from `mapped`.
+  // `mapped` passes through the status-bucket FilterRail filters, whose
+  // default excludes the "completed" bucket. A job's print-ingest status
+  // (ziplyIngest/ziplyPrintLayer) is unrelated to its Smartsheet workflow
+  // status: a completed print on an otherwise "Completed" job must still be
+  // visible on the map with zero clicks, so this list is filtered ONLY on
+  // Ziply print-readiness, from `allJobs` (pre status-bucket filtering).
+  // See ZiplyPrintOverlay.tsx for the per-job/per-object render logic that
+  // consumes this list unconditionally on mount.
+  const ziplyPrintReadyJobs = useMemo(
+    () =>
+      allJobs.filter(
+        (j) =>
+          j.customerProject === "Ziply" &&
+          (j.ziplyIngest?.status === "complete" || j.ziplyPrintLayer?.mapObjects != null)
+      ),
+    [allJobs]
+  );
+
   const onResync = useCallback(async () => {
     try {
       await api.triggerSync();
@@ -143,6 +162,7 @@ export default function JobsMap() {
         <JobsMapInner
           allJobs={allJobs}
           mapped={mapped}
+          ziplyPrintReadyJobs={ziplyPrintReadyJobs}
           unmapped={unmapped}
           jobsState={jobsState}
           filters={filters}
@@ -167,6 +187,7 @@ export default function JobsMap() {
 function JobsMapInner({
   allJobs,
   mapped,
+  ziplyPrintReadyJobs,
   unmapped,
   jobsState,
   filters,
@@ -183,6 +204,7 @@ function JobsMapInner({
 }: {
   allJobs: Job[];
   mapped: Job[];
+  ziplyPrintReadyJobs: Job[];
   unmapped: number;
   jobsState: ReturnType<typeof useJobs>;
   filters: Filters;
@@ -394,7 +416,7 @@ function JobsMapInner({
               )}
               <CentralOfficesOverlay visible={showCOs} />
               <ZiplyPrintOverlay
-                jobs={mapped}
+                jobs={ziplyPrintReadyJobs}
                 visible={contract === "Ziply" && ziplyPrintLayerVisible}
                 show811Clearance={ziply811OverlayVisible}
               />

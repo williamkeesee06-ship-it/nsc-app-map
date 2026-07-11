@@ -23,9 +23,6 @@ const BUILD_COLOR: Record<string, string> = {
   aerial: "#6D28D9", // purple
 };
 
-// Zoom thresholds for progressive reveal (spec §3).
-const TERMINAL_MIN_ZOOM = 13; // neighborhood level reveals terminals/handholes
-
 type StatusKind = "hub" | "terminal" | "cable";
 
 interface Selected {
@@ -98,8 +95,6 @@ interface Props {
 }
 
 export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = false }: Props) {
-  const map = useMap();
-  const [zoom, setZoom] = useState<number>(map?.getZoom() ?? 12);
   const [selected, setSelected] = useState<Selected | null>(null);
   const [saving, setSaving] = useState(false);
   const [crewDraft, setCrewDraft] = useState("");
@@ -107,14 +102,6 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
   // Optimistic status overrides keyed by `${jobId}:${kind}:${ref}` so the UI
   // reflects a change immediately without waiting for a full jobs reload.
   const [overrides, setOverrides] = useState<Record<string, ZiplyObjectStatus>>({});
-
-  useEffect(() => {
-    if (!map) return;
-    const listener = map.addListener("zoom_changed", () => {
-      setZoom(map.getZoom() ?? 12);
-    });
-    return () => listener.remove();
-  }, [map]);
 
   useEffect(() => {
     setCrewDraft(selected?.crewName ?? "");
@@ -204,11 +191,20 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
     }
   };
 
+  // Render condition — deliberately NOT dependent on selection/activeJob.
+  // Every job in `jobs` that has a completed print ingest (ziplyIngest) and/or
+  // extracted map objects renders its hub/terminals/cables unconditionally,
+  // simultaneously, on mount. `jobs` itself is expected to already be a
+  // status-filter-independent set (see JobsMap.tsx ziplyPrintReadyJobs); this
+  // filter is a defensive re-check so the component is also safe if reused
+  // with a broader job list.
   const printJobs = jobs.filter(
-    (j) => j.customerProject === "Ziply" && j.ziplyPrintLayer?.mapObjects && j.geocode
+    (j) =>
+      j.customerProject === "Ziply" &&
+      (j.ziplyIngest?.status === "complete" || j.ziplyPrintLayer?.mapObjects != null) &&
+      j.ziplyPrintLayer?.mapObjects != null &&
+      (j.ziplyPrintLayer.mapObjects.hub != null || j.geocode != null)
   );
-
-  const showTerminals = zoom >= TERMINAL_MIN_ZOOM;
 
   return (
     <>
@@ -222,6 +218,7 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
         };
         const hubStatus = statusOf(job.jobId, "hub", "hub", hub?.status);
         const terminals = mo.terminals ?? [];
+        const cables = mo.cables ?? [];
 
         // Resolve each terminal position: georeferenced coords if present,
         // else a ring around the hub so it's still visible/clickable.
@@ -234,23 +231,52 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
             lng: hubPos.lng + r * Math.cos(angle),
           };
         });
+        // Terminal position lookup by label, for cables that reference a
+        // terminal by label but carry no georeferenced path of their own.
+        const termPosByLabel = new Map<string, google.maps.LatLngLiteral>();
+        terminals.forEach((t, idx) => termPosByLabel.set(t.label, termPositions[idx]!));
 
         return (
           <div key={job.jobId}>
-            {/* Fiber spokes hub → terminal (paths shown at all zooms per §3). */}
-	            {terminals.map((t, idx) => {
-	              const st = statusOf(job.jobId, "terminal", t.label, t.status);
-	              const cleared = locateCleared(job, "terminal", t.label, t.locateExpires ?? null);
-	              return (
-	                <CadFiberLine
-	                  key={`${job.jobId}-cable-${idx}`}
-	                  path={[hubPos, termPositions[idx]!]}
-	                  status={st}
-	                  locateCleared={cleared}
-	                  show811Clearance={show811Clearance}
-	                />
-	              );
-	            })}
+            {/* Fiber cable paths hub → terminal, rendered at all zooms (spec §3).
+                Prefer the cable's own georeferenced path (drawn from the print
+                ingest); fall back to a straight hub→terminal spoke only when
+                no real path is available so every cable is still visible. */}
+            {cables.length > 0
+              ? cables.map((c, idx) => {
+                  const st = statusOf(job.jobId, "cable", c.label, c.status);
+                  const cleared = locateCleared(job, "cable", c.label, c.locateExpires ?? null);
+                  const realPath =
+                    c.path && c.path.length >= 2
+                      ? c.path.map((p) => ({ lat: p.lat, lng: p.lng }))
+                      : null;
+                  const fallbackTermPos = termPosByLabel.get(c.label) ?? null;
+                  const path = realPath ?? (fallbackTermPos ? [hubPos, fallbackTermPos] : null);
+                  if (!path) return null;
+                  return (
+                    <CadFiberLine
+                      key={`${job.jobId}-cable-${c.label}-${idx}`}
+                      path={path}
+                      status={st}
+                      buildType={c.buildType ?? null}
+                      locateCleared={cleared}
+                      show811Clearance={show811Clearance}
+                    />
+                  );
+                })
+              : terminals.map((t, idx) => {
+                  const st = statusOf(job.jobId, "terminal", t.label, t.status);
+                  const cleared = locateCleared(job, "terminal", t.label, t.locateExpires ?? null);
+                  return (
+                    <CadFiberLine
+                      key={`${job.jobId}-spoke-${idx}`}
+                      path={[hubPos, termPositions[idx]!]}
+                      status={st}
+                      locateCleared={cleared}
+                      show811Clearance={show811Clearance}
+                    />
+                  );
+                })}
 
             {/* Hub / FDH beacon — cyan-accented, white fill, ink stroke. */}
             <Marker
@@ -285,9 +311,8 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
               }}
             />
 
-            {/* Terminals — revealed at neighborhood zoom and closer (§3). */}
-            {showTerminals &&
-	              terminals.map((t, idx) => {
+            {/* Terminals — rendered at every zoom level, unconditionally. */}
+            {terminals.map((t, idx) => {
 	                const st = statusOf(job.jobId, "terminal", t.label, t.status);
 	                const pos = termPositions[idx]!;
 	                const cleared = locateCleared(job, "terminal", t.label, t.locateExpires ?? null);
