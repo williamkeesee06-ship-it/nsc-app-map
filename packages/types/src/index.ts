@@ -427,8 +427,21 @@ export interface Job {
         crewName?: string | null;
         crewAssignedAt?: Timestamp | null;
       }>;
+      /**
+       * Geocoded drop / home-pass sites (from terminal addressesServed).
+       * Written by ziply-enhance-print so the map can show lot-level detail.
+       */
+      dropSites?: Array<{
+        address: string;
+        lat: number;
+        lng: number;
+        terminalLabel?: string | null;
+        kind?: "lu" | "mdu" | "bu" | "unknown" | null;
+      }> | null;
       notes: string | null;
     } | null;
+    /** Epoch ms when multi-point paths + drop geocodes last ran. */
+    printGeometryEnhancedAt?: number | null;
   } | null;
 
   // ── 811 Dig Ticket fields (Phase 1) ──────────────────────────────────

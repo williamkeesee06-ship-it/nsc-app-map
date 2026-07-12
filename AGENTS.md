@@ -13,6 +13,7 @@
 - App login is **Firebase Auth Email/Password**, not a typed name whitelist.
 - API requires `Authorization: Bearer <Firebase ID token>` on all routes except health + crons.
 - Allowlist emails via `AUTH_ALLOWED_EMAILS` + `VITE_AUTH_ALLOWED_EMAILS`.
+- Billy always allowed in code: `wkeesee@northskycomm.com` + `williamkeesee06@gmail.com` (both must exist as Firebase Email/Password users).
 - Solo operator profile after login: **Billy Keesee** until multi-user mapping is added.
 - Do **not** rotate ITIC/Smartsheet passwords unless the user explicitly asks.
 

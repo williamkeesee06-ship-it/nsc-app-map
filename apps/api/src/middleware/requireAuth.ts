@@ -18,6 +18,12 @@ declare global {
   }
 }
 
+/** Billy work + personal — always allowed even if AUTH_ALLOWED_EMAILS lists only one. */
+const SOLO_OPERATOR_EMAILS = [
+  "williamkeesee06@gmail.com",
+  "wkeesee@northskycomm.com",
+];
+
 function parseAllowedEmails(): string[] {
   const raw = getEnv().AUTH_ALLOWED_EMAILS ?? "";
   return raw
@@ -65,11 +71,10 @@ export async function requireAuth(
     }
 
     const allowed = parseAllowedEmails();
-    // Solo lock: if allowlist is empty, accept any verified Firebase user.
-    // Set AUTH_ALLOWED_EMAILS on Vercel to restrict to specific operators.
-    // (Previously production failed closed with empty list → logged-in users
-    // saw 0 jobs everywhere because every /api call returned 403.)
-    if (allowed.length > 0 && !allowed.includes(email)) {
+    // Solo lock: Billy's known emails always pass. Empty allowlist accepts any
+    // verified Firebase user. Non-empty allowlist restricts others.
+    const isSolo = SOLO_OPERATOR_EMAILS.includes(email);
+    if (allowed.length > 0 && !allowed.includes(email) && !isSolo) {
       res.status(403).json({
         error: `Access denied for ${email} — not in AUTH_ALLOWED_EMAILS`,
       });

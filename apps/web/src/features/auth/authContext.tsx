@@ -25,6 +25,15 @@ const LS_MANAGERS = "nsc.managers";
 /** Solo operator profile (Smartsheet supervisor name). Expand later per email. */
 const SOLO_OPERATOR_NAME = "Billy Keesee";
 
+/**
+ * Billy's known logins — always accepted even if Vercel env only lists one.
+ * Work email + personal Firebase user both map to the same operator profile.
+ */
+const SOLO_OPERATOR_EMAILS = [
+  "williamkeesee06@gmail.com",
+  "wkeesee@northskycomm.com",
+];
+
 function parseAllowedEmails(): string[] {
   const raw = (import.meta.env.VITE_AUTH_ALLOWED_EMAILS as string | undefined) ?? "";
   return raw
@@ -35,11 +44,12 @@ function parseAllowedEmails(): string[] {
 
 function isEmailAllowed(email: string | null | undefined): boolean {
   if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  if (SOLO_OPERATOR_EMAILS.includes(normalized)) return true;
   const allowed = parseAllowedEmails();
-  // Mirror server: empty allowlist in dev is OK; in prod build empty still
-  // attempts login and API will 403 if AUTH_ALLOWED_EMAILS is empty.
+  // Empty env allowlist → any verified Firebase user (solo / early deploy).
   if (allowed.length === 0) return true;
-  return allowed.includes(email.trim().toLowerCase());
+  return allowed.includes(normalized);
 }
 
 interface AuthCtxValue {

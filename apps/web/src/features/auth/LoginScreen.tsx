@@ -25,14 +25,28 @@ export default function LoginScreen() {
     setError(null);
     setStatus("Signing in…");
     try {
+      // Billy work + personal always OK; other emails need VITE_AUTH_ALLOWED_EMAILS.
+      const soloEmails = [
+        "williamkeesee06@gmail.com",
+        "wkeesee@northskycomm.com",
+      ];
       const allowedRaw =
         (import.meta.env.VITE_AUTH_ALLOWED_EMAILS as string | undefined) ?? "";
       const allowed = allowedRaw
         .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
-      if (allowed.length > 0 && !allowed.includes(trimmedEmail.toLowerCase())) {
-        setError("This account is not authorized for the app yet.");
+      const emailLower = trimmedEmail.toLowerCase();
+      if (
+        allowed.length > 0 &&
+        !allowed.includes(emailLower) &&
+        !soloEmails.includes(emailLower)
+      ) {
+        setError(
+          "This account is not authorized for the app yet. " +
+            "Billy can use wkeesee@northskycomm.com or williamkeesee06@gmail.com. " +
+            "Other operators need VITE_AUTH_ALLOWED_EMAILS + AUTH_ALLOWED_EMAILS on Vercel."
+        );
         setBusy(false);
         setStatus("");
         return;

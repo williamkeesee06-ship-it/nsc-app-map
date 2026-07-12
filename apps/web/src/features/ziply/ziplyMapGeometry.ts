@@ -1,24 +1,54 @@
-// Geometry helpers for richer Ziply print CAD on Google Maps.
-// When Gemini does not return georeferenced cable polylines, we synthesize
-// curved street-like laterals instead of stick-straight hub→terminal lines.
+// Geometry helpers for high-detail Ziply print CAD on Google Maps.
+// Priority: stored georeferenced path → street waypoints → street-like multi-jog path.
 
 export type LatLng = { lat: number; lng: number };
 
-/** ~meters per degree latitude. */
 const M_PER_DEG_LAT = 111_320;
 
 function mPerDegLng(lat: number): number {
   return M_PER_DEG_LAT * Math.cos((lat * Math.PI) / 180);
 }
 
-/** Distance in meters (rough). */
 export function distMeters(a: LatLng, b: LatLng): number {
   const dLat = (b.lat - a.lat) * M_PER_DEG_LAT;
   const dLng = (b.lng - a.lng) * mPerDegLng((a.lat + b.lat) / 2);
   return Math.hypot(dLat, dLng);
 }
 
-/** Place terminals by compass fan + lateral length so the design reads as a plant, not a pin cushion. */
+export function isValidLatLng(p: LatLng | null | undefined): p is LatLng {
+  return (
+    !!p &&
+    Number.isFinite(p.lat) &&
+    Number.isFinite(p.lng) &&
+    !(p.lat === 0 && p.lng === 0) &&
+    Math.abs(p.lat) <= 90 &&
+    Math.abs(p.lng) <= 180
+  );
+}
+
+/** Densify a polyline with linear steps between vertices. */
+export function densifyPath(points: LatLng[], stepsPerSeg = 5): LatLng[] {
+  if (points.length < 2) return points.slice();
+  const out: LatLng[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    for (let s = 0; s < stepsPerSeg; s++) {
+      const t = s / stepsPerSeg;
+      out.push({
+        lat: a.lat + (b.lat - a.lat) * t,
+        lng: a.lng + (b.lng - a.lng) * t,
+      });
+    }
+  }
+  out.push(points[points.length - 1]!);
+  return out;
+}
+
+/**
+ * Place terminals using real coords when present; otherwise fan by footage
+ * so plant layout reflects lateral lengths from the print.
+ */
 export function placeTerminalAroundHub(
   hub: LatLng,
   index: number,
@@ -26,84 +56,109 @@ export function placeTerminalAroundHub(
   footageFt: number | null | undefined,
   existing: LatLng | null
 ): LatLng {
-  if (existing && Number.isFinite(existing.lat) && Number.isFinite(existing.lng) && !(existing.lat === 0 && existing.lng === 0)) {
-    return existing;
-  }
+  if (isValidLatLng(existing)) return existing;
   const n = Math.max(total, 1);
-  // Even fan; slight phase so first isn't due-east only
-  const angle = (index * 2 * Math.PI) / n - Math.PI / 2;
-  // Map footage to radial distance (clamp 40m–220m for readability at street zoom)
-  const ft = footageFt != null && footageFt > 0 ? footageFt : 400 + (index % 5) * 80;
-  const meters = Math.min(220, Math.max(45, ft * 0.12));
+  const angle = (index * 2 * Math.PI) / n - Math.PI / 2 + 0.15;
+  // 1 ft ≈ 0.3048 m — scale plant so ~500–2500' laterals are readable at z16–18
+  const ft = footageFt != null && footageFt > 0 ? footageFt : 500 + (index % 7) * 120;
+  const meters = Math.min(380, Math.max(55, ft * 0.085));
   const dLat = (meters * Math.sin(angle)) / M_PER_DEG_LAT;
   const dLng = (meters * Math.cos(angle)) / mPerDegLng(hub.lat);
   return { lat: hub.lat + dLat, lng: hub.lng + dLng };
 }
 
-/** Sample a quadratic Bezier for a smooth cable run. */
-function sampleQuad(a: LatLng, c: LatLng, b: LatLng, steps: number): LatLng[] {
-  const out: LatLng[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const u = 1 - t;
-    out.push({
-      lat: u * u * a.lat + 2 * u * t * c.lat + t * t * b.lat,
-      lng: u * u * a.lng + 2 * u * t * c.lng + t * t * b.lng,
-    });
+/**
+ * Street-grid path: run along E/W then N/S with intermediate jogs so laterals
+ * look like ROW/street following, not a single stick or one soft curve.
+ */
+export function buildStreetGridPath(
+  hub: LatLng,
+  terminal: LatLng,
+  index: number,
+  waypoints?: LatLng[] | null
+): LatLng[] {
+  if (waypoints && waypoints.length > 0) {
+    const chain = [hub, ...waypoints.filter(isValidLatLng), terminal];
+    return densifyPath(chain, 4);
   }
-  return out;
+
+  const side = index % 2 === 0 ? 1 : -1;
+  const dx = terminal.lng - hub.lng;
+  const dy = terminal.lat - hub.lat;
+  // Prefer longer axis first (more like arterial then local)
+  const eastFirst = Math.abs(dx) >= Math.abs(dy);
+
+  const p1: LatLng = eastFirst
+    ? { lat: hub.lat, lng: hub.lng + dx * 0.42 }
+    : { lat: hub.lat + dy * 0.42, lng: hub.lng };
+
+  // Jog off the axis so parallel cables separate
+  const jogM = 18 + (index % 4) * 8;
+  const jogLat = (side * jogM) / M_PER_DEG_LAT;
+  const jogLng = (side * jogM) / mPerDegLng(hub.lat);
+
+  const p2: LatLng = {
+    lat: p1.lat + (eastFirst ? jogLat : 0),
+    lng: p1.lng + (eastFirst ? 0 : jogLng),
+  };
+
+  const p3: LatLng = eastFirst
+    ? { lat: terminal.lat, lng: p2.lng }
+    : { lat: p2.lat, lng: terminal.lng };
+
+  // Soft corner fillets via densify
+  return densifyPath([hub, p1, p2, p3, terminal], 6);
 }
 
 /**
- * Build a cable polyline: prefer real path; else curved hub→terminal with
- * alternating bend so parallel laterals don't stack into one stick.
+ * Build cable polyline for map.
+ * 1) Real stored path  2) waypoints  3) street-grid synthetic
  */
 export function buildCablePath(
   hub: LatLng,
   terminal: LatLng,
   index: number,
-  realPath?: Array<{ lat: number; lng: number }> | null
+  realPath?: Array<{ lat: number; lng: number }> | null,
+  waypoints?: LatLng[] | null
 ): LatLng[] {
   if (realPath && realPath.length >= 2) {
-    return realPath.map((p) => ({ lat: p.lat, lng: p.lng }));
+    const cleaned = realPath.filter((p) => isValidLatLng(p));
+    if (cleaned.length >= 2) return densifyPath(cleaned, 3);
   }
-  const dx = terminal.lng - hub.lng;
-  const dy = terminal.lat - hub.lat;
-  // Perpendicular unit-ish offset (in lat/lng space)
-  const len = Math.hypot(dx, dy) || 1e-9;
-  const side = index % 2 === 0 ? 1 : -1;
-  // Bend amount ~12–22% of span, varies by index
-  const bend = (0.12 + (index % 5) * 0.02) * side;
-  const ctrl: LatLng = {
-    lat: (hub.lat + terminal.lat) / 2 - dx * bend,
-    lng: (hub.lng + terminal.lng) / 2 + dy * bend,
-  };
-  // Extra mid kinks for longer runs so it feels like street following
-  const steps = Math.min(24, Math.max(10, Math.round(len * 8000)));
-  const base = sampleQuad(hub, ctrl, terminal, steps);
-  // Light secondary bow at 1/3 and 2/3 for longer laterals
-  if (steps >= 14) {
-    return base.map((p, i) => {
-      if (i === 0 || i === base.length - 1) return p;
-      const t = i / (base.length - 1);
-      const wobble = Math.sin(t * Math.PI * 2) * 0.00002 * side * (1 + (index % 3));
-      return {
-        lat: p.lat + wobble * Math.cos(angleOf(hub, terminal)),
-        lng: p.lng + wobble * Math.sin(angleOf(hub, terminal)),
-      };
-    });
-  }
-  return base;
+  return buildStreetGridPath(hub, terminal, index, waypoints);
 }
 
-function angleOf(a: LatLng, b: LatLng): number {
-  return Math.atan2(b.lat - a.lat, b.lng - a.lng);
-}
-
-/** Midpoint along a path (for cable labels). */
 export function pathMidpoint(path: LatLng[]): LatLng {
   if (path.length === 0) return { lat: 0, lng: 0 };
   if (path.length === 1) return path[0]!;
-  const mid = Math.floor(path.length / 2);
-  return path[mid]!;
+  // Distance-weighted mid
+  let total = 0;
+  const segs: number[] = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const d = distMeters(path[i]!, path[i + 1]!);
+    segs.push(d);
+    total += d;
+  }
+  if (total < 1) return path[Math.floor(path.length / 2)]!;
+  let acc = 0;
+  const half = total / 2;
+  for (let i = 0; i < segs.length; i++) {
+    if (acc + segs[i]! >= half) {
+      const t = (half - acc) / (segs[i]! || 1);
+      const a = path[i]!;
+      const b = path[i + 1]!;
+      return {
+        lat: a.lat + (b.lat - a.lat) * t,
+        lng: a.lng + (b.lng - a.lng) * t,
+      };
+    }
+    acc += segs[i]!;
+  }
+  return path[path.length - 1]!;
+}
+
+/** Format footage for labels. */
+export function formatFt(ft: number | null | undefined): string | null {
+  if (ft == null || !Number.isFinite(ft)) return null;
+  return `${Math.round(ft)}'`;
 }

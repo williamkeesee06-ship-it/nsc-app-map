@@ -977,6 +977,327 @@ async function repairZiplyPrintLocation(job: Job): Promise<RepairResult> {
   };
 }
 
+/**
+ * High-detail geometry pass: geocode every terminal address + route streets,
+ * then write multi-point cable paths onto mapObjects so the map is not sticks.
+ */
+async function enhanceZiplyPrintDetail(job: Job): Promise<{
+  jobId: string;
+  workOrder?: string | null;
+  enhanced: boolean;
+  reason: string;
+  terminalsGeocoded: number;
+  cablesPathed: number;
+  waypointsGeocoded: number;
+  dropsPlaced: number;
+}> {
+  const jobId = job.jobId;
+  const mo = job.ziplyPrintLayer?.mapObjects;
+  if (!mo) {
+    return {
+      jobId,
+      workOrder: job.workOrder,
+      enhanced: false,
+      reason: "no_mapObjects",
+      terminalsGeocoded: 0,
+      cablesPathed: 0,
+      waypointsGeocoded: 0,
+      dropsPlaced: 0,
+    };
+  }
+
+  const city = job.city;
+  const zip = job.zipCode;
+  const geoCache = new Map<string, { lat: number; lng: number } | null>();
+  const geocodeOne = async (raw: string | null): Promise<{ lat: number; lng: number } | null> => {
+    if (!raw?.trim()) return null;
+    // Already looks like "street, city" or just street
+    const addr =
+      buildAddressString({ address: raw, city, zipCode: zip }) ??
+      `${raw.trim()}, ${city || "WA"}`;
+    if (geoCache.has(addr)) return geoCache.get(addr)!;
+    const g = await geocodeAddress(addr);
+    const coords = g.status === "OK" ? { lat: g.lat, lng: g.lng } : null;
+    geoCache.set(addr, coords);
+    return coords;
+  };
+
+  // Hub
+  let hubCoords: { lat: number; lng: number } | null = null;
+  if (isValidLatLng(mo.hub?.lat, mo.hub?.lng)) {
+    hubCoords = { lat: mo.hub!.lat as number, lng: mo.hub!.lng as number };
+  } else if (job.geocode?.status === "OK" && isValidLatLng(job.geocode.lat, job.geocode.lng)) {
+    hubCoords = { lat: job.geocode.lat, lng: job.geocode.lng };
+  } else {
+    const parsed = job.ziplyIngest?.parsed as { hubAddress?: string | null } | undefined;
+    for (const c of [parsed?.hubAddress, job.address, city ? `${city}, WA` : null]) {
+      hubCoords = await geocodeOne(c ?? null);
+      if (hubCoords) break;
+    }
+  }
+  if (!hubCoords) {
+    return {
+      jobId,
+      workOrder: job.workOrder,
+      enhanced: false,
+      reason: "geocode_failed",
+      terminalsGeocoded: 0,
+      cablesPathed: 0,
+      waypointsGeocoded: 0,
+      dropsPlaced: 0,
+    };
+  }
+
+  // Terminals — geocode every served address; keep best
+  let terminalsGeocoded = 0;
+  const terminals = [];
+  for (const t of mo.terminals ?? []) {
+    let lat = isValidLatLng(t.lat, t.lng) ? (t.lat as number) : null;
+    let lng = isValidLatLng(t.lat, t.lng) ? (t.lng as number) : null;
+    if (lat == null || lng == null) {
+      const addrs = t.addressesServed ?? [];
+      for (const a of addrs) {
+        const c = await geocodeOne(a);
+        if (c) {
+          lat = c.lat;
+          lng = c.lng;
+          terminalsGeocoded++;
+          break;
+        }
+      }
+    }
+    // Fallback: offset from hub by footage so plant still has structure
+    if (lat == null || lng == null) {
+      const n = Math.max((mo.terminals ?? []).length, 1);
+      const idx = terminals.length;
+      const angle = (idx * 2 * Math.PI) / n - Math.PI / 2;
+      const ft = t.footageFt != null && t.footageFt > 0 ? t.footageFt : 600;
+      const meters = Math.min(380, Math.max(55, ft * 0.085));
+      const mPerLat = 111320;
+      const mPerLng = mPerLat * Math.cos((hubCoords.lat * Math.PI) / 180);
+      lat = hubCoords.lat + (meters * Math.sin(angle)) / mPerLat;
+      lng = hubCoords.lng + (meters * Math.cos(angle)) / mPerLng;
+      terminalsGeocoded++;
+    }
+    terminals.push({ ...t, lat, lng });
+  }
+
+  const termByLabel = new Map(terminals.map((t) => [t.label, t]));
+  const findTerm = (label: string | null | undefined, fallbackIdx: number) => {
+    if (label && termByLabel.has(label)) return termByLabel.get(label)!;
+    if (label) {
+      const num = label.replace(/\D/g, "");
+      if (num) {
+        for (const [lab, t] of termByLabel) {
+          if (lab.replace(/\D/g, "") === num) return t;
+        }
+      }
+    }
+    return terminals[fallbackIdx % Math.max(terminals.length, 1)] ?? null;
+  };
+
+  // Cables — build multi-point paths via route streets + terminal
+  let cablesPathed = 0;
+  let waypointsGeocoded = 0;
+  const cables = [];
+  for (let i = 0; i < (mo.cables ?? []).length; i++) {
+    const c = mo.cables![i]!;
+    const term = findTerm(c.toTerminal ?? c.label, i);
+    const termPos =
+      term && isValidLatLng(term.lat, term.lng)
+        ? { lat: term.lat as number, lng: term.lng as number }
+        : null;
+
+    const wps: Array<{ lat: number; lng: number }> = [];
+    for (const street of c.routeStreets ?? []) {
+      // Geocode street mid-span near job city
+      const cands = [
+        `${street} & ${(term?.addressesServed?.[0] ?? job.address ?? "").split(" ").slice(-1)[0] || "Main"}, ${city || "WA"}`,
+        `${street}, ${city || ""}, WA`,
+      ];
+      for (const cand of cands) {
+        const g = await geocodeOne(cand);
+        if (g) {
+          wps.push(g);
+          waypointsGeocoded++;
+          break;
+        }
+      }
+    }
+
+    let path: Array<{ lat: number; lng: number }> | null = null;
+    if (c.path && c.path.length >= 2) {
+      path = c.path.filter((p) => isValidLatLng(p.lat, p.lng)) as Array<{
+        lat: number;
+        lng: number;
+      }>;
+      if (path.length < 2) path = null;
+    }
+
+    if (!path && termPos) {
+      // Street-grid path hub → waypoints → terminal
+      const mPerLat = 111320;
+      const mPerLng = mPerLat * Math.cos((hubCoords.lat * Math.PI) / 180);
+      const side = i % 2 === 0 ? 1 : -1;
+      const dx = termPos.lng - hubCoords.lng;
+      const dy = termPos.lat - hubCoords.lat;
+      const eastFirst = Math.abs(dx) >= Math.abs(dy);
+      const p1 = eastFirst
+        ? { lat: hubCoords.lat, lng: hubCoords.lng + dx * 0.4 }
+        : { lat: hubCoords.lat + dy * 0.4, lng: hubCoords.lng };
+      const jogM = 20 + (i % 5) * 10;
+      const p2 = {
+        lat: p1.lat + (eastFirst ? (side * jogM) / mPerLat : 0),
+        lng: p1.lng + (eastFirst ? 0 : (side * jogM) / mPerLng),
+      };
+      const p3 = eastFirst
+        ? { lat: termPos.lat, lng: p2.lng }
+        : { lat: p2.lat, lng: termPos.lng };
+      path = [hubCoords, p1, ...wps, p2, p3, termPos];
+      cablesPathed++;
+    } else if (path) {
+      cablesPathed++;
+    }
+
+    cables.push({
+      ...c,
+      path,
+      status: c.status ?? ("planned" as ZiplyObjectStatus),
+    });
+  }
+
+  // If print had no cable list, synthesize laterals to each terminal
+  if (cables.length === 0 && terminals.length > 0) {
+    for (let i = 0; i < terminals.length; i++) {
+      const t = terminals[i]!;
+      if (!isValidLatLng(t.lat, t.lng)) continue;
+      const termPos = { lat: t.lat as number, lng: t.lng as number };
+      const mPerLat = 111320;
+      const mPerLng = mPerLat * Math.cos((hubCoords.lat * Math.PI) / 180);
+      const side = i % 2 === 0 ? 1 : -1;
+      const dx = termPos.lng - hubCoords.lng;
+      const dy = termPos.lat - hubCoords.lat;
+      const eastFirst = Math.abs(dx) >= Math.abs(dy);
+      const p1 = eastFirst
+        ? { lat: hubCoords.lat, lng: hubCoords.lng + dx * 0.45 }
+        : { lat: hubCoords.lat + dy * 0.45, lng: hubCoords.lng };
+      const jogM = 25;
+      const p2 = {
+        lat: p1.lat + (eastFirst ? (side * jogM) / mPerLat : 0),
+        lng: p1.lng + (eastFirst ? 0 : (side * jogM) / mPerLng),
+      };
+      const p3 = eastFirst
+        ? { lat: termPos.lat, lng: p2.lng }
+        : { lat: p2.lat, lng: termPos.lng };
+      cables.push({
+        label: t.label,
+        fiberCount: t.fiberSpec || "",
+        lengthFt: t.footageFt ?? null,
+        path: [hubCoords, p1, p2, p3, termPos],
+        buildType: null,
+        toTerminal: t.label,
+        status: "planned" as ZiplyObjectStatus,
+      });
+      cablesPathed++;
+    }
+  }
+
+  // Drop / home-pass sites from every served address (lot-level print detail)
+  const dropSites: Array<{
+    address: string;
+    lat: number;
+    lng: number;
+    terminalLabel?: string | null;
+    kind?: "lu" | "mdu" | "bu" | "unknown" | null;
+  }> = [];
+  const MAX_DROP_GEOCODES = 48;
+  let dropGeocodes = 0;
+  for (const t of terminals) {
+    for (const addr of t.addressesServed ?? []) {
+      if (dropGeocodes >= MAX_DROP_GEOCODES) break;
+      if (!addr?.trim()) continue;
+      const g = await geocodeOne(addr);
+      dropGeocodes++;
+      if (g) {
+        dropSites.push({
+          address: addr.trim(),
+          lat: g.lat,
+          lng: g.lng,
+          terminalLabel: t.label,
+          kind: "unknown",
+        });
+      }
+    }
+    if (dropGeocodes >= MAX_DROP_GEOCODES) break;
+  }
+  // If no addresses geocoded, fan small drops near each terminal so plant still shows density
+  if (dropSites.length === 0) {
+    for (let i = 0; i < terminals.length; i++) {
+      const t = terminals[i]!;
+      if (!isValidLatLng(t.lat, t.lng)) continue;
+      const n = Math.min(4, Math.max(1, t.portCount ?? 2));
+      for (let d = 0; d < n; d++) {
+        const ang = (d * 2 * Math.PI) / n + i * 0.3;
+        const r = 0.00008 + d * 0.00002;
+        dropSites.push({
+          address: (t.addressesServed?.[d] as string) || `${t.label} drop ${d + 1}`,
+          lat: (t.lat as number) + r * Math.sin(ang),
+          lng: (t.lng as number) + r * Math.cos(ang),
+          terminalLabel: t.label,
+          kind: "unknown",
+        });
+      }
+    }
+  }
+
+  const now = Date.now();
+  const layer = {
+    ...job.ziplyPrintLayer!,
+    printGeometryEnhancedAt: now,
+    mapObjects: {
+      ...mo,
+      hub: {
+        ...(mo.hub ?? {}),
+        lat: hubCoords.lat,
+        lng: hubCoords.lng,
+        status: mo.hub?.status ?? ("planned" as const),
+      },
+      terminals,
+      cables,
+      dropSites,
+      notes: mo.notes ?? null,
+    },
+  };
+
+  const updates: Record<string, unknown> = {
+    ziplyPrintLayer: layer,
+    lastSyncedAt: now,
+    customerProject: "Ziply",
+  };
+  if (!(job.geocode?.status === "OK" && isValidLatLng(job.geocode.lat, job.geocode.lng))) {
+    updates.geocode = {
+      lat: hubCoords.lat,
+      lng: hubCoords.lng,
+      formattedAddress: job.address ?? "",
+      sourceAddress: job.address ?? "",
+      cachedAt: now,
+      status: "OK",
+    };
+  }
+
+  await db().collection("jobs").doc(jobId).update(updates);
+  return {
+    jobId,
+    workOrder: job.workOrder,
+    enhanced: true,
+    reason: "ok",
+    terminalsGeocoded,
+    cablesPathed,
+    waypointsGeocoded,
+    dropsPlaced: dropSites.length,
+  };
+}
+
 // POST /api/jobs/:jobId/ziply-repair-print — re-geocode hub/terminals for an
 // already-ingested print (no Gemini). Makes old prints visible on the map.
 router.post("/jobs/:jobId/ziply-repair-print", async (req, res, next) => {
@@ -989,7 +1310,7 @@ router.post("/jobs/:jobId/ziply-repair-print", async (req, res, next) => {
       return;
     }
     const job = doc.data() as Job;
-    if ((job.customerProject ?? "").trim().toLowerCase() !== "ziply") {
+    if ((job.customerProject ?? "").trim().toLowerCase() !== "ziply" && !job.ziplyPrintLayer?.mapObjects) {
       res.status(400).json({ error: "Not a Ziply job" });
       return;
     }
@@ -999,7 +1320,32 @@ router.post("/jobs/:jobId/ziply-repair-print", async (req, res, next) => {
       });
       return;
     }
-    const result = await repairZiplyPrintLocation(job);
+    await repairZiplyPrintLocation(job);
+    const fresh = (await ref.get()).data() as Job;
+    const enhanced = await enhanceZiplyPrintDetail(fresh);
+    invalidateJobsCache();
+    res.json({ ok: true, repaired: true, ...enhanced });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-enhance-print — rebuild detailed cable paths + geocodes
+router.post("/jobs/:jobId/ziply-enhance-print", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    if (!job.ziplyPrintLayer?.mapObjects) {
+      res.status(400).json({ error: "No print layer — ingest a print first" });
+      return;
+    }
+    const result = await enhanceZiplyPrintDetail(job);
     invalidateJobsCache();
     res.json({ ok: true, ...result });
   } catch (err) {
