@@ -184,18 +184,42 @@ export const api = {
       `/api/jobs/${encodeURIComponent(jobId)}/ziply-ingest`,
       { method: "POST", body: JSON.stringify({ storageFiles }) }
     ),
-  /** Re-geocode hub/terminals for one already-ingested print (no AI). */
+  /** Re-geocode hub/terminals + run CAD geometry enhance (no AI re-parse). */
   repairZiplyPrint: (jobId: string) =>
     request<{
       ok: boolean;
       jobId: string;
       workOrder?: string | null;
-      repaired: boolean;
+      repaired?: boolean;
+      enhanced?: boolean;
       reason: string;
       lat?: number;
       lng?: number;
       terminalsFixed?: number;
+      terminalsGeocoded?: number;
+      cablesPathed?: number;
+      waypointsGeocoded?: number;
+      dropsPlaced?: number;
     }>(`/api/jobs/${encodeURIComponent(jobId)}/ziply-repair-print`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  /**
+   * High-detail CAD pass: geocode terminals + route streets, write multi-point
+   * cable paths and drop sites onto the print layer.
+   */
+  enhanceZiplyPrint: (jobId: string) =>
+    request<{
+      ok: boolean;
+      jobId: string;
+      workOrder?: string | null;
+      enhanced: boolean;
+      reason: string;
+      terminalsGeocoded: number;
+      cablesPathed: number;
+      waypointsGeocoded: number;
+      dropsPlaced: number;
+    }>(`/api/jobs/${encodeURIComponent(jobId)}/ziply-enhance-print`, {
       method: "POST",
       body: JSON.stringify({}),
     }),

@@ -418,28 +418,62 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
   const [pct, setPct] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [repairBusy, setRepairBusy] = useState(false);
+  const [enhanceBusy, setEnhanceBusy] = useState(false);
+  const [enhanceMsg, setEnhanceMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const status = getZiplyPrintDocStatus(job);
   const files = listZiplyPrintFiles(job);
   const layer = job.ziplyPrintLayer;
   const terminalCount = layer?.mapObjects?.terminals?.length ?? layer?.terminalCount ?? null;
   const cableCount = layer?.mapObjects?.cables?.length ?? null;
+  const dropCount = layer?.mapObjects?.dropSites?.length ?? null;
   const mapReady = isZiplyPrintMapReady(job);
   const anchor = getZiplyPrintAnchor(job);
+  const enhancedAt = layer?.printGeometryEnhancedAt ?? null;
 
   const repairLocation = async () => {
     setRepairBusy(true);
     setErr(null);
+    setEnhanceMsg(null);
     try {
       const r = await api.repairZiplyPrint(job.jobId);
-      if (!r.repaired) {
-        setErr(r.reason === "geocode_failed" ? "Could not geocode address — check job address/city." : r.reason);
+      if (r.enhanced === false && r.reason === "geocode_failed") {
+        setErr("Could not geocode address — check job address/city.");
+      } else if (r.enhanced) {
+        setEnhanceMsg(
+          `CAD enhanced: ${r.cablesPathed ?? 0} paths · ${r.dropsPlaced ?? 0} drops`
+        );
       }
       window.dispatchEvent(new Event("nsc:jobs-reload"));
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Repair failed");
     } finally {
       setRepairBusy(false);
+    }
+  };
+
+  const enhanceCad = async () => {
+    setEnhanceBusy(true);
+    setErr(null);
+    setEnhanceMsg(null);
+    try {
+      const r = await api.enhanceZiplyPrint(job.jobId);
+      if (!r.enhanced) {
+        setErr(
+          r.reason === "geocode_failed"
+            ? "Could not geocode for CAD enhance — check address/city."
+            : r.reason || "Enhance failed"
+        );
+      } else {
+        setEnhanceMsg(
+          `CAD detail: ${r.cablesPathed} cable paths · ${r.terminalsGeocoded} terminals · ${r.dropsPlaced} drops · ${r.waypointsGeocoded} street waypoints`
+        );
+      }
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Enhance failed");
+    } finally {
+      setEnhanceBusy(false);
     }
   };
 
@@ -487,14 +521,25 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
               {layer?.hubId ? `Hub ${layer.hubId}` : "Hub —"}
               {terminalCount != null ? ` · ${terminalCount} terminals` : ""}
               {cableCount != null ? ` · ${cableCount} cables` : ""}
+              {dropCount != null && dropCount > 0 ? ` · ${dropCount} drops` : ""}
               {mapReady
                 ? ` · map @ ${anchor!.lat.toFixed(4)}, ${anchor!.lng.toFixed(4)}`
                 : " · NOT ON MAP (no lat/lng)"}
+              {enhancedAt
+                ? ` · CAD enhanced ${new Date(enhancedAt).toLocaleDateString()}`
+                : mapReady
+                  ? " · CAD not enhanced yet"
+                  : ""}
             </span>
           )}
           {status === "ready" && !mapReady && (
             <span style={{ fontSize: 9, color: "#fbbf24" }}>
               Print data is saved but has no location. Use Repair location (no re-upload needed).
+            </span>
+          )}
+          {status === "ready" && mapReady && !enhancedAt && (
+            <span style={{ fontSize: 9, color: "#38bdf8" }}>
+              Run ENHANCE CAD for multi-point cable paths + geocoded drops (lot-level detail).
             </span>
           )}
           {status === "failed" && job.ziplyIngest?.errorMessage && (
@@ -503,13 +548,14 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           {busy && (
             <span style={{ fontSize: 9, color: "#38bdf8" }}>Uploading / starting ingest… {pct}%</span>
           )}
+          {enhanceMsg && <span style={{ fontSize: 9, color: "#00E676" }}>{enhanceMsg}</span>}
           {err && <span style={{ fontSize: 9, color: "#f87171" }}>{err}</span>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
           {layer?.mapObjects && !mapReady && (
             <button
               type="button"
-              disabled={repairBusy || busy}
+              disabled={repairBusy || busy || enhanceBusy}
               onClick={() => void repairLocation()}
               style={{
                 background: "rgba(251,191,36,0.2)",
@@ -524,6 +570,27 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
               }}
             >
               {repairBusy ? "REPAIRING…" : "REPAIR LOCATION"}
+            </button>
+          )}
+          {layer?.mapObjects && mapReady && (
+            <button
+              type="button"
+              disabled={enhanceBusy || busy || repairBusy}
+              onClick={() => void enhanceCad()}
+              title="Geocode terminals/addresses and rebuild multi-point cable paths + drops on the map"
+              style={{
+                background: enhancedAt ? "rgba(8,145,178,0.18)" : "rgba(56,189,248,0.22)",
+                border: "1px solid rgba(56,189,248,0.55)",
+                color: "#38bdf8",
+                fontSize: 9,
+                fontWeight: 700,
+                padding: "6px 10px",
+                borderRadius: 4,
+                cursor: enhanceBusy ? "wait" : "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {enhanceBusy ? "ENHANCING CAD…" : enhancedAt ? "RE-ENHANCE CAD" : "ENHANCE CAD DETAIL"}
             </button>
           )}
           <label

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import type { DigTicket, Job, ZiplyObjectStatus, ZiplySectionScope } from "@nsc/types";
 import { InfoWindow, Marker, useMap } from "@vis.gl/react-google-maps";
 import { api } from "../../lib/api.js";
@@ -58,7 +59,7 @@ function lineColor(
   return STATUS_COLOR[status];
 }
 
-/** Rich fiber cable: halo + main stroke + optional dash by build type. */
+/** Rich fiber cable: halo + main stroke + optional dash; clickable for CAD detail. */
 function CadFiberLine({
   path,
   status,
@@ -66,6 +67,8 @@ function CadFiberLine({
   locateCleared,
   show811Clearance,
   label,
+  selected,
+  onClick,
 }: {
   path: LatLng[];
   status: ZiplyObjectStatus;
@@ -73,6 +76,8 @@ function CadFiberLine({
   locateCleared?: boolean;
   show811Clearance?: boolean;
   label?: string;
+  selected?: boolean;
+  onClick?: (mid: LatLng) => void;
 }) {
   const map = useMap();
   const pathKey = path.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join("|");
@@ -83,25 +88,36 @@ function CadFiberLine({
     const solid = show811Clearance ? !!locateCleared : status === "complete";
     const isAerial = buildType === "aerial";
     const isBore = buildType === "bore";
+    const weightBoost = selected ? 2 : 0;
 
-    // Soft white/halo underlay so cables pop on light or dark basemap
     const halo = new google.maps.Polyline({
       path,
       map,
-      strokeColor: "#ffffff",
-      strokeOpacity: 0.85,
-      strokeWeight: isBore ? 10 : 8,
-      zIndex: 8,
+      strokeColor: selected ? "#fbbf24" : "#ffffff",
+      strokeOpacity: selected ? 0.95 : 0.85,
+      strokeWeight: (isBore ? 10 : 8) + weightBoost,
+      zIndex: selected ? 14 : 8,
       clickable: false,
+    });
+
+    const hit = new google.maps.Polyline({
+      path,
+      map,
+      strokeColor: "#000000",
+      strokeOpacity: 0.01,
+      strokeWeight: 18,
+      zIndex: selected ? 16 : 11,
+      clickable: true,
     });
 
     const main = new google.maps.Polyline({
       path,
       map,
       strokeColor: color,
-      strokeWeight: isBore ? 5 : isAerial ? 3.5 : 4.5,
+      strokeWeight: (isBore ? 5 : isAerial ? 3.5 : 4.5) + weightBoost,
       strokeOpacity: solid ? 0.95 : 0,
-      zIndex: 10,
+      zIndex: selected ? 15 : 10,
+      clickable: false,
       icons: solid
         ? undefined
         : [
@@ -119,28 +135,102 @@ function CadFiberLine({
           ],
     });
 
-    // Aerial: second thin parallel dash offset is hard on polyline; use longer dash pattern only
+    const mid = pathMidpoint(path);
+    const clickListener = hit.addListener("click", () => onClick?.(mid));
+
     return () => {
+      google.maps.event.removeListener(clickListener);
       halo.setMap(null);
+      hit.setMap(null);
       main.setMap(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, pathKey, status, buildType, locateCleared, show811Clearance]);
+  }, [map, pathKey, status, buildType, locateCleared, show811Clearance, selected, onClick]);
 
-  // Label mid-span (fiber / length)
   const mid = pathMidpoint(path);
   if (!label) return null;
   return (
     <Marker
       position={mid}
-      clickable={false}
+      clickable={!!onClick}
       zIndex={12}
+      onClick={() => onClick?.(mid)}
       icon={{
         url: makeLabelDataUrl(label, lineColor(status, buildType, locateCleared, !!show811Clearance)),
-        scaledSize: new google.maps.Size(Math.min(120, 28 + label.length * 6), 18),
-        anchor: new google.maps.Point(Math.min(60, 14 + label.length * 3), 9),
+        scaledSize: new google.maps.Size(Math.min(140, 28 + label.length * 6), 18),
+        anchor: new google.maps.Point(Math.min(70, 14 + label.length * 3), 9),
       }}
     />
+  );
+}
+
+function dropIconDataUrl(): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14">
+    <rect x="3" y="5" width="8" height="7" rx="1" fill="#0ea5e9" stroke="#0f172a" stroke-width="1"/>
+    <polygon points="7,1 11,5 3,5" fill="#38bdf8" stroke="#0f172a" stroke-width="1"/>
+  </svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function PrintCadLegend({
+  zoom,
+  stats,
+}: {
+  zoom: number;
+  stats: { cables: number; terminals: number; drops: number; enhanced: boolean };
+}) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 12,
+        bottom: 28,
+        zIndex: 5,
+        pointerEvents: "none",
+        background: "rgba(15, 23, 42, 0.92)",
+        border: "1px solid rgba(148,163,184,0.45)",
+        borderRadius: 8,
+        padding: "8px 10px",
+        color: "#e2e8f0",
+        fontSize: 10,
+        fontFamily: "ui-monospace, Consolas, monospace",
+        minWidth: 168,
+        boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
+      }}
+    >
+      <div style={{ fontWeight: 800, color: "#00E676", letterSpacing: "0.06em", marginBottom: 6 }}>
+        PRINT CAD
+      </div>
+      <div style={{ display: "grid", gap: 3 }}>
+        <span>
+          <span style={{ color: "#64748b" }}>━━</span> planned cable
+        </span>
+        <span>
+          <span style={{ color: "#ea580c" }}>━━</span> bore ·{" "}
+          <span style={{ color: "#7c3aed" }}>···</span> aerial ·{" "}
+          <span style={{ color: "#ca8a04" }}>━━</span> trench
+        </span>
+        <span>
+          <span style={{ color: "#15803D" }}>●</span> complete ·{" "}
+          <span style={{ color: "#0891B2" }}>●</span> in progress
+        </span>
+        <span>
+          <span style={{ color: "#0ea5e9" }}>⌂</span> drop / home-pass (z≥16)
+        </span>
+      </div>
+      <div
+        style={{
+          marginTop: 6,
+          paddingTop: 6,
+          borderTop: "1px solid rgba(148,163,184,0.25)",
+          color: "#94a3b8",
+        }}
+      >
+        {stats.cables} cables · {stats.terminals} terms · {stats.drops} drops
+        <br />
+        zoom {zoom.toFixed(0)} · {stats.enhanced ? "enhanced paths" : "schematic paths"}
+      </div>
+    </div>
   );
 }
 
@@ -260,6 +350,21 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
     setDidFitPrints(true);
   }, [map, visible, printJobs, didFitPrints]);
 
+  const plantStats = useMemo(() => {
+    let cables = 0;
+    let terminals = 0;
+    let drops = 0;
+    let enhanced = false;
+    for (const j of printJobs) {
+      const mo = j.ziplyPrintLayer?.mapObjects;
+      cables += mo?.cables?.length ?? 0;
+      terminals += mo?.terminals?.length ?? 0;
+      drops += mo?.dropSites?.length ?? 0;
+      if (j.ziplyPrintLayer?.printGeometryEnhancedAt) enhanced = true;
+    }
+    return { cables, terminals, drops, enhanced };
+  }, [printJobs]);
+
   if (!visible) return null;
 
   const statusOf = (
@@ -344,9 +449,18 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
 
   const showCableLabels = zoom >= 15;
   const showTermLabels = zoom >= 14;
+  const showDrops = zoom >= 16;
+  const showDropLabels = zoom >= 18;
+  const legendHost =
+    typeof document !== "undefined"
+      ? document.querySelector(".map-host")
+      : null;
 
   return (
     <>
+      {legendHost &&
+        createPortal(<PrintCadLegend zoom={zoom} stats={plantStats} />, legendHost)}
+
       {printJobs.map((job) => {
         const layer = job.ziplyPrintLayer!;
         const mo = layer.mapObjects!;
@@ -356,6 +470,8 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
         const hubStatus = statusOf(job.jobId, "hub", "hub", hub?.status);
         const terminals = mo.terminals ?? [];
         const cables = mo.cables ?? [];
+        const dropSites = mo.dropSites ?? [];
+        const isEnhanced = !!layer.printGeometryEnhancedAt;
 
         const termPositions = terminals.map((t, idx) =>
           placeTerminalAroundHub(
@@ -369,7 +485,6 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
         const termPosByLabel = new Map<string, LatLng>();
         terminals.forEach((t, idx) => termPosByLabel.set(t.label, termPositions[idx]!));
 
-        // Match cables to terminals: toTerminal field, exact label, fuzzy number
         const resolveTermForCable = (
           cableLabel: string,
           toTerminal: string | null | undefined,
@@ -387,6 +502,56 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
             }
           }
           return termPositions[idx % Math.max(termPositions.length, 1)] ?? null;
+        };
+
+        const openCable = (
+          c: (typeof cables)[number],
+          path: LatLng[],
+          st: ZiplyObjectStatus,
+          cleared: boolean,
+          mid: LatLng
+        ) => {
+          setSelected({
+            job,
+            kind: "cable",
+            ref: c.label,
+            scope: {
+              kind: "cable",
+              ref: c.label,
+              hubId: layer.hubId,
+              label: c.label,
+            },
+            title: `Cable ${c.label}`,
+            position: mid,
+            status: st,
+            locateCleared: cleared,
+            crewName: c.crewName ?? null,
+            rows: [
+              { label: "Fiber", value: c.fiberCount || "N/A" },
+              {
+                label: "Length",
+                value: c.lengthFt != null ? `${c.lengthFt}'` : "N/A",
+              },
+              { label: "Build", value: c.buildType || "N/A" },
+              { label: "To terminal", value: c.toTerminal || "N/A" },
+              {
+                label: "Route streets",
+                value: (c.routeStreets || []).join(" → ") || "N/A",
+              },
+              {
+                label: "Path points",
+                value: String(path.length),
+              },
+              {
+                label: "Geometry",
+                value: isEnhanced
+                  ? c.path && c.path.length >= 2
+                    ? "enhanced multi-point"
+                    : "street-grid synthetic"
+                  : "schematic (run ENHANCE CAD)",
+              },
+            ],
+          });
         };
 
         return (
@@ -425,6 +590,10 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                     c.lengthFt != null ? `${c.lengthFt}'` : null,
                     c.buildType || null,
                   ].filter(Boolean);
+                  const isSel =
+                    selected?.job.jobId === job.jobId &&
+                    selected.kind === "cable" &&
+                    selected.ref === c.label;
                   return (
                     <CadFiberLine
                       key={`${job.jobId}-cable-${c.label}-${idx}`}
@@ -434,6 +603,8 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                       locateCleared={cleared}
                       show811Clearance={show811Clearance}
                       label={showCableLabels ? labelParts.join(" · ") : undefined}
+                      selected={isSel}
+                      onClick={(mid) => openCable(c, path, st, cleared, mid)}
                     />
                   );
                 })
@@ -459,6 +630,60 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                     />
                   );
                 })}
+
+            {/* Drop / home-pass sites (lot-level) */}
+            {showDrops &&
+              dropSites.map((d, di) => {
+                if (typeof d.lat !== "number" || typeof d.lng !== "number") return null;
+                const pos = { lat: d.lat, lng: d.lng };
+                return (
+                  <Marker
+                    key={`${job.jobId}-drop-${di}`}
+                    position={pos}
+                    zIndex={14}
+                    title={d.address}
+                    onClick={() =>
+                      setSelected({
+                        job,
+                        kind: "terminal",
+                        ref: d.terminalLabel || d.address,
+                        scope: {
+                          kind: "terminal",
+                          ref: d.terminalLabel || d.address,
+                          hubId: layer.hubId,
+                          label: d.address,
+                        },
+                        title: `Drop — ${d.address}`,
+                        position: pos,
+                        status: "planned",
+                        locateCleared: false,
+                        crewName: null,
+                        rows: [
+                          { label: "Address", value: d.address },
+                          { label: "Terminal", value: d.terminalLabel || "N/A" },
+                          { label: "Kind", value: d.kind || "unknown" },
+                        ],
+                      })
+                    }
+                    icon={
+                      showDropLabels
+                        ? {
+                            url: makeLabelDataUrl(
+                              (d.address.split(",")[0] || d.address).slice(0, 18),
+                              "#0ea5e9"
+                            ),
+                            scaledSize: new google.maps.Size(110, 18),
+                            anchor: new google.maps.Point(55, 20),
+                          }
+                        : {
+                            url: dropIconDataUrl(),
+                            scaledSize: new google.maps.Size(14, 14),
+                            anchor: new google.maps.Point(7, 7),
+                          }
+                    }
+                  />
+                );
+              })}
 
             {/* Hub / FDH */}
             <Marker
@@ -486,10 +711,20 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                     { label: "Terminals", value: String(terminals.length || layer.terminalCount || "N/A") },
                     { label: "Homes Passed", value: String(layer.drops?.total ?? "N/A") },
                     { label: "Address", value: job.address || "N/A" },
+                    { label: "Cables", value: String(cables.length) },
+                    { label: "Drops on map", value: String(dropSites.length) },
                     {
-                      label: "Cables",
-                      value: String(cables.length),
+                      label: "CAD detail",
+                      value: isEnhanced
+                        ? `Enhanced ${new Date(layer.printGeometryEnhancedAt!).toLocaleString()}`
+                        : "Not enhanced — use ENHANCE CAD DETAIL on job card",
                     },
+                    {
+                      label: "Excavation",
+                      value: (layer.permittedExcavationMethods || []).join(", ") || "N/A",
+                    },
+                    { label: "Conduit", value: layer.conduitSize || "N/A" },
+                    { label: "Strand", value: layer.strandType || "N/A" },
                   ],
                 })
               }
@@ -557,6 +792,10 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                         {
                           label: "Addresses",
                           value: (t.addressesServed || []).join(", ") || "N/A",
+                        },
+                        {
+                          label: "Coords",
+                          value: `${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}`,
                         },
                       ],
                     })
