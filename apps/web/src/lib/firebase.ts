@@ -32,9 +32,19 @@ export function getCurrentUser(): User | null {
   return getFirebaseAuth().currentUser;
 }
 
-/** Resolve a fresh ID token for API Authorization headers. */
+/**
+ * Resolve a fresh ID token for API Authorization headers.
+ * Waits for Firebase Auth to finish restoring the session first — without this,
+ * early /api calls after page load send no Bearer token → 401 → empty maps/HUD.
+ */
 export async function getIdToken(forceRefresh = false): Promise<string | null> {
-  const user = getFirebaseAuth().currentUser;
+  const auth = getFirebaseAuth();
+  try {
+    await auth.authStateReady();
+  } catch {
+    /* ignore */
+  }
+  const user = auth.currentUser;
   if (!user) return null;
   try {
     return await user.getIdToken(forceRefresh);

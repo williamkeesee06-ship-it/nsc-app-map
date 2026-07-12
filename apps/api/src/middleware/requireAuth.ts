@@ -65,18 +65,14 @@ export async function requireAuth(
     }
 
     const allowed = parseAllowedEmails();
-    const env = getEnv();
-    if (allowed.length === 0) {
-      // Fail closed in production; in local dev allow any signed-in Firebase user
-      // so setup is possible before AUTH_ALLOWED_EMAILS is filled in.
-      if (env.NODE_ENV === "production") {
-        res.status(403).json({
-          error: "AUTH_ALLOWED_EMAILS is not configured — access denied",
-        });
-        return;
-      }
-    } else if (!allowed.includes(email)) {
-      res.status(403).json({ error: "Access denied for this account" });
+    // Solo lock: if allowlist is empty, accept any verified Firebase user.
+    // Set AUTH_ALLOWED_EMAILS on Vercel to restrict to specific operators.
+    // (Previously production failed closed with empty list → logged-in users
+    // saw 0 jobs everywhere because every /api call returned 403.)
+    if (allowed.length > 0 && !allowed.includes(email)) {
+      res.status(403).json({
+        error: `Access denied for ${email} — not in AUTH_ALLOWED_EMAILS`,
+      });
       return;
     }
 

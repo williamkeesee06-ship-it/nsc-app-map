@@ -152,6 +152,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // After a valid session, hydrate prefs and refresh Smartsheet for Billy.
   useEffect(() => {
     if (!username || !firebaseUser) return;
+    // Always reload jobs once auth is ready (fixes race: first fetch had no token).
+    window.dispatchEvent(new Event("nsc:jobs-reload"));
+
     hydratePrefs().catch(() => {
       /* swallow */
     });
@@ -163,8 +166,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       : api.syncSupervisor(username);
     p.then(() => {
       window.dispatchEvent(new Event("nsc:jobs-reload"));
-    }).catch(() => {
-      /* swallow — user can resync from UI */
+    }).catch((err) => {
+      // Surface sync failures — empty map is often "sync never ran", not zero jobs.
+      console.warn("[auth] Smartsheet sync on login failed:", err);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
     });
     // Only when session becomes available
     // eslint-disable-next-line react-hooks/exhaustive-deps

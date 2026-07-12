@@ -1,7 +1,9 @@
 // Fetch & cache jobs list for the Jobs Map.
+// Waits for Firebase Auth so requests include a Bearer token (solo lock).
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api.js";
 import type { Job } from "@nsc/types";
+import { useAuth } from "../auth/authContext.js";
 
 export type JobsState =
   | { state: "loading" }
@@ -9,9 +11,20 @@ export type JobsState =
   | { state: "error"; message: string };
 
 export function useJobs(): JobsState & { reload: () => void } {
+  const { authReady, firebaseUser } = useAuth();
   const [s, setS] = useState<JobsState>({ state: "loading" });
   const [nonce, setNonce] = useState(0);
+
   useEffect(() => {
+    if (!authReady) {
+      setS({ state: "loading" });
+      return;
+    }
+    if (!firebaseUser) {
+      setS({ state: "ready", jobs: [] });
+      return;
+    }
+
     let cancelled = false;
     setS({ state: "loading" });
     api
@@ -25,7 +38,8 @@ export function useJobs(): JobsState & { reload: () => void } {
     return () => {
       cancelled = true;
     };
-  }, [nonce]);
+  }, [nonce, authReady, firebaseUser?.uid]);
+
   // Global reload bus: anyone can dispatch `nsc:jobs-reload` and the hook
   // refetches from Firestore. Used after Smartsheet writes and after
   // login-time syncs to clear stale data.

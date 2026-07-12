@@ -15,7 +15,14 @@ import type {
 import { app, getIdToken } from "./firebase.js";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = await getIdToken();
+  // Wait for Firebase session restore so the first post-login fetch isn't unauthenticated.
+  let token = await getIdToken();
+  if (!token) {
+    // Brief retry — race right after signInWithEmailAndPassword
+    await new Promise((r) => setTimeout(r, 150));
+    token = await getIdToken(true);
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init?.headers as Record<string, string> | undefined),
@@ -30,9 +37,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.text();
-    if (res.status === 401) {
-      // Session expired or missing — force a clean re-login.
-      window.dispatchEvent(new CustomEvent("nsc:auth-required", { detail: { path, status: 401 } }));
+    // Only force logout when we *had* a token that the server rejected (expired).
+    // Missing-token 401s during boot must not sign the user out.
+    if (res.status === 401 && token) {
+      window.dispatchEvent(
+        new CustomEvent("nsc:auth-required", { detail: { path, status: 401 } })
+      );
     }
     throw new Error(`API ${res.status} ${path}: ${body}`);
   }
