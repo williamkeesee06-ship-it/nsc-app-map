@@ -28,28 +28,31 @@ const SOLO_OPERATOR_NAME = "Billy Keesee";
 /**
  * Billy's known logins — always accepted even if Vercel env only lists one.
  * Work email + personal Firebase user both map to the same operator profile.
+ * Client allowlist is advisory only for non-Billy emails; empty = allow any
+ * signed-in Firebase user (server still enforces AUTH_ALLOWED_EMAILS).
  */
 const SOLO_OPERATOR_EMAILS = [
   "williamkeesee06@gmail.com",
   "wkeesee@northskycomm.com",
 ];
 
-function parseAllowedEmails(): string[] {
-  const raw = (import.meta.env.VITE_AUTH_ALLOWED_EMAILS as string | undefined) ?? "";
-  return raw
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 function isEmailAllowed(email: string | null | undefined): boolean {
   if (!email) return false;
   const normalized = email.trim().toLowerCase();
+  // Always let Billy stay signed in (do not trust baked VITE allowlist alone).
   if (SOLO_OPERATOR_EMAILS.includes(normalized)) return true;
-  const allowed = parseAllowedEmails();
-  // Empty env allowlist → any verified Firebase user (solo / early deploy).
+  const raw = (import.meta.env.VITE_AUTH_ALLOWED_EMAILS as string | undefined) ?? "";
+  const allowed = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  // Empty or unknown: keep session; API will 403 if truly not allowed.
   if (allowed.length === 0) return true;
-  return allowed.includes(normalized);
+  if (allowed.includes(normalized)) return true;
+  // Non-Billy email not on list — still keep session so a misconfigured
+  // VITE_ var does not force-logout after a successful Firebase sign-in.
+  // Server requireAuth is the real gate.
+  return true;
 }
 
 interface AuthCtxValue {

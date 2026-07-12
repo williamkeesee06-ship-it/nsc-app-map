@@ -25,33 +25,10 @@ export default function LoginScreen() {
     setError(null);
     setStatus("Signing in…");
     try {
-      // Billy work + personal always OK; other emails need VITE_AUTH_ALLOWED_EMAILS.
-      const soloEmails = [
-        "williamkeesee06@gmail.com",
-        "wkeesee@northskycomm.com",
-      ];
-      const allowedRaw =
-        (import.meta.env.VITE_AUTH_ALLOWED_EMAILS as string | undefined) ?? "";
-      const allowed = allowedRaw
-        .split(",")
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean);
-      const emailLower = trimmedEmail.toLowerCase();
-      if (
-        allowed.length > 0 &&
-        !allowed.includes(emailLower) &&
-        !soloEmails.includes(emailLower)
-      ) {
-        setError(
-          "This account is not authorized for the app yet. " +
-            "Billy can use wkeesee@northskycomm.com or williamkeesee06@gmail.com. " +
-            "Other operators need VITE_AUTH_ALLOWED_EMAILS + AUTH_ALLOWED_EMAILS on Vercel."
-        );
-        setBusy(false);
-        setStatus("");
-        return;
-      }
-
+      // Do NOT pre-block on VITE_AUTH_ALLOWED_EMAILS here — that env is baked at
+      // build time and a stale/wrong list locked Billy out of his own app.
+      // Firebase validates the password; AuthProvider + API enforce the allowlist
+      // (Billy's work + personal emails are always allowed in code).
       const user = await signInWithEmail(trimmedEmail, password);
       // Token was forced in signInWithEmail — confirm before any /api call
       const token = await user.getIdToken();
