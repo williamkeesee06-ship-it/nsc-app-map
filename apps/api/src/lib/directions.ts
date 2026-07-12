@@ -64,23 +64,60 @@ function simplifyPath(points: LatLng[], minMeters: number): LatLng[] {
   return out;
 }
 
+type DirectionsJson = {
+  status: string;
+  routes?: Array<{
+    overview_polyline?: { points?: string };
+    legs?: Array<{
+      steps?: Array<{ polyline?: { points?: string } }>;
+    }>;
+  }>;
+};
+
+function extractRoutePoints(data: DirectionsJson): LatLng[] | null {
+  if (data.status !== "OK" || !data.routes?.[0]) return null;
+  const route = data.routes[0]!;
+  const stepPts: LatLng[] = [];
+  for (const leg of route.legs ?? []) {
+    for (const step of leg.steps ?? []) {
+      const enc = step.polyline?.points;
+      if (enc) stepPts.push(...decodePolyline(enc));
+    }
+  }
+  if (stepPts.length >= 2) return simplifyPath(stepPts, 4);
+  const overview = route.overview_polyline?.points;
+  if (overview) return simplifyPath(decodePolyline(overview), 4);
+  return null;
+}
+
 /**
  * Route along public roads. Walking first (neighborhood ROW); driving fallback.
+ * Optional waypoints (max 23 intermediate — Google limit 25 total stops).
  * Returns null if no API key or zero results.
  */
 export async function routeAlongRoads(
   origin: LatLng,
   destination: LatLng,
-  opts?: { mode?: "walking" | "driving" }
+  opts?: { mode?: "walking" | "driving"; waypoints?: LatLng[] }
 ): Promise<LatLng[] | null> {
   const key = getApiKey();
   if (!key) return null;
 
   const mode = opts?.mode ?? "walking";
+  // Preserve order (do not optimize) — plant station sequence is truth
+  const wps = (opts?.waypoints ?? []).slice(0, 23);
+  const wpParam =
+    wps.length > 0
+      ? `&waypoints=${encodeURIComponent(
+          wps.map((p) => `${p.lat},${p.lng}`).join("|")
+        )}`
+      : "";
+
   const url =
     `https://maps.googleapis.com/maps/api/directions/json` +
     `?origin=${origin.lat},${origin.lng}` +
     `&destination=${destination.lat},${destination.lng}` +
+    wpParam +
     `&mode=${mode}` +
     `&units=imperial` +
     `&key=${encodeURIComponent(key)}`;
@@ -88,35 +125,16 @@ export async function routeAlongRoads(
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
-    const data = (await res.json()) as {
-      status: string;
-      routes?: Array<{
-        overview_polyline?: { points?: string };
-        legs?: Array<{
-          steps?: Array<{ polyline?: { points?: string } }>;
-        }>;
-      }>;
-    };
+    const data = (await res.json()) as DirectionsJson;
+    const pts = extractRoutePoints(data);
+    if (pts) return pts;
 
-    if (data.status !== "OK" || !data.routes?.[0]) {
-      if (mode === "walking") {
-        return routeAlongRoads(origin, destination, { mode: "driving" });
-      }
-      return null;
+    if (data.status !== "OK" && mode === "walking") {
+      return routeAlongRoads(origin, destination, {
+        mode: "driving",
+        waypoints: opts?.waypoints,
+      });
     }
-
-    const route = data.routes[0]!;
-    const stepPts: LatLng[] = [];
-    for (const leg of route.legs ?? []) {
-      for (const step of leg.steps ?? []) {
-        const enc = step.polyline?.points;
-        if (enc) stepPts.push(...decodePolyline(enc));
-      }
-    }
-    if (stepPts.length >= 2) return simplifyPath(stepPts, 4);
-
-    const overview = route.overview_polyline?.points;
-    if (overview) return simplifyPath(decodePolyline(overview), 4);
     return null;
   } catch {
     return null;

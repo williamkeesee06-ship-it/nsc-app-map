@@ -20,8 +20,8 @@ const SYSTEM_INSTRUCTION =
   "You are an expert broadband telecom engineer specialized in Booker Engineering / Ziply FTTH " +
   "construction plan sets (cover sheets, sheet index, plan view sheets, details, legends). " +
   "You read house numbers on parcels, mainline fiber along named roads (e.g. Metron Rd), " +
-  "MST/FDH symbols, bore/trench/aerial callouts, and footages. " +
-  "Extract EVERY terminal, house number, and cable segment from ALL attached pages. " +
+  "MST/FDH symbols, bore/trench/aerial callouts, stationing (12+50 style), and footages. " +
+  "Extract EVERY terminal, house number, cable segment, and station/offset when shown. " +
   "Return JSON strictly conforming to the requested schema. Never invent house numbers not on the sheet.";
 
 export interface ZiplyParsedPrint {
@@ -68,6 +68,8 @@ export interface ZiplyParsedPrint {
       sheetPage?: number | null;
       sequenceOrder?: number | null;
       side?: "left" | "right" | "both" | null;
+      /** Station feet along mainline (12+50 → 1250). */
+      stationFt?: number | null;
     }>;
     terminals: Array<{
       label: string;
@@ -84,6 +86,10 @@ export interface ZiplyParsedPrint {
       sheetPage?: number | null;
       sequenceOrder?: number | null;
       side?: "left" | "right" | null;
+      /** Station feet along mainline from plan. */
+      stationFt?: number | null;
+      /** Offset feet from mainline centerline to MST/parcel. */
+      offsetFt?: number | null;
     }>;
     notes: string | null;
     mainlineStreet?: string | null;
@@ -219,6 +225,10 @@ CRITICAL FOR MAP PLACEMENT (read plan sheets carefully):
   existing feeder callouts = role "feeder"
 - buildType from callouts: BORE / TRENCH / AERIAL / OVERLASH → bore|trench|aerial
 - Footage labels like "BORE 42'" or "TRENCH 208'" → lengthFt
+- STATIONING: if plan shows 12+50 / STA marks, set stationFt (12+50 → 1250 feet)
+- OFFSET: distance from mainline to MST if dimensioned → offsetFt (feet)
+- sequenceOrder: order along mainline south→north or up-station as printed
+- side: "left" or "right" of mainline looking up-station / north
 
 FIELDS:
 1. Hub ID (H1002, S3065 cabinet id, etc.)
@@ -233,10 +243,9 @@ FIELDS:
 10. hubAddress, projectCity, mainlineStreet
 11. mapObjects — EVERY MST, splice, and cable segment from plan sheets:
     cables: { label, fiberCount, lengthFt, buildType, role, toTerminal, routeStreets,
-              sheetPage (1-based plan sheet number if known), sequenceOrder (build/station order),
-              side ("left"|"right"|"both" of mainline looking up-station) }
+              sheetPage, sequenceOrder, side, stationFt }
     terminals: { label, type, portCount, footageFt, footageLabel, dvftpRange, code, fiberSpec,
-                 addressesServed, houseNumbers, sheetPage, sequenceOrder, side }
+                 addressesServed, houseNumbers, sheetPage, sequenceOrder, side, stationFt, offsetFt }
     notes, mainlineStreet
     Order terminals south→north or as numbered on the plan index when possible.
 
@@ -265,8 +274,8 @@ Schema:
   },
   "mapObjects": {
     "mainlineStreet": "Metron Rd or null",
-    "cables": [{"label":"C-1","fiberCount":"48F","lengthFt":250,"buildType":"bore","role":"lateral","toTerminal":"MST-1","routeStreets":["Metron Rd"],"sheetPage":3,"sequenceOrder":4,"side":"left"}],
-    "terminals": [{"label":"MST-1","type":"8-port MST","portCount":8,"footageFt":42,"footageLabel":"BORE 42'","dvftpRange":null,"code":null,"fiberSpec":"12F","houseNumbers":["18052"],"addressesServed":["18052 Metron Rd"],"sheetPage":3,"sequenceOrder":4,"side":"left"}],
+    "cables": [{"label":"C-1","fiberCount":"48F","lengthFt":250,"buildType":"bore","role":"lateral","toTerminal":"MST-1","routeStreets":["Metron Rd"],"sheetPage":3,"sequenceOrder":4,"side":"left","stationFt":1250}],
+    "terminals": [{"label":"MST-1","type":"8-port MST","portCount":8,"footageFt":42,"footageLabel":"BORE 42'","dvftpRange":null,"code":null,"fiberSpec":"12F","houseNumbers":["18052"],"addressesServed":["18052 Metron Rd"],"sheetPage":3,"sequenceOrder":4,"side":"left","stationFt":1250,"offsetFt":35}],
     "notes": "string or null"
   }
 }

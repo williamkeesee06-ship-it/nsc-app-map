@@ -10,12 +10,16 @@ import {
 } from "../lib/geocode.js";
 import { routeAlongRoads } from "../lib/directions.js";
 import {
-  buildMasterPlantLayout,
   expandHouseAddresses,
-  preferPlantOrRoad,
   GOLD_PLANT_SEEDS,
   distM,
 } from "../services/ziplyPlantEngine.js";
+import {
+  registerPlant,
+  orderControls,
+  buildRegisteredLateral,
+  type SheetControl,
+} from "../services/ziplySheetRegister.js";
 import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
@@ -800,6 +804,8 @@ async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): 
         sheetPage: t.sheetPage ?? null,
         sequenceOrder: t.sequenceOrder ?? null,
         side: t.side ?? null,
+        stationFt: typeof t.stationFt === "number" ? t.stationFt : null,
+        offsetFt: typeof t.offsetFt === "number" ? t.offsetFt : null,
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
         status: "planned" as ZiplyObjectStatus,
@@ -818,6 +824,7 @@ async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): 
       sheetPage: c.sheetPage ?? null,
       sequenceOrder: c.sequenceOrder ?? null,
       side: c.side ?? null,
+      stationFt: typeof c.stationFt === "number" ? c.stationFt : null,
       status: "planned" as ZiplyObjectStatus,
     }));
 
@@ -1283,6 +1290,7 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
             t.label.includes(hn)
         );
         if (exists) continue;
+        const seq = gold.houseNumbers.indexOf(hn) + 1;
         terminals.push({
           label: `LOT-${hn}`,
           type: "service",
@@ -1299,6 +1307,9 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
             null
           ),
           houseNumbers: [hn],
+          sequenceOrder: seq,
+          stationFt: seq * 100,
+          side: seq % 2 === 0 ? "right" : "left",
           lat: null,
           lng: null,
           status: "planned" as ZiplyObjectStatus,
@@ -1367,72 +1378,79 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
   termByLabel.clear();
   for (const t of terminals) termByLabel.set(t.label, t);
 
-  const locatedTerms = terminals
-    .filter((t) => isValidLatLng(t.lat, t.lng))
-    .map((t) => ({
+  // Control points = every geocoded terminal (+ hub) — plan-sheet registration truth
+  const controls: SheetControl[] = [];
+  controls.push({
+    id: "hub",
+    kind: "hub",
+    label: job.ziplyPrintLayer?.hubId || "FDH",
+    lat: hubCoords.lat,
+    lng: hubCoords.lng,
+    sequenceOrder: 0,
+    stationFt: 0,
+  });
+  for (const t of terminals) {
+    if (!isValidLatLng(t.lat, t.lng)) continue;
+    controls.push({
+      id: t.label,
+      kind: "terminal",
       label: t.label,
       lat: t.lat as number,
       lng: t.lng as number,
-      footageFt: t.footageFt,
-      houseNumbers: t.houseNumbers,
-      addressesServed: t.addressesServed,
-      side: t.side ?? null,
+      stationFt: t.stationFt ?? null,
+      offsetFt: t.offsetFt ?? null,
+      side: t.side === "left" || t.side === "right" ? t.side : null,
       sequenceOrder: t.sequenceOrder ?? null,
-    }));
-
-  // Master plant engine — never starburst
-  const plant = buildMasterPlantLayout(hubCoords, locatedTerms, {
-    mainlineStreet,
-    padMeters: 50,
-  });
-
-  // Road-follow backbone once (reject wild detours)
-  let backbonePath = plant.backbone;
-  if (plant.backbone.length >= 2) {
-    const a = plant.backbone[0]!;
-    const b = plant.backbone[plant.backbone.length - 1]!;
-    const roadBackbone = await routeAlongRoads(a, b, { mode: "walking" });
-    if (roadBackbone) {
-      backbonePath = preferPlantOrRoad(plant.backbone, roadBackbone, 1.75);
-    }
+      footageFt: t.footageFt ?? null,
+    });
   }
+
+  // Road-snap backbone through ordered controls (waypoints preserve station order)
+  const orderedCtrls = orderControls(controls, hubCoords);
+  let roadBackbone: Array<{ lat: number; lng: number }> | null = null;
+  if (orderedCtrls.length >= 2) {
+    const origin = { lat: orderedCtrls[0]!.lat, lng: orderedCtrls[0]!.lng };
+    const dest = {
+      lat: orderedCtrls[orderedCtrls.length - 1]!.lat,
+      lng: orderedCtrls[orderedCtrls.length - 1]!.lng,
+    };
+    // Sample intermediate controls as waypoints (max 8 for API cost)
+    const mid = orderedCtrls.slice(1, -1);
+    const step = Math.max(1, Math.ceil(mid.length / 8));
+    const waypoints = mid
+      .filter((_, i) => i % step === 0)
+      .slice(0, 8)
+      .map((c) => ({ lat: c.lat, lng: c.lng }));
+    roadBackbone = await routeAlongRoads(origin, dest, {
+      mode: "walking",
+      waypoints: waypoints.length >= 1 ? waypoints : undefined,
+    });
+  }
+
+  // Sheet registration — control points + true polyline joins (not star spokes)
+  const plant = registerPlant(hubCoords, controls, {
+    mainlineStreet,
+    padMeters: 45,
+    roadBackbone,
+  });
+  const backbonePath = plant.backbone;
+  const geometrySource =
+    plant.fidelity === "control_registered"
+      ? roadBackbone && roadBackbone.length >= 3
+        ? ("road_snapped" as const)
+        : ("control_registered" as const)
+      : ("synthetic" as const);
 
   let cablesPathed = 0;
   let waypointsGeocoded = 0;
-  let roadsRouted = 0;
-  /** Cap Directions API calls per enhance (scalability / Vercel time). */
-  const MAX_DIRECTION_CALLS = 20;
-  let directionCalls = 0;
+  const roadsRouted = roadBackbone ? 1 : 0;
   const lateralByLabel = new Map(plant.laterals.map((l) => [l.label, l.path]));
   const cables: ZiplyCable[] = [];
 
-  const routeLateral = async (
-    termPos: { lat: number; lng: number },
-    synthetic: Array<{ lat: number; lng: number }>
-  ): Promise<Array<{ lat: number; lng: number }>> => {
-    let join = hubCoords;
-    let best = Infinity;
-    for (const p of backbonePath) {
-      const d = distM(p, termPos);
-      if (d < best) {
-        best = d;
-        join = p;
-      }
-    }
-    if (directionCalls < MAX_DIRECTION_CALLS) {
-      directionCalls++;
-      const road = await routeAlongRoads(join, termPos, { mode: "walking" });
-      if (road && road.length >= 3) {
-        roadsRouted++;
-        return preferPlantOrRoad(synthetic, road, 2.2);
-      }
-    }
-    return synthetic.length >= 3 ? synthetic : plant.backbone.slice(0, 1).concat([termPos]);
-  };
-
-  // Rebuild ALL laterals from plant engine (parallel Directions, capped)
+  // Prefer registered lateral geometry — no per-lateral Directions soup
   const sourceCables = mo.cables ?? [];
-  const rebuilt = await mapPool(sourceCables, 4, async (c, i) => {
+  for (let i = 0; i < sourceCables.length; i++) {
+    const c = sourceCables[i]!;
     const term = findTerm(c.toTerminal ?? c.label, i);
     const termPos =
       term && isValidLatLng(term.lat, term.lng)
@@ -1449,24 +1467,46 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     if (role === "mainline" || role === "feeder") {
       path = backbonePath;
       cablesPathed++;
-    } else if (termPos) {
+    } else {
       const synth =
         (term && lateralByLabel.get(term.label)) ??
         lateralByLabel.get(c.label) ??
-        [hubCoords, termPos];
-      path = await routeLateral(termPos, synth);
-      cablesPathed++;
+        null;
+      if (synth && synth.length >= 2) {
+        path = synth;
+        cablesPathed++;
+      } else if (termPos) {
+        // Build on-the-fly registered lateral from control
+        const ctrl: SheetControl = {
+          id: term?.label ?? c.label,
+          kind: "terminal",
+          label: term?.label ?? c.label,
+          lat: termPos.lat,
+          lng: termPos.lng,
+          stationFt: term?.stationFt ?? c.stationFt ?? null,
+          offsetFt: term?.offsetFt ?? null,
+          side:
+            term?.side === "left" || term?.side === "right"
+              ? term.side
+              : c.side === "left" || c.side === "right"
+                ? c.side
+                : null,
+          sequenceOrder: term?.sequenceOrder ?? c.sequenceOrder ?? null,
+          footageFt: term?.footageFt ?? c.lengthFt ?? null,
+        };
+        path = buildRegisteredLateral(backbonePath, ctrl).path;
+        cablesPathed++;
+      }
     }
 
-    return {
+    cables.push({
       ...c,
       role,
       path,
       routeStreets: c.routeStreets ?? (mainlineStreet ? [mainlineStreet] : null),
       status: c.status ?? ("planned" as ZiplyObjectStatus),
-    } as ZiplyCable;
-  });
-  cables.push(...rebuilt);
+    });
+  }
 
   // Always one canonical mainline
   const hasMainline = cables.some((c) => c.role === "mainline" || c.role === "feeder");
@@ -1484,7 +1524,6 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     });
     cablesPathed++;
   } else {
-    // Force mainline path onto backbone
     for (let i = 0; i < cables.length; i++) {
       if (cables[i]!.role === "mainline" || cables[i]!.role === "feeder") {
         cables[i] = { ...cables[i]!, path: backbonePath };
@@ -1492,35 +1531,44 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     }
   }
 
-  // Lateral for every located terminal not already covered
+  // Lateral for every located control not already covered
   const covered = new Set(
     cables.map((c) => c.toTerminal).filter((x): x is string => !!x)
   );
-  const uncovered = locatedTerms.filter(
-    (t) =>
-      !covered.has(t.label) &&
-      !cables.some((c) => c.toTerminal === t.label || c.label === t.label)
-  );
-  const extra = await mapPool(uncovered, 4, async (t) => {
-    const synth = lateralByLabel.get(t.label) ?? [hubCoords, t];
-    const path = await routeLateral(t, synth);
-    cablesPathed++;
-    return {
-      label: t.label.startsWith("LOT-") ? `LAT-${t.label.slice(4)}` : t.label,
+  for (const lat of plant.laterals) {
+    if (covered.has(lat.label)) continue;
+    if (cables.some((c) => c.toTerminal === lat.label || c.label === lat.label)) continue;
+    const term = terminals.find((t) => t.label === lat.label);
+    cables.push({
+      label: lat.label.startsWith("LOT-") ? `LAT-${lat.label.slice(4)}` : lat.label,
       fiberCount: "",
-      lengthFt: t.footageFt ?? null,
-      path,
-      buildType: "bore" as const,
-      role: "lateral" as const,
-      toTerminal: t.label,
+      lengthFt: term?.footageFt ?? null,
+      path: lat.path,
+      buildType: "bore",
+      role: "lateral",
+      toTerminal: lat.label,
       routeStreets: mainlineStreet ? [mainlineStreet] : null,
+      stationFt: term?.stationFt ?? null,
+      side: term?.side ?? null,
+      sequenceOrder: term?.sequenceOrder ?? null,
       status: "planned" as ZiplyObjectStatus,
-    } as ZiplyCable;
-  });
-  cables.push(...extra);
+    });
+    cablesPathed++;
+  }
+
+  // Write registered coords back onto terminals (control positions)
+  for (const tp of plant.terminalPositions) {
+    const idx = terminals.findIndex((t) => t.label === tp.label);
+    if (idx >= 0) {
+      terminals[idx] = { ...terminals[idx]!, lat: tp.lat, lng: tp.lng };
+    }
+  }
 
   console.info(
-    `[ziply-enhance] job=${jobId} master cables=${cablesPathed} roads=${roadsRouted} backbone=${backbonePath.length} mainline=${mainlineStreet ?? "?"} gold=${gold?.projectLabel ?? "none"}`
+    `[ziply-enhance] job=${jobId} fidelity=${plant.fidelity} source=${geometrySource} ` +
+      `controls=${plant.controlCount} residualM=${plant.residualRm?.toFixed(1) ?? "?"} ` +
+      `cables=${cablesPathed} roads=${roadsRouted} backbone=${backbonePath.length} ` +
+      `mainline=${mainlineStreet ?? "?"} gold=${gold?.projectLabel ?? "none"}`
   );
 
   // Drops = geocoded house addresses (print-accurate parcels). Cap for enhance time.
@@ -1603,6 +1651,8 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
       },
       mainlineStreet,
       backbonePath,
+      geometrySource,
+      geometryResidualM: plant.residualRm ?? null,
       terminals,
       cables,
       dropSites,

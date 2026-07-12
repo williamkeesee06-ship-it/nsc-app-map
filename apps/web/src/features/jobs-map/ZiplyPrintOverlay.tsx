@@ -396,6 +396,9 @@ function PrintCadHud({
     focusLabel?: string;
     otherPlants?: number;
     showAllPlants?: boolean;
+    /** control_registered | road_snapped | synthetic */
+    geometrySource?: string | null;
+    residualM?: number | null;
   };
   flowOn: boolean;
   setFlowOn: (v: boolean) => void;
@@ -568,10 +571,23 @@ function PrintCadHud({
             {zoom.toFixed(0)}
             {stats.enhanced ? " · enhanced" : ""}
           </span>
+          {stats.geometrySource ? (
+            <span style={{ color: "#67e8f9" }}>
+              CAD:{" "}
+              {stats.geometrySource === "control_registered"
+                ? "sheet-registered"
+                : stats.geometrySource === "road_snapped"
+                  ? "road-snapped controls"
+                  : "synthetic"}
+              {stats.residualM != null && stats.residualM > 0
+                ? ` · fit ±${Math.round(stats.residualM)}m`
+                : ""}
+            </span>
+          ) : null}
         </div>
         <p className="ziply-cad-hud__hint">
-          One plant at a time — open a Ziply job with a print to focus it. Labels appear
-          at higher zoom. Click a cable for Live / Neon Done.
+          Geometry from geocoded parcels + plan topology (not spokes). Run ENHANCE CAD
+          after ingest. Labels at higher zoom. Click cable for Live / Neon Done.
         </p>
       </div>
     </div>
@@ -873,6 +889,8 @@ export default function ZiplyPrintOverlay({
     let planned = 0;
     let progressPct = 0;
     let footageNote: string | null = null;
+    let geometrySource: string | null = null;
+    let residualM: number | null = null;
     // Real progress from focused plant only (object + footage when known)
     for (const j of printJobs) {
       const mo = j.ziplyPrintLayer?.mapObjects;
@@ -880,6 +898,8 @@ export default function ZiplyPrintOverlay({
       terminals += mo?.terminals?.length ?? 0;
       drops += mo?.dropSites?.length ?? 0;
       if (j.ziplyPrintLayer?.printGeometryEnhancedAt) enhanced = true;
+      if (mo?.geometrySource) geometrySource = mo.geometrySource;
+      if (mo?.geometryResidualM != null) residualM = mo.geometryResidualM;
       const p = computePlantProgress(j, overrides);
       complete += p.complete;
       inProgress += p.inProgress;
@@ -899,6 +919,8 @@ export default function ZiplyPrintOverlay({
       planned,
       progressPct,
       footageNote,
+      geometrySource,
+      residualM,
       focusLabel: printJobs[0]
         ? printJobs[0]!.workOrder || printJobs[0]!.jobId.slice(0, 8)
         : "—",
@@ -1627,6 +1649,18 @@ export default function ZiplyPrintOverlay({
                       value: isEnhanced
                         ? `Enhanced ${new Date(layer.printGeometryEnhancedAt!).toLocaleString()}`
                         : "Not enhanced — use ENHANCE CAD DETAIL on job card",
+                    },
+                    {
+                      label: "Geometry",
+                      value: mo.geometrySource
+                        ? `${mo.geometrySource}${
+                            mo.geometryResidualM != null
+                              ? ` (±${Math.round(mo.geometryResidualM)}m fit)`
+                              : ""
+                          }`
+                        : isEnhanced
+                          ? "enhanced (re-run ENHANCE for sheet registration)"
+                          : "—",
                     },
                     {
                       label: "Excavation",

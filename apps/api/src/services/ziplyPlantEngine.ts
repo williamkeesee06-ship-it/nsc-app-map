@@ -365,8 +365,10 @@ export const GOLD_PLANT_SEEDS: Array<{
     city: "Arlington",
     mainlineStreet: "Metron Rd",
     // From plan sheets in SHARED ARTNWAXX-6017044
+    // South → north along Metron Rd (SHARED ARTNWAXX-6017044 plan sheets)
     houseNumbers: [
       "18018",
+      "18050",
       "18052",
       "18055",
       "18110",
@@ -375,7 +377,6 @@ export const GOLD_PLANT_SEEDS: Array<{
       "18154",
       "18330",
       "18352",
-      "18050",
     ],
     projectLabel: "ARTNWAXX-6017044-S3065 Metron Rd",
   },

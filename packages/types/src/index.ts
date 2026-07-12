@@ -434,6 +434,15 @@ export interface Job {
        * Rendered thicker than laterals on the map.
        */
       backbonePath?: Array<{ lat: number; lng: number }> | null;
+      /**
+       * How plant geometry was produced:
+       * - control_registered: geocoded parcels + true backbone joins (plan fidelity)
+       * - road_snapped: control plant with Directions backbone
+       * - synthetic: axis/fan fallback
+       */
+      geometrySource?: "control_registered" | "road_snapped" | "synthetic" | null;
+      /** Mean residual meters of control points to backbone (lower = better fit). */
+      geometryResidualM?: number | null;
       cables: Array<{
         label: string;
         fiberCount: string;
@@ -454,6 +463,8 @@ export interface Job {
         sequenceOrder?: number | null;
         /** left/right of mainline looking up-station. */
         side?: "left" | "right" | "both" | null;
+        /** Station feet along mainline from plan (e.g. 12+50 → 1250). */
+        stationFt?: number | null;
         status?: ZiplyObjectStatus;
         /** Section-scoped 811 + crew metadata keyed by hubId + label/range. */
         locateTicketId?: string | null;
@@ -482,6 +493,10 @@ export interface Job {
         sequenceOrder?: number | null;
         /** Side of mainline ROW. */
         side?: "left" | "right" | null;
+        /** Station feet along mainline from plan callout. */
+        stationFt?: number | null;
+        /** Perpendicular offset feet from mainline on plan. */
+        offsetFt?: number | null;
         /** Georeferenced terminal position (geocoded address / GPS anchor). */
         lat?: number | null;
         lng?: number | null;
