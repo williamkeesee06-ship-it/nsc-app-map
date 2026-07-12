@@ -212,6 +212,49 @@ export async function ingestZiplyPrintForJob(
   window.dispatchEvent(new Event("nsc:jobs-reload"));
 }
 
+export type ZiplyPermitTypeKey =
+  | "cityRow"
+  | "wsdot"
+  | "county"
+  | "railroad"
+  | "pa"
+  | "tcp"
+  | "other";
+
+export const ZIPLY_PERMIT_TYPES: { id: ZiplyPermitTypeKey; label: string }[] = [
+  { id: "cityRow", label: "City ROW" },
+  { id: "wsdot", label: "WSDOT" },
+  { id: "county", label: "County" },
+  { id: "railroad", label: "Railroad" },
+  { id: "pa", label: "PGE / PA / Franchise" },
+  { id: "tcp", label: "TCP (Traffic Control)" },
+  { id: "other", label: "Other permit" },
+];
+
+/** Upload permit PDF/image to Storage, kick off AI extract, refresh jobs. */
+export async function ingestZiplyPermitForJob(
+  jobId: string,
+  file: File,
+  permitType: ZiplyPermitTypeKey,
+  onProgress?: (percent: number) => void
+): Promise<void> {
+  const uploaded = await uploadZiplyPrint(jobId, file, onProgress, { kind: "permit" });
+  await api.ziplyPermitIngest(jobId, {
+    permitType,
+    storageFiles: [
+      {
+        storagePath: uploaded.storagePath,
+        downloadUrl: uploaded.downloadUrl,
+        contentType: uploaded.contentType,
+        name: uploaded.name,
+        size: uploaded.size,
+        storageBucket: uploaded.storageBucket,
+      },
+    ],
+  });
+  window.dispatchEvent(new Event("nsc:jobs-reload"));
+}
+
 /** Ziply simple status groups for MAP filter checkboxes. */
 export type ZiplyStatusGroup = "not_started" | "in_progress" | "complete";
 

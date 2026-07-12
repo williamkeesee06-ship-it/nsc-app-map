@@ -273,3 +273,168 @@ Return a JSON block strictly complying with this schema:
 
   return parseGeminiJson(responseText, finishReason);
 }
+
+/** Structured fields extracted from a ROW / city / WSDOT / county permit PDF. */
+export interface ZiplyParsedPermit {
+  permitNumber: string | null;
+  /** cityRow | wsdot | county | railroad | pa | tcp | other */
+  permitTypeKey: string | null;
+  issuingAgency: string | null;
+  status: "Pending" | "Approved" | "Active" | "Closed" | null;
+  issueDate: string | null;
+  expirationDate: string | null;
+  workStartDate: string | null;
+  workEndDate: string | null;
+  workHours: string | null;
+  workLocation: string | null;
+  streets: string[] | null;
+  excavationMethods: string[] | null;
+  trafficControlRequired: boolean | null;
+  conditions: string[] | null;
+  restrictions: string[] | null;
+  contacts: string[] | null;
+  summary: string | null;
+}
+
+function parseGeminiPermitJson(
+  responseText: string,
+  finishReason: string | undefined
+): ZiplyParsedPermit {
+  try {
+    const cleaned = stripJsonFences(responseText);
+    const jsonText = findCompleteJsonPrefix(cleaned) ?? cleaned;
+    const raw = JSON.parse(jsonText) as Record<string, unknown>;
+    const str = (k: string) =>
+      typeof raw[k] === "string" ? (raw[k] as string).trim() || null : null;
+    const strArr = (k: string): string[] | null => {
+      if (!Array.isArray(raw[k])) return null;
+      const arr = (raw[k] as unknown[])
+        .filter((x): x is string => typeof x === "string")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return arr.length ? arr : null;
+    };
+    const statusRaw = str("status");
+    const statusOk =
+      statusRaw === "Pending" ||
+      statusRaw === "Approved" ||
+      statusRaw === "Active" ||
+      statusRaw === "Closed"
+        ? statusRaw
+        : null;
+    return {
+      permitNumber: str("permitNumber"),
+      permitTypeKey: str("permitTypeKey"),
+      issuingAgency: str("issuingAgency"),
+      status: statusOk,
+      issueDate: str("issueDate"),
+      expirationDate: str("expirationDate"),
+      workStartDate: str("workStartDate"),
+      workEndDate: str("workEndDate"),
+      workHours: str("workHours"),
+      workLocation: str("workLocation"),
+      streets: strArr("streets"),
+      excavationMethods: strArr("excavationMethods"),
+      trafficControlRequired:
+        typeof raw.trafficControlRequired === "boolean"
+          ? raw.trafficControlRequired
+          : null,
+      conditions: strArr("conditions"),
+      restrictions: strArr("restrictions"),
+      contacts: strArr("contacts"),
+      summary: str("summary"),
+    };
+  } catch (e) {
+    const reasonDetail = finishReason ? ` Gemini finish reason: ${finishReason}.` : "";
+    throw new ZiplyPrintParseError(
+      `Failed to parse permit document JSON.${reasonDetail} ` +
+        (e instanceof Error ? e.message : "Unknown parse error")
+    );
+  }
+}
+
+/**
+ * AI-extract key fields from a municipal / WSDOT / utility permit PDF or image.
+ * Used after the operator uploads a permit for a Ziply job.
+ */
+export async function parseZiplyPermit(
+  dataUrls: string | string[],
+  hintPermitType?: string | null
+): Promise<ZiplyParsedPermit> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY not set in environment");
+
+  const genai = new GoogleGenerativeAI(apiKey);
+  const urls = Array.isArray(dataUrls) ? dataUrls : [dataUrls];
+  const parts = urls.map(dataUrlToPart);
+  const hint = hintPermitType?.trim() || "unknown";
+
+  const prompt = `
+You are analyzing a construction / right-of-way / telecom permit document (PDF or image).
+The operator labeled this upload as permit type: "${hint}".
+
+Extract every operationally useful field for a fiber construction crew. Return JSON only.
+
+FIELDS:
+1. permitNumber — official permit / application / case number
+2. permitTypeKey — one of: cityRow, wsdot, county, railroad, pa, tcp, other
+   (cityRow = city right-of-way; pa = franchise / power / PA; tcp = traffic control plan)
+3. issuingAgency — city, county, WSDOT, railroad, utility, etc.
+4. status — Pending | Approved | Active | Closed (use Approved if issued/valid; Active if currently in force)
+5. issueDate, expirationDate, workStartDate, workEndDate — ISO-like strings if shown (YYYY-MM-DD preferred)
+6. workHours — allowed hours / days of work (e.g. "7am-7pm Mon-Fri")
+7. workLocation — address, segment description, or project location text
+8. streets — list of street names covered
+9. excavationMethods — bore, trench, open cut, aerial, etc. if restricted or allowed
+10. trafficControlRequired — true/false if TCP or flaggers required
+11. conditions — numbered or bullet conditions that affect construction
+12. restrictions — noise, lane closure, seasonal, tree, wetland, etc.
+13. contacts — agency contacts / inspector phone or email if present
+14. summary — 1-3 sentence plain-English summary for a field supervisor
+
+Schema:
+{
+  "permitNumber": "string or null",
+  "permitTypeKey": "cityRow|wsdot|county|railroad|pa|tcp|other or null",
+  "issuingAgency": "string or null",
+  "status": "Pending|Approved|Active|Closed or null",
+  "issueDate": "string or null",
+  "expirationDate": "string or null",
+  "workStartDate": "string or null",
+  "workEndDate": "string or null",
+  "workHours": "string or null",
+  "workLocation": "string or null",
+  "streets": ["string"],
+  "excavationMethods": ["string"],
+  "trafficControlRequired": true or false or null,
+  "conditions": ["string"],
+  "restrictions": ["string"],
+  "contacts": ["string"],
+  "summary": "string or null"
+}
+`;
+
+  const model = genai.getGenerativeModel({
+    model: ZIPLY_GEMINI_MODEL,
+    systemInstruction: {
+      role: "system",
+      parts: [
+        {
+          text:
+            "You are an expert construction permit analyst for broadband fiber ROW work in Washington State. " +
+            "Extract exact numbers, dates, and conditions. Never invent permit numbers. Return strict JSON.",
+        },
+      ],
+    },
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json",
+      maxOutputTokens: 8192,
+    },
+  });
+
+  const result = await model.generateContent([prompt, ...parts]);
+  const responseText = result.response.text();
+  const finishReason = result.response.candidates?.[0]?.finishReason;
+  return parseGeminiPermitJson(responseText, finishReason);
+}

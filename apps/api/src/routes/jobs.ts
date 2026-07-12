@@ -7,8 +7,26 @@ import { geocodeAddress, buildAddressString } from "../lib/geocode.js";
 import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
-import { parseZiplyPrint, ZiplyPrintParseError } from "../services/ziplyParser.js";
+import {
+  parseZiplyPrint,
+  parseZiplyPermit,
+  ZiplyPrintParseError,
+} from "../services/ziplyParser.js";
 import type { DigShape, Job, PolygonData, ZiplyObjectStatus, ZiplySectionKind } from "@nsc/types";
+
+type ZiplyPermitFile = NonNullable<
+  NonNullable<Job["ziplyPrintLayer"]>["permitFiles"]
+>[number];
+
+const PERMIT_TYPE_KEYS = [
+  "cityRow",
+  "wsdot",
+  "county",
+  "railroad",
+  "pa",
+  "tcp",
+  "other",
+] as const;
 
 const router = Router();
 
@@ -1648,11 +1666,15 @@ router.post("/jobs/:jobId/marking-instructions", async (req, res, next) => {
   }
 });
 
-// POST /api/jobs/:jobId/permits — Upload a base64 permit PDF/image
+// POST /api/jobs/:jobId/permits — legacy base64 upload (kept for old UI).
+// Prefer POST /ziply-permit-ingest (Storage + AI parse).
 router.post("/jobs/:jobId/permits", async (req, res, next) => {
   try {
     const { jobId } = req.params;
-    const { permitType, fileDataUrl } = req.body as { permitType: string; fileDataUrl: string };
+    const { permitType, fileDataUrl } = req.body as {
+      permitType: string;
+      fileDataUrl: string;
+    };
 
     if (!permitType || !fileDataUrl) {
       res.status(400).json({ error: "permitType and fileDataUrl are required" });
@@ -1671,24 +1693,234 @@ router.post("/jobs/:jobId/permits", async (req, res, next) => {
       hubId: job.hubNumber || null,
       hubTypeSize: null,
       terminalCount: null,
-      uploadedPermitDocs: {}
+      uploadedPermitDocs: {},
     };
 
-    const uploadedDocs = layer.uploadedPermitDocs || {};
+    const uploadedDocs = { ...(layer.uploadedPermitDocs || {}) };
+    // Do not store huge base64 blobs in Firestore — reject oversized payloads.
+    if (fileDataUrl.length > 900_000) {
+      res.status(400).json({
+        error:
+          "Permit file too large for legacy upload. Use the new ENHANCE permit upload (Storage).",
+      });
+      return;
+    }
     uploadedDocs[permitType] = fileDataUrl;
 
-    const updates: Partial<Job> = {
+    await ref.update({
       ziplyPrintLayer: {
         ...layer,
-        uploadedPermitDocs: uploadedDocs
+        uploadedPermitDocs: uploadedDocs,
       },
-      lastSyncedAt: Date.now()
-    };
-
-    await ref.update(updates);
+      lastSyncedAt: Date.now(),
+    });
     invalidateJobsCache();
 
     res.json({ ok: true, jobId, permitType });
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function processZiplyPermitIngest(
+  jobId: string,
+  permitFileId: string,
+  permitType: string,
+  body: ZiplyIngestRequestBody
+): Promise<void> {
+  const ref = db().collection("jobs").doc(jobId);
+  try {
+    const urls = await resolveZiplyPrintDataUrls(body);
+    if (urls.length === 0) throw new Error("storageFiles required");
+
+    const parsed = await parseZiplyPermit(urls, permitType);
+    const doc = await ref.get();
+    if (!doc.exists) throw new Error("Job not found");
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer ?? {
+      hubId: job.hubNumber || null,
+      hubTypeSize: null,
+      terminalCount: null,
+    };
+
+    const files: ZiplyPermitFile[] = [...(layer.permitFiles ?? [])];
+    const idx = files.findIndex((f) => f.id === permitFileId);
+    if (idx < 0) throw new Error("permit file record missing");
+
+    const typeKey =
+      (parsed.permitTypeKey &&
+      PERMIT_TYPE_KEYS.includes(parsed.permitTypeKey as (typeof PERMIT_TYPE_KEYS)[number])
+        ? parsed.permitTypeKey
+        : permitType) || "other";
+
+    files[idx] = {
+      ...files[idx]!,
+      permitType: typeKey,
+      ingestStatus: "complete",
+      errorMessage: null,
+      parsed: {
+        permitNumber: parsed.permitNumber,
+        permitTypeKey: typeKey,
+        issuingAgency: parsed.issuingAgency,
+        status: parsed.status,
+        issueDate: parsed.issueDate,
+        expirationDate: parsed.expirationDate,
+        workStartDate: parsed.workStartDate,
+        workEndDate: parsed.workEndDate,
+        workHours: parsed.workHours,
+        workLocation: parsed.workLocation,
+        streets: parsed.streets,
+        excavationMethods: parsed.excavationMethods,
+        trafficControlRequired: parsed.trafficControlRequired,
+        conditions: parsed.conditions,
+        restrictions: parsed.restrictions,
+        contacts: parsed.contacts,
+        summary: parsed.summary,
+      },
+    };
+
+    // Roll parsed status into the permits status board when we know the slot.
+    const permits = { ...(layer.permits ?? {}) } as NonNullable<
+      NonNullable<Job["ziplyPrintLayer"]>["permits"]
+    >;
+    if (
+      typeKey !== "other" &&
+      (typeKey === "cityRow" ||
+        typeKey === "wsdot" ||
+        typeKey === "county" ||
+        typeKey === "railroad" ||
+        typeKey === "pa" ||
+        typeKey === "tcp")
+    ) {
+      permits[typeKey] = parsed.status ?? "Approved";
+    }
+
+    // Keep a stable download URL on the legacy map for "VIEW DOC" buttons.
+    const uploadedDocs = { ...(layer.uploadedPermitDocs ?? {}) };
+    const downloadUrl = files[idx]!.downloadUrl;
+    if (downloadUrl && typeKey !== "other") {
+      uploadedDocs[typeKey] = downloadUrl;
+    }
+
+    // Merge excavation methods onto print layer if permit lists them.
+    let excav = layer.permittedExcavationMethods ?? [];
+    if (parsed.excavationMethods?.length) {
+      const set = new Set([...(excav ?? []), ...parsed.excavationMethods]);
+      excav = Array.from(set);
+    }
+
+    await ref.update({
+      ziplyPrintLayer: {
+        ...layer,
+        permits,
+        permittedExcavationMethods: excav,
+        uploadedPermitDocs: uploadedDocs,
+        permitFiles: files,
+      },
+      lastSyncedAt: Date.now(),
+      customerProject: job.customerProject || "Ziply",
+    });
+    invalidateJobsCache();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Permit ingest failed";
+    console.error(`[ziply-permit-ingest] failed job=${jobId} file=${permitFileId}`, err);
+    try {
+      const doc = await ref.get();
+      if (!doc.exists) return;
+      const job = doc.data() as Job;
+      const layer = job.ziplyPrintLayer;
+      if (!layer?.permitFiles) return;
+      const files = layer.permitFiles.map((f) =>
+        f.id === permitFileId
+          ? { ...f, ingestStatus: "failed" as const, errorMessage: message }
+          : f
+      );
+      await ref.update({
+        ziplyPrintLayer: { ...layer, permitFiles: files },
+        lastSyncedAt: Date.now(),
+      });
+      invalidateJobsCache();
+    } catch {
+      /* ignore secondary failure */
+    }
+  }
+}
+
+// POST /api/jobs/:jobId/ziply-permit-ingest — upload metadata already in Storage;
+// AI-parse the permit and attach structured fields to the job.
+router.post("/jobs/:jobId/ziply-permit-ingest", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const body = req.body as ZiplyIngestRequestBody & { permitType?: string };
+    const permitTypeRaw = String(body.permitType ?? "other").trim() || "other";
+    const permitType = PERMIT_TYPE_KEYS.includes(
+      permitTypeRaw as (typeof PERMIT_TYPE_KEYS)[number]
+    )
+      ? permitTypeRaw
+      : "other";
+
+    const { files, legacyDataUrlCount } = sanitizeZiplyStorageFiles(body);
+    if (files.length === 0 && legacyDataUrlCount === 0) {
+      res.status(400).json({ error: "storageFiles required" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer ?? {
+      hubId: job.hubNumber || null,
+      hubTypeSize: null,
+      terminalCount: null,
+    };
+
+    const first = files[0];
+    const permitFileId = randomUUID();
+    const now = Date.now();
+    const record: ZiplyPermitFile = {
+      id: permitFileId,
+      permitType,
+      name: first?.name || "permit.pdf",
+      downloadUrl: first?.downloadUrl || "",
+      storagePath: first?.storagePath ?? null,
+      contentType: first?.contentType ?? null,
+      size: first?.size ?? null,
+      uploadedAt: now,
+      ingestStatus: "processing",
+      errorMessage: null,
+      parsed: null,
+    };
+
+    const permitFiles = [...(layer.permitFiles ?? []), record];
+    const uploadedDocs = { ...(layer.uploadedPermitDocs ?? {}) };
+    if (record.downloadUrl && permitType !== "other") {
+      uploadedDocs[permitType] = record.downloadUrl;
+    }
+
+    await ref.update({
+      ziplyPrintLayer: {
+        ...layer,
+        permitFiles,
+        uploadedPermitDocs: uploadedDocs,
+      },
+      lastSyncedAt: now,
+      customerProject: job.customerProject || "Ziply",
+    });
+    invalidateJobsCache();
+
+    waitUntil(processZiplyPermitIngest(jobId, permitFileId, permitType, body));
+
+    res.status(202).json({
+      ok: true,
+      jobId,
+      permitFileId,
+      status: "processing",
+      permitType,
+    });
   } catch (err) {
     next(err);
   }

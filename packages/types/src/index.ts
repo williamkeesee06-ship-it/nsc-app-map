@@ -376,8 +376,47 @@ export interface Job {
       pa?: "Pending" | "Approved" | "Active" | "Closed" | null;
       tcp?: "Pending" | "Approved" | "Active" | "Closed" | null;
     } | null;
-    // Base64 or object-storage url of permit file uploads
-    uploadedPermitDocs?: Record<string, string>; 
+    /**
+     * Legacy: base64 data URLs or download URLs keyed by permit type.
+     * Prefer `permitFiles` (Storage + AI parse) for new uploads.
+     */
+    uploadedPermitDocs?: Record<string, string>;
+    /**
+     * Uploaded permit PDFs/images with AI extraction (numbers, dates, conditions).
+     * One job can hold multiple permits (City ROW, WSDOT, County, etc.).
+     */
+    permitFiles?: Array<{
+      id: string;
+      /** cityRow | wsdot | county | railroad | pa | tcp | other */
+      permitType: string;
+      name: string;
+      downloadUrl: string;
+      storagePath?: string | null;
+      contentType?: string | null;
+      size?: number | null;
+      uploadedAt: number;
+      ingestStatus: "processing" | "complete" | "failed";
+      errorMessage?: string | null;
+      parsed?: {
+        permitNumber?: string | null;
+        permitTypeKey?: string | null;
+        issuingAgency?: string | null;
+        status?: "Pending" | "Approved" | "Active" | "Closed" | null;
+        issueDate?: string | null;
+        expirationDate?: string | null;
+        workStartDate?: string | null;
+        workEndDate?: string | null;
+        workHours?: string | null;
+        workLocation?: string | null;
+        streets?: string[] | null;
+        excavationMethods?: string[] | null;
+        trafficControlRequired?: boolean | null;
+        conditions?: string[] | null;
+        restrictions?: string[] | null;
+        contacts?: string[] | null;
+        summary?: string | null;
+      } | null;
+    }>; 
     mapObjects?: {
       /** Georeferenced hub/FDH cabinet position + build status. */
       hub?: {

@@ -95,10 +95,16 @@ function getConfiguredStorageBucket(): string {
   return bucket;
 }
 
+/**
+ * Upload a Ziply engineering print or permit PDF/image to Firebase Storage.
+ * Permits use the same `ziply-prints/` prefix so existing Storage rules apply
+ * without a separate rule deploy (path: .../permits/...).
+ */
 export async function uploadZiplyPrint(
   jobId: string,
   file: File,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  opts?: { kind?: "print" | "permit" }
 ): Promise<UploadedZiplyPrint> {
   const storageBucket = getConfiguredStorageBucket();
   await ensureFirebaseStorageAuth();
@@ -106,7 +112,11 @@ export async function uploadZiplyPrint(
   const storage = getStorage(app);
   const safeJobId = sanitizePathSegment(jobId);
   const safeName = sanitizePathSegment(file.name);
-  const storagePath = `ziply-prints/${safeJobId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+  const sub =
+    opts?.kind === "permit"
+      ? `ziply-prints/${safeJobId}/permits/${Date.now()}-${crypto.randomUUID()}-${safeName}`
+      : `ziply-prints/${safeJobId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+  const storagePath = sub;
   const storageRef = ref(storage, storagePath);
   const contentType = file.type || "application/octet-stream";
   console.info("[ziply-print-upload] Creating Firebase Storage upload task", {

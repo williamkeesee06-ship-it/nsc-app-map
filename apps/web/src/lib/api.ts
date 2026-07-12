@@ -184,6 +184,34 @@ export const api = {
       `/api/jobs/${encodeURIComponent(jobId)}/ziply-ingest`,
       { method: "POST", body: JSON.stringify({ storageFiles }) }
     ),
+  /**
+   * Upload metadata for a permit already in Storage; kicks off AI parse
+   * (permit #, dates, conditions) onto ziplyPrintLayer.permitFiles.
+   */
+  ziplyPermitIngest: (
+    jobId: string,
+    body: {
+      permitType: string;
+      storageFiles: Array<{
+        storagePath?: string;
+        downloadUrl?: string;
+        contentType?: string;
+        name?: string;
+        size?: number;
+        storageBucket?: string;
+      }>;
+    }
+  ) =>
+    request<{
+      ok: boolean;
+      jobId: string;
+      permitFileId: string;
+      status: "processing";
+      permitType: string;
+    }>(`/api/jobs/${encodeURIComponent(jobId)}/ziply-permit-ingest`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   /** Re-geocode hub/terminals + run CAD geometry enhance (no AI re-parse). */
   repairZiplyPrint: (jobId: string) =>
     request<{

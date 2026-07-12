@@ -11,16 +11,18 @@ import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
-import { getIdToken } from "../../lib/firebase.js";
 import {
   formatBytes,
   getZiplyPrintAnchor,
   getZiplyPrintDocStatus,
+  ingestZiplyPermitForJob,
   ingestZiplyPrintForJob,
   isZiplyPrintMapReady,
   listZiplyPrintFiles,
+  ZIPLY_PERMIT_TYPES,
   ziplyPrintStatusColor,
   ziplyPrintStatusLabel,
+  type ZiplyPermitTypeKey,
 } from "../ziply/ziplyUtils.js";
 
 interface Props {
@@ -319,93 +321,358 @@ export default function JobCard({
         <ZiplyPrintDocsSection job={job} />
       )}
 
-      {job.customerProject === "Ziply" && (
-        <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
-          <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#00E676", margin: "0 0 8px 0" }}>
-            📋 PERMITS & STATUS
-          </h4>
-          
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {["cityRow", "wsdot", "county", "railroad", "pa", "tcp"].map((type) => {
-              const statusVal = job.ziplyPrintLayer?.permits?.[type as keyof typeof job.ziplyPrintLayer.permits] || "Pending";
-              const docUrl = job.ziplyPrintLayer?.uploadedPermitDocs?.[type];
-              
-              const getStatusColor = (s: string) => {
-                if (s === "Approved" || s === "Active") return "#00E676";
-                if (s === "Closed") return "#6b7280";
-                return "#ffb300";
-              };
+      {job.customerProject === "Ziply" && <ZiplyPermitsSection job={job} />}
 
-              const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
+    </div>
+  );
+}
 
-                const reader = new FileReader();
-                reader.onloadend = async () => {
-                  const base64 = reader.result as string;
-                  try {
-                    const token = await getIdToken();
-                    const res = await fetch(`/api/jobs/${job.jobId}/permits`, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                      },
-                      body: JSON.stringify({ permitType: type, fileDataUrl: base64 }),
-                    });
-                    if (res.ok) {
-                      window.dispatchEvent(new Event("nsc:jobs-reload"));
-                    }
-                  } catch (err) {
-                    alert("Upload failed.");
-                  }
-                };
-                reader.readAsDataURL(file);
-              };
+// -----------------------------------------------------------------------------
+// Ziply permits: upload PDF/image → Storage → AI extract → status board
+// -----------------------------------------------------------------------------
+function ZiplyPermitsSection({ job }: { job: Job }) {
+  const [permitType, setPermitType] = useState<ZiplyPermitTypeKey>("cityRow");
+  const [busy, setBusy] = useState(false);
+  const [pct, setPct] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const layer = job.ziplyPrintLayer;
+  const permitFiles = layer?.permitFiles ?? [];
+  const board = layer?.permits;
 
+  const statusColor = (s: string) => {
+    if (s === "Approved" || s === "Active") return "#00E676";
+    if (s === "Closed") return "#6b7280";
+    if (s === "processing" || s === "Pending") return "#ffb300";
+    if (s === "failed") return "#f87171";
+    return "#94a3b8";
+  };
+
+  const typeLabel = (id: string) =>
+    ZIPLY_PERMIT_TYPES.find((t) => t.id === id)?.label ?? id;
+
+  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    setPct(0);
+    setErr(null);
+    setMsg(null);
+    try {
+      await ingestZiplyPermitForJob(job.jobId, file, permitType, (p) =>
+        setPct(Math.round(p))
+      );
+      setMsg(
+        `Uploaded ${file.name} — AI is reading the permit (number, dates, conditions). Refresh in a few seconds.`
+      );
+      // Poll once after short delay so processing → complete shows without full manual reload
+      window.setTimeout(() => {
+        window.dispatchEvent(new Event("nsc:jobs-reload"));
+      }, 4000);
+      window.setTimeout(() => {
+        window.dispatchEvent(new Event("nsc:jobs-reload"));
+      }, 12000);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Permit upload failed");
+    } finally {
+      setBusy(false);
+      setPct(0);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
+      <h4
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          color: "#00E676",
+          margin: "0 0 8px 0",
+        }}
+      >
+        📋 PERMITS (upload + AI read)
+      </h4>
+      <p style={{ margin: "0 0 10px 0", fontSize: 9, color: "#94a3b8", lineHeight: 1.4 }}>
+        Upload City ROW, WSDOT, County, Railroad, franchise, or TCP PDFs for this job. The app stores
+        the file and extracts permit number, dates, work hours, streets, and conditions.
+      </p>
+
+      {/* Status board */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+        {ZIPLY_PERMIT_TYPES.filter((t) => t.id !== "other").map((t) => {
+          const statusVal =
+            board?.[t.id as keyof NonNullable<typeof board>] || "Pending";
+          const latest = [...permitFiles]
+            .filter((f) => f.permitType === t.id)
+            .sort((a, b) => b.uploadedAt - a.uploadedAt)[0];
+          const docUrl =
+            latest?.downloadUrl || layer?.uploadedPermitDocs?.[t.id] || null;
+          return (
+            <div
+              key={t.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                background: "rgba(0,0,0,0.2)",
+                padding: "6px 8px",
+                borderRadius: 4,
+                border: "1px solid rgba(255,255,255,0.05)",
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                <span style={{ fontSize: 10, fontWeight: 700 }}>{t.label}</span>
+                <span style={{ fontSize: 9, color: statusColor(String(statusVal)), fontWeight: 700 }}>
+                  ● {statusVal}
+                  {latest?.parsed?.permitNumber
+                    ? ` · #${latest.parsed.permitNumber}`
+                    : ""}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                {docUrl ? (
+                  <a
+                    href={docUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      background: "rgba(33,150,243,0.2)",
+                      border: "1px solid #2196F3",
+                      color: "#2196F3",
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: "3px 8px",
+                      borderRadius: 3,
+                      textDecoration: "none",
+                    }}
+                  >
+                    VIEW
+                  </a>
+                ) : (
+                  <span style={{ fontSize: 9, color: "#6b7280" }}>No file</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Upload controls */}
+      <div
+        style={{
+          background: "rgba(0,230,118,0.06)",
+          border: "1px solid rgba(0,230,118,0.25)",
+          borderRadius: 6,
+          padding: 10,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        <span style={{ fontSize: 10, fontWeight: 700, color: "#e2e8f0" }}>
+          Upload permit for this job
+        </span>
+        <label style={{ fontSize: 9, color: "#94a3b8" }}>
+          Permit type
+          <select
+            value={permitType}
+            onChange={(e) => setPermitType(e.target.value as ZiplyPermitTypeKey)}
+            disabled={busy}
+            style={{
+              display: "block",
+              width: "100%",
+              marginTop: 4,
+              padding: "6px 8px",
+              fontSize: 11,
+              borderRadius: 4,
+              border: "1px solid rgba(255,255,255,0.15)",
+              background: "rgba(0,0,0,0.35)",
+              color: "#fff",
+            }}
+          >
+            {ZIPLY_PERMIT_TYPES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label
+          style={{
+            background: busy ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.18)",
+            border: "1px solid rgba(0,230,118,0.5)",
+            color: "#00E676",
+            fontSize: 10,
+            fontWeight: 800,
+            padding: "8px 12px",
+            borderRadius: 4,
+            cursor: busy ? "wait" : "pointer",
+            textAlign: "center",
+          }}
+        >
+          {busy ? `UPLOADING ${pct}%…` : "CHOOSE PDF / IMAGE & UPLOAD"}
+          <input
+            ref={inputRef}
+            type="file"
+            accept="application/pdf,image/*"
+            disabled={busy}
+            onChange={(ev) => void onUpload(ev)}
+            style={{ display: "none" }}
+          />
+        </label>
+        {msg && <span style={{ fontSize: 9, color: "#38bdf8" }}>{msg}</span>}
+        {err && <span style={{ fontSize: 9, color: "#f87171" }}>{err}</span>}
+      </div>
+
+      {/* Ingested files with AI summary */}
+      {permitFiles.length > 0 && (
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: "#9ca3af",
+              letterSpacing: "0.04em",
+            }}
+          >
+            INGESTED PERMITS ({permitFiles.length})
+          </span>
+          {[...permitFiles]
+            .sort((a, b) => b.uploadedAt - a.uploadedAt)
+            .map((f) => {
+              const p = f.parsed;
               return (
-                <div key={type} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(0,0,0,0.2)", padding: 6, borderRadius: 4, border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>
-                      {type === "cityRow" ? "City ROW" : type === "wsdot" ? "WSDOT" : type === "pa" ? "PGE/PA" : type}
+                <div
+                  key={f.id}
+                  style={{
+                    background: "rgba(0,0,0,0.25)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 6,
+                    padding: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginBottom: 4,
+                    }}
+                  >
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#e2e8f0" }}>
+                      {typeLabel(f.permitType)} · {f.name}
                     </span>
-                    <span style={{ fontSize: 9, color: getStatusColor(statusVal), fontWeight: 700 }}>
-                      ● {statusVal}
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        color: statusColor(f.ingestStatus),
+                      }}
+                    >
+                      {f.ingestStatus === "processing"
+                        ? "READING…"
+                        : f.ingestStatus === "complete"
+                          ? "PARSED"
+                          : "FAILED"}
                     </span>
                   </div>
-                  
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    {docUrl ? (
-                      <button
-                        onClick={() => {
-                          const w = window.open();
-                          if (w) w.document.write(`<iframe src="${docUrl}" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                        }}
-                        style={{ background: "rgba(33,150,243,0.2)", border: "1px solid #2196F3", color: "#2196F3", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 3, cursor: "pointer" }}
-                      >
-                        VIEW DOC
-                      </button>
-                    ) : (
-                      <span style={{ fontSize: 9, color: "#6b7280" }}>No file</span>
-                    )}
-
-                    <label style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 3, cursor: "pointer" }}>
-                      UPLOAD
-                      <input
-                        type="file"
-                        accept="application/pdf,image/*"
-                        onChange={handleUpload}
-                        style={{ display: "none" }}
-                      />
-                    </label>
-                  </div>
+                  {f.ingestStatus === "failed" && f.errorMessage && (
+                    <p style={{ margin: 0, fontSize: 9, color: "#f87171" }}>{f.errorMessage}</p>
+                  )}
+                  {f.ingestStatus === "processing" && (
+                    <p style={{ margin: 0, fontSize: 9, color: "#fbbf24" }}>
+                      Gemini is extracting fields — wait a few seconds and the card will refresh.
+                    </p>
+                  )}
+                  {p && (
+                    <div style={{ fontSize: 9, color: "#cbd5e1", lineHeight: 1.45 }}>
+                      {p.permitNumber && (
+                        <div>
+                          <strong>Permit #:</strong> {p.permitNumber}
+                        </div>
+                      )}
+                      {p.issuingAgency && (
+                        <div>
+                          <strong>Agency:</strong> {p.issuingAgency}
+                        </div>
+                      )}
+                      {(p.issueDate || p.expirationDate) && (
+                        <div>
+                          <strong>Dates:</strong>{" "}
+                          {[p.issueDate && `issued ${p.issueDate}`, p.expirationDate && `exp ${p.expirationDate}`]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      )}
+                      {(p.workStartDate || p.workEndDate || p.workHours) && (
+                        <div>
+                          <strong>Work window:</strong>{" "}
+                          {[p.workStartDate, p.workEndDate, p.workHours].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                      {p.workLocation && (
+                        <div>
+                          <strong>Location:</strong> {p.workLocation}
+                        </div>
+                      )}
+                      {p.streets && p.streets.length > 0 && (
+                        <div>
+                          <strong>Streets:</strong> {p.streets.join(", ")}
+                        </div>
+                      )}
+                      {p.excavationMethods && p.excavationMethods.length > 0 && (
+                        <div>
+                          <strong>Methods:</strong> {p.excavationMethods.join(", ")}
+                        </div>
+                      )}
+                      {p.trafficControlRequired != null && (
+                        <div>
+                          <strong>TCP required:</strong> {p.trafficControlRequired ? "Yes" : "No"}
+                        </div>
+                      )}
+                      {p.conditions && p.conditions.length > 0 && (
+                        <div>
+                          <strong>Conditions:</strong> {p.conditions.slice(0, 4).join(" · ")}
+                          {p.conditions.length > 4 ? ` (+${p.conditions.length - 4} more)` : ""}
+                        </div>
+                      )}
+                      {p.restrictions && p.restrictions.length > 0 && (
+                        <div>
+                          <strong>Restrictions:</strong> {p.restrictions.slice(0, 3).join(" · ")}
+                        </div>
+                      )}
+                      {p.summary && (
+                        <div style={{ marginTop: 4, color: "#94a3b8", fontStyle: "italic" }}>
+                          {p.summary}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {f.downloadUrl && (
+                    <a
+                      href={f.downloadUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: "inline-block",
+                        marginTop: 6,
+                        fontSize: 9,
+                        color: "#38bdf8",
+                        fontWeight: 700,
+                      }}
+                    >
+                      Open file ↗
+                    </a>
+                  )}
                 </div>
               );
             })}
-          </div>
         </div>
       )}
-
     </div>
   );
 }
