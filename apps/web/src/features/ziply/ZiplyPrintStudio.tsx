@@ -33,6 +33,8 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [mapSel, setMapSel] = useState<ZiplyPlantSelection | null>(null);
+  const [callout, setCallout] = useState<string | null>(null);
+  const [sheetHint, setSheetHint] = useState<number | null>(null);
   const mo = job.ziplyPrintLayer?.mapObjects;
   const active = files[fileIdx] ?? null;
   const anchor = getZiplyPrintAnchor(job);
@@ -64,16 +66,71 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
     };
     const onMapSel = (e: Event) => {
       const d = (e as CustomEvent<ZiplyPlantSelection | null>).detail;
-      if (d && d.jobId === job.jobId) setMapSel(d);
-      else if (!d) setMapSel(null);
+      if (d && d.jobId === job.jobId) {
+        setMapSel(d);
+        // Resolve callout from plant objects
+        const mo2 = job.ziplyPrintLayer?.mapObjects;
+        if (d.kind === "cable") {
+          const c = mo2?.cables?.find((x) => x.label === d.ref || x.toTerminal === d.ref);
+          if (c) {
+            setCallout(
+              [
+                c.label,
+                c.role,
+                c.fiberCount,
+                c.buildType,
+                c.lengthFt != null ? `${c.lengthFt}'` : null,
+                c.sheetPage != null ? `Sheet p${c.sheetPage}` : null,
+                c.side ? `side ${c.side}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            );
+            if (c.sheetPage != null) setSheetHint(c.sheetPage);
+          }
+        } else if (d.kind === "terminal") {
+          const t = mo2?.terminals?.find((x) => x.label === d.ref);
+          if (t) {
+            setCallout(
+              [
+                t.label,
+                t.type,
+                t.footageLabel || (t.footageFt != null ? `${t.footageFt}'` : null),
+                (t.addressesServed || []).slice(0, 2).join(", "),
+                t.sheetPage != null ? `Sheet p${t.sheetPage}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            );
+            if (t.sheetPage != null) setSheetHint(t.sheetPage);
+          }
+        } else {
+          setCallout(d.label || "Hub / FDH");
+        }
+      } else if (!d) {
+        setMapSel(null);
+        setCallout(null);
+      }
+    };
+    const onPage = (e: Event) => {
+      const d = (e as CustomEvent<{ jobId: string; sheetPage: number; label?: string }>).detail;
+      if (d?.jobId === job.jobId && d.sheetPage != null) {
+        setSheetHint(d.sheetPage);
+        // Multi-file: jump file index if names include page; else keep PDF and show hint
+        if (files.length > 1 && d.sheetPage - 1 < files.length) {
+          setFileIdx(Math.max(0, Math.min(files.length - 1, d.sheetPage - 1)));
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("nsc:ziply-plant-select", onMapSel as EventListener);
+    window.addEventListener("nsc:ziply-print-page", onPage as EventListener);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("nsc:ziply-plant-select", onMapSel as EventListener);
+      window.removeEventListener("nsc:ziply-print-page", onPage as EventListener);
     };
-  }, [onClose, job.jobId]);
+  }, [onClose, job.jobId, job.ziplyPrintLayer, files.length]);
 
   const panTo = (lat: number, lng: number) => {
     window.dispatchEvent(
@@ -223,6 +280,29 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
             )}
           </div>
 
+          {callout && (
+            <div
+              style={{
+                padding: "8px 12px",
+                background: "linear-gradient(90deg, rgba(251,191,36,0.15), transparent)",
+                borderBottom: "1px solid rgba(251,191,36,0.35)",
+                color: "#fde68a",
+                fontSize: 11,
+                fontWeight: 600,
+                lineHeight: 1.35,
+              }}
+            >
+              <span style={{ color: "#fbbf24", fontWeight: 800, letterSpacing: "0.06em" }}>
+                MAP → PRINT CALLOUT
+              </span>
+              <div style={{ marginTop: 2, color: "#e2e8f0" }}>{callout}</div>
+              {sheetHint != null && (
+                <div style={{ marginTop: 2, fontSize: 10, color: "#94a3b8" }}>
+                  Plan sheet page ~{sheetHint} (re-ingest to refresh AI page tags)
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ flex: 1, minHeight: 0, position: "relative", background: "#111" }}>
             {active?.downloadUrl ? (
               active.contentType?.includes("pdf") ||

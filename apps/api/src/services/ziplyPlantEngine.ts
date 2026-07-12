@@ -13,6 +13,10 @@ export type PlantTerminal = {
   footageFt?: number | null;
   houseNumbers?: string[] | null;
   addressesServed?: string[] | null;
+  /** Print topology: left/right of mainline */
+  side?: "left" | "right" | null;
+  /** Station order along mainline (lower = start of backbone) */
+  sequenceOrder?: number | null;
 };
 
 export type PlantLateral = {
@@ -171,8 +175,18 @@ export function buildMasterPlantLayout(
 
   // Soften backbone corners with slight easement offset for multi-fiber look
   // (parallel strand offset by a few meters alternating — visual only for mainline)
+  // Sort by print sequence, else by station along axis (sheet topology)
+  const ordered = terminals
+    .map((t, index) => ({ t, index, s: project({ lat: t.lat, lng: t.lng }) }))
+    .sort((a, b) => {
+      const sa = a.t.sequenceOrder;
+      const sb = b.t.sequenceOrder;
+      if (sa != null && sb != null && sa !== sb) return sa - sb;
+      return a.s - b.s;
+    });
+
   const laterals: PlantLateral[] = [];
-  terminals.forEach((t, index) => {
+  ordered.forEach(({ t, index }, ord) => {
     const s = project({ lat: t.lat, lng: t.lng });
     const join = unproject(s);
     // Find nearest backbone index for join
@@ -187,11 +201,14 @@ export function buildMasterPlantLayout(
     }
     const joinPt = backbone[joinIndex]!;
 
-    // Side of road: which side of axis is the terminal on?
+    // Prefer print side; else geometric cross of axis
     const cross = northSouth
       ? t.lng - hub.lng
       : t.lat - hub.lat;
-    const side = cross >= 0 ? 1 : -1;
+    const side =
+      t.side === "left" ? -1 : t.side === "right" ? 1 : cross >= 0 ? 1 : -1;
+    void ord;
+    void index;
 
     // Approach: join → shoulder (ROW) → parcel front → terminal
     const shoulderM = 6 + (index % 3) * 2;

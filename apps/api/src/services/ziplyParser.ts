@@ -65,6 +65,9 @@ export interface ZiplyParsedPrint {
       toTerminal?: string | null;
       /** Intermediate street names the cable follows (geocode later / layout hints). */
       routeStreets?: string[] | null;
+      sheetPage?: number | null;
+      sequenceOrder?: number | null;
+      side?: "left" | "right" | "both" | null;
     }>;
     terminals: Array<{
       label: string;
@@ -78,6 +81,9 @@ export interface ZiplyParsedPrint {
       addressesServed?: string[] | null;
       /** Parcel house numbers from plan (e.g. "18052", "18118"). */
       houseNumbers?: string[] | null;
+      sheetPage?: number | null;
+      sequenceOrder?: number | null;
+      side?: "left" | "right" | null;
     }>;
     notes: string | null;
     mainlineStreet?: string | null;
@@ -226,10 +232,13 @@ FIELDS:
 9. Permits table statuses
 10. hubAddress, projectCity, mainlineStreet
 11. mapObjects — EVERY MST, splice, and cable segment from plan sheets:
-    cables: { label, fiberCount, lengthFt, buildType, role, toTerminal, routeStreets }
+    cables: { label, fiberCount, lengthFt, buildType, role, toTerminal, routeStreets,
+              sheetPage (1-based plan sheet number if known), sequenceOrder (build/station order),
+              side ("left"|"right"|"both" of mainline looking up-station) }
     terminals: { label, type, portCount, footageFt, footageLabel, dvftpRange, code, fiberSpec,
-                 addressesServed, houseNumbers }
+                 addressesServed, houseNumbers, sheetPage, sequenceOrder, side }
     notes, mainlineStreet
+    Order terminals south→north or as numbered on the plan index when possible.
 
 Schema:
 {
@@ -256,8 +265,8 @@ Schema:
   },
   "mapObjects": {
     "mainlineStreet": "Metron Rd or null",
-    "cables": [{"label":"C-1","fiberCount":"48F","lengthFt":250,"buildType":"bore","role":"lateral","toTerminal":"MST-1","routeStreets":["Metron Rd"]}],
-    "terminals": [{"label":"MST-1","type":"8-port MST","portCount":8,"footageFt":42,"footageLabel":"BORE 42'","dvftpRange":null,"code":null,"fiberSpec":"12F","houseNumbers":["18052"],"addressesServed":["18052 Metron Rd"]}],
+    "cables": [{"label":"C-1","fiberCount":"48F","lengthFt":250,"buildType":"bore","role":"lateral","toTerminal":"MST-1","routeStreets":["Metron Rd"],"sheetPage":3,"sequenceOrder":4,"side":"left"}],
+    "terminals": [{"label":"MST-1","type":"8-port MST","portCount":8,"footageFt":42,"footageLabel":"BORE 42'","dvftpRange":null,"code":null,"fiberSpec":"12F","houseNumbers":["18052"],"addressesServed":["18052 Metron Rd"],"sheetPage":3,"sequenceOrder":4,"side":"left"}],
     "notes": "string or null"
   }
 }

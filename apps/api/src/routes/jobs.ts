@@ -797,6 +797,9 @@ async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): 
         fiberSpec: t.fiberSpec ?? null,
         addressesServed: expanded.length ? expanded : t.addressesServed ?? null,
         houseNumbers: houseNums.length ? houseNums : null,
+        sheetPage: t.sheetPage ?? null,
+        sequenceOrder: t.sequenceOrder ?? null,
+        side: t.side ?? null,
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
         status: "planned" as ZiplyObjectStatus,
@@ -812,6 +815,9 @@ async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): 
       role: c.role ?? null,
       toTerminal: c.toTerminal ?? null,
       routeStreets: c.routeStreets ?? (mainlineStreet ? [mainlineStreet] : null),
+      sheetPage: c.sheetPage ?? null,
+      sequenceOrder: c.sequenceOrder ?? null,
+      side: c.side ?? null,
       status: "planned" as ZiplyObjectStatus,
     }));
 
@@ -1370,6 +1376,8 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
       footageFt: t.footageFt,
       houseNumbers: t.houseNumbers,
       addressesServed: t.addressesServed,
+      side: t.side ?? null,
+      sequenceOrder: t.sequenceOrder ?? null,
     }));
 
   // Master plant engine — never starburst

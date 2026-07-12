@@ -254,22 +254,105 @@ export function computePlantProgress(
     }
   }
 
+  // Smartsheet field progress (bore / placing / aerial) when present
+  const estBore = job.estBoreFt ?? 0;
+  const doneBore = job.completedBoreFt ?? 0;
+  const estPlace = job.estPlacingFt ?? 0;
+  const donePlace = job.completedPlacingFt ?? 0;
+  const estAer = job.estAerialFt ?? 0;
+  const doneAer = job.completedAerialFt ?? 0;
+  const sheetEst = estBore + estPlace + estAer;
+  const sheetDone = doneBore + donePlace + doneAer;
+
+  // Job-level status hint
+  const js = (job.jobStatus ?? "").toLowerCase();
+  const ss = (job.secondaryJobStatus ?? "").toLowerCase();
+  let sheetStatusBoost: number | null = null;
+  if (job.actualCompletionDate || js.includes("complete") || ss.includes("complete")) {
+    sheetStatusBoost = 100;
+  } else if (js.includes("progress") || ss.includes("progress") || ss.includes("construction")) {
+    sheetStatusBoost = 45;
+  }
+
   const total = complete + inProgress + planned;
-  const progressPct =
+  const objectPct =
     total === 0 ? 0 : Math.round(((complete + inProgress * 0.5) / total) * 100);
-  const footagePct =
+  const plantFootagePct =
     totalFt > 0 ? Math.round((completeFt / totalFt) * 100) : null;
+  const sheetFootagePct =
+    sheetEst > 0 ? Math.min(100, Math.round((sheetDone / sheetEst) * 100)) : null;
+
+  // Prefer Smartsheet footage when available, else plant object/footage blend
+  let progressPct = objectPct;
+  if (sheetFootagePct != null) {
+    progressPct =
+      plantFootagePct != null
+        ? Math.round(sheetFootagePct * 0.65 + plantFootagePct * 0.35)
+        : sheetFootagePct;
+  } else if (plantFootagePct != null) {
+    progressPct = plantFootagePct;
+  } else if (sheetStatusBoost != null && total === 0) {
+    progressPct = sheetStatusBoost;
+  }
+
+  // If sheet says complete, never show 0%
+  if (sheetStatusBoost === 100) progressPct = Math.max(progressPct, 95);
 
   return {
     complete,
     inProgress,
     planned,
     total,
-    progressPct: footagePct != null ? footagePct : progressPct,
-    footagePct,
-    completeFt,
-    totalFt,
+    progressPct,
+    footagePct: sheetFootagePct ?? plantFootagePct,
+    completeFt: sheetEst > 0 ? sheetDone : completeFt,
+    totalFt: sheetEst > 0 ? sheetEst : totalFt,
   };
+}
+
+/** Ordered build sequence for play mode: feeder → mainline → laterals by sequence/distance. */
+export function buildConstructionSequence(job: Job): Array<{
+  kind: "hub" | "cable" | "terminal";
+  ref: string;
+  label: string;
+  role?: string | null;
+}> {
+  const mo = job.ziplyPrintLayer?.mapObjects;
+  if (!mo) return [];
+  const hub = mo.hub;
+  const out: Array<{
+    kind: "hub" | "cable" | "terminal";
+    ref: string;
+    label: string;
+    role?: string | null;
+  }> = [];
+  out.push({
+    kind: "hub",
+    ref: "hub",
+    label: job.ziplyPrintLayer?.hubId || "FDH",
+  });
+  const cables = [...(mo.cables ?? [])];
+  const feeders = cables.filter((c) => c.role === "feeder");
+  const mains = cables.filter((c) => c.role === "mainline");
+  const laterals = cables
+    .filter((c) => c.role !== "feeder" && c.role !== "mainline")
+    .sort((a, b) => (a.sequenceOrder ?? 999) - (b.sequenceOrder ?? 999));
+  for (const c of [...feeders, ...mains, ...laterals]) {
+    out.push({
+      kind: "cable",
+      ref: c.label,
+      label: c.label,
+      role: c.role,
+    });
+  }
+  const terms = [...(mo.terminals ?? [])].sort(
+    (a, b) => (a.sequenceOrder ?? 999) - (b.sequenceOrder ?? 999)
+  );
+  for (const t of terms) {
+    out.push({ kind: "terminal", ref: t.label, label: t.label });
+  }
+  void hub;
+  return out;
 }
 
 /** Selection shared between map overlay and Print Studio */

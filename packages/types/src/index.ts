@@ -448,6 +448,12 @@ export interface Job {
         toTerminal?: string | null;
         /** Street names along the route (layout hints). */
         routeStreets?: string[] | null;
+        /** Plan sheet page index (1-based) when known — Studio dual-pane jump. */
+        sheetPage?: number | null;
+        /** Build sequence (1 = first after feeder). */
+        sequenceOrder?: number | null;
+        /** left/right of mainline looking up-station. */
+        side?: "left" | "right" | "both" | null;
         status?: ZiplyObjectStatus;
         /** Section-scoped 811 + crew metadata keyed by hubId + label/range. */
         locateTicketId?: string | null;
@@ -470,6 +476,12 @@ export interface Job {
         addressesServed?: string[] | null;
         /** House numbers from plan (e.g. "18052") when full street not labeled. */
         houseNumbers?: string[] | null;
+        /** Plan sheet page (1-based). */
+        sheetPage?: number | null;
+        /** Station order along mainline (south→north or plan up-station). */
+        sequenceOrder?: number | null;
+        /** Side of mainline ROW. */
+        side?: "left" | "right" | null;
         /** Georeferenced terminal position (geocoded address / GPS anchor). */
         lat?: number | null;
         lng?: number | null;

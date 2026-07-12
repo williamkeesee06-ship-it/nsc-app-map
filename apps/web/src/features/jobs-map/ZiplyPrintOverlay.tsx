@@ -4,6 +4,7 @@ import type { DigTicket, Job, ZiplyObjectStatus, ZiplySectionScope } from "@nsc/
 import { InfoWindow, Marker, useMap } from "@vis.gl/react-google-maps";
 import { api } from "../../lib/api.js";
 import {
+  buildConstructionSequence,
   computePlantProgress,
   emitZiplyPlantSelect,
   getZiplyPrintAnchor,
@@ -380,6 +381,11 @@ function PrintCadHud({
   setShowPlanned,
   showAllPlants,
   setShowAllPlants,
+  playOn,
+  setPlayOn,
+  playLabel,
+  networkMode,
+  setNetworkMode,
 }: {
   zoom: number;
   stats: {
@@ -406,6 +412,11 @@ function PrintCadHud({
   setShowPlanned: (v: boolean) => void;
   showAllPlants: boolean;
   setShowAllPlants: (v: boolean) => void;
+  playOn: boolean;
+  setPlayOn: (v: boolean) => void;
+  playLabel: string | null;
+  networkMode: boolean;
+  setNetworkMode: (v: boolean) => void;
 }) {
   return (
     <div className="ziply-cad-hud">
@@ -507,10 +518,45 @@ function PrintCadHud({
             <input
               type="checkbox"
               checked={showAllPlants}
-              onChange={(e) => setShowAllPlants(e.target.checked)}
+              onChange={(e) => {
+                setShowAllPlants(e.target.checked);
+                if (e.target.checked) setNetworkMode(false);
+              }}
             />
             Show all plants (noisy)
           </label>
+          <label className={`ziply-cad-hud__toggle ${networkMode ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={networkMode}
+              onChange={(e) => {
+                setNetworkMode(e.target.checked);
+                if (e.target.checked) setShowAllPlants(false);
+              }}
+            />
+            Network: city mainlines
+          </label>
+          <label className={`ziply-cad-hud__toggle ${playOn ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={playOn}
+              onChange={(e) => setPlayOn(e.target.checked)}
+            />
+            Play construction sequence
+          </label>
+          {playOn && playLabel && (
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                color: "#fbbf24",
+                textShadow: "0 0 10px rgba(251,191,36,0.5)",
+                fontFamily: "monospace",
+              }}
+            >
+              ▶ {playLabel}
+            </div>
+          )}
         </div>
 
         <div className="ziply-cad-hud__legend">
@@ -615,27 +661,47 @@ export default function ZiplyPrintOverlay({
   const [studioHighlight, setStudioHighlight] = useState<ZiplyPlantSelection | null>(
     null
   );
+  /** Construction sequence play mode */
+  const [playOn, setPlayOn] = useState(false);
+  const [playIdx, setPlayIdx] = useState(0);
+  /** Network mode: mainlines of all ready plants (no laterals) */
+  const [networkMode, setNetworkMode] = useState(false);
 
   const allReady = useMemo(() => jobs.filter((j) => isZiplyPrintMapReady(j)), [jobs]);
 
   // Primary plant: selected job if it has a print; else first ready job only.
+  // Network mode draws all mainlines (handled separately) but focus plant still full.
   const printJobs = useMemo(() => {
-    if (showAllPlants) return allReady;
+    if (showAllPlants && !networkMode) return allReady;
     if (focusJobId) {
       const focused = allReady.find((j) => j.jobId === focusJobId);
       if (focused) return [focused];
-      // Selected job has no print — still show at most ONE other plant so map stays clean
     }
-    // No selection / selection without print: show single highest-value plant
     if (allReady.length === 0) return [];
     return [allReady[0]!];
-  }, [allReady, focusJobId, showAllPlants]);
+  }, [allReady, focusJobId, showAllPlants, networkMode]);
 
   const otherHubJobs = useMemo(() => {
-    if (showAllPlants) return [];
+    if (showAllPlants && !networkMode) return [];
     const focusId = printJobs[0]?.jobId;
     return allReady.filter((j) => j.jobId !== focusId);
-  }, [allReady, printJobs, showAllPlants]);
+  }, [allReady, printJobs, showAllPlants, networkMode]);
+
+  const sequence = useMemo(() => {
+    const j = printJobs[0];
+    return j ? buildConstructionSequence(j) : [];
+  }, [printJobs]);
+
+  // Construction play: advance highlight along sequence
+  useEffect(() => {
+    if (!playOn || sequence.length === 0) return;
+    const id = window.setInterval(() => {
+      setPlayIdx((i) => (i + 1) % sequence.length);
+    }, 1400);
+    return () => window.clearInterval(id);
+  }, [playOn, sequence.length]);
+
+  const playHighlight = playOn && sequence[playIdx] ? sequence[playIdx]! : null;
 
   useEffect(() => {
     setCrewDraft(selected?.crewName ?? "");
@@ -945,6 +1011,15 @@ export default function ZiplyPrintOverlay({
               setShowPlanned={setShowPlanned}
               showAllPlants={showAllPlants}
               setShowAllPlants={setShowAllPlants}
+              playOn={playOn}
+              setPlayOn={setPlayOn}
+              playLabel={
+                playHighlight
+                  ? `${playIdx + 1}/${sequence.length} · ${playHighlight.label}`
+                  : null
+              }
+              networkMode={networkMode}
+              setNetworkMode={setNetworkMode}
             />
             {pathEdit && (
               <div
@@ -1095,28 +1170,85 @@ export default function ZiplyPrintOverlay({
         </>
       )}
 
-      {/* Dim hub-only markers for non-focused plants */}
-      {otherHubJobs.map((j) => {
-        const a = getZiplyPrintAnchor(j);
-        if (!a) return null;
-        return (
-          <Marker
-            key={`dim-hub-${j.jobId}`}
-            position={{ lat: a.lat, lng: a.lng }}
-            title={`${j.workOrder || j.jobId} (select job to open plant)`}
-            zIndex={3}
-            icon={{
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 6,
-              fillColor: "#64748b",
-              fillOpacity: 0.45,
-              strokeColor: "#94a3b8",
-              strokeWeight: 1,
-              strokeOpacity: 0.6,
-            }}
-          />
-        );
-      })}
+      {/* Network mode: thin mainlines for every ready plant */}
+      {networkMode &&
+        allReady.map((j) => {
+          const mo = j.ziplyPrintLayer?.mapObjects;
+          const bb = mo?.backbonePath;
+          const mainCable = mo?.cables?.find(
+            (c) => c.role === "mainline" || c.role === "feeder"
+          );
+          const path =
+            bb && bb.length >= 2
+              ? bb
+              : mainCable?.path && mainCable.path.length >= 2
+                ? mainCable.path
+                : null;
+          if (!path || path.length < 2) {
+            const a = getZiplyPrintAnchor(j);
+            if (!a) return null;
+            return (
+              <Marker
+                key={`net-hub-${j.jobId}`}
+                position={{ lat: a.lat, lng: a.lng }}
+                title={j.workOrder || j.jobId}
+                zIndex={4}
+                icon={{
+                  path: google.maps.SymbolPath.CIRCLE,
+                  scale: 5,
+                  fillColor: "#38bdf8",
+                  fillOpacity: 0.7,
+                  strokeColor: "#0ea5e9",
+                  strokeWeight: 1,
+                }}
+              />
+            );
+          }
+          const isFocus = j.jobId === printJobs[0]?.jobId;
+          return (
+            <CadFiberLine
+              key={`net-ml-${j.jobId}`}
+              path={path.filter(
+                (p): p is LatLng =>
+                  typeof p.lat === "number" && typeof p.lng === "number"
+              )}
+              status={isFocus ? "in_progress" : "planned"}
+              role="mainline"
+              buildType="trench"
+              animateFlow={isFocus && flowOn}
+              neonGlow={isFocus && glowOn}
+              label={
+                showMainlineLabels && zoom >= 14
+                  ? j.workOrder || mo?.mainlineStreet || "MAIN"
+                  : undefined
+              }
+            />
+          );
+        })}
+
+      {/* Dim hub-only markers for non-focused plants (when not network/all) */}
+      {!networkMode &&
+        otherHubJobs.map((j) => {
+          const a = getZiplyPrintAnchor(j);
+          if (!a) return null;
+          return (
+            <Marker
+              key={`dim-hub-${j.jobId}`}
+              position={{ lat: a.lat, lng: a.lng }}
+              title={`${j.workOrder || j.jobId} (select job to open plant)`}
+              zIndex={3}
+              icon={{
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 6,
+                fillColor: "#64748b",
+                fillOpacity: 0.45,
+                strokeColor: "#94a3b8",
+                strokeWeight: 1,
+                strokeOpacity: 0.6,
+              }}
+            />
+          );
+        })}
 
       {printJobs.map((job) => {
         const layer = job.ziplyPrintLayer!;
@@ -1207,6 +1339,18 @@ export default function ZiplyPrintOverlay({
                 value: (c.routeStreets || []).join(" → ") || mainlineStreet || "N/A",
               },
               {
+                label: "Print sheet",
+                value: c.sheetPage != null ? `Page ${c.sheetPage}` : "—",
+              },
+              {
+                label: "Sequence",
+                value: c.sequenceOrder != null ? String(c.sequenceOrder) : "—",
+              },
+              {
+                label: "Side of mainline",
+                value: c.side || "—",
+              },
+              {
                 label: "Path points",
                 value: String(path.length),
               },
@@ -1222,6 +1366,18 @@ export default function ZiplyPrintOverlay({
               },
             ],
           });
+          // Notify Studio to jump to sheet page when known
+          if (c.sheetPage != null) {
+            try {
+              window.dispatchEvent(
+                new CustomEvent("nsc:ziply-print-page", {
+                  detail: { jobId: job.jobId, sheetPage: c.sheetPage, label: c.label },
+                })
+              );
+            } catch {
+              /* ignore */
+            }
+          }
         };
 
         return (
@@ -1272,6 +1428,10 @@ export default function ZiplyPrintOverlay({
               ? cables.map((c, idx) => {
                   const st = statusOf(job.jobId, "cable", c.label, c.status);
                   if (!showPlanned && st === "planned") return null;
+                  // Network mode: only mainlines (drawn above for all jobs) — skip laterals here
+                  if (networkMode && c.role !== "mainline" && c.role !== "feeder") {
+                    return null;
+                  }
                   const cleared = locateCleared(job, "cable", c.label, c.locateExpires ?? null);
                   const termPos = resolveTermForCable(c.label, c.toTerminal, idx);
                   const isMain = c.role === "mainline" || c.role === "feeder";
@@ -1306,7 +1466,11 @@ export default function ZiplyPrintOverlay({
                     c.lengthFt != null ? `${c.lengthFt}'` : null,
                     c.buildType || null,
                   ].filter(Boolean);
+                  const playHit =
+                    playHighlight?.kind === "cable" &&
+                    (playHighlight.ref === c.label || playHighlight.ref === c.toTerminal);
                   const isSel =
+                    playHit ||
                     (selected?.job.jobId === job.jobId &&
                       selected.kind === "cable" &&
                       selected.ref === c.label) ||
@@ -1318,19 +1482,28 @@ export default function ZiplyPrintOverlay({
                   if (pathEdit?.jobId === job.jobId && pathEdit.label === c.label) {
                     return null;
                   }
+                  const pageHint =
+                    c.sheetPage != null ? `p${c.sheetPage}` : null;
                   return (
                     <CadFiberLine
                       key={`${job.jobId}-cable-${c.label}-${idx}`}
                       path={path}
-                      status={st}
+                      status={playHit ? "in_progress" : st}
                       buildType={c.buildType}
                       role={c.role}
                       locateCleared={cleared}
                       show811Clearance={show811Clearance}
-                      label={allowLabel ? labelParts.join(" · ") : undefined}
+                      label={
+                        allowLabel
+                          ? [...labelParts, pageHint].filter(Boolean).join(" · ")
+                          : undefined
+                      }
                       selected={isSel}
-                      animateFlow={flowOn && (st === "in_progress" || st === "complete" || isSel)}
-                      neonGlow={glowOn && (st !== "planned" || isSel)}
+                      animateFlow={
+                        flowOn &&
+                        (playHit || st === "in_progress" || st === "complete" || isSel)
+                      }
+                      neonGlow={glowOn && (playHit || st !== "planned" || isSel)}
                       onClick={(mid) => openCable(c, path, st, cleared, mid)}
                     />
                   );
