@@ -12,3 +12,6 @@ node_modules
 serviceAccount*.json
 .env*.local
 .env*
+
+# Local reference prints / permits / screenshots (not for git — large PDFs)
+SHARED/
