@@ -197,10 +197,6 @@ function FitToJobGeometry({ job, jobId }: FitProps) {
       }
       if (hasPoints && !bounds.isEmpty()) {
         map.fitBounds(bounds, 60);
-        if (import.meta.env.DEV) {
-          const c = bounds.getCenter();
-          console.log("[workspace] fit to drawing bounds, center", c.lat(), c.lng());
-        }
         didFitRef.current = jobId;
         return;
       }
@@ -214,9 +210,6 @@ function FitToJobGeometry({ job, jobId }: FitProps) {
       const { lat, lng } = job.geocode;
       map.setCenter({ lat, lng });
       map.setZoom(WORKSPACE_ZOOM);
-      if (import.meta.env.DEV) {
-        console.log("[workspace] centering on", lat, lng, "zoom", WORKSPACE_ZOOM);
-      }
       didFitRef.current = jobId;
       return;
     }
@@ -229,13 +222,6 @@ function FitToJobGeometry({ job, jobId }: FitProps) {
           const loc = results[0].geometry.location;
           map.setCenter(loc);
           map.setZoom(WORKSPACE_ZOOM);
-          if (import.meta.env.DEV) {
-            console.log("[workspace] geocoded address, centering on", loc.lat(), loc.lng(), "zoom", WORKSPACE_ZOOM);
-          }
-        } else {
-          if (import.meta.env.DEV) {
-            console.warn("[workspace] geocode failed for address:", job.address, status);
-          }
         }
       });
       didFitRef.current = jobId;

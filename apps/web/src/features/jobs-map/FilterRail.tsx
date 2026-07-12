@@ -22,6 +22,15 @@ export interface Filters {
    *  Empty set = show all supervisors. */
   supervisors: Set<string>;
   showDigPolygons?: boolean;
+  /** Ziply-only: limit to North Metro cities / construction base. Lumen ignores. */
+  ziplyNorthMetroOnly?: boolean;
+  /** Ziply-only: filter by print document / ingest state. Lumen ignores. */
+  ziplyPrintFilter?: "all" | "has_print" | "no_print" | "processing" | "failed";
+  /**
+   * Ziply-only status groups. When set and non-empty, used instead of Lumen
+   * status buckets for Ziply map pins. Empty/undefined = show all Ziply jobs.
+   */
+  ziplyStatusGroups?: Set<"not_started" | "in_progress" | "complete">;
 }
 
 export function defaultFilters(): Filters {
@@ -41,6 +50,9 @@ export function defaultFilters(): Filters {
     workTypeTags: new Set(),
     supervisors: new Set<string>(),
     showDigPolygons: true,
+    ziplyNorthMetroOnly: false,
+    ziplyPrintFilter: "all",
+    ziplyStatusGroups: new Set(),
   };
 }
 

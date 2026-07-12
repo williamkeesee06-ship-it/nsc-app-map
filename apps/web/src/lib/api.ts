@@ -1,5 +1,6 @@
 // Same-origin API client. In dev, Vite proxies /api to localhost:3001.
 // In prod, vercel.json rewrites /api/* to the serverless function.
+// All non-health routes require a Firebase ID token (solo lock).
 import { getFunctions, httpsCallable } from "firebase/functions";
 import type {
   AsbuiltDoc,
@@ -11,18 +12,28 @@ import type {
   SyncRun,
   ZiplySectionScope,
 } from "@nsc/types";
-import { app } from "./firebase.js";
+import { app, getIdToken } from "./firebase.js";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await getIdToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const res = await fetch(path, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
   if (!res.ok) {
     const body = await res.text();
+    if (res.status === 401) {
+      // Session expired or missing — force a clean re-login.
+      window.dispatchEvent(new CustomEvent("nsc:auth-required", { detail: { path, status: 401 } }));
+    }
     throw new Error(`API ${res.status} ${path}: ${body}`);
   }
   return res.json() as Promise<T>;

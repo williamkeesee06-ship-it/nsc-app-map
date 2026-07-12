@@ -1,7 +1,8 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { DigTicket, Job, ZiplyObjectStatus, ZiplySectionScope } from "@nsc/types";
 import { InfoWindow, Marker, useMap } from "@vis.gl/react-google-maps";
 import { api } from "../../lib/api.js";
+import { getZiplyPrintAnchor, isZiplyPrintMapReady } from "../ziply/ziplyUtils.js";
 
 // ── CAD-blueprint color system (spec §3) ────────────────────────────────────
 const INK = "#111827";
@@ -112,6 +113,7 @@ interface Props {
 }
 
 export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = false }: Props) {
+  const map = useMap();
   const [selected, setSelected] = useState<Selected | null>(null);
   const [saving, setSaving] = useState(false);
   const [crewDraft, setCrewDraft] = useState("");
@@ -119,6 +121,15 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
   // Optimistic status overrides keyed by `${jobId}:${kind}:${ref}` so the UI
   // reflects a change immediately without waiting for a full jobs reload.
   const [overrides, setOverrides] = useState<Record<string, ZiplyObjectStatus>>({});
+  const [didFitPrints, setDidFitPrints] = useState(false);
+
+  // Only jobs with mapObjects AND a plottable anchor (hub / geocode / terminal).
+  // Previously we treated hub:{lat:null,lng:null} as "ready" and then tried
+  // job.geocode! — which is undefined for many Ziply rows → markers never drew.
+  const printJobs = useMemo(
+    () => jobs.filter((j) => isZiplyPrintMapReady(j)),
+    [jobs]
+  );
 
   useEffect(() => {
     setCrewDraft(selected?.crewName ?? "");
@@ -138,6 +149,41 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
       cancelled = true;
     };
   }, [visible, show811Clearance]);
+
+  // Fit the map once when print layers first become available so the user
+  // actually sees the design (default map center is Snoqualmie, not North Metro).
+  useEffect(() => {
+    if (!visible) {
+      setDidFitPrints(false);
+      return;
+    }
+    if (!map || didFitPrints || printJobs.length === 0) return;
+    const bounds = new google.maps.LatLngBounds();
+    let n = 0;
+    for (const j of printJobs) {
+      const a = getZiplyPrintAnchor(j);
+      if (!a) continue;
+      bounds.extend({ lat: a.lat, lng: a.lng });
+      n++;
+      const mo = j.ziplyPrintLayer?.mapObjects;
+      for (const t of mo?.terminals ?? []) {
+        if (typeof t.lat === "number" && typeof t.lng === "number" && t.lat && t.lng) {
+          bounds.extend({ lat: t.lat, lng: t.lng });
+        }
+      }
+    }
+    if (n === 0) return;
+    if (n === 1) {
+      const a = getZiplyPrintAnchor(printJobs[0]!);
+      if (a) {
+        map.setCenter({ lat: a.lat, lng: a.lng });
+        map.setZoom(16);
+      }
+    } else {
+      map.fitBounds(bounds, 64);
+    }
+    setDidFitPrints(true);
+  }, [map, visible, printJobs, didFitPrints]);
 
   if (!visible) return null;
 
@@ -208,31 +254,14 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
     }
   };
 
-  // Render condition — deliberately NOT dependent on selection/activeJob.
-  // Every job in `jobs` that has a completed print ingest (ziplyIngest) and/or
-  // extracted map objects renders its hub/terminals/cables unconditionally,
-  // simultaneously, on mount. `jobs` itself is expected to already be a
-  // status-filter-independent set (see JobsMap.tsx ziplyPrintReadyJobs); this
-  // filter is a defensive re-check so the component is also safe if reused
-  // with a broader job list.
-  const printJobs = jobs.filter(
-    (j) =>
-      j.customerProject === "Ziply" &&
-      (j.ziplyIngest?.status === "complete" || j.ziplyPrintLayer?.mapObjects != null) &&
-      j.ziplyPrintLayer?.mapObjects != null &&
-      (j.ziplyPrintLayer.mapObjects.hub != null || j.geocode != null)
-  );
-
   return (
     <>
       {printJobs.map((job) => {
         const layer = job.ziplyPrintLayer!;
         const mo = layer.mapObjects!;
         const hub = mo.hub ?? null;
-        const hubPos = {
-          lat: hub?.lat ?? job.geocode!.lat,
-          lng: hub?.lng ?? job.geocode!.lng,
-        };
+        const anchor = getZiplyPrintAnchor(job)!;
+        const hubPos = { lat: anchor.lat, lng: anchor.lng };
         const hubStatus = statusOf(job.jobId, "hub", "hub", hub?.status);
         const terminals = mo.terminals ?? [];
         const cables = mo.cables ?? [];

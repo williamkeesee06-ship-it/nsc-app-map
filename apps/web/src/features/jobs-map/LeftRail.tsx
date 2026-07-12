@@ -15,8 +15,8 @@ import { queuePrefWrite } from "../../lib/prefsSync.js";
 import StatusFilterPills from "./StatusFilterPills.js";
 import CentralOfficesPill from "./CentralOfficesPill.js";
 import MapTypeFilterSection from "../map/MapTypeFilterSection.js";
-// CalendarTab is mounted full-screen by JobsMap, not inside the rail.
-import LuminaTab from "../lumina/LuminaTab.js";
+// CalendarTab / Dashboard / 811 are mounted full-screen by JobsMap, not in the rail.
+// Lumina is the floating orb + ChatPanel (not a rail tab).
 import { useActiveContract } from "../workspace/contractStore.js";
 import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
@@ -46,7 +46,8 @@ interface Props {
   setZiply811OverlayVisible?: (v: boolean) => void;
 }
 
-type TabId = 'dashboard' | 'jobs' | 'filters' | 'tools' | 'calendar' | '811-tickets' | 'production' | 'upload' | 'sld';
+// Only tabs that are actually mounted in the rail or as full-screen overlays.
+type TabId = "dashboard" | "jobs" | "filters" | "tools" | "calendar" | "811-tickets";
 
 export default function LeftRail({
   jobs,

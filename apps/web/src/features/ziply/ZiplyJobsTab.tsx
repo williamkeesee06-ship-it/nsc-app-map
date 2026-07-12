@@ -1,7 +1,17 @@
-import { useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import type { Job } from "@nsc/types";
-import { Map as MapIcon, Paperclip, FileText, Grid, Filter, Share2 } from "lucide-react";
+import { Map as MapIcon, Paperclip, Grid, Search } from "lucide-react";
 import "./ziplyJobsTab.css";
+import {
+  formatBytes,
+  getZiplyPrintDocStatus,
+  ingestZiplyPrintForJob,
+  isNorthMetroJob,
+  listZiplyPrintFiles,
+  ziplyPrintStatusColor,
+  ziplyPrintStatusLabel,
+  type ZiplyPrintDocStatus,
+} from "./ziplyUtils.js";
 
 interface Props {
   jobs: Job[];
@@ -10,105 +20,273 @@ interface Props {
   onClose?: () => void;
 }
 
+type PrintFilter = "all" | ZiplyPrintDocStatus;
+type RegionFilter = "all" | "north_metro";
+
 export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: Props) {
-  // Ziply jobs only
-  const ziplyJobs = jobs.filter((j) => j.customerProject === "Ziply");
-  
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(selected?.jobId || null);
+  const ziplyJobs = useMemo(
+    () => jobs.filter((j) => j.customerProject === "Ziply"),
+    [jobs]
+  );
+
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(
+    selected?.jobId || null
+  );
+  const [query, setQuery] = useState("");
+  const [printFilter, setPrintFilter] = useState<PrintFilter>("all");
+  const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadPct, setUploadPct] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadTargetRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (selected) {
-      setSelectedJobId(selected.jobId);
-    }
+    if (selected) setSelectedJobId(selected.jobId);
   }, [selected]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return ziplyJobs
+      .filter((j) => {
+        if (regionFilter === "north_metro" && !isNorthMetroJob(j)) return false;
+        if (printFilter !== "all" && getZiplyPrintDocStatus(j) !== printFilter) {
+          return false;
+        }
+        if (!q) return true;
+        const hay = [
+          j.workOrder,
+          j.hubNumber,
+          j.city,
+          j.address,
+          j.sapSalesOrder,
+          j.sapContractId,
+          j.nscProjectNotes,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      })
+      .sort((a, b) => (a.workOrder || "").localeCompare(b.workOrder || ""));
+  }, [ziplyJobs, query, printFilter, regionFilter]);
+
+  const counts = useMemo(() => {
+    const c = { ready: 0, processing: 0, failed: 0, none: 0, north: 0 };
+    for (const j of ziplyJobs) {
+      c[getZiplyPrintDocStatus(j)]++;
+      if (isNorthMetroJob(j)) c.north++;
+    }
+    return c;
+  }, [ziplyJobs]);
+
+  const startUpload = (jobId: string) => {
+    uploadTargetRef.current = jobId;
+    setUploadError(null);
+    fileInputRef.current?.click();
+  };
+
+  const onFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const jobId = uploadTargetRef.current;
+    e.target.value = "";
+    if (!file || !jobId) return;
+    setUploadingId(jobId);
+    setUploadPct(0);
+    setUploadError(null);
+    try {
+      await ingestZiplyPrintForJob(jobId, file, (p) => setUploadPct(Math.round(p)));
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadingId(null);
+      setUploadPct(0);
+      uploadTargetRef.current = null;
+    }
+  };
 
   return (
     <div className="ziply-jobs-tab-fullscreen">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf,image/*"
+        style={{ display: "none" }}
+        onChange={(ev) => void onFileChosen(ev)}
+      />
+
       <div className="ss-header">
         <h2>
-          <Grid size={20} color="#0284c7" />
-          Ziply FTTH Construction Tracker
+          <Grid size={20} color="#00a854" />
+          Ziply FTTH Jobs
         </h2>
-        {onClose && (
-          <button className="close-btn" onClick={onClose} title="Close Tracker">
-            ✕
-          </button>
-        )}
+        <div className="ss-header-meta">
+          <span>
+            {filtered.length} shown · {ziplyJobs.length} total · {counts.ready}{" "}
+            prints on map · {counts.north} North Metro
+          </span>
+          {onClose && (
+            <button className="close-btn" onClick={onClose} title="Close tracker">
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="ss-toolbar">
-        <button><FileText size={14} /> File</button>
-        <button><Filter size={14} /> Filter</button>
-        <button><Share2 size={14} /> Share</button>
+      <div className="ss-toolbar ss-toolbar--filters">
+        <div className="ss-search">
+          <Search size={14} />
+          <input
+            type="search"
+            placeholder="Search WO, hub, city, SAP…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+        <select
+          value={regionFilter}
+          onChange={(e) => setRegionFilter(e.target.value as RegionFilter)}
+          title="Region"
+        >
+          <option value="all">All regions</option>
+          <option value="north_metro">North Metro only</option>
+        </select>
+        <select
+          value={printFilter}
+          onChange={(e) => setPrintFilter(e.target.value as PrintFilter)}
+          title="Print document"
+        >
+          <option value="all">All print states</option>
+          <option value="ready">Print on map ({counts.ready})</option>
+          <option value="processing">Ingesting ({counts.processing})</option>
+          <option value="none">No print ({counts.none})</option>
+          <option value="failed">Failed ({counts.failed})</option>
+        </select>
+        {uploadError && <span className="ss-upload-error">{uploadError}</span>}
       </div>
 
       <div className="ss-table-container">
         <table className="ss-table">
           <thead>
             <tr>
-              <th style={{ width: '40px', textAlign: 'center' }}>#</th>
-              <th style={{ width: '120px' }}>SAP Sales Order</th>
-              <th style={{ width: '100px' }}>Work Order</th>
-              <th style={{ width: '120px' }}>City</th>
-              <th style={{ width: '100px' }}>Hub Number</th>
-              <th style={{ width: '300px' }}>Job Notes</th>
-              <th style={{ width: '120px' }}>SAP Contract ID</th>
-              <th style={{ width: '100px' }}>Project ID</th>
-              <th style={{ width: '120px' }}>Work Type</th>
-              <th style={{ width: '100px' }}>Date Received</th>
-              <th style={{ width: '100px' }}>Exp Date</th>
-              <th style={{ width: '180px' }}>Actions</th>
+              <th style={{ width: 40 }}>#</th>
+              <th style={{ width: 100 }}>Work Order</th>
+              <th style={{ width: 90 }}>Hub</th>
+              <th style={{ width: 110 }}>City</th>
+              <th style={{ width: 90 }}>Region</th>
+              <th style={{ width: 120 }}>Job Status</th>
+              <th style={{ width: 130 }}>Print document</th>
+              <th style={{ width: 160 }}>Uploaded files</th>
+              <th style={{ width: 100 }}>SAP SO</th>
+              <th style={{ width: 160 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {ziplyJobs.map((job, index) => {
-              const isSelected = job.jobId === selectedJobId;
-              const status = (job.jobStatus || "").toLowerCase();
-              
-              // Apply row coloring similar to screenshot 3 (yellow/orange based on some status or randomly for now)
-              let rowClass = isSelected ? "selected" : "";
-              if (!isSelected) {
-                if (status.includes("pending")) rowClass = "ss-row-active-yellow";
-                else if (status.includes("hold")) rowClass = "ss-row-active-orange";
-              }
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={10} style={{ textAlign: "center", padding: 24, color: "#64748b" }}>
+                  No Ziply jobs match these filters.
+                </td>
+              </tr>
+            ) : (
+              filtered.map((job, index) => {
+                const isSelected = job.jobId === selectedJobId;
+                const pst = getZiplyPrintDocStatus(job);
+                const files = listZiplyPrintFiles(job);
+                const north = isNorthMetroJob(job);
+                const busy = uploadingId === job.jobId;
 
-              return (
-                <tr 
-                  key={job.jobId} 
-                  className={rowClass}
-                  onClick={() => setSelectedJobId(job.jobId)}
-                >
-                  <td style={{ textAlign: 'center', color: '#94a3b8' }}>{index + 1}</td>
-                  <td>{job.sapSalesOrder || ""}</td>
-                  <td style={{ fontWeight: 600 }}>{job.workOrder}</td>
-                  <td>{job.city}</td>
-                  <td>{job.hubNumber || ""}</td>
-                  <td title={job.nscProjectNotes || ""} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {job.nscProjectNotes || ""}
-                  </td>
-                  <td>{job.sapContractId || ""}</td>
-                  <td>{/* TODO: Add projectId to Job type if needed */ ""}</td>
-                  <td>{job.workType || ""}</td>
-                  <td>{job.dateReceived || ""}</td>
-                  <td>{job.actualCompletionDate || ""}</td>
-                  <td style={{ display: 'flex', gap: '8px' }}>
-                    <button 
-                      className="ss-btn-map"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (setSelected) setSelected(job);
-                        if (onClose) onClose();
-                      }}
-                    >
-                      <MapIcon size={12} /> Map
-                    </button>
-                    <button className="ss-btn-attach">
-                      <Paperclip size={12} /> Attach
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
+                return (
+                  <tr
+                    key={job.jobId}
+                    className={isSelected ? "selected" : ""}
+                    onClick={() => setSelectedJobId(job.jobId)}
+                  >
+                    <td style={{ textAlign: "center", color: "#94a3b8" }}>
+                      {index + 1}
+                    </td>
+                    <td style={{ fontWeight: 600 }}>{job.workOrder}</td>
+                    <td>{job.hubNumber || "—"}</td>
+                    <td>{job.city || "—"}</td>
+                    <td>
+                      {north ? (
+                        <span className="ss-pill ss-pill--metro">North Metro</span>
+                      ) : (
+                        <span className="ss-muted">Other</span>
+                      )}
+                    </td>
+                    <td>{job.jobStatus || "—"}</td>
+                    <td>
+                      <span
+                        className="ss-print-status"
+                        style={{ color: ziplyPrintStatusColor(pst) }}
+                      >
+                        ● {ziplyPrintStatusLabel(pst)}
+                      </span>
+                      {busy && (
+                        <div className="ss-upload-progress">Uploading {uploadPct}%</div>
+                      )}
+                    </td>
+                    <td>
+                      {files.length === 0 ? (
+                        <span className="ss-muted">None</span>
+                      ) : (
+                        <div className="ss-file-list">
+                          {files.map((f, i) =>
+                            f.downloadUrl ? (
+                              <a
+                                key={i}
+                                href={f.downloadUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(ev) => ev.stopPropagation()}
+                                title={f.name}
+                              >
+                                {f.name}
+                                {f.size != null ? ` (${formatBytes(f.size)})` : ""}
+                              </a>
+                            ) : (
+                              <span key={i} title={f.name}>
+                                {f.name}
+                              </span>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td>{job.sapSalesOrder || "—"}</td>
+                    <td>
+                      <div className="ss-actions">
+                        <button
+                          type="button"
+                          className="ss-btn-map"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (setSelected) setSelected(job);
+                            if (onClose) onClose();
+                          }}
+                        >
+                          <MapIcon size={12} /> Map
+                        </button>
+                        <button
+                          type="button"
+                          className="ss-btn-attach"
+                          disabled={busy}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startUpload(job.jobId);
+                          }}
+                          title="Upload engineering print PDF/image for this job"
+                        >
+                          <Paperclip size={12} />
+                          {busy ? `${uploadPct}%` : "Print"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>

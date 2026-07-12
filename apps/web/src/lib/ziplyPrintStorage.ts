@@ -57,6 +57,14 @@ function formatUploadError(err: unknown): Error {
 
 async function ensureFirebaseStorageAuth(): Promise<void> {
   const auth = getAuth(app);
+  // Prefer the real app login (Email/Password). Only fall back to anonymous
+  // if somehow no session exists (should not happen while the app is locked).
+  if (auth.currentUser && !auth.currentUser.isAnonymous) {
+    console.info("[ziply-print-upload] Using signed-in Firebase user for Storage", {
+      uid: auth.currentUser.uid,
+    });
+    return;
+  }
   if (auth.currentUser) {
     console.info("[ziply-print-upload] Firebase Auth already available for Storage upload", {
       uid: auth.currentUser.uid,
@@ -67,7 +75,7 @@ async function ensureFirebaseStorageAuth(): Promise<void> {
 
   try {
     const credential = await signInAnonymously(auth);
-    console.info("[ziply-print-upload] Signed in to Firebase Auth for Storage upload", {
+    console.info("[ziply-print-upload] Signed in anonymously for Storage upload", {
       uid: credential.user.uid,
       isAnonymous: credential.user.isAnonymous,
     });

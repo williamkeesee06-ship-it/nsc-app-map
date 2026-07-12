@@ -6,10 +6,18 @@ import { ShieldCheck, Crosshair, Map, Activity } from "lucide-react";
 import { useActiveContract } from "../workspace/contractStore.js";
 import "./overwatchHUD.css";
 
+/** Overwatch is for Billy only — match full name or first name. */
+function isBillyOperator(username: string | null | undefined): boolean {
+  if (!username) return false;
+  const n = username.trim().toLowerCase();
+  return n === "billy keesee" || n === "billy";
+}
+
 export default function OverwatchHUD() {
   const { username } = useAuth();
   const { contract } = useActiveContract();
   const [open, setOpen] = useState(false);
+  const showHud = isBillyOperator(username);
 
   const [metrics, setMetrics] = useState({
     jobsCount: 0,
@@ -17,18 +25,15 @@ export default function OverwatchHUD() {
     markupsCount: 0,
   });
 
-  // ONLY Billy gets the HUD
-  if (username !== "Billy") return null;
-
   useEffect(() => {
-    if (!open) return;
+    if (!open || !showHud) return;
     let cancelled = false;
-    
+
     // Fetch global data by bypassing scoping (isManager logic or explicit wildcard)
     Promise.all([
       api.listJobs().catch(() => ({ jobs: [] as Job[] })),
       api.listDigTickets().catch(() => ({ tickets: [] as DigTicket[] })),
-      api.getAllDrawings().catch(() => ({ docs: [] }))
+      api.getAllDrawings().catch(() => ({ docs: [] })),
     ]).then(([jobsRes, ticketsRes, drawingsRes]) => {
       if (cancelled) return;
       setMetrics({
@@ -38,8 +43,13 @@ export default function OverwatchHUD() {
       });
     });
 
-    return () => { cancelled = true; };
-  }, [open]);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, showHud]);
+
+  // ONLY Billy gets the HUD (hooks above must always run)
+  if (!showHud) return null;
 
   return (
     <>

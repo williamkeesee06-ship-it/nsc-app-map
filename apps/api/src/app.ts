@@ -22,17 +22,42 @@ import tasksRouter from "./routes/tasks.js";
 import luminaStaleTasksRouter from "./routes/luminaStaleTasks.js";
 import luminaCodeRouter from "./routes/luminaCode.js";
 import luminaDataRouter from "./routes/luminaData.js";
+import { getEnv } from "./config/env.js";
+import { isPublicApiPath, requireAuth } from "./middleware/requireAuth.js";
+
+function buildCorsAllowlist(): Set<string> {
+  const env = getEnv();
+  const list = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    env.APP_ORIGIN,
+    ...env.APP_ORIGINS.split(",").map((s) => s.trim()),
+  ].filter(Boolean);
+  return new Set(list);
+}
 
 export function createApp() {
   const app = express();
-  
-  // Custom CORS middleware to allow requests from the ITIC portal (bookmarklet)
+
+  // CORS: only known app origins (bookmarklet/ITIC no longer get open *).
   app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    const origin = req.header("origin");
+    if (origin) {
+      try {
+        const allow = buildCorsAllowlist();
+        if (allow.has(origin)) {
+          res.setHeader("Access-Control-Allow-Origin", origin);
+          res.setHeader("Vary", "Origin");
+        }
+      } catch {
+        // Env not ready yet on cold start edge cases — skip CORS header.
+      }
+    }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     if (req.method === "OPTIONS") {
-      res.sendStatus(200);
+      res.sendStatus(204);
       return;
     }
     next();
@@ -41,6 +66,15 @@ export function createApp() {
   // Photos can push the payload up to ~200KB — raise the body limit so the
   // photo upload route isn't rejected as 413 before reaching the handler.
   app.use(express.json({ limit: "4mb" }));
+
+  // Firebase Auth on all /api routes except health + cron endpoints.
+  app.use("/api", (req, res, next) => {
+    if (isPublicApiPath(req.path)) {
+      next();
+      return;
+    }
+    void requireAuth(req, res, next);
+  });
 
   // All routes mount under /api (the Vercel rewrite already strips the prefix
   // at the platform level, but we keep it explicit so local dev matches prod).

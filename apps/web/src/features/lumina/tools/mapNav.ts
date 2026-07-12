@@ -318,24 +318,8 @@ const clearPinsTool: LuminaTool<Record<string, never>, null> = {
   },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// showRoute — overlay a route line between two jobs
-// We stub this for now (the route layer lives in features/route-builder).
-// Wiring it requires reaching into the route store; deferred to a follow-up.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const showRouteTool: LuminaTool<{ fromJobId: string; toJobId: string }, null> = {
-  name: "showRoute",
-  description: "Draw a route line overlay between two jobs.",
-  kind: "navigate",
-  async run(_input) {
-    return {
-      ok: false,
-      message:
-        "Route overlay isn't wired yet — use the ROUTE tab to build a route manually.",
-    };
-  },
-};
+// showRoute intentionally not registered — no ROUTE tab / route-builder yet.
+// When route overlay ships, add a real tool here and wire map store.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // selectJob
@@ -394,7 +378,6 @@ export const mapNavTools = [
   setZoomTool,
   dropPinTool,
   clearPinsTool,
-  showRouteTool,
   selectJobTool,
   filterJobsOnMapTool,
   clearFiltersTool,

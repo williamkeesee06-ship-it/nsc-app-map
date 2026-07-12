@@ -106,7 +106,6 @@ Use these to answer ANY question about how the app works, where things are defin
 - dropPin / clearPins — temporary markers.
 - selectJob — open the job card.
 - filterJobsOnMap / clearFilters — hide/show by crew/status/age/city.
-- showRoute(from, to) — overlay a route line.
 
 =====================================================================
   NSC DATA READS
@@ -441,15 +440,6 @@ export const LUMINA_TOOLS = [
         name: "clearPins",
         description: "Remove all Lumina-dropped pins from the map.",
         parameters: { type: "OBJECT", properties: {} },
-      },
-      {
-        name: "showRoute",
-        description: "Draw a route line overlay between two jobs.",
-        parameters: {
-          type: "OBJECT",
-          properties: { fromJobId: { type: "STRING" }, toJobId: { type: "STRING" } },
-          required: ["fromJobId", "toJobId"],
-        },
       },
       {
         name: "selectJob",

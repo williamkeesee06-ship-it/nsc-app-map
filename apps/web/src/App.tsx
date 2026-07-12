@@ -105,9 +105,9 @@ function ContractSelector() {
 }
 
 function Shell() {
-  const { username } = useAuth();
+  const { username, authReady } = useAuth();
   const { contract } = useActiveContract();
-  const needsLogin = username === null;
+  const needsLogin = authReady && username === null;
   return (
     <>
       <div className={`app-frame ${contract === "Ziply" ? "contract-ziply" : ""}`}>
@@ -137,6 +137,24 @@ function Shell() {
           </div>
         </div>
       </div>
+      {!authReady && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 4999,
+            display: "grid",
+            placeItems: "center",
+            background: "rgba(20, 26, 36, 0.4)",
+            color: "#e8eef6",
+            fontFamily: "ui-monospace, Consolas, monospace",
+            fontSize: 12,
+            letterSpacing: "0.12em",
+          }}
+        >
+          CHECKING ACCESS…
+        </div>
+      )}
       {needsLogin && <LoginScreen />}
       {!apiKey && <MissingKeyOverlay />}
     </>

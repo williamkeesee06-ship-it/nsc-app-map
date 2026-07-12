@@ -32,6 +32,16 @@ const Schema = z.object({
   // checkboxes as their primary filter (instead of status buckets). They
   // still need to be in SYNC_SUPERVISORS to pass the login allowlist gate.
   SYNC_MANAGERS: z.string().default("Robbie Thoman"),
+  // Solo lock: comma-separated emails allowed to call the API (Firebase Auth).
+  // Empty in production → reject all authenticated callers until configured.
+  AUTH_ALLOWED_EMAILS: z.string().default(""),
+  // CORS allowlist: primary production origin + optional extra origins.
+  APP_ORIGIN: z.string().default("https://nsc-app-map.vercel.app"),
+  APP_ORIGINS: z.string().default(""),
+  // Vercel cron shared secret. Routes fail closed when empty.
+  CRON_SECRET: z.string().default(""),
+  // Solo operator profile used after Firebase login (Smartsheet / drawings owner).
+  AUTH_OPERATOR_NAME: z.string().default("Billy Keesee"),
   NODE_ENV: z.string().default("development"),
 });
 

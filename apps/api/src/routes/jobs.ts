@@ -688,16 +688,33 @@ async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): 
       return coords;
     };
 
+    // Resolve a usable map anchor. Prints with hub:{lat:null,lng:null} never
+    // appear on the client — fall through hubAddress → job geocode → job address.
     let hubCoords = await geocodeOne(parsed.hubAddress ?? null);
-    if (!hubCoords && existing.geocode?.status === "OK") {
+    if (!hubCoords && existing.geocode?.status === "OK" && existing.geocode.lat && existing.geocode.lng) {
       hubCoords = { lat: existing.geocode.lat, lng: existing.geocode.lng };
+    }
+    if (!hubCoords) {
+      const jobAddr = buildAddressString({
+        address: existing.address,
+        city: existing.city,
+        zipCode: existing.zipCode,
+      });
+      if (jobAddr) {
+        const g = await geocodeAddress(jobAddr);
+        if (g.status === "OK") hubCoords = { lat: g.lat, lng: g.lng };
+      }
     }
 
     const rawTerminals = parsed.mapObjects?.terminals ?? [];
     const terminals = [];
     for (const t of rawTerminals) {
       const firstAddr = t.addressesServed?.[0] ?? null;
-      const coords = firstAddr ? await geocodeOne(firstAddr) : null;
+      let coords = firstAddr ? await geocodeOne(firstAddr) : null;
+      // If terminal has no street address, pin near the hub so spokes still draw.
+      if (!coords && hubCoords) {
+        coords = hubCoords;
+      }
       terminals.push({
         label: t.label,
         type: t.type,
@@ -754,14 +771,32 @@ async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): 
         specialNotes: parsed.specialNotes,
         permits: parsed.permits,
         mapObjects: {
-          hub: { lat: hubCoords?.lat ?? null, lng: hubCoords?.lng ?? null, status: "planned" },
+          hub: {
+            lat: hubCoords?.lat ?? null,
+            lng: hubCoords?.lng ?? null,
+            status: "planned",
+          },
           cables,
           terminals,
           notes: parsed.mapObjects?.notes ?? null,
         },
-        uploadedPermitDocs: {}
-      }
+        // Preserve any permit docs already uploaded on this job.
+        uploadedPermitDocs: existing.ziplyPrintLayer?.uploadedPermitDocs ?? {},
+      },
     };
+
+    // If we resolved hub coords and the job never had a geocode, cache it so
+    // pins + print layer stay aligned after future syncs.
+    if (hubCoords && !(existing.geocode?.status === "OK")) {
+      updates.geocode = {
+        lat: hubCoords.lat,
+        lng: hubCoords.lng,
+        formattedAddress: existing.address ?? "",
+        sourceAddress: existing.address ?? "",
+        cachedAt: now,
+        status: "OK",
+      };
+    }
 
     await ref.update(updates);
     invalidateJobsCache();

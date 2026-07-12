@@ -1,28 +1,58 @@
-// Phase 9: lightweight username login (no real auth).
-// Stored in localStorage as "nsc.username". Used to filter the Smartsheet
-// job list by the Supervisor column (case-insensitive match on the value).
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+// Firebase Auth session + operator profile for the map app.
+// Solo lock: only emails in VITE_AUTH_ALLOWED_EMAILS (or any Firebase user in
+// dev when that list is empty) may stay signed in. After Firebase login the
+// app still uses operator name "Billy Keesee" for Smartsheet / drawings.
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { hydratePrefs } from "../../lib/prefsSync.js";
 import { api } from "../../lib/api.js";
+import {
+  getFirebaseAuth,
+  onAuthStateChanged,
+  signOutFirebase,
+  type User,
+} from "../../lib/firebase.js";
 
 const LS_KEY = "nsc.username";
+const LS_MANAGERS = "nsc.managers";
 
-// Billy 6/5: hard whitelist — only these users can be signed in.
-// Anyone else found in localStorage gets logged out on app load.
-const ALLOWED_USERS = ["billy keesee", "robbie thoman", "joe watson"];
-function isAllowed(name: string | null): boolean {
-  if (!name) return false;
-  return ALLOWED_USERS.includes(name.trim().toLowerCase());
+/** Solo operator profile (Smartsheet supervisor name). Expand later per email. */
+const SOLO_OPERATOR_NAME = "Billy Keesee";
+
+function parseAllowedEmails(): string[] {
+  const raw = (import.meta.env.VITE_AUTH_ALLOWED_EMAILS as string | undefined) ?? "";
+  return raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isEmailAllowed(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const allowed = parseAllowedEmails();
+  // Mirror server: empty allowlist in dev is OK; in prod build empty still
+  // attempts login and API will 403 if AUTH_ALLOWED_EMAILS is empty.
+  if (allowed.length === 0) return true;
+  return allowed.includes(email.trim().toLowerCase());
 }
 
 interface AuthCtxValue {
+  /** Operator profile used by jobs/filters/drawings (e.g. Billy Keesee). */
   username: string | null;
+  /** Firebase user when signed in. */
+  firebaseUser: User | null;
+  /** True while we resolve the initial Firebase session. */
+  authReady: boolean;
   setUsername: (s: string) => void;
   logout: () => void;
-  /** Phase 9.7: list of supervisor names who get manager-mode UI. */
   managers: string[];
   setManagers: (m: string[]) => void;
-  /** True when the signed-in user's name is in the managers list. */
   isManager: boolean;
 }
 
@@ -34,24 +64,10 @@ export function useAuth(): AuthCtxValue {
   return ctx;
 }
 
-const LS_MANAGERS = "nsc.managers";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [username, setUsernameRaw] = useState<string | null>(() => {
-    try {
-      const stored = localStorage.getItem(LS_KEY);
-      // Reject any stale localStorage value for a user no longer permitted.
-      if (!isAllowed(stored)) {
-        if (stored) {
-          try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
-        }
-        return null;
-      }
-      return stored;
-    } catch {
-      return null;
-    }
-  });
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [username, setUsernameRaw] = useState<string | null>(null);
   const [managers, setManagersRaw] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(LS_MANAGERS);
@@ -74,68 +90,132 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     !!username &&
     managers.some((m) => m.trim().toLowerCase() === username.trim().toLowerCase());
 
-  const setUsername = useCallback((s: string) => {
-    const trimmed = s.trim();
-    // Defense in depth: refuse to set a non-whitelisted username.
-    if (trimmed && !isAllowed(trimmed)) {
+  const applyOperatorSession = useCallback((user: User) => {
+    const email = user.email;
+    if (!isEmailAllowed(email)) {
+      void signOutFirebase();
+      setFirebaseUser(null);
+      setUsernameRaw(null);
+      try {
+        localStorage.removeItem(LS_KEY);
+      } catch {
+        /* ignore */
+      }
       return;
     }
-    setUsernameRaw(trimmed || null);
+    setFirebaseUser(user);
+    // Solo lock: always map to Billy Keesee until multi-user mapping ships.
+    const operator = SOLO_OPERATOR_NAME;
+    setUsernameRaw(operator);
     try {
-      if (trimmed) localStorage.setItem(LS_KEY, trimmed);
-      else localStorage.removeItem(LS_KEY);
+      localStorage.setItem(LS_KEY, operator);
     } catch {
-      // ignore
-    }
-    // Pull server prefs for this user so settings follow them across devices.
-    if (trimmed) {
-      hydratePrefs().catch(() => { /* swallow */ });
+      /* ignore */
     }
   }, []);
 
-  // On initial mount with a stored username, hydrate prefs AND refresh data
-  // from Smartsheet. Managers refresh ALL supervisors; everyone else just
-  // refreshes their own rows.
+  // Subscribe to Firebase Auth; this is the source of truth for login.
   useEffect(() => {
-    if (username) {
-      hydratePrefs().catch(() => { /* swallow */ });
-      const isManagerOnMount = managers.some(
-        (m) => m.trim().toLowerCase() === username.trim().toLowerCase()
-      );
-      const p = isManagerOnMount
-        ? api.syncAllSupervisors(username)
-        : api.syncSupervisor(username);
-      p.then(() => {
-        // Billy 5/26: after the mount-sync finishes, ask useJobs to refetch
-        // so any Smartsheet edits made elsewhere (or just before reload)
-        // show up immediately instead of after the next manual refresh.
-        window.dispatchEvent(new Event("nsc:jobs-reload"));
-      }).catch(() => { /* swallow */ });
+    const unsub = onAuthStateChanged(getFirebaseAuth(), (user) => {
+      if (user) {
+        applyOperatorSession(user);
+      } else {
+        setFirebaseUser(null);
+        setUsernameRaw(null);
+        try {
+          localStorage.removeItem(LS_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
+      setAuthReady(true);
+    });
+    return () => unsub();
+  }, [applyOperatorSession]);
+
+  // API 401 → force re-login
+  useEffect(() => {
+    function onAuthRequired() {
+      void signOutFirebase();
+      setFirebaseUser(null);
+      setUsernameRaw(null);
+      try {
+        localStorage.removeItem(LS_KEY);
+      } catch {
+        /* ignore */
+      }
     }
+    window.addEventListener("nsc:auth-required", onAuthRequired);
+    return () => window.removeEventListener("nsc:auth-required", onAuthRequired);
+  }, []);
+
+  // After a valid session, hydrate prefs and refresh Smartsheet for Billy.
+  useEffect(() => {
+    if (!username || !firebaseUser) return;
+    hydratePrefs().catch(() => {
+      /* swallow */
+    });
+    const isManagerOnMount = managers.some(
+      (m) => m.trim().toLowerCase() === username.trim().toLowerCase()
+    );
+    const p = isManagerOnMount
+      ? api.syncAllSupervisors(username)
+      : api.syncSupervisor(username);
+    p.then(() => {
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    }).catch(() => {
+      /* swallow — user can resync from UI */
+    });
+    // Only when session becomes available
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username, firebaseUser?.uid]);
+
+  // Kept for compatibility with older call sites; Firebase login is primary.
+  const setUsername = useCallback((s: string) => {
+    const trimmed = s.trim();
+    if (!trimmed) {
+      setUsernameRaw(null);
+      try {
+        localStorage.removeItem(LS_KEY);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    setUsernameRaw(trimmed);
+    try {
+      localStorage.setItem(LS_KEY, trimmed);
+    } catch {
+      /* ignore */
+    }
+    hydratePrefs().catch(() => {
+      /* swallow */
+    });
   }, []);
 
   const logout = useCallback(() => {
+    void signOutFirebase();
+    setFirebaseUser(null);
     setUsernameRaw(null);
     try {
       localStorage.removeItem(LS_KEY);
     } catch {
-      // ignore
+      /* ignore */
     }
-  }, []);
-
-  // Keep storage in sync across tabs
-  useEffect(() => {
-    function onStorage(e: StorageEvent) {
-      if (e.key === LS_KEY) setUsernameRaw(e.newValue);
-    }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ username, setUsername, logout, managers, setManagers, isManager }}
+      value={{
+        username,
+        firebaseUser,
+        authReady,
+        setUsername,
+        logout,
+        managers,
+        setManagers,
+        isManager,
+      }}
     >
       {children}
     </AuthContext.Provider>

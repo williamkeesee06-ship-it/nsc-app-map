@@ -86,6 +86,13 @@ function parseExpiration(mdy: string): number | null {
   return Number.isNaN(d.getTime()) ? null : d.getTime();
 }
 
+/** Callable must be invoked by a signed-in Firebase user (solo lock). */
+function requireCallableAuth(req: { auth?: { uid?: string; token?: { email?: string } } }): void {
+  if (!req.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in required to run 811 automation.");
+  }
+}
+
 // ── fileTicketBot ────────────────────────────────────────────────────────────
 // Fills the ITIC form AND auto-submits end-to-end: reads back the assigned
 // locate number + expiration, uploads a confirmation PDF, and flips the ticket
@@ -93,6 +100,7 @@ function parseExpiration(mdy: string): number | null {
 export const fileTicketBot = onCall(
   { ...HEAVY, secrets: [ITIC_USERNAME, ITIC_PASSWORD] },
   async (req) => {
+    requireCallableAuth(req);
     const ticketId = req.data?.ticketId as string | undefined;
     if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
 
@@ -159,6 +167,7 @@ export const fileTicketBot = onCall(
 export const confirmAndSubmit = onCall(
   { ...HEAVY, secrets: [ITIC_USERNAME, ITIC_PASSWORD] },
   async (req) => {
+    requireCallableAuth(req);
     const ticketId = req.data?.ticketId as string | undefined;
     logger.warn("confirmAndSubmit is deprecated and no longer submits; fileTicketBot auto-submits", {
       ticketId,
@@ -220,6 +229,7 @@ async function pollResponsesInto(
 export const checkUtilityResponses = onCall(
   { ...HEAVY, secrets: [ITIC_USERNAME, ITIC_PASSWORD] },
   async (req) => {
+    requireCallableAuth(req);
     const ticketId = req.data?.ticketId as string | undefined;
     if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
     const { ticket } = await loadTicketAndJob(ticketId);

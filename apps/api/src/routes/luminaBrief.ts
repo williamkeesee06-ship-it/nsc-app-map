@@ -230,16 +230,17 @@ function composeBrief(args: {
 // ------------------------------------------------------------------
 
 router.get("/lumina/brief/daily", async (req: Request, res: Response) => {
-  // Auth: Vercel cron sends `Authorization: Bearer <CRON_SECRET>` automatically
-  // when the env var is set. We also accept `?key=` for manual QA.
-  const secret = process.env.CRON_SECRET ?? "";
-  if (secret) {
-    const auth = req.header("authorization") ?? "";
-    const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    const key = String(req.query.key ?? "");
-    if (bearer !== secret && key !== secret) {
-      return res.status(401).json({ error: "unauthorized" });
-    }
+  // Fail closed: CRON_SECRET must be set. Vercel cron sends
+  // `Authorization: Bearer <CRON_SECRET>`; manual QA can use `?key=`.
+  const secret = (process.env.CRON_SECRET ?? "").trim();
+  if (!secret) {
+    return res.status(401).json({ error: "CRON_SECRET not configured" });
+  }
+  const auth = req.header("authorization") ?? "";
+  const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const key = String(req.query.key ?? "");
+  if (bearer !== secret && key !== secret) {
+    return res.status(401).json({ error: "unauthorized" });
   }
 
   const dryRun = String(req.query.dryRun ?? "false") === "true";

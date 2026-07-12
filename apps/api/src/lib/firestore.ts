@@ -30,6 +30,9 @@ export function db() {
   return getApp().firestore();
 }
 
+export function adminAuth() {
+  return getApp().auth();
+}
 
 export function storageBucket(bucketName?: string) {
   return bucketName ? getApp().storage().bucket(bucketName) : getApp().storage().bucket();

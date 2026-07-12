@@ -49,12 +49,19 @@ function pillFor(days: number): Pill {
   return { label: "ACTIVE", className: "digtix-card__pill--green" };
 }
 
-function openTicketsTab(): void {
-  // TODO: pass the ticket id so the 811 tab pre-selects it. The tab doesn't yet
-  // accept a target ticket, so for now we just switch tabs and let the user
-  // click through from the 811 list.
+/** Open 811 tab and pre-select a ticket (same bridge as Lumina / JobCard). */
+function openTicketOn811Tab(ticketId: string): void {
+  const detail = { ticketId, openIticModal: false };
+  try {
+    sessionStorage.setItem("nsc.lumina.openDigTicket", JSON.stringify(detail));
+  } catch {
+    /* ignore quota / private mode */
+  }
   window.dispatchEvent(
     new CustomEvent("nsc:request-tab", { detail: { tab: "811-tickets" } })
+  );
+  window.dispatchEvent(
+    new CustomEvent("nsc:lumina:openDigTicket", { detail })
   );
 }
 
@@ -136,11 +143,11 @@ export default function ActiveDigTicketsCard({ jobs }: ActiveDigTicketsCardProps
                 tabIndex={0}
                 role="button"
                 aria-label={`Open dig ticket ${r.ticket.ticketNumber} on the 811 tab`}
-                onClick={openTicketsTab}
+                onClick={() => openTicketOn811Tab(r.ticket.id)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    openTicketsTab();
+                    openTicketOn811Tab(r.ticket.id);
                   }
                 }}
               >

@@ -5,12 +5,23 @@
 //   - Schedule Date            → click to open date picker
 //   - Traffic Control          → click toggle
 // Saves write directly to Smartsheet via the nsc-smartapp Worker.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DigTicket, Job } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
+import { getIdToken } from "../../lib/firebase.js";
+import {
+  formatBytes,
+  getZiplyPrintAnchor,
+  getZiplyPrintDocStatus,
+  ingestZiplyPrintForJob,
+  isZiplyPrintMapReady,
+  listZiplyPrintFiles,
+  ziplyPrintStatusColor,
+  ziplyPrintStatusLabel,
+} from "../ziply/ziplyUtils.js";
 
 interface Props {
   job: Job;
@@ -303,7 +314,11 @@ export default function JobCard({
         <EditableNotes value={notes} onCommit={(v) => { setNotes(v); commit("notes", v); }} />
       </div>
 
-      {/* Permits Section (Ziply only) */}
+      {/* Ziply engineering print + permits (Ziply only — Lumen markups untouched) */}
+      {job.customerProject === "Ziply" && (
+        <ZiplyPrintDocsSection job={job} />
+      )}
+
       {job.customerProject === "Ziply" && (
         <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
           <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#00E676", margin: "0 0 8px 0" }}>
@@ -329,9 +344,13 @@ export default function JobCard({
                 reader.onloadend = async () => {
                   const base64 = reader.result as string;
                   try {
+                    const token = await getIdToken();
                     const res = await fetch(`/api/jobs/${job.jobId}/permits`, {
                       method: "POST",
-                      headers: { "Content-Type": "application/json" },
+                      headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                      },
                       body: JSON.stringify({ permitType: type, fileDataUrl: base64 }),
                     });
                     if (res.ok) {
@@ -387,6 +406,153 @@ export default function JobCard({
         </div>
       )}
 
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Ziply engineering print inventory + upload (not Lumen markups).
+// -----------------------------------------------------------------------------
+function ZiplyPrintDocsSection({ job }: { job: Job }) {
+  const [busy, setBusy] = useState(false);
+  const [pct, setPct] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const status = getZiplyPrintDocStatus(job);
+  const files = listZiplyPrintFiles(job);
+  const layer = job.ziplyPrintLayer;
+  const terminalCount = layer?.mapObjects?.terminals?.length ?? layer?.terminalCount ?? null;
+  const cableCount = layer?.mapObjects?.cables?.length ?? null;
+  const mapReady = isZiplyPrintMapReady(job);
+  const anchor = getZiplyPrintAnchor(job);
+
+  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    setPct(0);
+    setErr(null);
+    try {
+      await ingestZiplyPrintForJob(job.jobId, file, (p) => setPct(Math.round(p)));
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Upload failed");
+    } finally {
+      setBusy(false);
+      setPct(0);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
+      <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#00E676", margin: "0 0 8px 0" }}>
+        🗺️ ENGINEERING PRINT
+      </h4>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          marginBottom: 8,
+          background: "rgba(0,0,0,0.2)",
+          padding: 8,
+          borderRadius: 4,
+          border: "1px solid rgba(0,230,118,0.2)",
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: ziplyPrintStatusColor(status) }}>
+            ● {ziplyPrintStatusLabel(status)}
+          </span>
+          {status === "ready" && (
+            <span style={{ fontSize: 9, color: "#9ca3af" }}>
+              {layer?.hubId ? `Hub ${layer.hubId}` : "Hub —"}
+              {terminalCount != null ? ` · ${terminalCount} terminals` : ""}
+              {cableCount != null ? ` · ${cableCount} cables` : ""}
+              {mapReady
+                ? ` · map @ ${anchor!.lat.toFixed(4)}, ${anchor!.lng.toFixed(4)}`
+                : " · NOT ON MAP (no lat/lng)"}
+            </span>
+          )}
+          {status === "ready" && !mapReady && (
+            <span style={{ fontSize: 9, color: "#fbbf24" }}>
+              Print data is saved but has no location. Fix job address / geocode, then re-upload print.
+            </span>
+          )}
+          {status === "failed" && job.ziplyIngest?.errorMessage && (
+            <span style={{ fontSize: 9, color: "#f87171" }}>{job.ziplyIngest.errorMessage}</span>
+          )}
+          {busy && (
+            <span style={{ fontSize: 9, color: "#38bdf8" }}>Uploading / starting ingest… {pct}%</span>
+          )}
+          {err && <span style={{ fontSize: 9, color: "#f87171" }}>{err}</span>}
+        </div>
+        <label
+          style={{
+            background: busy ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.15)",
+            border: "1px solid rgba(0,230,118,0.45)",
+            color: "#00E676",
+            fontSize: 9,
+            fontWeight: 700,
+            padding: "6px 10px",
+            borderRadius: 4,
+            cursor: busy ? "wait" : "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {busy ? `${pct}%` : "UPLOAD PRINT"}
+          <input
+            ref={inputRef}
+            type="file"
+            accept="application/pdf,image/*"
+            disabled={busy}
+            onChange={(ev) => void onPick(ev)}
+            style={{ display: "none" }}
+          />
+        </label>
+      </div>
+      {files.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em" }}>
+            FILES FOR THIS JOB
+          </span>
+          {files.map((f, i) => (
+            <div
+              key={i}
+              style={{
+                fontSize: 10,
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 8,
+                padding: "4px 6px",
+                background: "rgba(255,255,255,0.03)",
+                borderRadius: 3,
+              }}
+            >
+              {f.downloadUrl ? (
+                <a
+                  href={f.downloadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "#38bdf8", overflow: "hidden", textOverflow: "ellipsis" }}
+                >
+                  {f.name}
+                </a>
+              ) : (
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</span>
+              )}
+              <span style={{ color: "#6b7280", flexShrink: 0 }}>{formatBytes(f.size)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {files.length === 0 && status === "none" && (
+        <p style={{ margin: 0, fontSize: 9, color: "#6b7280", lineHeight: 1.4 }}>
+          No engineering print uploaded for this work order yet. Upload a PDF/image to build the
+          design layer on the map.
+        </p>
+      )}
     </div>
   );
 }

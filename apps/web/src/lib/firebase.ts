@@ -1,9 +1,17 @@
-// Firebase client app — used for 811 Callable Functions and browser-side
-// Firebase Storage uploads. The operator login remains the lightweight
-// localStorage username scheme (see authContext); Storage uploads establish a
-// Firebase Auth session separately so Storage rules can require request.auth.
+// Firebase client app — used for:
+//   • Real app login (Email/Password) — solo lock
+//   • 811 Callable Functions
+//   • Browser-side Firebase Storage uploads
 // Config is supplied per-environment via VITE_FIREBASE_* vars.
 import { initializeApp, type FirebaseApp } from "firebase/app";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  type Auth,
+  type User,
+} from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
@@ -15,3 +23,34 @@ const firebaseConfig = {
 };
 
 export const app: FirebaseApp = initializeApp(firebaseConfig);
+
+export function getFirebaseAuth(): Auth {
+  return getAuth(app);
+}
+
+export function getCurrentUser(): User | null {
+  return getFirebaseAuth().currentUser;
+}
+
+/** Resolve a fresh ID token for API Authorization headers. */
+export async function getIdToken(forceRefresh = false): Promise<string | null> {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) return null;
+  try {
+    return await user.getIdToken(forceRefresh);
+  } catch {
+    return null;
+  }
+}
+
+export async function signInWithEmail(email: string, password: string): Promise<User> {
+  const cred = await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
+  return cred.user;
+}
+
+export async function signOutFirebase(): Promise<void> {
+  await signOut(getFirebaseAuth());
+}
+
+export { onAuthStateChanged };
+export type { User };

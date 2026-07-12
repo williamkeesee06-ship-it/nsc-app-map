@@ -45,6 +45,14 @@ import LuminaChatPanel from "../lumina/ChatPanel.js";
 import LuminaMapBridge from "../lumina/MapBridge.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 import ZiplyPrintOverlay from "./ZiplyPrintOverlay.js";
+import {
+  isNorthMetroJob,
+  jobMatchesZiplyPrintFilter,
+  ziplyStatusGroupForJob,
+  getZiplyPrintDocStatus,
+  isZiplyPrintMapReady,
+  getZiplyPrintAnchor,
+} from "../ziply/ziplyUtils.js";
 
 const FOCUS_ZOOM = 17;
 
@@ -121,34 +129,27 @@ export default function JobsMap() {
       else sessionStorage.removeItem("nsc.selectedJobId");
     } catch { /* ignore */ }
   }, [selected, setSelectedJobId]);
-  // BUG FIX (general-marker-0-rendered): `applyFilters` applies the
-  // status-bucket FilterRail filter, whose default (see useFilters.ts
-  // ACTIVE_BY_DEFAULT / FilterRail.ts defaultFilters()) EXCLUDES the
-  // "completed" bucket. On the Ziply contract, the overwhelming majority of
-  // jobs are bucketed "completed" the moment their build/print work wraps
-  // up — that's precisely when a Ziply print overlay becomes available — so
-  // applying the Lumen-oriented status-bucket default to Ziply jobs
-  // silently filtered `filtered`/`mapped` down to 0 for any account whose
-  // 761 Ziply jobs are mostly Completed, producing the observed
-  // "0 ON MAP · 0 UNMAPPED · 761 TOTAL" counter (0+0, not 761, precisely
-  // because `filtered.length` itself was 0 — this was never a rendering/
-  // projection bug for general pins, it was every job being filtered out
-  // before JobMarkers ever saw them).
-  //
-  // Ziply already bypasses the equivalent supervisor/bucket restriction for
-  // its print overlay (see ziplyPrintReadyJobs below) and for contract
-  // visibility (line ~77). The same bypass must apply to the general pins
-  // and the on-screen counter for Ziply — status-bucket filtering is a
-  // Lumen workflow concept the Ziply contract was never designed around.
-  // Lumen's default (hide Completed unless the user opts in) is preserved
-  // unchanged.
-  const filtered = useMemo(
-    () =>
-      contract === "Ziply"
-        ? applyFilters(allJobs, { ...filters, buckets: new Set() })
-        : applyFilters(allJobs, filters),
-    [allJobs, filters, contract]
-  );
+  // Ziply: do NOT apply Lumen status buckets (they default-hide Completed and
+  // zero out the map). Use Ziply-only filters: North Metro, print docs, and
+  // optional ziplyStatusGroups. Lumen path is unchanged.
+  const filtered = useMemo(() => {
+    if (contract !== "Ziply") {
+      return applyFilters(allJobs, filters);
+    }
+    // Shared hide-unmapped / tracker flags only (empty buckets = no Lumen bucket filter)
+    let list = applyFilters(allJobs, { ...filters, buckets: new Set() });
+    if (filters.ziplyNorthMetroOnly) {
+      list = list.filter((j) => isNorthMetroJob(j));
+    }
+    if (filters.ziplyPrintFilter && filters.ziplyPrintFilter !== "all") {
+      list = list.filter((j) => jobMatchesZiplyPrintFilter(j, filters.ziplyPrintFilter));
+    }
+    const groups = filters.ziplyStatusGroups;
+    if (groups && groups.size > 0) {
+      list = list.filter((j) => groups.has(ziplyStatusGroupForJob(j)));
+    }
+    return list;
+  }, [allJobs, filters, contract]);
   const mapped = useMemo(() => filtered.filter(
     (j) => j.geocode?.status === "OK" && j.geocode.lat !== 0
   ), [filtered]);
@@ -163,15 +164,22 @@ export default function JobsMap() {
   // Ziply print-readiness, from `allJobs` (pre status-bucket filtering).
   // See ZiplyPrintOverlay.tsx for the per-job/per-object render logic that
   // consumes this list unconditionally on mount.
+  // Must be plottable on the map (mapObjects + valid lat/lng anchor).
+  // "Ingest complete" alone is not enough — many jobs store hub:{lat:null}.
   const ziplyPrintReadyJobs = useMemo(
-    () =>
-      allJobs.filter(
-        (j) =>
-          j.customerProject === "Ziply" &&
-          (j.ziplyIngest?.status === "complete" || j.ziplyPrintLayer?.mapObjects != null)
-      ),
+    () => allJobs.filter((j) => isZiplyPrintMapReady(j)),
     [allJobs]
   );
+  // Jobs that claim ingest complete/mapObjects but cannot be placed (debug).
+  const ziplyPrintOrphanCount = useMemo(() => {
+    return allJobs.filter((j) => {
+      const isZiply = (j.customerProject ?? "").trim().toLowerCase() === "ziply";
+      if (!isZiply) return false;
+      const hasData =
+        j.ziplyIngest?.status === "complete" || j.ziplyPrintLayer?.mapObjects != null;
+      return hasData && !isZiplyPrintMapReady(j);
+    }).length;
+  }, [allJobs]);
 
   const onResync = useCallback(async () => {
     try {
@@ -190,6 +198,7 @@ export default function JobsMap() {
           allJobs={allJobs}
           mapped={mapped}
           ziplyPrintReadyJobs={ziplyPrintReadyJobs}
+          ziplyPrintOrphanCount={ziplyPrintOrphanCount}
           unmapped={unmapped}
           jobsState={jobsState}
           filters={filters}
@@ -215,6 +224,7 @@ function JobsMapInner({
   allJobs,
   mapped,
   ziplyPrintReadyJobs,
+  ziplyPrintOrphanCount,
   unmapped,
   jobsState,
   filters,
@@ -232,6 +242,7 @@ function JobsMapInner({
   allJobs: Job[];
   mapped: Job[];
   ziplyPrintReadyJobs: Job[];
+  ziplyPrintOrphanCount: number;
   unmapped: number;
   jobsState: ReturnType<typeof useJobs>;
   filters: Filters;
@@ -278,7 +289,9 @@ function JobsMapInner({
         mapRef.current.fitBounds(bounds);
       } else if (detail && detail.lat && detail.lng && mapRef.current) {
         mapRef.current.panTo({ lat: detail.lat, lng: detail.lng });
-        mapRef.current.setZoom(16);
+        mapRef.current.setZoom(
+          typeof detail.zoom === "number" ? detail.zoom : 16
+        );
       }
     };
     window.addEventListener("nsc:pan-to", handlePan);
@@ -320,20 +333,49 @@ function JobsMapInner({
       // the autosave debounce. loadObjects([]) also clears the dirty flag.
       loadObjects([], []);
       setSelected(job);
-      // Now fetch the newly-selected job's markups and load them in.
-      try {
-        const doc = await api.getDrawing(job.jobId, drawingOwner);
-        if (doc && "objects" in doc && Array.isArray(doc.objects)) {
-          const layers = "layers" in doc && Array.isArray(doc.layers) ? doc.layers : [];
-          loadObjects(doc.objects, layers);
-        } else {
+      // Ziply: fly to print design anchor (or job geocode) so the CAD layer is in view.
+      if (contract === "Ziply") {
+        const printAnchor = getZiplyPrintAnchor(job);
+        const g = job.geocode;
+        if (printAnchor) {
+          window.dispatchEvent(
+            new CustomEvent("nsc:pan-to", {
+              detail: { lat: printAnchor.lat, lng: printAnchor.lng, zoom: 16 },
+            })
+          );
+        } else if (g?.status === "OK" && g.lat && g.lng) {
+          window.dispatchEvent(
+            new CustomEvent("nsc:pan-to", {
+              detail: { lat: g.lat, lng: g.lng, zoom: 15 },
+            })
+          );
+        }
+      }
+      // Now fetch the newly-selected job's markups and load them in (Lumen).
+      if (contract !== "Ziply") {
+        try {
+          const doc = await api.getDrawing(job.jobId, drawingOwner);
+          if (doc && "objects" in doc && Array.isArray(doc.objects)) {
+            const layers = "layers" in doc && Array.isArray(doc.layers) ? doc.layers : [];
+            loadObjects(doc.objects, layers);
+          } else {
+            loadObjects([], []);
+          }
+        } catch {
           loadObjects([], []);
         }
-      } catch {
-        loadObjects([], []);
       }
     },
-    [setSelected, loadObjects, saveDrawing, drawState.dirty, drawState.objects, drawState.targetJobId]
+    [
+      setSelected,
+      loadObjects,
+      saveDrawing,
+      drawState.dirty,
+      drawState.objects,
+      drawState.targetJobId,
+      contract,
+      drawingOwner,
+    ]
   );
 
   // Lumen Central Offices overlay — toggled from the topbar pill.
@@ -405,8 +447,37 @@ function JobsMapInner({
       />
 
       <div className="jobs-map__main">
-        <ModifiersPanel />
+        {contract !== "Ziply" && <ModifiersPanel />}
         <JobsShownPill shown={mapped.length} total={allJobs.length} />
+        {contract === "Ziply" && (
+          <ZiplyPrintMapBanner
+            readyCount={ziplyPrintReadyJobs.length}
+            orphanCount={ziplyPrintOrphanCount}
+            layerOn={ziplyPrintLayerVisible}
+            onToggleLayer={() => setZiplyPrintLayerVisible((v) => !v)}
+            onFitPrints={() => {
+              if (ziplyPrintReadyJobs.length === 0 || !mapRef.current) return;
+              const bounds = new google.maps.LatLngBounds();
+              let n = 0;
+              for (const j of ziplyPrintReadyJobs) {
+                const a = getZiplyPrintAnchor(j);
+                if (!a) continue;
+                bounds.extend({ lat: a.lat, lng: a.lng });
+                n++;
+              }
+              if (n === 0) return;
+              if (n === 1) {
+                const a = getZiplyPrintAnchor(ziplyPrintReadyJobs[0]!);
+                if (a) {
+                  mapRef.current.panTo({ lat: a.lat, lng: a.lng });
+                  mapRef.current.setZoom(16);
+                }
+              } else {
+                mapRef.current.fitBounds(bounds, 64);
+              }
+            }}
+          />
+        )}
         <div className="map-host" style={{ position: "absolute", inset: 0, top: 0, display: "flex", flexDirection: "row" }}>
           <OverwatchHUD />
           <div style={{ flex: 1, height: "100%", position: "relative" }}>
@@ -422,9 +493,11 @@ function JobsMapInner({
               fullscreenControl={false}
               rotateControl={true}
               scaleControl={false}
-              mapId="DEMO_MAP_ID"     // Required to enable WebGL Vector features (3D tilt/rotation)
-              tilt={45}               // Start with a slight 3D isometric tilt
-              heading={0}
+              // No mapId on Ziply: cloud map IDs can suppress classic Marker/Polyline
+              // overlays that the print CAD layer uses. Lumen keeps mapId for 3D tilt.
+              {...(contract === "Ziply"
+                ? {}
+                : { mapId: "DEMO_MAP_ID", tilt: 45, heading: 0 })}
             >
               <MapHandle mapRef={mapRef} />
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
@@ -580,11 +653,100 @@ function JobsMapInner({
           <div className="job-right-panel__811">
             <Eight11Section job={selected} />
           </div>
-          <div className="job-right-panel__layers">
-            <LayersPanel />
-          </div>
+          {/* As-built layers panel is Lumen-only — Ziply uses print design layer. */}
+          {contract !== "Ziply" && (
+            <div className="job-right-panel__layers">
+              <LayersPanel />
+            </div>
+          )}
         </aside>
       )}
+    </div>
+  );
+}
+
+/** Ziply map chrome: print layer status + jump-to-prints. */
+function ZiplyPrintMapBanner({
+  readyCount,
+  orphanCount,
+  layerOn,
+  onToggleLayer,
+  onFitPrints,
+}: {
+  readyCount: number;
+  orphanCount: number;
+  layerOn: boolean;
+  onToggleLayer: () => void;
+  onFitPrints: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 10,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 40,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "8px 12px",
+        borderRadius: 8,
+        background: "rgba(10, 20, 16, 0.88)",
+        border: "1px solid rgba(0,230,118,0.45)",
+        color: "#e8fff2",
+        fontSize: 11,
+        fontFamily: "ui-monospace, Consolas, monospace",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+        maxWidth: "min(920px, 92vw)",
+      }}
+    >
+      <span style={{ color: "#00E676", fontWeight: 800, letterSpacing: "0.06em" }}>
+        PRINT LAYER
+      </span>
+      <span>
+        {readyCount > 0
+          ? `${readyCount} design${readyCount === 1 ? "" : "s"} on map`
+          : "No plottable prints yet"}
+      </span>
+      {orphanCount > 0 && (
+        <span style={{ color: "#fbbf24" }} title="Ingest finished but no lat/lng for hub or job">
+          · {orphanCount} need location
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={onToggleLayer}
+        style={{
+          background: layerOn ? "rgba(0,230,118,0.2)" : "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(0,230,118,0.4)",
+          color: "#00E676",
+          borderRadius: 4,
+          padding: "3px 8px",
+          fontSize: 10,
+          fontWeight: 700,
+          cursor: "pointer",
+        }}
+      >
+        {layerOn ? "LAYER ON" : "LAYER OFF"}
+      </button>
+      <button
+        type="button"
+        onClick={onFitPrints}
+        disabled={readyCount === 0}
+        style={{
+          background: readyCount ? "#00a854" : "rgba(255,255,255,0.08)",
+          border: "none",
+          color: readyCount ? "#fff" : "#64748b",
+          borderRadius: 4,
+          padding: "3px 10px",
+          fontSize: 10,
+          fontWeight: 700,
+          cursor: readyCount ? "pointer" : "not-allowed",
+        }}
+      >
+        SHOW PRINTS
+      </button>
     </div>
   );
 }
@@ -706,6 +868,7 @@ function JobMarkers({
   allJobs: Job[];
 }) {
   const map = useMap();
+  const { contract } = useActiveContract();
   const { focus, clearFocus } = useSearchFocus();
   const fittedRef = useRef(false);
   const markersRef = useRef<globalThis.Map<string, google.maps.Marker> | null>(null);
@@ -793,12 +956,24 @@ function JobMarkers({
       jobs.forEach((job) => {
         const colorKey = colorKeyForJob(job);
         const color = MARKER_COLORS[colorKey];
+        const printStatus =
+          contract === "Ziply" ? getZiplyPrintDocStatus(job) : null;
+        const printTag =
+          printStatus === "ready"
+            ? " · PRINT"
+            : printStatus === "processing"
+              ? " · INGEST…"
+              : printStatus === "failed"
+                ? " · PRINT FAIL"
+                : printStatus === "none"
+                  ? " · NO PRINT"
+                  : "";
 
         // Pin marker
         const m = new google.maps.Marker({
           position: { lat: job.geocode!.lat, lng: job.geocode!.lng },
           map,
-          title: `${job.workOrder} · ${job.secondaryJobStatus ?? job.jobStatus ?? ""}`,
+          title: `${job.workOrder} · ${job.secondaryJobStatus ?? job.jobStatus ?? ""}${printTag}`,
           icon: {
             url: neonPinDataUrl(color, (job.inTracker ? 1 : 0.55) * (isJobCompleted(job) ? 0.6 : 1)),
             scaledSize: new google.maps.Size(26, 36),
@@ -814,9 +989,25 @@ function JobMarkers({
         // WO label marker — positioned slightly above the pin
         if (job.workOrder) {
           const pinColor = color.core;
+          const printDot =
+            printStatus === "ready"
+              ? "#00E676"
+              : printStatus === "processing"
+                ? "#38bdf8"
+                : printStatus === "failed"
+                  ? "#f87171"
+                  : null;
           const woText = job.workOrder;
-          // Build a tiny SVG label pill
-          const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="22">
+          const pillW = printDot ? 96 : 80;
+          // Build a tiny SVG label pill (Ziply: color dot = print readiness)
+          const labelSvg = printDot
+            ? `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="22">
+    <rect x="0" y="0" width="${pillW}" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
+    <circle cx="12" cy="11" r="4" fill="${printDot}"/>
+    <text x="${pillW / 2 + 4}" y="15" text-anchor="middle" font-size="10" font-weight="700"
+      fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${woText}</text>
+  </svg>`
+            : `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="22">
     <rect x="0" y="0" width="80" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
     <text x="40" y="15" text-anchor="middle" font-size="10" font-weight="700"
       fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${woText}</text>
@@ -827,8 +1018,8 @@ function JobMarkers({
             map: labelsVisible ? map : null,
             icon: {
               url: labelUrl,
-              scaledSize: new google.maps.Size(80, 22),
-              anchor: new google.maps.Point(40, 48), // above pin tip
+              scaledSize: new google.maps.Size(pillW, 22),
+              anchor: new google.maps.Point(pillW / 2, 48), // above pin tip
             },
             clickable: false,
             zIndex: 1,
@@ -869,7 +1060,7 @@ function JobMarkers({
       if (markersRef.current === created) markersRef.current = null;
       google.maps.event.removeListener(zoomListener);
     };
-  }, [map, jobs]); // removed onSelect from deps to prevent re-renders
+  }, [map, jobs, contract]); // removed onSelect from deps to prevent re-renders
 
   useEffect(() => {
     if (!map || !focus) return;

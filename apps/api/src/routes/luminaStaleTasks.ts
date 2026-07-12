@@ -63,15 +63,16 @@ async function pushover(args: {
 // ─── Route ────────────────────────────────────────────────────────────────────
 
 router.get("/lumina/stale-tasks", async (req: Request, res: Response) => {
-  // Auth: same pattern as luminaBrief.ts.
-  const secret = process.env.CRON_SECRET ?? "";
-  if (secret) {
-    const auth = req.header("authorization") ?? "";
-    const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    const key = String(req.query.key ?? "");
-    if (bearer !== secret && key !== secret) {
-      return res.status(401).json({ error: "unauthorized" });
-    }
+  // Fail closed: CRON_SECRET must be set (same as luminaBrief.ts).
+  const secret = (process.env.CRON_SECRET ?? "").trim();
+  if (!secret) {
+    return res.status(401).json({ error: "CRON_SECRET not configured" });
+  }
+  const auth = req.header("authorization") ?? "";
+  const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const key = String(req.query.key ?? "");
+  if (bearer !== secret && key !== secret) {
+    return res.status(401).json({ error: "unauthorized" });
   }
 
   const token = process.env.PUSHOVER_APP_TOKEN;

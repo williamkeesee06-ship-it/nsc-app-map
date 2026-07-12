@@ -7,6 +7,21 @@ const router = Router();
 // Define the root of the workspace (D:\1_NSC MAP APP)
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "../.."); // Assumes api runs from apps/api
 
+/** God-mode FS tools are local-dev only — disabled on Vercel / production. */
+function isCodeToolsEnabled(): boolean {
+  if (process.env.VERCEL === "1") return false;
+  if ((process.env.NODE_ENV ?? "").toLowerCase() === "production") return false;
+  return true;
+}
+
+function rejectIfDisabled(res: Response): boolean {
+  if (isCodeToolsEnabled()) return false;
+  res.status(403).json({
+    error: "Code tools are disabled in production (local dev only)",
+  });
+  return true;
+}
+
 /** Helper to ensure path is within workspace */
 function getSafePath(targetPath: string): string | null {
   // Try to resolve it relative to workspace root first
@@ -27,6 +42,7 @@ function getSafePath(targetPath: string): string | null {
 // Read File Endpoint
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/lumina/code/read", async (req: Request, res: Response) => {
+  if (rejectIfDisabled(res)) return;
   try {
     const { filePath } = req.body;
     if (!filePath || typeof filePath !== "string") {
@@ -95,6 +111,7 @@ async function searchDirectory(dir: string, regex: RegExp, results: { file: stri
 }
 
 router.post("/lumina/code/search", async (req: Request, res: Response) => {
+  if (rejectIfDisabled(res)) return;
   try {
     const { query, isRegex = false } = req.body;
     if (!query || typeof query !== "string") {
