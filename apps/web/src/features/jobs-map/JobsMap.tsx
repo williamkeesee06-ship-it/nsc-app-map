@@ -47,11 +47,14 @@ import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 import ZiplyPrintOverlay from "./ZiplyPrintOverlay.js";
 import {
   isNorthMetroJob,
+  isZiplyJob,
   jobMatchesZiplyPrintFilter,
   ziplyStatusGroupForJob,
   getZiplyPrintDocStatus,
   isZiplyPrintMapReady,
   getZiplyPrintAnchor,
+  hasZiplyPrintLayer,
+  pickZiplyFocusJob,
 } from "../ziply/ziplyUtils.js";
 
 const FOCUS_ZOOM = 17;
@@ -83,7 +86,7 @@ export default function JobsMap() {
   // crew, foreman, or inspector names.
   const allJobs = useMemo(() => {
     if (contract === "Ziply") {
-      return rawJobs.filter((j) => j.customerProject === "Ziply");
+      return rawJobs.filter((j) => isZiplyJob(j));
     }
 
     let filtered = rawJobs;
@@ -102,7 +105,7 @@ export default function JobsMap() {
         return assignees.some((a) => (a ?? "").trim().toLowerCase() === u);
       });
     }
-    return filtered.filter((j) => j.customerProject !== "Ziply");
+    return filtered.filter((j) => !isZiplyJob(j));
   }, [rawJobs, username, isManager, contract]);
   const { filters, setFilters, setJobs: setFiltersJobs } = useFiltersContext();
   // Keep the FiltersContext jobs list in sync with the supervisor-scoped
@@ -111,10 +114,22 @@ export default function JobsMap() {
     setFiltersJobs(allJobs);
   }, [allJobs, setFiltersJobs]);
   const [selected, setSelected] = useState<Job | null>(null);
+  // Ziply focus: North Metro default + clear selection when leaving Ziply
   useEffect(() => {
     setSelected(null);
+    if (contract === "Ziply") {
+      setFilters({
+        ...filters,
+        ziplyNorthMetroOnly: true,
+        ziplyPrintFilter: filters.ziplyPrintFilter ?? "all",
+        buckets: new Set(),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contract]);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const ziplyFocusDoneRef = useRef(false);
+  const ziplyRepairDoneRef = useRef(false);
 
   // Mirror the locally-tracked `selected` job into the global search context
   // so the topbar job-info boxes (rendered outside this component) can read it.
@@ -173,13 +188,66 @@ export default function JobsMap() {
   // Jobs that claim ingest complete/mapObjects but cannot be placed (debug).
   const ziplyPrintOrphanCount = useMemo(() => {
     return allJobs.filter((j) => {
-      const isZiply = (j.customerProject ?? "").trim().toLowerCase() === "ziply";
-      if (!isZiply) return false;
-      const hasData =
-        j.ziplyIngest?.status === "complete" || j.ziplyPrintLayer?.mapObjects != null;
-      return hasData && !isZiplyPrintMapReady(j);
+      if (!isZiplyJob(j)) return false;
+      return hasZiplyPrintLayer(j) && !isZiplyPrintMapReady(j);
     }).length;
   }, [allJobs]);
+
+  // Ziply: one-shot repair missing print coords, then focus Lake Stevens / print job.
+  useEffect(() => {
+    if (contract !== "Ziply") {
+      ziplyFocusDoneRef.current = false;
+      ziplyRepairDoneRef.current = false;
+      return;
+    }
+    if (allJobs.length === 0) return;
+
+    let cancelled = false;
+
+    (async () => {
+      // Auto-repair orphan prints once per Ziply session (e.g. Lake Stevens ingest with null hub)
+      if (!ziplyRepairDoneRef.current && ziplyPrintOrphanCount > 0) {
+        ziplyRepairDoneRef.current = true;
+        try {
+          await api.repairAllZiplyPrints();
+          if (!cancelled) {
+            window.dispatchEvent(new Event("nsc:jobs-reload"));
+          }
+          return; // wait for reload; focus runs on next effect
+        } catch (e) {
+          console.warn("[ziply] auto print-location repair failed:", e);
+        }
+      }
+
+      if (ziplyFocusDoneRef.current) return;
+      const focus = pickZiplyFocusJob(allJobs);
+      if (!focus) return;
+      ziplyFocusDoneRef.current = true;
+
+      // Select job card so WO / print panel open
+      setSelected(focus);
+
+      const anchor =
+        getZiplyPrintAnchor(focus) ??
+        (focus.geocode?.status === "OK" && focus.geocode.lat
+          ? { lat: focus.geocode.lat, lng: focus.geocode.lng }
+          : null);
+      if (anchor && mapRef.current) {
+        mapRef.current.panTo({ lat: anchor.lat, lng: anchor.lng });
+        mapRef.current.setZoom(16);
+      } else if (anchor) {
+        window.dispatchEvent(
+          new CustomEvent("nsc:pan-to", {
+            detail: { lat: anchor.lat, lng: anchor.lng, zoom: 16 },
+          })
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [contract, allJobs, ziplyPrintOrphanCount]);
 
   const onResync = useCallback(async () => {
     try {

@@ -36,7 +36,31 @@ export function isNorthMetroJob(job: Job): boolean {
   const city = (job.city ?? "").trim().toLowerCase();
   if (!city) return false;
   if ((NORTH_METRO_CITIES as readonly string[]).includes(city)) return true;
-  return NORTH_METRO_CITIES.some((c) => city === c || city.startsWith(c + " ") || city.includes(c));
+  // "Lake Stevens", "LAKE STEVENS, WA", etc.
+  return NORTH_METRO_CITIES.some(
+    (c) => city === c || city.startsWith(c + " ") || city.startsWith(c + ",") || city.includes(c)
+  );
+}
+
+/** Ziply contract row (sheet may use "Ziply", "ZIPLY", "Ziply FTTH", …). */
+export function isZiplyJob(job: Job): boolean {
+  const cp = (job.customerProject ?? "").trim().toLowerCase();
+  if (cp.includes("ziply")) return true;
+  // Print layer / ingest is Ziply-only in this app
+  if (job.ziplyPrintLayer?.mapObjects != null) return true;
+  if (job.ziplyIngest?.status) return true;
+  return false;
+}
+
+export function isLakeStevensJob(job: Job): boolean {
+  const city = (job.city ?? "").trim().toLowerCase();
+  const addr = (job.address ?? "").trim().toLowerCase();
+  const notes = (job.nscProjectNotes ?? "").trim().toLowerCase();
+  return (
+    city.includes("lake stevens") ||
+    addr.includes("lake stevens") ||
+    notes.includes("lake stevens")
+  );
 }
 
 /** Whether the job has a map-ready print design layer. */
@@ -88,10 +112,25 @@ export function getZiplyPrintAnchor(
 
 /** True when print data exists AND we can place it on the map. */
 export function isZiplyPrintMapReady(job: Job): boolean {
-  if ((job.customerProject ?? "").trim().toLowerCase() !== "ziply") return false;
+  if (!isZiplyJob(job)) return false;
   if (!hasZiplyPrintLayer(job) && job.ziplyIngest?.status !== "complete") return false;
   if (!job.ziplyPrintLayer?.mapObjects) return false;
   return getZiplyPrintAnchor(job) != null;
+}
+
+/** Prefer Lake Stevens / print-ready jobs for default focus. */
+export function pickZiplyFocusJob(jobs: Job[]): Job | null {
+  const ziply = jobs.filter(isZiplyJob);
+  if (ziply.length === 0) return null;
+  const lakePrint = ziply.find((j) => isLakeStevensJob(j) && isZiplyPrintMapReady(j));
+  if (lakePrint) return lakePrint;
+  const lake = ziply.find((j) => isLakeStevensJob(j));
+  if (lake) return lake;
+  const anyPrint = ziply.find((j) => isZiplyPrintMapReady(j));
+  if (anyPrint) return anyPrint;
+  const anyLayer = ziply.find((j) => hasZiplyPrintLayer(j));
+  if (anyLayer) return anyLayer;
+  return ziply[0] ?? null;
 }
 
 export function getZiplyPrintDocStatus(job: Job): ZiplyPrintDocStatus {

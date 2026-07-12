@@ -27,16 +27,21 @@ export function useJobs(): JobsState & { reload: () => void } {
 
     let cancelled = false;
     setS({ state: "loading" });
-    api
-      .listJobs()
-      .then(({ jobs }) => {
-        if (!cancelled) setS({ state: "ready", jobs });
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setS({ state: "error", message: err.message });
-      });
+    // Small delay lets AuthProvider finish applying session + first token mint
+    const t = window.setTimeout(() => {
+      if (cancelled) return;
+      api
+        .listJobs()
+        .then(({ jobs }) => {
+          if (!cancelled) setS({ state: "ready", jobs });
+        })
+        .catch((err: Error) => {
+          if (!cancelled) setS({ state: "error", message: err.message });
+        });
+    }, 50);
     return () => {
       cancelled = true;
+      window.clearTimeout(t);
     };
   }, [nonce, authReady, firebaseUser?.uid]);
 

@@ -50,7 +50,8 @@ export function defaultFilters(): Filters {
     workTypeTags: new Set(),
     supervisors: new Set<string>(),
     showDigPolygons: true,
-    ziplyNorthMetroOnly: false,
+    // Ziply defaults: North Metro (Lake Stevens etc.) — Billy's current focus
+    ziplyNorthMetroOnly: true,
     ziplyPrintFilter: "all",
     ziplyStatusGroups: new Set(),
   };

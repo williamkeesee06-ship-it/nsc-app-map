@@ -12,22 +12,35 @@ import type {
   SyncRun,
   ZiplySectionScope,
 } from "@nsc/types";
-import { app, getIdToken } from "./firebase.js";
+import { app, waitForIdToken, getIdToken } from "./firebase.js";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  // Wait for Firebase session restore so the first post-login fetch isn't unauthenticated.
-  let token = await getIdToken();
+  // NEVER call protected /api without a Bearer token (solo lock).
+  // Wait for Firebase session restore / post-login user before fetching.
+  let token = await waitForIdToken(8000);
   if (!token) {
-    // Brief retry — race right after signInWithEmailAndPassword
-    await new Promise((r) => setTimeout(r, 150));
     token = await getIdToken(true);
+  }
+  if (!token) {
+    throw new Error(
+      `API blocked (not signed in) ${path}: no Firebase ID token yet. Sign in again.`
+    );
   }
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(init?.headers as Record<string, string> | undefined),
+    Authorization: `Bearer ${token}`,
   };
-  if (token) {
+  // Merge extra headers without wiping Authorization
+  if (init?.headers) {
+    const extra =
+      init.headers instanceof Headers
+        ? Object.fromEntries(init.headers.entries())
+        : Array.isArray(init.headers)
+          ? Object.fromEntries(init.headers)
+          : (init.headers as Record<string, string>);
+    Object.assign(headers, extra);
+    // Re-assert after merge
     headers.Authorization = `Bearer ${token}`;
   }
 
@@ -37,11 +50,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.text();
-    // Only force logout when we *had* a token that the server rejected (expired).
-    // Missing-token 401s during boot must not sign the user out.
-    if (res.status === 401 && token) {
+    // Token was present but server rejected it (expired / wrong Firebase project)
+    if (res.status === 401) {
       window.dispatchEvent(
-        new CustomEvent("nsc:auth-required", { detail: { path, status: 401 } })
+        new CustomEvent("nsc:auth-required", { detail: { path, status: 401, body } })
       );
     }
     throw new Error(`API ${res.status} ${path}: ${body}`);

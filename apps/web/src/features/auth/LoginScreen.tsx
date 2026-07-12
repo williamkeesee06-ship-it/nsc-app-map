@@ -38,7 +38,15 @@ export default function LoginScreen() {
         return;
       }
 
-      await signInWithEmail(trimmedEmail, password);
+      const user = await signInWithEmail(trimmedEmail, password);
+      // Token was forced in signInWithEmail — confirm before any /api call
+      const token = await user.getIdToken();
+      if (!token) {
+        setError("Signed in but Firebase did not return an API token. Refresh and try again.");
+        setBusy(false);
+        setStatus("");
+        return;
+      }
       // AuthProvider will set operator name. Prefetch supervisor/manager lists.
       setStatus("Loading workspace…");
       try {
@@ -46,14 +54,24 @@ export default function LoginScreen() {
         setManagers(managers ?? []);
       } catch (listErr) {
         console.warn("listSupervisors after login failed:", listErr);
-        if (listErr instanceof Error && /403|Access denied|401/i.test(listErr.message)) {
-          setError("Signed in, but API rejected this account. Check AUTH_ALLOWED_EMAILS.");
+        if (listErr instanceof Error && /403|Access denied/i.test(listErr.message)) {
+          setError("Signed in, but API rejected this account. Check AUTH_ALLOWED_EMAILS on Vercel.");
+          setBusy(false);
+          setStatus("");
+          return;
+        }
+        if (listErr instanceof Error && /401|Bearer|not signed in/i.test(listErr.message)) {
+          setError(
+            "Signed in, but API still got no token. Hard-refresh (Ctrl+Shift+R) and try once more. " +
+              "If it continues, Vercel FIREBASE_* service-account vars may not match the web app project."
+          );
           setBusy(false);
           setStatus("");
           return;
         }
       }
       // AuthProvider handles sync on session attach; overlay unmounts when username is set.
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
       setBusy(false);
       setStatus("");
     } catch (err) {
