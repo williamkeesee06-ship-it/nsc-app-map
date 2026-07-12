@@ -47,6 +47,9 @@ import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 /** Phase D: code-split Print CAD overlay (~large) */
 const ZiplyPrintOverlay = lazy(() => import("./ZiplyPrintOverlay.js"));
 const PlanSheetExperiment = lazy(() => import("../ziply/PlanSheetExperiment.js"));
+const LakeStevensDigitalTwin = lazy(
+  () => import("../ziply/LakeStevensDigitalTwin.js")
+);
 import {
   isNorthMetroJob,
   isZiplyJob,
@@ -655,11 +658,14 @@ function JobsMapInner({
             >
               <MapHandle mapRef={mapRef} />
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
-              <JobMarkers
-                jobs={sheetExperiment ? mapped.slice(0, 1) : mapped}
-                onSelect={handleSelect}
-                allJobs={sheetExperiment ? filtered : allJobs}
-              />
+              {/* Experiment: no multi-job pins — twin plant owns the map */}
+              {!sheetExperiment && (
+                <JobMarkers
+                  jobs={mapped}
+                  onSelect={handleSelect}
+                  allJobs={allJobs}
+                />
+              )}
               {contract !== "Ziply" && !sheetExperiment && (
                 <AllJobsMarkupsOverlay
                   onMarkupClick={(jobId) => {
@@ -670,19 +676,19 @@ function JobsMapInner({
               )}
               <CentralOfficesOverlay visible={showCOs && !sheetExperiment} />
               <Suspense fallback={null}>
-                {/* Experiment: interactive plant CAD for Lake Stevens ONLY + sheet overlays */}
-                <ZiplyPrintOverlay
-                  jobs={ziplyPrintReadyJobs}
-                  focusJobId={
-                    sheetExperiment
-                      ? ziplyPrintReadyJobs[0]?.jobId ?? selected?.jobId ?? null
-                      : selected?.jobId ?? null
-                  }
-                  visible={contract === "Ziply" && ziplyPrintLayerVisible}
-                  show811Clearance={ziply811OverlayVisible && !sheetExperiment}
-                />
-                {contract === "Ziply" && (
-                  <PlanSheetExperiment active={sheetExperiment} />
+                {/* Experiment: digital twin from full 65-page PDF + sheet underlay */}
+                {sheetExperiment ? (
+                  <>
+                    <LakeStevensDigitalTwin active />
+                    <PlanSheetExperiment active />
+                  </>
+                ) : (
+                  <ZiplyPrintOverlay
+                    jobs={ziplyPrintReadyJobs}
+                    focusJobId={selected?.jobId ?? null}
+                    visible={contract === "Ziply" && ziplyPrintLayerVisible}
+                    show811Clearance={ziply811OverlayVisible}
+                  />
                 )}
               </Suspense>
               {contract !== "Ziply" && !sheetExperiment && <DrawingOverlay />}

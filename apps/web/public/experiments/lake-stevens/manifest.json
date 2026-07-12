@@ -7,12 +7,12 @@
   ],
   "seedBounds": {
     "sw": {
-      "lat": 47.998,
-      "lng": -122.092
+      "lat": 47.915433862197,
+      "lng": -122.149611163321
     },
     "ne": {
-      "lat": 48.032,
-      "lng": -122.038
+      "lat": 47.950213050583,
+      "lng": -122.123369168913
     }
   },
   "packages": [
@@ -790,5 +790,20 @@
         }
       ]
     }
-  ]
+  ],
+  "digitalTwin": {
+    "plantJson": "/experiments/lake-stevens/h3024/plant.json",
+    "geojson": "/experiments/lake-stevens/h3024/plant.geojson",
+    "workOrder": "6007959",
+    "hubId": "H3024",
+    "stats": {
+      "terminals": 206,
+      "terminalsLocated": 170,
+      "cables": 379,
+      "drops": 229,
+      "backbonePts": 161,
+      "addressesGeocoded": 229,
+      "addressesTried": 265
+    }
+  }
 }

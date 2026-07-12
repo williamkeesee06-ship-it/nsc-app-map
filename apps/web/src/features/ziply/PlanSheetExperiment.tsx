@@ -178,9 +178,10 @@ export default function PlanSheetExperiment({ active }: Props) {
   );
   const page = pkg?.pages[pageIdx] ?? null;
   const key = pkg && page ? regKey(pkg.id, page.page) : "";
+  // Centered on H3024 hub (6105 Foster Slough Rd) + plant footprint
   const seed = manifest?.seedBounds ?? {
-    sw: { lat: 47.998, lng: -122.092 },
-    ne: { lat: 48.032, lng: -122.038 },
+    sw: { lat: 47.925, lng: -122.165 },
+    ne: { lat: 47.965, lng: -122.115 },
   };
 
   const reg: PageReg = key
