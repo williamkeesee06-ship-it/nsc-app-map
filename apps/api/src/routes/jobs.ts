@@ -295,6 +295,103 @@ router.get("/jobs", async (req, res, next) => {
   }
 });
 
+// Static /jobs/* paths MUST be registered before /jobs/:jobId or Express
+// treats names like "ziply-fidelity" as a jobId and returns 404 Job not found.
+
+// GET /api/jobs/ziply-fidelity — fleet CAD fidelity QA report
+router.get("/jobs/ziply-fidelity", async (_req, res, next) => {
+  try {
+    const { summarizeFleetFidelity } = await import("../services/ziplyFidelity.js");
+    const snap = await db()
+      .collection("jobs")
+      .where("customerProject", "==", "Ziply")
+      .get();
+    const jobs = snap.docs.map((d) => d.data() as Job);
+    res.json({ ok: true, ...summarizeFleetFidelity(jobs) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/ziply-metrics — Ziply contract KPIs
+router.get("/jobs/ziply-metrics", async (_req, res, next) => {
+  try {
+    const snap = await db().collection("jobs").where("customerProject", "==", "Ziply").get();
+    const jobs = snap.docs.map((d) => d.data() as Job);
+
+    let totalBoreEst = 0;
+    let totalBoreComp = 0;
+    let totalPlacingEst = 0;
+    let totalPlacingComp = 0;
+    let totalAerialEst = 0;
+    let totalAerialComp = 0;
+    let totalDropsEst = 0;
+    let totalDropsComp = 0;
+
+    const hubProgress: Record<string, { total: number; completed: number }> = {};
+    const crewPerformance: Record<
+      string,
+      { completedBore: number; completedPlacing: number; completedAerial: number }
+    > = {};
+
+    for (const j of jobs) {
+      totalBoreEst += j.estBoreFt ?? 0;
+      totalBoreComp += j.completedBoreFt ?? 0;
+      totalPlacingEst += j.estPlacingFt ?? 0;
+      totalPlacingComp += j.completedPlacingFt ?? 0;
+      totalAerialEst += j.estAerialFt ?? 0;
+      totalAerialComp += j.completedAerialFt ?? 0;
+
+      totalDropsEst += j.homesPassed ?? 0;
+      if (j.jobStatus === "Billing Complete" || j.jobStatus === "All Construction Complete") {
+        totalDropsComp += j.homesPassed ?? 0;
+      }
+
+      const hub = j.hubNumber || "Unknown Hub";
+      if (!hubProgress[hub]) hubProgress[hub] = { total: 0, completed: 0 };
+      hubProgress[hub].total += (j.estBoreFt ?? 0) + (j.estPlacingFt ?? 0) + (j.estAerialFt ?? 0);
+      hubProgress[hub].completed +=
+        (j.completedBoreFt ?? 0) + (j.completedPlacingFt ?? 0) + (j.completedAerialFt ?? 0);
+
+      const crew = j.crewName || "Unassigned";
+      if (!crewPerformance[crew]) {
+        crewPerformance[crew] = { completedBore: 0, completedPlacing: 0, completedAerial: 0 };
+      }
+      crewPerformance[crew].completedBore += j.completedBoreFt ?? 0;
+      crewPerformance[crew].completedPlacing += j.completedPlacingFt ?? 0;
+      crewPerformance[crew].completedAerial += j.completedAerialFt ?? 0;
+    }
+
+    const ticketsSnap = await db().collection("digTickets").get();
+    const now = Date.now();
+    const ziplyJobIds = new Set(jobs.map((j) => j.jobId));
+    const outstanding811s = ticketsSnap.docs
+      .map((d) => d.data() as import("@nsc/types").DigTicket)
+      .filter((t) => ziplyJobIds.has(t.jobId))
+      .filter((t) => !t.dates?.expiresAt || t.dates.expiresAt <= now || !t.readyToDig)
+      .length;
+
+    const hubs = Object.entries(hubProgress).map(([name, stats]) => {
+      const pct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+      return { name, pct, completed: stats.completed, total: stats.total };
+    });
+
+    res.json({
+      summary: {
+        bore: { estimated: totalBoreEst, completed: totalBoreComp },
+        placing: { estimated: totalPlacingEst, completed: totalPlacingComp },
+        aerial: { estimated: totalAerialEst, completed: totalAerialComp },
+        drops: { estimated: totalDropsEst, completed: totalDropsComp },
+      },
+      hubs,
+      crews: crewPerformance,
+      outstanding811s,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/jobs/:jobId
 router.get("/jobs/:jobId", async (req, res, next) => {
   try {
@@ -469,87 +566,6 @@ router.post("/jobs", async (req, res, next) => {
   }
 });
 
-// GET /api/jobs/ziply-metrics — calculates Ziply contract KPIs & metrics
-router.get("/jobs/ziply-metrics", async (_req, res, next) => {
-  try {
-    const snap = await db().collection("jobs").where("customerProject", "==", "Ziply").get();
-    const jobs = snap.docs.map((d) => d.data() as Job);
-
-    let totalBoreEst = 0;
-    let totalBoreComp = 0;
-    let totalPlacingEst = 0;
-    let totalPlacingComp = 0;
-    let totalAerialEst = 0;
-    let totalAerialComp = 0;
-    let totalDropsEst = 0;
-    let totalDropsComp = 0;
-
-    const hubProgress: Record<string, { total: number; completed: number }> = {};
-    const crewPerformance: Record<string, { completedBore: number; completedPlacing: number; completedAerial: number }> = {};
-
-    for (const j of jobs) {
-      // Footages
-      totalBoreEst += j.estBoreFt ?? 0;
-      totalBoreComp += j.completedBoreFt ?? 0;
-      totalPlacingEst += j.estPlacingFt ?? 0;
-      totalPlacingComp += j.completedPlacingFt ?? 0;
-      totalAerialEst += j.estAerialFt ?? 0;
-      totalAerialComp += j.completedAerialFt ?? 0;
-
-      // Drops
-      totalDropsEst += j.homesPassed ?? 0; // # Homes Passed acts as drop target
-      if (j.jobStatus === "Billing Complete" || j.jobStatus === "All Construction Complete") {
-        totalDropsComp += j.homesPassed ?? 0;
-      }
-
-      // Hub Progress
-      const hub = j.hubNumber || "Unknown Hub";
-      if (!hubProgress[hub]) {
-        hubProgress[hub] = { total: 0, completed: 0 };
-      }
-      hubProgress[hub].total += (j.estBoreFt ?? 0) + (j.estPlacingFt ?? 0) + (j.estAerialFt ?? 0);
-      hubProgress[hub].completed += (j.completedBoreFt ?? 0) + (j.completedPlacingFt ?? 0) + (j.completedAerialFt ?? 0);
-
-      // Crew Performance
-      const crew = j.crewName || "Unassigned";
-      if (!crewPerformance[crew]) {
-        crewPerformance[crew] = { completedBore: 0, completedPlacing: 0, completedAerial: 0 };
-      }
-      crewPerformance[crew].completedBore += j.completedBoreFt ?? 0;
-      crewPerformance[crew].completedPlacing += j.completedPlacingFt ?? 0;
-      crewPerformance[crew].completedAerial += j.completedAerialFt ?? 0;
-    }
-
-    const ticketsSnap = await db().collection("digTickets").get();
-    const now = Date.now();
-    const ziplyJobIds = new Set(jobs.map((j) => j.jobId));
-    const outstanding811s = ticketsSnap.docs
-      .map((d) => d.data() as import("@nsc/types").DigTicket)
-      .filter((t) => ziplyJobIds.has(t.jobId))
-      .filter((t) => !t.dates?.expiresAt || t.dates.expiresAt <= now || !t.readyToDig)
-      .length;
-
-    // Convert Hub Progress to percentages
-    const hubs = Object.entries(hubProgress).map(([name, stats]) => {
-      const pct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
-      return { name, pct, completed: stats.completed, total: stats.total };
-    });
-
-    res.json({
-      summary: {
-        bore: { estimated: totalBoreEst, completed: totalBoreComp },
-        placing: { estimated: totalPlacingEst, completed: totalPlacingComp },
-        aerial: { estimated: totalAerialEst, completed: totalAerialComp },
-        drops: { estimated: totalDropsEst, completed: totalDropsComp },
-      },
-      hubs,
-      crews: crewPerformance,
-      outstanding811s,
-    });
-  } catch (err) {
-    next(err);
-  }
-});
 
 
 type ZiplyStorageFileRequest = {
@@ -1871,21 +1887,6 @@ router.post("/jobs/ziply-enhance-prints", async (req, res, next) => {
       failed,
       results,
     });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/jobs/ziply-fidelity — fleet CAD fidelity QA report (Phase A)
-router.get("/jobs/ziply-fidelity", async (_req, res, next) => {
-  try {
-    const { summarizeFleetFidelity } = await import("../services/ziplyFidelity.js");
-    const snap = await db()
-      .collection("jobs")
-      .where("customerProject", "==", "Ziply")
-      .get();
-    const jobs = snap.docs.map((d) => d.data() as Job);
-    res.json({ ok: true, ...summarizeFleetFidelity(jobs) });
   } catch (err) {
     next(err);
   }
