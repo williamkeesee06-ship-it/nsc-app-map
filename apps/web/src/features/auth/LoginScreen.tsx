@@ -61,19 +61,39 @@ export default function LoginScreen() {
         err && typeof err === "object" && "code" in err
           ? String((err as { code: string }).code)
           : "";
+      // Firebase Auth Email/Password is NOT your Gmail password unless you
+      // created this exact user under Firebase Console → Authentication.
       if (
         code === "auth/invalid-credential" ||
         code === "auth/wrong-password" ||
         code === "auth/user-not-found" ||
         code === "auth/invalid-email"
       ) {
-        setError("Invalid email or password.");
+        setError(
+          "Firebase rejected this email/password. This is NOT your Gmail login — " +
+            "you must create this user in Firebase Console → Authentication → Users " +
+            "(Email/Password provider ON), then use that app password here."
+        );
+      } else if (code === "auth/operation-not-allowed") {
+        setError(
+          "Email/Password sign-in is disabled in Firebase. Enable it under " +
+            "Authentication → Sign-in method → Email/Password."
+        );
+      } else if (code === "auth/configuration-not-found" || code === "auth/api-key-not-valid") {
+        setError(
+          "Firebase is not configured for this site. Check VITE_FIREBASE_* env vars on Vercel."
+        );
       } else if (code === "auth/too-many-requests") {
         setError("Too many attempts. Wait a moment and try again.");
+      } else if (code === "auth/network-request-failed") {
+        setError("Network error reaching Firebase. Check internet / VPN / firewall.");
       } else if (err instanceof Error && /403|Access denied/i.test(err.message)) {
-        setError("This account is not authorized for the app yet.");
+        setError(
+          "Signed in to Firebase, but this email is not on AUTH_ALLOWED_EMAILS / VITE_AUTH_ALLOWED_EMAILS."
+        );
       } else {
-        setError(err instanceof Error ? err.message : "Sign-in failed.");
+        const msg = err instanceof Error ? err.message : "Sign-in failed.";
+        setError(code ? `${msg} (${code})` : msg);
       }
       setBusy(false);
       setStatus("");
@@ -135,8 +155,10 @@ export default function LoginScreen() {
           Private access
         </h2>
         <p style={{ margin: 0, fontSize: 11, color: "#4a5868", lineHeight: 1.5 }}>
-          Authorized operators only. Sign in with your Firebase email and password.
-          Until multi-user rollout, the workspace opens as Billy Keesee.
+          Authorized operators only. Use the <strong>Firebase Auth</strong> email/password
+          created in the Firebase Console — not your Google/Gmail account password
+          (unless you set them the same when creating the Firebase user). Workspace
+          opens as Billy Keesee until multi-user mapping ships.
         </p>
         <input
           type="email"
