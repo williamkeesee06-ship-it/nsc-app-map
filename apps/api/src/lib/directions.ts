@@ -130,6 +130,126 @@ function simplifyPath(points: LatLng[], minMeters: number): LatLng[] {
 }
 
 /**
+ * Arterial plant layout: backbone along the dominant street axis (Metron Rd style),
+ * laterals as short L-runs from the backbone to each terminal/parcel.
+ * Matches Booker plan sheets far better than hub-spoke starbursts.
+ */
+export function buildArterialPlantLayout(
+  hub: LatLng,
+  terminals: Array<{
+    label: string;
+    lat: number;
+    lng: number;
+    footageFt?: number | null;
+  }>
+): {
+  backbone: LatLng[];
+  laterals: Array<{ label: string; path: LatLng[] }>;
+  /** Unit vector along mainline (east/north components in degrees). */
+  axis: { dLat: number; dLng: number };
+} {
+  if (terminals.length === 0) {
+    return {
+      backbone: [hub],
+      laterals: [],
+      axis: { dLat: 1, dLng: 0 },
+    };
+  }
+
+  // Dominant axis from terminal cloud vs hub (N-S road → large lat span)
+  let sumLat = 0;
+  let sumLng = 0;
+  for (const t of terminals) {
+    sumLat += Math.abs(t.lat - hub.lat);
+    sumLng += Math.abs(t.lng - hub.lng);
+  }
+  const northSouth = sumLat >= sumLng * 0.85;
+  const axis = northSouth
+    ? { dLat: 1, dLng: 0 }
+    : { dLat: 0, dLng: 1 };
+
+  // Project point onto axis through hub: scalar s in degrees along axis
+  const project = (p: LatLng) =>
+    northSouth ? p.lat - hub.lat : p.lng - hub.lng;
+
+  const alongPoint = (s: number): LatLng =>
+    northSouth
+      ? { lat: hub.lat + s, lng: hub.lng }
+      : { lat: hub.lat, lng: hub.lng + s };
+
+  const scalars = terminals.map((t) => project({ lat: t.lat, lng: t.lng }));
+  const sHub = 0;
+  let sMin = Math.min(sHub, ...scalars);
+  let sMax = Math.max(sHub, ...scalars);
+  // Pad backbone ~40m beyond extreme terminals
+  const mPerLat = 111_320;
+  const mPerLng = mPerLat * Math.cos((hub.lat * Math.PI) / 180);
+  const padDeg = northSouth ? 40 / mPerLat : 40 / mPerLng;
+  sMin -= padDeg;
+  sMax += padDeg;
+
+  // Densify backbone along arterial
+  const segs = Math.max(8, Math.min(40, Math.round(((sMax - sMin) * mPerLat) / 25)));
+  const backbone: LatLng[] = [];
+  for (let i = 0; i <= segs; i++) {
+    const s = sMin + ((sMax - sMin) * i) / segs;
+    backbone.push(alongPoint(s));
+  }
+
+  const laterals: Array<{ label: string; path: LatLng[] }> = [];
+  terminals.forEach((t, index) => {
+    const s = project({ lat: t.lat, lng: t.lng });
+    const join = alongPoint(s);
+    // L-path: join on arterial → small jog → terminal (parcel approach)
+    const side = index % 2 === 0 ? 1 : -1;
+    const jogM = 8 + (index % 3) * 4;
+    const jog: LatLng = northSouth
+      ? {
+          lat: join.lat,
+          lng: join.lng + (side * jogM) / mPerLng,
+        }
+      : {
+          lat: join.lat + (side * jogM) / mPerLat,
+          lng: join.lng,
+        };
+    const path = buildSyntheticRowPath(join, { lat: t.lat, lng: t.lng }, index, t.footageFt);
+    // Prefer short L if terminal is close; else synthetic jogs
+    const shortL: LatLng[] = [join, jog, { lat: t.lat, lng: t.lng }];
+    const useShort = distApprox(join, { lat: t.lat, lng: t.lng }) < 120;
+    laterals.push({
+      label: t.label,
+      path: useShort ? densifyLocal(shortL, 4) : path,
+    });
+  });
+
+  return { backbone, laterals, axis };
+}
+
+function distApprox(a: LatLng, b: LatLng): number {
+  const mPerLat = 111_320;
+  const mPerLng = mPerLat * Math.cos((a.lat * Math.PI) / 180);
+  return Math.hypot((b.lat - a.lat) * mPerLat, (b.lng - a.lng) * mPerLng);
+}
+
+function densifyLocal(points: LatLng[], steps: number): LatLng[] {
+  if (points.length < 2) return points.slice();
+  const out: LatLng[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      out.push({
+        lat: a.lat + (b.lat - a.lat) * t,
+        lng: a.lng + (b.lng - a.lng) * t,
+      });
+    }
+  }
+  out.push(points[points.length - 1]!);
+  return out;
+}
+
+/**
  * High-detail synthetic ROW path when Directions is unavailable.
  * Multi-jog manhattan with intermediate vertices (not a 2-point stick).
  */

@@ -17,9 +17,12 @@ const ZIPLY_GEMINI_MODEL = "gemini-2.5-flash";
 const ZIPLY_MAX_OUTPUT_TOKENS = 65_536;
 
 const SYSTEM_INSTRUCTION =
-  "You are an expert broadband telecom engineer specialized in reviewing Fiber to the Home (FTTH) engineering prints and construction sheets. " +
-  "Analyze the provided document (PDF page image) and extract key engineered units, material logs, and permit specifications. " +
-  "Return JSON strictly conforming to the requested schema.";
+  "You are an expert broadband telecom engineer specialized in Booker Engineering / Ziply FTTH " +
+  "construction plan sets (cover sheets, sheet index, plan view sheets, details, legends). " +
+  "You read house numbers on parcels, mainline fiber along named roads (e.g. Metron Rd), " +
+  "MST/FDH symbols, bore/trench/aerial callouts, and footages. " +
+  "Extract EVERY terminal, house number, and cable segment from ALL attached pages. " +
+  "Return JSON strictly conforming to the requested schema. Never invent house numbers not on the sheet.";
 
 export interface ZiplyParsedPrint {
   hubId: string | null;
@@ -47,12 +50,17 @@ export interface ZiplyParsedPrint {
   } | null;
   /** Street address of the hub/FDH, used to georeference the print (spec §1). */
   hubAddress?: string | null;
+  /** City / community from title block (e.g. Arlington, Lake Stevens). */
+  projectCity?: string | null;
+  /** Primary ROW street the mainline follows (e.g. Metron Rd). */
+  mainlineStreet?: string | null;
   mapObjects?: {
     cables: Array<{
       label: string;
       fiberCount: string;
       lengthFt: number | null;
       buildType?: "bore" | "trench" | "aerial" | null;
+      role?: "mainline" | "lateral" | "feeder" | null;
       /** Terminal this cable feeds (e.g. MST-3) — improves map routing. */
       toTerminal?: string | null;
       /** Intermediate street names the cable follows (geocode later / layout hints). */
@@ -68,8 +76,11 @@ export interface ZiplyParsedPrint {
       code?: string | null;
       fiberSpec?: string | null;
       addressesServed?: string[] | null;
+      /** Parcel house numbers from plan (e.g. "18052", "18118"). */
+      houseNumbers?: string[] | null;
     }>;
     notes: string | null;
+    mainlineStreet?: string | null;
   } | null;
 }
 
@@ -188,68 +199,65 @@ export async function parseZiplyPrint(dataUrls: string | string[]): Promise<Zipl
   const printParts = urls.map(dataUrlToPart);
 
   const prompt = `
-Analyze the attached engineering print cover sheet(s) or layout print(s).
-Extract all key telecom engineering metrics and return them in a structured JSON format.
+Analyze ALL attached FTTH construction print pages (Booker Engineering / Ziply style).
+Include cover, sheet index, PLAN VIEW sheets, details, and legends — not only the cover.
 
-FIELDS TO LOOK FOR:
-1. Hub ID: The identifier of the fiber hub (e.g. H1002, H3201).
-2. Hub Type/Size: Material and mount code of the FDH cabinet (e.g. VCAPS21-1C4131Q400, 288-port vault mount, 432-port).
-3. Terminal Count: Total count of Multi-port Service Terminals (MST) or splices.
-4. Fiber Counts: Distinct fiber count configurations found on lines (e.g. 48F, 96F, 144F, 288F, 432F).
-5. Drops: Sites or homes passed count, categorised by LU (Living Unit), MDU (Multi-Family), BU (Business), and total drops.
-6. Permitted Excavation Methods: Specific methods allowed (e.g. Bore, Directional Bore, Trench, Plow, Aerial, Overlash).
-7. Strand Type: e.g. 10M, 6M.
-8. Conduit Size: default drop or distribution conduit (e.g. 1.25", 2").
-9. Special Notes: General construction or engineering notes.
-10. Permits Status Table: Find status or require check for City, WSDOT, County, Railroad, PGE/PA, TCP (typically under a PERMITS card). Status must be: Pending, Approved, Active, Closed, or null.
-11. Hub Address: The physical street address where the FDH cabinet is located (used to place it on a map).
-12. Map Objects: Look for EVERY labeled cable, line, and MST/terminal designation across ALL pages. Extract:
-    - cables: list of {
-        label, fiberCount, lengthFt, buildType,
-        toTerminal (MST/terminal label this cable feeds, if shown),
-        routeStreets (array of street names the cable runs along, in order, if shown on plan)
-      }. buildType is "bore", "trench", or "aerial" (null if unknown).
-    - terminals: list of ALL service terminals. For each, extract as many of these as the print shows:
-        label      (e.g. "MST-1", "T205")
-        type       (e.g. "8-port MST", "12-port MST")
-        portCount  (number of ports, e.g. 8, 12)
-        footageFt  (numeric footage of the drop/lateral, e.g. 1000)
-        footageLabel (raw footage string including overlash if present, e.g. "1000' (593' OL)")
-        dvftpRange (distribution fiber / port range, e.g. "H2051, 205-216")
-        code       (any engineering code on the terminal)
-        fiberSpec  (fiber specification, e.g. "12F", "48F")
-        addressesServed (array of street addresses served by this terminal — used to place it on a map)
-    - notes: any location notes or layout remarks.
+CRITICAL FOR MAP PLACEMENT (read plan sheets carefully):
+- Hub/FDH address from title block (e.g. "18154 METRON RD, ARLINGTON, WA 98223") → hubAddress
+- projectCity (e.g. Arlington, Lake Stevens)
+- mainlineStreet: the road the thick multi-fiber line follows (e.g. "Metron Rd")
+- On plan views: house numbers printed on parcels (18052, 18118, 18151, 18330…) are REQUIRED.
+  Put them in terminals[].houseNumbers AND expand to full addresses when street is known:
+  addressesServed: ["18052 Metron Rd"] (or cross-street if labeled)
+- Cables along the main road = role "mainline"; short runs to MSTs/houses = role "lateral";
+  existing feeder callouts = role "feeder"
+- buildType from callouts: BORE / TRENCH / AERIAL / OVERLASH → bore|trench|aerial
+- Footage labels like "BORE 42'" or "TRENCH 208'" → lengthFt
 
-Return a JSON block strictly complying with this schema:
+FIELDS:
+1. Hub ID (H1002, S3065 cabinet id, etc.)
+2. Hub Type/Size (port count / vault mount codes)
+3. Terminal Count
+4. Fiber Counts (48F, 96F, …)
+5. Drops LU/MDU/BU/total from cover table
+6. Permitted excavation methods
+7. Strand / conduit
+8. Special notes (existing feeder, school, etc.)
+9. Permits table statuses
+10. hubAddress, projectCity, mainlineStreet
+11. mapObjects — EVERY MST, splice, and cable segment from plan sheets:
+    cables: { label, fiberCount, lengthFt, buildType, role, toTerminal, routeStreets }
+    terminals: { label, type, portCount, footageFt, footageLabel, dvftpRange, code, fiberSpec,
+                 addressesServed, houseNumbers }
+    notes, mainlineStreet
+
+Schema:
 {
   "hubId": "string or null",
   "hubTypeSize": "string or null",
   "ziplyInspector": "string or null",
   "terminalCount": number or null,
   "fiberCountsPerCable": ["string"],
-  "drops": {
-    "lu": number or null,
-    "mdu": number or null,
-    "bu": number or null,
-    "total": number or null
-  },
+  "drops": { "lu": number|null, "mdu": number|null, "bu": number|null, "total": number|null },
   "permittedExcavationMethods": ["string"],
   "strandType": "string or null",
   "conduitSize": "string or null",
   "specialNotes": "string or null",
   "hubAddress": "string or null",
+  "projectCity": "string or null",
+  "mainlineStreet": "string or null",
   "permits": {
-    "cityRow": "Pending | Approved | Active | Closed | null",
-    "wsdot": "Pending | Approved | Active | Closed | null",
-    "county": "Pending | Approved | Active | Closed | null",
-    "railroad": "Pending | Approved | Active | Closed | null",
-    "pa": "Pending | Approved | Active | Closed | null",
-    "tcp": "Pending | Approved | Active | Closed | null"
+    "cityRow": "Pending|Approved|Active|Closed|null",
+    "wsdot": "Pending|Approved|Active|Closed|null",
+    "county": "Pending|Approved|Active|Closed|null",
+    "railroad": "Pending|Approved|Active|Closed|null",
+    "pa": "Pending|Approved|Active|Closed|null",
+    "tcp": "Pending|Approved|Active|Closed|null"
   },
   "mapObjects": {
-    "cables": [{"label": "C-1", "fiberCount": "48F", "lengthFt": 250, "buildType": "bore", "toTerminal": "MST-1", "routeStreets": ["Main St", "1st Ave"]}],
-    "terminals": [{"label": "MST-1", "type": "8-port MST", "portCount": 8, "footageFt": 1000, "footageLabel": "1000' (593' OL)", "dvftpRange": "H2051, 205-216", "code": null, "fiberSpec": "12F", "addressesServed": ["13613 Division St"]}],
+    "mainlineStreet": "Metron Rd or null",
+    "cables": [{"label":"C-1","fiberCount":"48F","lengthFt":250,"buildType":"bore","role":"lateral","toTerminal":"MST-1","routeStreets":["Metron Rd"]}],
+    "terminals": [{"label":"MST-1","type":"8-port MST","portCount":8,"footageFt":42,"footageLabel":"BORE 42'","dvftpRange":null,"code":null,"fiberSpec":"12F","houseNumbers":["18052"],"addressesServed":["18052 Metron Rd"]}],
     "notes": "string or null"
   }
 }

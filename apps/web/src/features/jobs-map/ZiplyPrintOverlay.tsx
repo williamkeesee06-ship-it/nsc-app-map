@@ -64,6 +64,7 @@ function CadFiberLine({
   path,
   status,
   buildType,
+  role,
   locateCleared,
   show811Clearance,
   label,
@@ -73,6 +74,8 @@ function CadFiberLine({
   path: LatLng[];
   status: ZiplyObjectStatus;
   buildType?: string | null;
+  /** mainline/feeder = thick spine; lateral = thinner branch */
+  role?: "mainline" | "lateral" | "feeder" | null;
   locateCleared?: boolean;
   show811Clearance?: boolean;
   label?: string;
@@ -84,19 +87,26 @@ function CadFiberLine({
 
   useEffect(() => {
     if (!map || path.length < 2) return;
-    const color = lineColor(status, buildType, locateCleared, !!show811Clearance);
-    const solid = show811Clearance ? !!locateCleared : status === "complete";
+    const isMain = role === "mainline" || role === "feeder";
+    const color = isMain
+      ? status === "complete"
+        ? "#0f766e"
+        : "#0ea5e9"
+      : lineColor(status, buildType, locateCleared, !!show811Clearance);
+    const solid = show811Clearance ? !!locateCleared : status === "complete" || isMain;
     const isAerial = buildType === "aerial";
     const isBore = buildType === "bore";
     const weightBoost = selected ? 2 : 0;
+    const mainW = isMain ? 7 : isBore ? 5 : isAerial ? 3.5 : 4.5;
+    const haloW = isMain ? 14 : isBore ? 10 : 8;
 
     const halo = new google.maps.Polyline({
       path,
       map,
-      strokeColor: selected ? "#fbbf24" : "#ffffff",
-      strokeOpacity: selected ? 0.95 : 0.85,
-      strokeWeight: (isBore ? 10 : 8) + weightBoost,
-      zIndex: selected ? 14 : 8,
+      strokeColor: selected ? "#fbbf24" : isMain ? "#e0f2fe" : "#ffffff",
+      strokeOpacity: selected ? 0.95 : 0.9,
+      strokeWeight: haloW + weightBoost,
+      zIndex: selected ? 14 : isMain ? 9 : 8,
       clickable: false,
     });
 
@@ -114,9 +124,9 @@ function CadFiberLine({
       path,
       map,
       strokeColor: color,
-      strokeWeight: (isBore ? 5 : isAerial ? 3.5 : 4.5) + weightBoost,
-      strokeOpacity: solid ? 0.95 : 0,
-      zIndex: selected ? 15 : 10,
+      strokeWeight: mainW + weightBoost,
+      strokeOpacity: solid ? 0.96 : 0,
+      zIndex: selected ? 15 : isMain ? 12 : 10,
       clickable: false,
       icons: solid
         ? undefined
@@ -145,7 +155,7 @@ function CadFiberLine({
       main.setMap(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, pathKey, status, buildType, locateCleared, show811Clearance, selected, onClick]);
+  }, [map, pathKey, status, buildType, role, locateCleared, show811Clearance, selected, onClick]);
 
   const mid = pathMidpoint(path);
   if (!label) return null;
@@ -472,6 +482,16 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
         const cables = mo.cables ?? [];
         const dropSites = mo.dropSites ?? [];
         const isEnhanced = !!layer.printGeometryEnhancedAt;
+        const backbonePath =
+          mo.backbonePath && mo.backbonePath.length >= 2
+            ? mo.backbonePath.filter(
+                (p): p is LatLng =>
+                  typeof p.lat === "number" &&
+                  typeof p.lng === "number" &&
+                  !(p.lat === 0 && p.lng === 0)
+              )
+            : null;
+        const mainlineStreet = mo.mainlineStreet ?? null;
 
         const termPositions = terminals.map((t, idx) =>
           placeTerminalAroundHub(
@@ -533,10 +553,11 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                 value: c.lengthFt != null ? `${c.lengthFt}'` : "N/A",
               },
               { label: "Build", value: c.buildType || "N/A" },
+              { label: "Role", value: c.role || "lateral" },
               { label: "To terminal", value: c.toTerminal || "N/A" },
               {
                 label: "Route streets",
-                value: (c.routeStreets || []).join(" → ") || "N/A",
+                value: (c.routeStreets || []).join(" → ") || mainlineStreet || "N/A",
               },
               {
                 label: "Path points",
@@ -545,10 +566,12 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
               {
                 label: "Geometry",
                 value: isEnhanced
-                  ? c.path && c.path.length >= 2
-                    ? "enhanced multi-point"
-                    : "street-grid synthetic"
-                  : "schematic (run ENHANCE CAD)",
+                  ? c.role === "mainline"
+                    ? "arterial backbone"
+                    : c.path && c.path.length >= 3
+                      ? "parcel lateral"
+                      : "synthetic lateral"
+                  : "schematic — run ENHANCE CAD / re-ingest print",
               },
             ],
           });
@@ -572,25 +595,56 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
               }}
             />
 
+            {/* Explicit backbone from enhance (Metron Rd style spine) */}
+            {backbonePath && backbonePath.length >= 2 && (
+              <CadFiberLine
+                key={`${job.jobId}-backbone`}
+                path={backbonePath}
+                status="in_progress"
+                buildType="trench"
+                role="mainline"
+                label={
+                  showCableLabels
+                    ? mainlineStreet
+                      ? `MAINLINE · ${mainlineStreet}`
+                      : "MAINLINE"
+                    : undefined
+                }
+              />
+            )}
+
             {cables.length > 0
               ? cables.map((c, idx) => {
                   const st = statusOf(job.jobId, "cable", c.label, c.status);
                   const cleared = locateCleared(job, "cable", c.label, c.locateExpires ?? null);
                   const termPos = resolveTermForCable(c.label, c.toTerminal, idx);
-                  if (!termPos && !(c.path && c.path.length >= 2)) return null;
-                  const path = buildCablePath(
-                    hubPos,
-                    termPos ?? hubPos,
-                    idx,
-                    c.path && c.path.length >= 3 ? c.path : null,
-                    null,
-                    c.lengthFt
-                  );
+                  const isMain = c.role === "mainline" || c.role === "feeder";
+                  // Skip drawing duplicate mainline if backbone already rendered
+                  if (isMain && backbonePath && backbonePath.length >= 2) return null;
+                  if (!termPos && !(c.path && c.path.length >= 2) && !isMain) return null;
+                  const path =
+                    c.path && c.path.length >= 3
+                      ? c.path.filter(
+                          (p): p is LatLng =>
+                            typeof p.lat === "number" &&
+                            typeof p.lng === "number" &&
+                            !(p.lat === 0 && p.lng === 0)
+                        )
+                      : buildCablePath(
+                          hubPos,
+                          termPos ?? hubPos,
+                          idx,
+                          null,
+                          null,
+                          c.lengthFt
+                        );
+                  if (path.length < 2) return null;
                   const labelParts = [
                     c.label,
                     c.fiberCount || null,
                     c.lengthFt != null ? `${c.lengthFt}'` : null,
                     c.buildType || null,
+                    c.role === "lateral" ? null : c.role,
                   ].filter(Boolean);
                   const isSel =
                     selected?.job.jobId === job.jobId &&
@@ -602,6 +656,7 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                       path={path}
                       status={st}
                       buildType={c.buildType}
+                      role={c.role}
                       locateCleared={cleared}
                       show811Clearance={show811Clearance}
                       label={showCableLabels ? labelParts.join(" · ") : undefined}
@@ -626,7 +681,8 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                       key={`${job.jobId}-spoke-${idx}`}
                       path={path}
                       status={st}
-                      buildType={null}
+                      buildType="bore"
+                      role="lateral"
                       locateCleared={cleared}
                       show811Clearance={show811Clearance}
                       label={

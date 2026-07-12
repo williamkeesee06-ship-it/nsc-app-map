@@ -228,7 +228,7 @@ export const ZIPLY_PERMIT_TYPES: { id: ZiplyPermitTypeKey; label: string }[] = [
   { id: "railroad", label: "Railroad" },
   { id: "pa", label: "PGE / PA / Franchise" },
   { id: "tcp", label: "TCP (Traffic Control)" },
-  { id: "other", label: "Other permit" },
+  { id: "other", label: "Other / Construction Site Plan" },
 ];
 
 /** Upload permit PDF/image to Storage, kick off AI extract, refresh jobs. */

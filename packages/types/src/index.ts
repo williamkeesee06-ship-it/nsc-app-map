@@ -424,6 +424,16 @@ export interface Job {
         lng?: number | null;
         status?: ZiplyObjectStatus;
       } | null;
+      /**
+       * Primary ROW / arterial from the plan (e.g. "Metron Rd") — plant backbone.
+       * Written by print parse + enhance for arterial+lateral CAD.
+       */
+      mainlineStreet?: string | null;
+      /**
+       * Multi-point path along the mainline / feeder spine (not a spoke).
+       * Rendered thicker than laterals on the map.
+       */
+      backbonePath?: Array<{ lat: number; lng: number }> | null;
       cables: Array<{
         label: string;
         fiberCount: string;
@@ -432,6 +442,8 @@ export interface Job {
         path?: Array<{ lat: number; lng: number }> | null;
         /** Placement method drives the CAD dash pattern/color. */
         buildType?: "bore" | "trench" | "aerial" | null;
+        /** mainline = along arterial; lateral = to MST/parcel; feeder = existing. */
+        role?: "mainline" | "lateral" | "feeder" | null;
         /** Terminal label this cable feeds (from print). */
         toTerminal?: string | null;
         /** Street names along the route (layout hints). */
@@ -456,6 +468,8 @@ export interface Job {
         code?: string | null;
         fiberSpec?: string | null;
         addressesServed?: string[] | null;
+        /** House numbers from plan (e.g. "18052") when full street not labeled. */
+        houseNumbers?: string[] | null;
         /** Georeferenced terminal position (geocoded address / GPS anchor). */
         lat?: number | null;
         lng?: number | null;
