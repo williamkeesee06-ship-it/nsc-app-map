@@ -428,20 +428,32 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
         </button>
       </section>
 
-      {/* Official 811 filing (Roadmap C) — one path */}
+      {/* Adaptive 811 filing: Autofill when extension present; cloud bot when not (work PCs). */}
       <section className="dt-copilot-card">
         <div className="dt-copilot-header">
           <span className="dt-copilot-title">File 811 dig ticket</span>
           <span className={`dt-extension-status ${extensionActive ? "" : "not-detected"}`}>
-            {extensionActive ? "● NSC 811 Autofill connected" : "○ Extension not detected"}
+            {extensionActive
+              ? "● NSC 811 Autofill connected"
+              : "○ No extension — cloud bot is primary"}
           </span>
         </div>
 
         <p style={{ margin: "0 0 12px", fontSize: 12, color: "#475569", lineHeight: 1.45 }}>
-          <strong>Official path:</strong> draw dig shape on the map (TOOLS) → create ticket → answer
-          questions → <strong>File with Autofill</strong> → ITIC opens, extension fills fields,{" "}
-          <em>you</em> draw/confirm the dig area on ITIC → locate # saves here. App then tracks
-          utilities, active window, and expiry.
+          {extensionActive ? (
+            <>
+              <strong>This computer has the Autofill extension.</strong> File with Autofill opens
+              ITIC in your browser, fills fields, and you draw/confirm the dig shape before submit.
+              Locate # can sync back here.
+            </>
+          ) : (
+            <>
+              <strong>No Autofill extension detected</strong> (common on work-managed Chrome).{" "}
+              <strong>Cloud bot is the main path</strong> — no install needed. It uses server ITIC
+              login and auto-submits. You can still open a guided ITIC tab or file manually from
+              Other options.
+            </>
+          )}
         </p>
 
         <div className="dt-request811__summary">
@@ -453,29 +465,53 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16, width: "100%" }}>
-          <button
-            type="button"
-            className="dt-btn dt-btn--primary"
-            style={{ width: "100%", background: "#1d4ed8", fontWeight: 700, padding: "12px 16px" }}
-            onClick={() => setIticOpen(true)}
-            disabled={!!busy || botBusy}
-          >
-            File 811 with Autofill (official)
-          </button>
-
-          <div className="dt-copilot-instructions">
-            <strong>Install once (Chrome):</strong>
-            <ol className="dt-instruction-steps">
-              <li>Open <code>chrome://extensions/</code></li>
-              <li>Turn on <strong>Developer mode</strong></li>
-              <li>
-                <strong>Load unpacked</strong> → select folder{" "}
-                <code>chrome-extension</code> in this project
-                (name: <strong>NSC 811 Autofill</strong>)
-              </li>
-              <li>Do <em>not</em> install <code>apps/extension</code> (deprecated)</li>
-            </ol>
-          </div>
+          {extensionActive ? (
+            <>
+              <button
+                type="button"
+                className="dt-btn dt-btn--primary"
+                style={{ width: "100%", background: "#1d4ed8", fontWeight: 700, padding: "12px 16px" }}
+                onClick={() => setIticOpen(true)}
+                disabled={!!busy || botBusy}
+              >
+                File 811 with Autofill
+              </button>
+              <button
+                type="button"
+                className="dt-btn dt-btn--secondary"
+                style={{ width: "100%", fontWeight: 700 }}
+                onClick={() => void runCloudBot()}
+                disabled={botBusy || !!busy}
+              >
+                {botBusy ? "Bot running…" : "Or file with cloud bot (auto-submit)"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="dt-btn dt-btn--primary"
+                style={{ width: "100%", background: "#0f766e", fontWeight: 700, padding: "12px 16px" }}
+                onClick={() => void runCloudBot()}
+                disabled={botBusy || !!busy}
+              >
+                {botBusy ? "Cloud bot filing… (can take several minutes)" : "File 811 with cloud bot"}
+              </button>
+              <p style={{ margin: 0, fontSize: 11, color: "#64748b", lineHeight: 1.4 }}>
+                Best for work computers where Chrome blocks Load unpacked. Confirm ITIC secrets are
+                set on Firebase. Auto-submits end-to-end.
+              </p>
+              <button
+                type="button"
+                className="dt-btn dt-btn--secondary"
+                style={{ width: "100%", fontWeight: 700 }}
+                onClick={() => setIticOpen(true)}
+                disabled={!!busy || botBusy}
+              >
+                Open guided ITIC tab (no extension autofill)
+              </button>
+            </>
+          )}
 
           <div className="dt-request811__filed" style={{ marginTop: 4 }}>
             <label className="dt-field">
@@ -483,7 +519,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
               <input
                 value={filedNumber}
                 onChange={(e) => setFiledNumber(e.target.value)}
-                placeholder="Paste ITIC locate # after submit"
+                placeholder="Paste ITIC locate # if needed"
               />
             </label>
             <button
@@ -510,7 +546,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
               padding: 0,
             }}
           >
-            {showAdvanced ? "▾ Hide advanced options" : "▸ Advanced / emergency options"}
+            {showAdvanced ? "▾ Hide other options" : "▸ Other options (manual + extension install)"}
           </button>
 
           {showAdvanced && (
@@ -525,19 +561,26 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
                 background: "#f8fafc",
               }}
             >
-              <p style={{ margin: 0, fontSize: 11, color: "#64748b", lineHeight: 1.4 }}>
-                Cloud bot uses server ITIC secrets and <strong>auto-submits</strong>. Prefer Autofill
-                for normal work.
-              </p>
-              <button
-                type="button"
-                className="dt-btn dt-btn--secondary"
-                style={{ fontWeight: 700 }}
-                onClick={() => void runCloudBot()}
-                disabled={botBusy || !!busy}
-              >
-                {botBusy ? "Bot running…" : "File with cloud bot (auto-submit)"}
-              </button>
+              {!extensionActive && (
+                <div className="dt-copilot-instructions" style={{ margin: 0 }}>
+                  <strong>If your work PC allows it — install Autofill:</strong>
+                  <ol className="dt-instruction-steps">
+                    <li>Open <code>chrome://extensions/</code></li>
+                    <li>Turn on <strong>Developer mode</strong> (if available)</li>
+                    <li>
+                      <strong>Load unpacked</strong> →{" "}
+                      <code>chrome-extension</code> (NSC 811 Autofill)
+                    </li>
+                    <li>If Developer mode is locked by IT, stay on cloud bot — that is fine</li>
+                  </ol>
+                </div>
+              )}
+              {extensionActive && (
+                <p style={{ margin: 0, fontSize: 11, color: "#64748b", lineHeight: 1.4 }}>
+                  Cloud bot is available as a secondary button above. Use it when you want
+                  hands-off auto-submit without drawing on ITIC yourself.
+                </p>
+              )}
 
               <span
                 style={{
@@ -547,7 +590,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
                   color: "#64748b",
                 }}
               >
-                Clipboard helpers (manual ITIC)
+                Clipboard helpers (fully manual ITIC)
               </span>
               <div className="dt-copy-helper">
                 <span>Street Address:</span>

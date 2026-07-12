@@ -18,9 +18,9 @@
 
 ## 811 filing (Roadmap C)
 
-- **Official path only:** `chrome-extension/` → **NSC 811 Autofill** (`NSC_811_JOB_DATA`).
-- UI: dig ticket → **File 811 with Autofill**. Do not install `apps/extension/` (deprecated).
-- Cloud bot is Advanced-only. See `README-811-DEPLOY.md`.
+- Adaptive UI: if **NSC 811 Autofill** (`chrome-extension/`) is detected → Autofill primary;
+  if not (work-managed Chrome) → **cloud bot** primary.
+- Do not install `apps/extension/` (deprecated). See `README-811-DEPLOY.md`.
 
 ## Related folders (leave alone unless the user asks)
 

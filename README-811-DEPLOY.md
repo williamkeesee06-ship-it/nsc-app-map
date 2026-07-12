@@ -1,17 +1,27 @@
 # 811 Dig Tickets — Official path & deploy
 
-## Operator workflow (Roadmap C — single path)
+## Operator workflow (adaptive)
+
+Same prep for every machine:
 
 ```
 1. MAP / TOOLS  →  draw dig boundary with the 3 dig tools
 2. 811 tab      →  create ticket (scope of work, work-for, dates, etc.)
-3. Ticket detail →  "File 811 with Autofill (official)"
-4. ITIC tab      →  extension autofills; YOU draw/confirm shape; submit
-5. Locate #      →  saves on the ticket (auto or paste)
-6. App manages   →  utility responses, active window, expiry (sweep + check)
+3. Ticket detail →  File (button depends on whether Autofill extension is installed)
+4. Locate #      →  saved on the ticket
+5. App manages   →  utility responses, active window, expiry (sweep + check)
 ```
 
-### Official Chrome extension
+### Which button is primary?
+
+| Chrome situation | Primary button | Secondary |
+|------------------|----------------|-----------|
+| **NSC 811 Autofill installed** (personal PC, or IT allows Load unpacked) | **File 811 with Autofill** | Cloud bot |
+| **No extension** (typical work-managed Chrome) | **File 811 with cloud bot** | Guided ITIC tab + manual clipboard |
+
+The UI detects the extension automatically (`NSC_PING_811` / `NSC_PONG_811`).
+
+### Chrome extension (when allowed)
 
 | | |
 |--|--|
@@ -19,18 +29,19 @@
 | **Name** | **NSC 811 Autofill** |
 | **Protocol** | `NSC_811_JOB_DATA` → ITIC autofill → `NSC_811_FILED_SUCCESS` |
 
-Install: `chrome://extensions` → Developer mode → **Load unpacked** → select `chrome-extension/`.
+Install: `chrome://extensions` → Developer mode → **Load unpacked** → `chrome-extension/`.
 
-**Do not install** `apps/extension/` (deprecated ITIC Copilot — see `apps/extension/DEPRECATED.md`).
+**Do not install** `apps/extension/` (deprecated — see `apps/extension/DEPRECATED.md`).
 
-### Advanced only
+### Cloud bot (work PCs)
 
-| Path | When |
-|------|------|
-| **Cloud bot** (`fileTicketBot`) | Ticket UI → Advanced → auto-submits with server ITIC secrets |
-| Clipboard helpers | Manual ITIC typing if extension unavailable |
+| | |
+|--|--|
+| **Callable** | `fileTicketBot` |
+| **Needs** | Signed-in Firebase user + Firebase secrets `ITIC_USERNAME` / `ITIC_PASSWORD` |
+| **Behavior** | Auto-submits end-to-end (no human draw on ITIC) |
 
-Bookmarklet is **no longer** a first-class UI path (API auth lock broke unauthenticated bookmarklet calls).
+Bookmarklet is **not** a first-class UI path (API auth lock).
 
 ---
 
