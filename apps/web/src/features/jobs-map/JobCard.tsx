@@ -704,11 +704,25 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
     setEnhanceMsg(null);
     try {
       const r = await api.repairZiplyPrint(job.jobId);
-      if (r.enhanced === false && r.reason === "geocode_failed") {
-        setErr("Could not geocode address — check job address/city.");
-      } else if (r.enhanced) {
+      if (r.reason === "geocode_failed" || (r.enhanced === false && r.reason === "geocode_failed")) {
+        setErr(
+          "Could not place print on map. Set job City to Arlington (or correct city) and Address if known, then try again."
+        );
+      } else if (r.enhanced === false && r.reason && r.reason !== "ok") {
+        setErr(`Repair issue: ${r.reason}`);
+      } else {
+        const placed =
+          r.lat != null && r.lng != null
+            ? ` @ ${r.lat.toFixed(4)}, ${r.lng.toFixed(4)}`
+            : "";
         setEnhanceMsg(
-          `CAD enhanced: ${r.cablesPathed ?? 0} paths · ${r.dropsPlaced ?? 0} drops`
+          `Location fixed${placed}` +
+            (r.cablesPathed != null
+              ? ` · CAD: ${r.cablesPathed} paths · ${r.dropsPlaced ?? 0} drops`
+              : "") +
+            (typeof r.reason === "string" && r.reason.includes("city_fallback")
+              ? " (city-center pin — zoom/adjust if needed)"
+              : "")
         );
       }
       window.dispatchEvent(new Event("nsc:jobs-reload"));

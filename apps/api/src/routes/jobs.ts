@@ -3,7 +3,11 @@ import { Router } from "express";
 import { waitUntil } from "@vercel/functions";
 import { randomUUID } from "crypto";
 import { db, storageBucket } from "../lib/firestore.js";
-import { geocodeAddress, buildAddressString } from "../lib/geocode.js";
+import {
+  geocodeAddress,
+  buildAddressString,
+  cityCenterFallback,
+} from "../lib/geocode.js";
 import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
@@ -879,21 +883,33 @@ async function repairZiplyPrintLocation(job: Job): Promise<RepairResult> {
   const geoCache = new Map<string, { lat: number; lng: number } | null>();
   const geocodeOne = async (raw: string | null): Promise<{ lat: number; lng: number } | null> => {
     if (!raw?.trim()) return null;
-    const addr = buildAddressString({
+    // Try raw string as-is first (often already "123 Main St, Arlington, WA")
+    const direct = raw.trim();
+    const built = buildAddressString({
       address: raw,
       city: job.city,
       zipCode: job.zipCode,
     });
-    if (!addr) return null;
-    if (geoCache.has(addr)) return geoCache.get(addr)!;
-    const g = await geocodeAddress(addr);
-    const coords = g.status === "OK" ? { lat: g.lat, lng: g.lng } : null;
-    geoCache.set(addr, coords);
-    return coords;
+    const attempts = [direct, built].filter(
+      (a, i, arr): a is string => !!a && arr.indexOf(a) === i
+    );
+    for (const addr of attempts) {
+      if (geoCache.has(addr)) {
+        const hit = geoCache.get(addr)!;
+        if (hit) return hit;
+        continue;
+      }
+      const g = await geocodeAddress(addr);
+      const coords = g.status === "OK" ? { lat: g.lat, lng: g.lng } : null;
+      geoCache.set(addr, coords);
+      if (coords) return coords;
+    }
+    return null;
   };
 
   // Prefer existing good coords, then geocode candidates.
   let hubCoords: { lat: number; lng: number } | null = null;
+  let repairSource = hubAlready ? "hub_existing" : geoAlready ? "job_geocode" : "";
   if (hubAlready) {
     hubCoords = { lat: mo.hub!.lat as number, lng: mo.hub!.lng as number };
   } else if (geoAlready) {
@@ -901,17 +917,48 @@ async function repairZiplyPrintLocation(job: Job): Promise<RepairResult> {
   }
 
   if (!hubCoords) {
-    const parsed = job.ziplyIngest?.parsed as { hubAddress?: string | null } | null | undefined;
+    const parsed = job.ziplyIngest?.parsed as {
+      hubAddress?: string | null;
+      mapObjects?: { terminals?: Array<{ addressesServed?: string[] | null }> };
+    } | null | undefined;
+    // First terminal street address often geocodes when hub address is missing
+    const firstTermAddr =
+      mo.terminals?.flatMap((t) => t.addressesServed ?? []).find((a) => a?.trim()) ??
+      parsed?.mapObjects?.terminals
+        ?.flatMap((t) => t.addressesServed ?? [])
+        .find((a) => a?.trim()) ??
+      null;
+
     const candidates = [
       parsed?.hubAddress ?? null,
       job.address,
-      [job.address, job.city, job.zipCode].filter(Boolean).join(", ") || null,
-      job.city ? `${job.city}, WA` : null,
-      job.hubNumber ? `Hub ${job.hubNumber}, ${job.city || "WA"}` : null,
+      firstTermAddr,
+      [job.address, job.city, "WA", job.zipCode].filter(Boolean).join(", ") || null,
+      job.city ? `${job.city}, Washington` : null,
+      job.city ? `${job.city}, WA, USA` : null,
+      job.workOrder && job.city ? `${job.workOrder}, ${job.city}, WA` : null,
     ];
     for (const c of candidates) {
       hubCoords = await geocodeOne(c);
-      if (hubCoords) break;
+      if (hubCoords) {
+        repairSource = `geocode:${(c ?? "").slice(0, 48)}`;
+        break;
+      }
+    }
+  }
+
+  // Last resort: pin to known North Metro city center so the print is visible
+  if (!hubCoords) {
+    const parsed = job.ziplyIngest?.parsed as { hubAddress?: string | null } | null | undefined;
+    const fallback = cityCenterFallback(job.city, [
+      job.address,
+      parsed?.hubAddress,
+      job.workOrder,
+      job.nscProjectNotes,
+    ]);
+    if (fallback) {
+      hubCoords = { lat: fallback.lat, lng: fallback.lng };
+      repairSource = fallback.source;
     }
   }
 
@@ -988,7 +1035,11 @@ async function repairZiplyPrintLocation(job: Job): Promise<RepairResult> {
     jobId,
     workOrder: job.workOrder,
     repaired: true,
-    reason: hubAlready ? "terminals_only" : "hub_and_anchor",
+    reason: hubAlready
+      ? "terminals_only"
+      : repairSource.startsWith("city_center")
+        ? `hub_city_fallback:${repairSource}`
+        : "hub_and_anchor",
     lat: hubCoords.lat,
     lng: hubCoords.lng,
     terminalsFixed,
@@ -1340,11 +1391,35 @@ router.post("/jobs/:jobId/ziply-repair-print", async (req, res, next) => {
       });
       return;
     }
-    await repairZiplyPrintLocation(job);
+    const repaired = await repairZiplyPrintLocation(job);
+    if (!repaired.repaired) {
+      res.json({
+        ok: false,
+        repaired: false,
+        enhanced: false,
+        reason: repaired.reason,
+        jobId: repaired.jobId,
+        workOrder: repaired.workOrder,
+        terminalsGeocoded: 0,
+        cablesPathed: 0,
+        waypointsGeocoded: 0,
+        dropsPlaced: 0,
+      });
+      return;
+    }
     const fresh = (await ref.get()).data() as Job;
     const enhanced = await enhanceZiplyPrintDetail(fresh);
     invalidateJobsCache();
-    res.json({ ok: true, repaired: true, ...enhanced });
+    res.json({
+      ok: true,
+      repaired: true,
+      ...enhanced,
+      // Keep repair placement reason when enhance succeeds (e.g. city_center fallback)
+      reason: enhanced.enhanced ? repaired.reason : enhanced.reason,
+      lat: repaired.lat,
+      lng: repaired.lng,
+      terminalsFixed: repaired.terminalsFixed,
+    });
   } catch (err) {
     next(err);
   }
