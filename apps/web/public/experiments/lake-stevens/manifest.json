@@ -1,0 +1,794 @@
+{
+  "city": "Lake Stevens, WA",
+  "focusWorkOrders": [
+    "6007959",
+    "6007556",
+    "6007956"
+  ],
+  "seedBounds": {
+    "sw": {
+      "lat": 47.998,
+      "lng": -122.092
+    },
+    "ne": {
+      "lat": 48.032,
+      "lng": -122.038
+    }
+  },
+  "packages": [
+    {
+      "id": "h3024",
+      "label": "H3024 \u00b7 WO 6007959 \u00b7 Lake Stevens (65 pages)",
+      "workOrder": "6007959",
+      "hubId": "H3024",
+      "sourcePdf": "SHARED/LKSTWAXA-6007959-H3024-LAKE STEVENS-WA DESIGN 12-4-24 (2).pdf",
+      "pages": [
+        {
+          "page": 1,
+          "file": "/experiments/lake-stevens/h3024/page-01.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 2,
+          "file": "/experiments/lake-stevens/h3024/page-02.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 3,
+          "file": "/experiments/lake-stevens/h3024/page-03.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 4,
+          "file": "/experiments/lake-stevens/h3024/page-04.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 5,
+          "file": "/experiments/lake-stevens/h3024/page-05.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 6,
+          "file": "/experiments/lake-stevens/h3024/page-06.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 7,
+          "file": "/experiments/lake-stevens/h3024/page-07.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 8,
+          "file": "/experiments/lake-stevens/h3024/page-08.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 9,
+          "file": "/experiments/lake-stevens/h3024/page-09.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 10,
+          "file": "/experiments/lake-stevens/h3024/page-10.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 11,
+          "file": "/experiments/lake-stevens/h3024/page-11.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 12,
+          "file": "/experiments/lake-stevens/h3024/page-12.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 13,
+          "file": "/experiments/lake-stevens/h3024/page-13.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 14,
+          "file": "/experiments/lake-stevens/h3024/page-14.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 15,
+          "file": "/experiments/lake-stevens/h3024/page-15.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 16,
+          "file": "/experiments/lake-stevens/h3024/page-16.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 17,
+          "file": "/experiments/lake-stevens/h3024/page-17.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 18,
+          "file": "/experiments/lake-stevens/h3024/page-18.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 19,
+          "file": "/experiments/lake-stevens/h3024/page-19.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 20,
+          "file": "/experiments/lake-stevens/h3024/page-20.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 21,
+          "file": "/experiments/lake-stevens/h3024/page-21.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 22,
+          "file": "/experiments/lake-stevens/h3024/page-22.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 23,
+          "file": "/experiments/lake-stevens/h3024/page-23.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 24,
+          "file": "/experiments/lake-stevens/h3024/page-24.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 25,
+          "file": "/experiments/lake-stevens/h3024/page-25.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 26,
+          "file": "/experiments/lake-stevens/h3024/page-26.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 27,
+          "file": "/experiments/lake-stevens/h3024/page-27.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 28,
+          "file": "/experiments/lake-stevens/h3024/page-28.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 29,
+          "file": "/experiments/lake-stevens/h3024/page-29.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 30,
+          "file": "/experiments/lake-stevens/h3024/page-30.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 31,
+          "file": "/experiments/lake-stevens/h3024/page-31.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 32,
+          "file": "/experiments/lake-stevens/h3024/page-32.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 33,
+          "file": "/experiments/lake-stevens/h3024/page-33.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 34,
+          "file": "/experiments/lake-stevens/h3024/page-34.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 35,
+          "file": "/experiments/lake-stevens/h3024/page-35.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 36,
+          "file": "/experiments/lake-stevens/h3024/page-36.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 37,
+          "file": "/experiments/lake-stevens/h3024/page-37.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 38,
+          "file": "/experiments/lake-stevens/h3024/page-38.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 39,
+          "file": "/experiments/lake-stevens/h3024/page-39.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 40,
+          "file": "/experiments/lake-stevens/h3024/page-40.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 41,
+          "file": "/experiments/lake-stevens/h3024/page-41.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 42,
+          "file": "/experiments/lake-stevens/h3024/page-42.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 43,
+          "file": "/experiments/lake-stevens/h3024/page-43.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 44,
+          "file": "/experiments/lake-stevens/h3024/page-44.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 45,
+          "file": "/experiments/lake-stevens/h3024/page-45.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 46,
+          "file": "/experiments/lake-stevens/h3024/page-46.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 47,
+          "file": "/experiments/lake-stevens/h3024/page-47.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 48,
+          "file": "/experiments/lake-stevens/h3024/page-48.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 49,
+          "file": "/experiments/lake-stevens/h3024/page-49.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 50,
+          "file": "/experiments/lake-stevens/h3024/page-50.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 51,
+          "file": "/experiments/lake-stevens/h3024/page-51.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 52,
+          "file": "/experiments/lake-stevens/h3024/page-52.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 53,
+          "file": "/experiments/lake-stevens/h3024/page-53.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 54,
+          "file": "/experiments/lake-stevens/h3024/page-54.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 55,
+          "file": "/experiments/lake-stevens/h3024/page-55.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 56,
+          "file": "/experiments/lake-stevens/h3024/page-56.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 57,
+          "file": "/experiments/lake-stevens/h3024/page-57.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 58,
+          "file": "/experiments/lake-stevens/h3024/page-58.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 59,
+          "file": "/experiments/lake-stevens/h3024/page-59.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 60,
+          "file": "/experiments/lake-stevens/h3024/page-60.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 61,
+          "file": "/experiments/lake-stevens/h3024/page-61.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 62,
+          "file": "/experiments/lake-stevens/h3024/page-62.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 63,
+          "file": "/experiments/lake-stevens/h3024/page-63.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 64,
+          "file": "/experiments/lake-stevens/h3024/page-64.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 65,
+          "file": "/experiments/lake-stevens/h3024/page-65.jpg",
+          "width": 1959,
+          "height": 1268
+        }
+      ]
+    },
+    {
+      "id": "h2043",
+      "label": "H2043 \u00b7 WO 6007556 \u00b7 Lake Stevens (61 pages)",
+      "workOrder": "6007556",
+      "hubId": "H2043",
+      "sourcePdf": "SHARED/LKSTWAXA-6007556-H2043-LAKE STEVENS-WA DESIGN REV2 1-2-25.pdf",
+      "pages": [
+        {
+          "page": 1,
+          "file": "/experiments/lake-stevens/h2043/page-01.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 2,
+          "file": "/experiments/lake-stevens/h2043/page-02.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 3,
+          "file": "/experiments/lake-stevens/h2043/page-03.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 4,
+          "file": "/experiments/lake-stevens/h2043/page-04.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 5,
+          "file": "/experiments/lake-stevens/h2043/page-05.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 6,
+          "file": "/experiments/lake-stevens/h2043/page-06.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 7,
+          "file": "/experiments/lake-stevens/h2043/page-07.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 8,
+          "file": "/experiments/lake-stevens/h2043/page-08.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 9,
+          "file": "/experiments/lake-stevens/h2043/page-09.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 10,
+          "file": "/experiments/lake-stevens/h2043/page-10.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 11,
+          "file": "/experiments/lake-stevens/h2043/page-11.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 12,
+          "file": "/experiments/lake-stevens/h2043/page-12.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 13,
+          "file": "/experiments/lake-stevens/h2043/page-13.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 14,
+          "file": "/experiments/lake-stevens/h2043/page-14.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 15,
+          "file": "/experiments/lake-stevens/h2043/page-15.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 16,
+          "file": "/experiments/lake-stevens/h2043/page-16.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 17,
+          "file": "/experiments/lake-stevens/h2043/page-17.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 18,
+          "file": "/experiments/lake-stevens/h2043/page-18.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 19,
+          "file": "/experiments/lake-stevens/h2043/page-19.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 20,
+          "file": "/experiments/lake-stevens/h2043/page-20.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 21,
+          "file": "/experiments/lake-stevens/h2043/page-21.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 22,
+          "file": "/experiments/lake-stevens/h2043/page-22.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 23,
+          "file": "/experiments/lake-stevens/h2043/page-23.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 24,
+          "file": "/experiments/lake-stevens/h2043/page-24.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 25,
+          "file": "/experiments/lake-stevens/h2043/page-25.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 26,
+          "file": "/experiments/lake-stevens/h2043/page-26.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 27,
+          "file": "/experiments/lake-stevens/h2043/page-27.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 28,
+          "file": "/experiments/lake-stevens/h2043/page-28.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 29,
+          "file": "/experiments/lake-stevens/h2043/page-29.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 30,
+          "file": "/experiments/lake-stevens/h2043/page-30.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 31,
+          "file": "/experiments/lake-stevens/h2043/page-31.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 32,
+          "file": "/experiments/lake-stevens/h2043/page-32.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 33,
+          "file": "/experiments/lake-stevens/h2043/page-33.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 34,
+          "file": "/experiments/lake-stevens/h2043/page-34.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 35,
+          "file": "/experiments/lake-stevens/h2043/page-35.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 36,
+          "file": "/experiments/lake-stevens/h2043/page-36.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 37,
+          "file": "/experiments/lake-stevens/h2043/page-37.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 38,
+          "file": "/experiments/lake-stevens/h2043/page-38.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 39,
+          "file": "/experiments/lake-stevens/h2043/page-39.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 40,
+          "file": "/experiments/lake-stevens/h2043/page-40.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 41,
+          "file": "/experiments/lake-stevens/h2043/page-41.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 42,
+          "file": "/experiments/lake-stevens/h2043/page-42.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 43,
+          "file": "/experiments/lake-stevens/h2043/page-43.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 44,
+          "file": "/experiments/lake-stevens/h2043/page-44.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 45,
+          "file": "/experiments/lake-stevens/h2043/page-45.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 46,
+          "file": "/experiments/lake-stevens/h2043/page-46.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 47,
+          "file": "/experiments/lake-stevens/h2043/page-47.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 48,
+          "file": "/experiments/lake-stevens/h2043/page-48.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 49,
+          "file": "/experiments/lake-stevens/h2043/page-49.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 50,
+          "file": "/experiments/lake-stevens/h2043/page-50.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 51,
+          "file": "/experiments/lake-stevens/h2043/page-51.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 52,
+          "file": "/experiments/lake-stevens/h2043/page-52.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 53,
+          "file": "/experiments/lake-stevens/h2043/page-53.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 54,
+          "file": "/experiments/lake-stevens/h2043/page-54.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 55,
+          "file": "/experiments/lake-stevens/h2043/page-55.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 56,
+          "file": "/experiments/lake-stevens/h2043/page-56.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 57,
+          "file": "/experiments/lake-stevens/h2043/page-57.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 58,
+          "file": "/experiments/lake-stevens/h2043/page-58.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 59,
+          "file": "/experiments/lake-stevens/h2043/page-59.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 60,
+          "file": "/experiments/lake-stevens/h2043/page-60.jpg",
+          "width": 1959,
+          "height": 1268
+        },
+        {
+          "page": 61,
+          "file": "/experiments/lake-stevens/h2043/page-61.jpg",
+          "width": 1959,
+          "height": 1268
+        }
+      ]
+    }
+  ]
+}

@@ -32,7 +32,7 @@ import SavedDigShapeOverlay from "../dig-polygon/SavedDigShapeOverlay.js";
 import AllDigShapesOverlay from "../dig-polygon/AllDigShapesOverlay.js";
 import AllJobsMarkupsOverlay from "../drawing/AllJobsMarkupsOverlay.js";
 import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
-import { useShowCOs } from "./centralOfficesStore.js";
+import { setShowCOs, useShowCOs } from "./centralOfficesStore.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import JobsShownPill from "./JobsShownPill.js";
 // MapTypeToggle moved to LeftRail Filters tab (MapTypeFilterSection). MapTypeApplier still listens to the same broadcast.
@@ -46,6 +46,7 @@ import LuminaMapBridge from "../lumina/MapBridge.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 /** Phase D: code-split Print CAD overlay (~large) */
 const ZiplyPrintOverlay = lazy(() => import("./ZiplyPrintOverlay.js"));
+const PlanSheetExperiment = lazy(() => import("../ziply/PlanSheetExperiment.js"));
 import {
   isNorthMetroJob,
   isZiplyJob,
@@ -56,6 +57,7 @@ import {
   getZiplyPrintAnchor,
   hasZiplyPrintLayer,
   pickZiplyFocusJob,
+  isLakeStevensJob,
 } from "../ziply/ziplyUtils.js";
 
 const FOCUS_ZOOM = 17;
@@ -115,9 +117,12 @@ export default function JobsMap() {
     setFiltersJobs(allJobs);
   }, [allJobs, setFiltersJobs]);
   const [selected, setSelected] = useState<Job | null>(null);
+  /** Lake Stevens full-print experiment (SHARED PDF → isolated map). */
+  const [sheetExperiment, setSheetExperiment] = useState(false);
   // Ziply focus: North Metro default + clear selection when leaving Ziply
   useEffect(() => {
     setSelected(null);
+    setSheetExperiment(false);
     if (contract === "Ziply") {
       setFilters({
         ...filters,
@@ -148,9 +153,34 @@ export default function JobsMap() {
   // Ziply: do NOT apply Lumen status buckets (they default-hide Completed and
   // zero out the map). Use Ziply-only filters: North Metro, print docs, and
   // optional ziplyStatusGroups. Lumen path is unchanged.
+  /** Lake Stevens experiment focus WOs (SHARED design packages). */
+  const LS_EXPERIMENT_WOS = useMemo(
+    () => new Set(["6007959", "6007556", "6007956", "H3024", "H2043"]),
+    []
+  );
+  const isLakeStevensExperimentJob = useCallback(
+    (j: Job) => {
+      const wo = (j.workOrder || "").replace(/\D/g, "");
+      const hub = (j.hubNumber || j.ziplyPrintLayer?.hubId || "").toUpperCase();
+      if (LS_EXPERIMENT_WOS.has(wo) || LS_EXPERIMENT_WOS.has(hub)) return true;
+      return isLakeStevensJob(j);
+    },
+    [LS_EXPERIMENT_WOS]
+  );
+
   const filtered = useMemo(() => {
     if (contract !== "Ziply") {
       return applyFilters(allJobs, filters);
+    }
+    // Sheet experiment: ONLY Lake Stevens design job(s) — nothing else on the map
+    if (sheetExperiment) {
+      const ls = allJobs.filter(isLakeStevensExperimentJob);
+      // Prefer jobs with print layer / most plant detail
+      return ls.sort((a, b) => {
+        const ca = a.ziplyPrintLayer?.mapObjects?.cables?.length ?? 0;
+        const cb = b.ziplyPrintLayer?.mapObjects?.cables?.length ?? 0;
+        return cb - ca;
+      });
     }
     // Shared hide-unmapped / tracker flags only (empty buckets = no Lumen bucket filter)
     let list = applyFilters(allJobs, { ...filters, buckets: new Set() });
@@ -165,7 +195,7 @@ export default function JobsMap() {
       list = list.filter((j) => groups.has(ziplyStatusGroupForJob(j)));
     }
     return list;
-  }, [allJobs, filters, contract]);
+  }, [allJobs, filters, contract, sheetExperiment, isLakeStevensExperimentJob]);
   const mapped = useMemo(() => filtered.filter(
     (j) => j.geocode?.status === "OK" && j.geocode.lat !== 0
   ), [filtered]);
@@ -182,10 +212,13 @@ export default function JobsMap() {
   // consumes this list unconditionally on mount.
   // Must be plottable on the map (mapObjects + valid lat/lng anchor).
   // "Ingest complete" alone is not enough — many jobs store hub:{lat:null}.
-  const ziplyPrintReadyJobs = useMemo(
-    () => allJobs.filter((j) => isZiplyPrintMapReady(j)),
-    [allJobs]
-  );
+  const ziplyPrintReadyJobs = useMemo(() => {
+    const ready = allJobs.filter((j) => isZiplyPrintMapReady(j));
+    if (!sheetExperiment) return ready;
+    // Experiment: plant CAD for Lake Stevens focus job only
+    const ls = ready.filter(isLakeStevensExperimentJob);
+    return ls.length > 0 ? [ls[0]!] : ready.filter(isLakeStevensJob).slice(0, 1);
+  }, [allJobs, sheetExperiment, isLakeStevensExperimentJob]);
   // Jobs that claim ingest complete/mapObjects but cannot be placed (debug).
   const ziplyPrintOrphanCount = useMemo(() => {
     return allJobs.filter((j) => {
@@ -266,6 +299,7 @@ export default function JobsMap() {
         <JobsMapInner
           allJobs={allJobs}
           mapped={mapped}
+          filtered={filtered}
           ziplyPrintReadyJobs={ziplyPrintReadyJobs}
           ziplyPrintOrphanCount={ziplyPrintOrphanCount}
           unmapped={unmapped}
@@ -281,6 +315,9 @@ export default function JobsMap() {
           isManager={isManager}
           allSupervisors={allSupervisors}
           drawingOwner={drawingOwner}
+          sheetExperiment={sheetExperiment}
+          setSheetExperiment={setSheetExperiment}
+          isLakeStevensExperimentJob={isLakeStevensExperimentJob}
         />
         </DigPolygonProvider>
       </DrawingProvider>
@@ -292,6 +329,7 @@ export default function JobsMap() {
 function JobsMapInner({
   allJobs,
   mapped,
+  filtered,
   ziplyPrintReadyJobs,
   ziplyPrintOrphanCount,
   unmapped,
@@ -307,9 +345,13 @@ function JobsMapInner({
   isManager,
   allSupervisors,
   drawingOwner,
+  sheetExperiment,
+  setSheetExperiment,
+  isLakeStevensExperimentJob,
 }: {
   allJobs: Job[];
   mapped: Job[];
+  filtered: Job[];
   ziplyPrintReadyJobs: Job[];
   ziplyPrintOrphanCount: number;
   unmapped: number;
@@ -325,6 +367,9 @@ function JobsMapInner({
   isManager: boolean;
   allSupervisors: string[];
   drawingOwner: string;
+  sheetExperiment: boolean;
+  setSheetExperiment: React.Dispatch<React.SetStateAction<boolean>>;
+  isLakeStevensExperimentJob: (j: Job) => boolean;
 }) {
   const { contract } = useActiveContract();
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
@@ -531,8 +576,39 @@ function JobsMapInner({
               <ZiplyPrintMapBanner
                 readyCount={ziplyPrintReadyJobs.length}
                 orphanCount={ziplyPrintOrphanCount}
-                layerOn={ziplyPrintLayerVisible}
-                onToggleLayer={() => setZiplyPrintLayerVisible((v) => !v)}
+                layerOn={ziplyPrintLayerVisible && !sheetExperiment}
+                sheetExperiment={sheetExperiment}
+                onToggleExperiment={() => {
+                  setSheetExperiment((v) => {
+                    const next = !v;
+                    if (next) {
+                      // Lake Stevens isolation: plant CAD ON for LS only; 811/dig off
+                      setZiplyPrintLayerVisible(true);
+                      setZiply811OverlayVisible(false);
+                      setShowCOs(false);
+                      // Select best LS job
+                      const ls = allJobs
+                        .filter(isLakeStevensExperimentJob)
+                        .sort(
+                          (a, b) =>
+                            (b.ziplyPrintLayer?.mapObjects?.cables?.length ?? 0) -
+                            (a.ziplyPrintLayer?.mapObjects?.cables?.length ?? 0)
+                        );
+                      if (ls[0]) {
+                        setSelected(ls[0]);
+                        const a = getZiplyPrintAnchor(ls[0]);
+                        if (a && mapRef.current) {
+                          mapRef.current.panTo({ lat: a.lat, lng: a.lng });
+                          mapRef.current.setZoom(16);
+                        }
+                      }
+                    }
+                    return next;
+                  });
+                }}
+                onToggleLayer={() => {
+                  setZiplyPrintLayerVisible((v) => !v);
+                }}
                 onFitPrints={() => {
                   if (ziplyPrintReadyJobs.length === 0 || !mapRef.current) return;
                   const bounds = new google.maps.LatLngBounds();
@@ -580,11 +656,11 @@ function JobsMapInner({
               <MapHandle mapRef={mapRef} />
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
               <JobMarkers
-                jobs={mapped}
+                jobs={sheetExperiment ? mapped.slice(0, 1) : mapped}
                 onSelect={handleSelect}
-                allJobs={allJobs}
+                allJobs={sheetExperiment ? filtered : allJobs}
               />
-              {contract !== "Ziply" && (
+              {contract !== "Ziply" && !sheetExperiment && (
                 <AllJobsMarkupsOverlay
                   onMarkupClick={(jobId) => {
                     const j = allJobs.find((x) => x.jobId === jobId);
@@ -592,18 +668,26 @@ function JobsMapInner({
                   }}
                 />
               )}
-              <CentralOfficesOverlay visible={showCOs} />
+              <CentralOfficesOverlay visible={showCOs && !sheetExperiment} />
               <Suspense fallback={null}>
+                {/* Experiment: interactive plant CAD for Lake Stevens ONLY + sheet overlays */}
                 <ZiplyPrintOverlay
                   jobs={ziplyPrintReadyJobs}
-                  focusJobId={selected?.jobId ?? null}
+                  focusJobId={
+                    sheetExperiment
+                      ? ziplyPrintReadyJobs[0]?.jobId ?? selected?.jobId ?? null
+                      : selected?.jobId ?? null
+                  }
                   visible={contract === "Ziply" && ziplyPrintLayerVisible}
-                  show811Clearance={ziply811OverlayVisible}
+                  show811Clearance={ziply811OverlayVisible && !sheetExperiment}
                 />
+                {contract === "Ziply" && (
+                  <PlanSheetExperiment active={sheetExperiment} />
+                )}
               </Suspense>
-              {contract !== "Ziply" && <DrawingOverlay />}
-              <SavedDigShapeOverlay />
-              {filters.showDigPolygons !== false && (
+              {contract !== "Ziply" && !sheetExperiment && <DrawingOverlay />}
+              {!sheetExperiment && <SavedDigShapeOverlay />}
+              {!sheetExperiment && filters.showDigPolygons !== false && (
                 <>
                   <AllDigShapesOverlay jobs={mapped} activeJobId={selected?.jobId} />
                   <DigPolygonOverlay />
@@ -751,12 +835,16 @@ function ZiplyPrintMapBanner({
   readyCount,
   orphanCount,
   layerOn,
+  sheetExperiment,
+  onToggleExperiment,
   onToggleLayer,
   onFitPrints,
 }: {
   readyCount: number;
   orphanCount: number;
   layerOn: boolean;
+  sheetExperiment: boolean;
+  onToggleExperiment: () => void;
   onToggleLayer: () => void;
   onFitPrints: () => void;
 }) {
@@ -777,7 +865,7 @@ function ZiplyPrintMapBanner({
         fontFamily: "var(--font-mono, ui-monospace, Consolas, monospace)",
         boxShadow:
           "0 8px 22px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.85)",
-        maxWidth: "min(720px, calc(100% - 160px))",
+        maxWidth: "min(920px, calc(100% - 160px))",
       }}
     >
       <span
@@ -787,57 +875,83 @@ function ZiplyPrintMapBanner({
           letterSpacing: "0.12em",
         }}
       >
-        ✦ PRINT CAD
+        {sheetExperiment ? "✦ SHEET EXPERIMENT" : "✦ PRINT CAD"}
       </span>
       <span style={{ color: "#3a4654" }}>
-        {readyCount > 0
-          ? `${readyCount} live design${readyCount === 1 ? "" : "s"}`
-          : "No plottable prints yet"}
+        {sheetExperiment
+          ? "CAD noise off · plan pages as map overlays"
+          : readyCount > 0
+            ? `${readyCount} live design${readyCount === 1 ? "" : "s"}`
+            : "No plottable prints yet"}
       </span>
-      {orphanCount > 0 && (
+      {!sheetExperiment && orphanCount > 0 && (
         <span style={{ color: "#b45309" }} title="Ingest finished but no lat/lng for hub or job">
           · {orphanCount} need location
         </span>
       )}
       <button
         type="button"
-        onClick={onToggleLayer}
+        onClick={onToggleExperiment}
         style={{
-          background: layerOn
-            ? "linear-gradient(180deg, #e8f0ff 0%, #d0e0ff 100%)"
+          background: sheetExperiment
+            ? "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)"
             : "linear-gradient(180deg, #ffffff 0%, #e4e9f0 100%)",
-          border: "1px solid #1e5eff",
-          color: "#1d4ed8",
+          border: "1px solid #1d4ed8",
+          color: sheetExperiment ? "#fff" : "#1d4ed8",
           borderRadius: 6,
           padding: "4px 10px",
           fontSize: 10,
           fontWeight: 800,
           cursor: "pointer",
-          letterSpacing: "0.06em",
-        }}
-      >
-        {layerOn ? "LAYER ON" : "LAYER OFF"}
-      </button>
-      <button
-        type="button"
-        onClick={onFitPrints}
-        disabled={readyCount === 0}
-        style={{
-          background: readyCount
-            ? "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)"
-            : "linear-gradient(180deg, #e4e9f0 0%, #c5ccd6 100%)",
-          border: "1px solid #1d4ed8",
-          color: readyCount ? "#ffffff" : "#5b6776",
-          borderRadius: 6,
-          padding: "4px 12px",
-          fontSize: 10,
-          fontWeight: 800,
-          cursor: readyCount ? "pointer" : "not-allowed",
           letterSpacing: "0.04em",
         }}
+        title="Quiet mode: hide plant CAD; overlay Lake Stevens design PDF pages on the basemap"
       >
-        FLY TO PRINTS
+        {sheetExperiment ? "EXIT EXPERIMENT" : "SHEET EXPERIMENT"}
       </button>
+      {!sheetExperiment && (
+        <>
+          <button
+            type="button"
+            onClick={onToggleLayer}
+            style={{
+              background: layerOn
+                ? "linear-gradient(180deg, #e8f0ff 0%, #d0e0ff 100%)"
+                : "linear-gradient(180deg, #ffffff 0%, #e4e9f0 100%)",
+              border: "1px solid #1e5eff",
+              color: "#1d4ed8",
+              borderRadius: 6,
+              padding: "4px 10px",
+              fontSize: 10,
+              fontWeight: 800,
+              cursor: "pointer",
+              letterSpacing: "0.06em",
+            }}
+          >
+            {layerOn ? "LAYER ON" : "LAYER OFF"}
+          </button>
+          <button
+            type="button"
+            onClick={onFitPrints}
+            disabled={readyCount === 0}
+            style={{
+              background: readyCount
+                ? "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)"
+                : "linear-gradient(180deg, #e4e9f0 0%, #c5ccd6 100%)",
+              border: "1px solid #1d4ed8",
+              color: readyCount ? "#ffffff" : "#5b6776",
+              borderRadius: 6,
+              padding: "4px 12px",
+              fontSize: 10,
+              fontWeight: 800,
+              cursor: readyCount ? "pointer" : "not-allowed",
+              letterSpacing: "0.04em",
+            }}
+          >
+            FLY TO PRINTS
+          </button>
+        </>
+      )}
     </div>
   );
 }
