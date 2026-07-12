@@ -3,40 +3,65 @@
    Theme tokens live in theme.css. This file consumes them.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 :root {
-  /* Bebas Neue is the headline/UI face: all-caps by design, bold, modern.
-     Inter is the fallback for places where readability matters more than
-     style (long body text, multi-line notes, date/time inputs, etc.). */
-  font-family: 'Bebas Neue', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light;
-  letter-spacing: 0.04em;
-}
+  /* UI body = Inter (readable). Headlines/labels can use Space Grotesk.
+     Mono data = JetBrains Mono. Never use display-only faces for body copy. */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Space Grotesk", var(--font-sans);
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
 
-/* App-wide all-caps + bold for everything that uses the default face. */
-body {
-  font-family: 'Bebas Neue', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
+  /* Left rail / command panels — always high-contrast dark */
+  --rail-bg: #0c1017;
+  --rail-bg-elevated: #141b26;
+  --rail-border: rgba(148, 163, 184, 0.18);
+  --rail-text: #f1f5f9;
+  --rail-text-secondary: #cbd5e1;
+  --rail-text-muted: #94a3b8;
+  --rail-text-dim: #64748b;
+  --rail-accent: var(--accent, #1ea7ff);
+  --rail-accent-soft: rgba(30, 167, 255, 0.14);
 
-/* Inputs/textareas/selects keep readable Inter — Bebas Neue is a display
-   face and looks broken for typed user content. */
-input, textarea, select {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  text-transform: none;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  color-scheme: dark light;
   letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Notes body — user-typed prose, keep readable. */
-.job-card__notes-body, .job-card__notes textarea {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+body {
+  font-family: var(--font-sans);
   text-transform: none;
   font-weight: 500;
   letter-spacing: 0;
+  color: var(--text);
+}
+
+/* Compact UI chrome (tabs, pills, section labels) may still use tracking */
+.left-rail-tab,
+.filters-tab__heading,
+.sf-pill,
+.glow-text,
+.job-card__notes-label {
+  letter-spacing: 0.04em;
+}
+
+input, textarea, select {
+  font-family: var(--font-sans);
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* Notes body — user-typed prose */
+.job-card__notes-body, .job-card__notes textarea {
+  font-family: var(--font-sans);
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.45;
 }
 
 * { box-sizing: border-box; }
@@ -421,57 +446,95 @@ a { color: var(--accent); }
 
 .left-rail {
   flex-shrink: 0;
-  background: #ffffff;
-  border-right: 1.5px solid rgba(0,0,0,0.10);
-  box-shadow: 2px 0 12px rgba(0,0,0,0.10);
+  background: var(--rail-bg);
+  color: var(--rail-text);
+  border-right: 1px solid var(--rail-border);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
   height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: row;
-  font-size: 13px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
   position: relative;
   transition: width 180ms ease;
 }
 .left-rail__scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  /* White panel right of the blue tab strip. Tool tiles start at the very top. */
-  background: #ffffff;
-  padding: 10px 10px 12px;
+  background:
+    linear-gradient(180deg, rgba(20, 27, 38, 0.98) 0%, rgba(12, 16, 23, 0.99) 100%);
+  color: var(--rail-text);
+  padding: 12px 12px 16px;
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+.left-rail__scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.left-rail__scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
+/* Everything in the rail body inherits high-contrast text by default */
+.left-rail__scroll,
+.left-rail__scroll p,
+.left-rail__scroll span,
+.left-rail__scroll label,
+.left-rail__scroll li,
+.left-rail__scroll strong,
+.left-rail__scroll small,
+.left-rail__scroll h1,
+.left-rail__scroll h2,
+.left-rail__scroll h3,
+.left-rail__scroll h4 {
+  color: inherit;
+}
+.left-rail__scroll h1,
+.left-rail__scroll h2,
+.left-rail__scroll h3,
+.left-rail__scroll h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--rail-text);
 }
 
 /* Section wrappers */
 .rail-section { margin-bottom: 8px; }
 .rail-section__divider {
-  height: 1.5px;
-  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rail-border), transparent);
   margin: 10px 0;
 }
 
-/* ── Vertical Tab Strip in Left Rail — AsBuilt-style ───────── */
-/* Mirrors the AsBuilt app's #tab-strip + .tab-btn: 44px solid blue strip on
-   the left edge, with sideways-rotated uppercase labels. Active tab gets a
-   white background with blue text. */
+/* ── Vertical Tab Strip in Left Rail ───────────────────────── */
 .left-rail-tabstrip {
-  width: 44px;
+  width: 46px;
   flex-shrink: 0;
-  background: #0052cc;
+  background: linear-gradient(180deg, #0a3d91 0%, #062a66 55%, #041e4a 100%);
   display: flex;
   flex-direction: column;
-  padding-top: 8px;
+  padding-top: 10px;
   gap: 2px;
-  border-right: 1px solid rgba(0,0,0,0.15);
+  border-right: 1px solid rgba(0, 0, 0, 0.35);
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.contract-ziply .left-rail-tabstrip {
+  background: linear-gradient(180deg, #064e3b 0%, #022c22 55%, #011a14 100%);
 }
 
 .left-rail-tabstrip::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  display: none;
 }
 
 .left-rail-tab {
@@ -481,28 +544,31 @@ a { color: var(--accent); }
   padding: 16px 6px;
   border: none;
   background: transparent;
-  color: rgba(255,255,255,0.78);
-  /* Inter (loaded app-wide) instead of Bebas Neue — the condensed all-caps
-     display face is hard to read rotated 90° at this small rail size. Inter
-     at 600+ weight with added tracking reads cleanly when sideways. */
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 13px;
+  color: rgba(255, 255, 255, 0.82);
+  font-family: var(--font-display);
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   cursor: pointer;
   text-transform: uppercase;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
   white-space: nowrap;
 }
 
 .left-rail-tab:hover {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.12);
   color: #fff;
 }
 
 .left-rail-tab.active {
-  background: #ffffff;
-  color: #0052cc;
+  background: var(--rail-bg-elevated);
+  color: #3b9eff;
+  box-shadow: inset 0 0 0 1px rgba(59, 158, 255, 0.35);
+}
+
+.contract-ziply .left-rail-tab.active {
+  color: #00e676;
+  box-shadow: inset 0 0 0 1px rgba(0, 230, 118, 0.4);
 }
 
 /* Layer rows */
@@ -552,18 +618,19 @@ a { color: var(--accent); }
   align-items: center;
   gap: 6px;
   margin: 6px 0 2px;
+  font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 1.2px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--rail-text-muted);
 }
 .telecom-divider::before,
 .telecom-divider::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--chrome-dark), transparent);
+  background: linear-gradient(90deg, transparent, var(--rail-border), transparent);
 }
 
 .tool-tile {
@@ -573,18 +640,25 @@ a { color: var(--accent); }
   justify-content: center;
   gap: 2px;
   padding: 5px 2px 4px;
-  border-radius: 6px;
-  border: 1px solid var(--chrome-dark);
-  background: linear-gradient(160deg, var(--chrome-light) 0%, var(--surface) 60%, #E0E6EE 100%);
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: linear-gradient(160deg, #1e293b 0%, #151c2a 55%, #0f1520 100%);
   cursor: pointer;
-  transition: box-shadow 120ms ease, border-color 120ms ease, background 120ms ease;
+  transition: box-shadow 120ms ease, border-color 120ms ease, background 120ms ease, color 120ms ease;
   min-height: 48px;
   min-width: 0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.10), inset 0 1px 1px rgba(255,255,255,0.8);
-  color: var(--text);
-  font: inherit;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--rail-text-secondary);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
   position: relative;
   overflow: hidden;
+}
+.tool-tile:hover:not(:disabled) {
+  border-color: rgba(59, 158, 255, 0.45);
+  color: #fff;
+  background: linear-gradient(160deg, #243247 0%, #1a2436 55%, #121a28 100%);
 }
 
 /* Blue neon glow behind the button */
@@ -646,16 +720,20 @@ a { color: var(--accent); }
 }
 
 .tool-tile__label {
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--rail-text-muted);
   text-align: center;
-  line-height: 1.1;
+  line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
   width: 100%;
+}
+.tool-tile:hover:not(:disabled) .tool-tile__label,
+.tool-tile--active .tool-tile__label {
+  color: #fff;
 }
 
 /* Legacy tool buttons (kept for fallback) */
@@ -667,12 +745,14 @@ a { color: var(--accent); }
 }
 .tool-row--utilities { margin-bottom: 10px; }
 .tool-btn {
-  background: var(--surface);
-  border: 1.5px solid var(--border);
+  background: linear-gradient(160deg, #1e293b 0%, #151c2a 100%);
+  border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 6px;
   padding: 6px 9px;
-  color: var(--text);
-  font-size: 13px;
+  color: var(--rail-text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1.1;
   cursor: pointer;
   min-width: 32px;
@@ -682,9 +762,9 @@ a { color: var(--accent); }
   justify-content: center;
 }
 .tool-btn:hover:not(:disabled) {
-  background: var(--chrome-light);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: linear-gradient(160deg, #243247 0%, #1a2436 100%);
+  border-color: var(--rail-accent);
+  color: #fff;
 }
 .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .tool-btn--text { font-size: 12px; padding: 6px 10px; }
@@ -716,30 +796,44 @@ a { color: var(--accent); }
 .filter-rail {
   background: transparent;
   font-size: 13px;
+  color: var(--rail-text);
 }
 .filter-rail__header {
   display: flex; justify-content: space-between; align-items: center;
-  padding-bottom: 8px; border-bottom: 1.5px solid var(--border);
+  padding-bottom: 8px; border-bottom: 1px solid var(--rail-border);
   margin-bottom: 10px;
-  color: var(--text);
-  font-weight: 600;
+  color: var(--rail-text);
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 .filter-rail__count {
-  font-size: 11px; color: var(--text-muted);
-  background: var(--chrome-light); padding: 2px 8px; border-radius: 999px;
-  border: 1px solid var(--border);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--rail-text-secondary);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--rail-border);
 }
 .filter-section { margin-bottom: 14px; }
 .filter-section__title {
-  font-size: 10px; color: var(--text-muted);
-  letter-spacing: 0.8px; text-transform: uppercase;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--rail-text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   margin-bottom: 6px;
 }
 .filter-section__body { display: flex; flex-direction: column; gap: 4px; }
 .check {
   display: flex; align-items: center; gap: 8px;
-  font-size: 12px; color: var(--text);
+  font-size: 12px; color: var(--rail-text-secondary);
   cursor: pointer; padding: 3px 0;
+}
+.left-rail .check:hover { color: var(--rail-text); }
+.left-rail .link {
+  color: var(--rail-accent);
+  font-weight: 600;
 }
 .check input { accent-color: var(--accent); }
 .link {
@@ -1374,25 +1468,28 @@ a { color: var(--accent); }
 
 /* ── Rail section headers removed (Phase 4) ─────────────────── */
 .rail-h4 {
-  font-size: 10px;
-  letter-spacing: 0.9px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--rail-text-secondary);
   margin: 10px 0 5px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.rail-h4--muted { color: var(--text-muted); }
+.rail-h4--muted { color: var(--rail-text-muted); }
 .rail-phase {
   font-size: 9px;
-  color: var(--text-muted);
-  background: var(--chrome-light);
+  font-family: var(--font-mono);
+  color: var(--rail-text-muted);
+  background: rgba(255, 255, 255, 0.06);
   padding: 1px 6px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--rail-border);
   text-transform: none;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.02em;
 }
 
 /* ── Draw-target bar (now in topbar as badge) ─────────────────  */
@@ -2201,13 +2298,14 @@ a { color: var(--accent); }
 }
 .job-context-strip__wo { color: var(--accent-blue); }
 
-/* ── Left rail: steel panel + rivets at corners ─────────── */
+/* ── Left rail: dark command panel (high-contrast text) ─── */
 .left-rail {
-  background: #ffffff;
+  background: var(--rail-bg);
+  color: var(--rail-text);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  border-right: 1px solid rgba(0,0,0,0.10);
-  box-shadow: 2px 0 12px rgba(0,0,0,0.10);
+  border-right: 1px solid var(--rail-border);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
 }
 .left-rail::before,
 .left-rail::after { display: none; }
@@ -2778,13 +2876,11 @@ input:focus, textarea:focus, select:focus {
     0 3px 10px rgba(0,0,0,0.18);
 }
 
-/* Polished left rail / layers / job-context strip:
-   remove the harsh inset dark edges. */
+/* Polished left rail / layers / job-context strip */
 .left-rail {
   box-shadow:
-    inset 1px 0 0 rgba(255,255,255,0.55),
-    inset -1px 0 0 rgba(0,0,0,0.12),
-    2px 0 10px rgba(0,0,0,0.14);
+    inset -1px 0 0 rgba(255, 255, 255, 0.04),
+    4px 0 24px rgba(0, 0, 0, 0.4);
 }
 .layers-panel,
 .layers-panel--collapsed {
@@ -3099,6 +3195,7 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  color: var(--rail-text);
 }
 
 .filters-tab__group {
@@ -3108,13 +3205,25 @@ input:focus, textarea:focus, select:focus {
 }
 
 .filters-tab__heading {
-  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: #1565C0;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--rail-accent);
   text-transform: uppercase;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
+}
+
+.filters-tab .check,
+.filters-tab label {
+  color: var(--rail-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.filters-tab .link {
+  color: var(--rail-accent);
+  font-weight: 600;
 }
 
 /* In the filters tab, pills wrap vertically inside the narrow rail. */

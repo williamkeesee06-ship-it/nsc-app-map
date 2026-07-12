@@ -411,5 +411,20 @@ button:hover,
   --accent-hover: #00b248;
   --primary: #00E676;
   --primary-hover: #00b248;
+  --rail-accent: #00E676;
+  --rail-accent-soft: rgba(0, 230, 118, 0.16);
+}
+
+/* Ziply active tool tiles use green neon */
+.contract-ziply .tool-tile--active {
+  border-color: #00e676 !important;
+  background: linear-gradient(160deg, #0a2e22 0%, #062018 60%, #041510 100%) !important;
+}
+.contract-ziply .tool-tile--active .tool-tile__icon,
+.contract-ziply .tool-tile--active .tool-tile__label {
+  color: #00e676 !important;
+}
+.contract-ziply .tool-tile--active .tool-tile__icon svg {
+  stroke: #00e676 !important;
 }
 
