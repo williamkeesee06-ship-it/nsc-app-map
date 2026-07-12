@@ -8,6 +8,10 @@ import {
   buildAddressString,
   cityCenterFallback,
 } from "../lib/geocode.js";
+import {
+  routeAlongRoads,
+  buildSyntheticRowPath,
+} from "../lib/directions.js";
 import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
@@ -1167,24 +1171,41 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     return terminals[fallbackIdx % Math.max(terminals.length, 1)] ?? null;
   };
 
-  // Cables — build multi-point paths via route streets + terminal
+  // Cables — prefer Google Directions (real streets), never keep 2-point sticks
   let cablesPathed = 0;
   let waypointsGeocoded = 0;
+  let roadsRouted = 0;
   const cables: ZiplyCable[] = [];
-  for (let i = 0; i < (mo.cables ?? []).length; i++) {
-    const c = mo.cables![i]!;
-    const term = findTerm(c.toTerminal ?? c.label, i);
-    const termPos =
-      term && isValidLatLng(term.lat, term.lng)
-        ? { lat: term.lat as number, lng: term.lng as number }
-        : null;
 
+  const buildDetailedPath = async (
+    termPos: { lat: number; lng: number },
+    index: number,
+    footageFt: number | null | undefined,
+    routeStreets: string[] | null | undefined,
+    existingPath: Array<{ lat: number; lng: number }> | null | undefined
+  ): Promise<Array<{ lat: number; lng: number }>> => {
+    // Keep only rich paths (Directions / multi-vertex). 2-point = stick → rebuild.
+    if (existingPath && existingPath.length >= 5) {
+      const cleaned = existingPath.filter((p) => isValidLatLng(p.lat, p.lng)) as Array<{
+        lat: number;
+        lng: number;
+      }>;
+      if (cleaned.length >= 5) return cleaned;
+    }
+
+    // 1) Real road network via Directions API
+    const road = await routeAlongRoads(hubCoords, termPos, { mode: "walking" });
+    if (road && road.length >= 3) {
+      roadsRouted++;
+      return road;
+    }
+
+    // 2) Geocode named route streets as intermediate waypoints
     const wps: Array<{ lat: number; lng: number }> = [];
-    for (const street of c.routeStreets ?? []) {
-      // Geocode street mid-span near job city
+    for (const street of routeStreets ?? []) {
       const cands = [
-        `${street} & ${(term?.addressesServed?.[0] ?? job.address ?? "").split(" ").slice(-1)[0] || "Main"}, ${city || "WA"}`,
-        `${street}, ${city || ""}, WA`,
+        `${street}, ${city || "WA"}, WA`,
+        `${street} & Main St, ${city || "WA"}, WA`,
       ];
       for (const cand of cands) {
         const g = await geocodeOne(cand);
@@ -1195,38 +1216,51 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
         }
       }
     }
-
-    let path: Array<{ lat: number; lng: number }> | null = null;
-    if (c.path && c.path.length >= 2) {
-      path = c.path.filter((p) => isValidLatLng(p.lat, p.lng)) as Array<{
-        lat: number;
-        lng: number;
-      }>;
-      if (path.length < 2) path = null;
+    if (wps.length > 0) {
+      // Route hub→each street→terminal when possible
+      const chain: Array<{ lat: number; lng: number }> = [hubCoords];
+      let prev = hubCoords;
+      for (const wp of wps) {
+        const leg = await routeAlongRoads(prev, wp, { mode: "walking" });
+        if (leg && leg.length >= 2) {
+          chain.push(...leg.slice(1));
+          roadsRouted++;
+        } else {
+          chain.push(wp);
+        }
+        prev = wp;
+      }
+      const lastLeg = await routeAlongRoads(prev, termPos, { mode: "walking" });
+      if (lastLeg && lastLeg.length >= 2) {
+        chain.push(...lastLeg.slice(1));
+        roadsRouted++;
+      } else {
+        chain.push(termPos);
+      }
+      if (chain.length >= 3) return chain;
     }
 
-    if (!path && termPos) {
-      // Street-grid path hub → waypoints → terminal
-      const mPerLat = 111320;
-      const mPerLng = mPerLat * Math.cos((hubCoords.lat * Math.PI) / 180);
-      const side = i % 2 === 0 ? 1 : -1;
-      const dx = termPos.lng - hubCoords.lng;
-      const dy = termPos.lat - hubCoords.lat;
-      const eastFirst = Math.abs(dx) >= Math.abs(dy);
-      const p1 = eastFirst
-        ? { lat: hubCoords.lat, lng: hubCoords.lng + dx * 0.4 }
-        : { lat: hubCoords.lat + dy * 0.4, lng: hubCoords.lng };
-      const jogM = 20 + (i % 5) * 10;
-      const p2 = {
-        lat: p1.lat + (eastFirst ? (side * jogM) / mPerLat : 0),
-        lng: p1.lng + (eastFirst ? 0 : (side * jogM) / mPerLng),
-      };
-      const p3 = eastFirst
-        ? { lat: termPos.lat, lng: p2.lng }
-        : { lat: p2.lat, lng: termPos.lng };
-      path = [hubCoords, p1, ...wps, p2, p3, termPos];
-      cablesPathed++;
-    } else if (path) {
+    // 3) Multi-jog synthetic ROW (never a single straight line)
+    return buildSyntheticRowPath(hubCoords, termPos, index, footageFt);
+  };
+
+  for (let i = 0; i < (mo.cables ?? []).length; i++) {
+    const c = mo.cables![i]!;
+    const term = findTerm(c.toTerminal ?? c.label, i);
+    const termPos =
+      term && isValidLatLng(term.lat, term.lng)
+        ? { lat: term.lat as number, lng: term.lng as number }
+        : null;
+
+    let path: Array<{ lat: number; lng: number }> | null = null;
+    if (termPos) {
+      path = await buildDetailedPath(
+        termPos,
+        i,
+        c.lengthFt ?? term?.footageFt,
+        c.routeStreets,
+        c.path
+      );
       cablesPathed++;
     }
 
@@ -1237,34 +1271,18 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     });
   }
 
-  // If print had no cable list, synthesize laterals to each terminal
+  // If print had no cable list, synthesize a lateral to each terminal
   if (cables.length === 0 && terminals.length > 0) {
     for (let i = 0; i < terminals.length; i++) {
       const t = terminals[i]!;
       if (!isValidLatLng(t.lat, t.lng)) continue;
       const termPos = { lat: t.lat as number, lng: t.lng as number };
-      const mPerLat = 111320;
-      const mPerLng = mPerLat * Math.cos((hubCoords.lat * Math.PI) / 180);
-      const side = i % 2 === 0 ? 1 : -1;
-      const dx = termPos.lng - hubCoords.lng;
-      const dy = termPos.lat - hubCoords.lat;
-      const eastFirst = Math.abs(dx) >= Math.abs(dy);
-      const p1 = eastFirst
-        ? { lat: hubCoords.lat, lng: hubCoords.lng + dx * 0.45 }
-        : { lat: hubCoords.lat + dy * 0.45, lng: hubCoords.lng };
-      const jogM = 25;
-      const p2 = {
-        lat: p1.lat + (eastFirst ? (side * jogM) / mPerLat : 0),
-        lng: p1.lng + (eastFirst ? 0 : (side * jogM) / mPerLng),
-      };
-      const p3 = eastFirst
-        ? { lat: termPos.lat, lng: p2.lng }
-        : { lat: p2.lat, lng: termPos.lng };
+      const path = await buildDetailedPath(termPos, i, t.footageFt, null, null);
       cables.push({
         label: t.label,
         fiberCount: t.fiberSpec || "",
         lengthFt: t.footageFt ?? null,
-        path: [hubCoords, p1, p2, p3, termPos],
+        path,
         buildType: null,
         toTerminal: t.label,
         status: "planned" as ZiplyObjectStatus,
@@ -1272,6 +1290,11 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
       cablesPathed++;
     }
   }
+
+  // Log routing quality for ops debugging
+  console.info(
+    `[ziply-enhance] job=${jobId} cablesPathed=${cablesPathed} roadsRouted=${roadsRouted} waypoints=${waypointsGeocoded}`
+  );
 
   // Drop / home-pass sites from every served address (lot-level print detail)
   const dropSites: Array<{

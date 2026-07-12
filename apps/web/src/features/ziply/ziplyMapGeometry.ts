@@ -1,5 +1,6 @@
 // Geometry helpers for high-detail Ziply print CAD on Google Maps.
-// Priority: stored georeferenced path → street waypoints → street-like multi-jog path.
+// Priority: stored multi-point road path → street waypoints → multi-jog ROW path.
+// NEVER draw a single straight hub→terminal stick.
 
 export type LatLng = { lat: number; lng: number };
 
@@ -59,79 +60,143 @@ export function placeTerminalAroundHub(
   if (isValidLatLng(existing)) return existing;
   const n = Math.max(total, 1);
   const angle = (index * 2 * Math.PI) / n - Math.PI / 2 + 0.15;
-  // 1 ft ≈ 0.3048 m — scale plant so ~500–2500' laterals are readable at z16–18
   const ft = footageFt != null && footageFt > 0 ? footageFt : 500 + (index % 7) * 120;
-  const meters = Math.min(380, Math.max(55, ft * 0.085));
+  // ~0.25 m per ft visual scale, capped so plant stays readable
+  const meters = Math.min(520, Math.max(70, ft * 0.22));
   const dLat = (meters * Math.sin(angle)) / M_PER_DEG_LAT;
   const dLng = (meters * Math.cos(angle)) / mPerDegLng(hub.lat);
   return { lat: hub.lat + dLat, lng: hub.lng + dLng };
 }
 
 /**
- * Street-grid path: run along E/W then N/S with intermediate jogs so laterals
- * look like ROW/street following, not a single stick or one soft curve.
+ * Multi-jog ROW path: several E/W and N/S segments so laterals read as
+ * street-following plant, never a single stick.
  */
 export function buildStreetGridPath(
   hub: LatLng,
   terminal: LatLng,
   index: number,
-  waypoints?: LatLng[] | null
+  waypoints?: LatLng[] | null,
+  footageFt?: number | null
 ): LatLng[] {
   if (waypoints && waypoints.length > 0) {
     const chain = [hub, ...waypoints.filter(isValidLatLng), terminal];
-    return densifyPath(chain, 4);
+    return densifyPath(chain, 5);
   }
 
   const side = index % 2 === 0 ? 1 : -1;
   const dx = terminal.lng - hub.lng;
   const dy = terminal.lat - hub.lat;
-  // Prefer longer axis first (more like arterial then local)
   const eastFirst = Math.abs(dx) >= Math.abs(dy);
+  const ft = footageFt != null && footageFt > 0 ? footageFt : 900;
+  const jogs = Math.min(7, Math.max(3, Math.round(ft / 320)));
 
-  const p1: LatLng = eastFirst
-    ? { lat: hub.lat, lng: hub.lng + dx * 0.42 }
-    : { lat: hub.lat + dy * 0.42, lng: hub.lng };
+  const pts: LatLng[] = [hub];
+  let cur: LatLng = { ...hub };
 
-  // Jog off the axis so parallel cables separate
-  const jogM = 18 + (index % 4) * 8;
-  const jogLat = (side * jogM) / M_PER_DEG_LAT;
-  const jogLng = (side * jogM) / mPerDegLng(hub.lat);
+  for (let j = 1; j <= jogs; j++) {
+    const t = j / (jogs + 1);
+    const alongLat = hub.lat + dy * t;
+    const alongLng = hub.lng + dx * t;
+    const jogM = (14 + (index % 5) * 7) * side * (j % 2 === 0 ? 1 : -0.55);
+    const jogLat = jogM / M_PER_DEG_LAT;
+    const jogLng = jogM / mPerDegLng(hub.lat);
 
-  const p2: LatLng = {
-    lat: p1.lat + (eastFirst ? jogLat : 0),
-    lng: p1.lng + (eastFirst ? 0 : jogLng),
-  };
+    if (eastFirst) {
+      const mid: LatLng = {
+        lat: cur.lat,
+        lng: alongLng + (j % 2 === 0 ? 0 : jogLng * 0.4),
+      };
+      pts.push(mid);
+      cur = {
+        lat: alongLat + (j % 2 === 1 ? jogLat : 0),
+        lng: mid.lng,
+      };
+      pts.push(cur);
+    } else {
+      const mid: LatLng = {
+        lat: alongLat + (j % 2 === 0 ? 0 : jogLat * 0.4),
+        lng: cur.lng,
+      };
+      pts.push(mid);
+      cur = {
+        lat: mid.lat,
+        lng: alongLng + (j % 2 === 1 ? jogLng : 0),
+      };
+      pts.push(cur);
+    }
+  }
 
-  const p3: LatLng = eastFirst
-    ? { lat: terminal.lat, lng: p2.lng }
-    : { lat: p2.lat, lng: terminal.lng };
+  // Final corner into terminal
+  if (eastFirst) {
+    pts.push({ lat: cur.lat, lng: terminal.lng });
+  } else {
+    pts.push({ lat: terminal.lat, lng: cur.lng });
+  }
+  pts.push(terminal);
 
-  // Soft corner fillets via densify
-  return densifyPath([hub, p1, p2, p3, terminal], 6);
+  // Deduplicate
+  const clean: LatLng[] = [];
+  for (const p of pts) {
+    const last = clean[clean.length - 1];
+    if (
+      !last ||
+      Math.abs(last.lat - p.lat) > 1e-8 ||
+      Math.abs(last.lng - p.lng) > 1e-8
+    ) {
+      clean.push(p);
+    }
+  }
+  return densifyPath(clean, 4);
 }
 
 /**
  * Build cable polyline for map.
- * 1) Real stored path  2) waypoints  3) street-grid synthetic
+ * 1) Stored multi-point path (roads / enhance) — needs ≥3 vertices
+ * 2) Street-grid multi-jog synthetic (never 2-point stick)
  */
 export function buildCablePath(
   hub: LatLng,
   terminal: LatLng,
   index: number,
   realPath?: Array<{ lat: number; lng: number }> | null,
-  waypoints?: LatLng[] | null
+  waypoints?: LatLng[] | null,
+  footageFt?: number | null
 ): LatLng[] {
-  if (realPath && realPath.length >= 2) {
+  if (realPath && realPath.length >= 3) {
     const cleaned = realPath.filter((p) => isValidLatLng(p));
-    if (cleaned.length >= 2) return densifyPath(cleaned, 3);
+    // 2-point "paths" are still sticks — rebuild. 3+ verts = real detail.
+    if (cleaned.length >= 3) {
+      // If path is almost collinear (old stick densified), rebuild
+      if (cleaned.length >= 4 || pathHasTurns(cleaned)) {
+        return densifyPath(cleaned, cleaned.length >= 8 ? 2 : 4);
+      }
+    }
   }
-  return buildStreetGridPath(hub, terminal, index, waypoints);
+  return buildStreetGridPath(hub, terminal, index, waypoints, footageFt);
+}
+
+/** True if path has at least one meaningful corner (not a straight stick). */
+function pathHasTurns(path: LatLng[]): boolean {
+  if (path.length < 3) return false;
+  let turnCount = 0;
+  for (let i = 1; i < path.length - 1; i++) {
+    const a = path[i - 1]!;
+    const b = path[i]!;
+    const c = path[i + 1]!;
+    const abx = b.lng - a.lng;
+    const aby = b.lat - a.lat;
+    const bcx = c.lng - b.lng;
+    const bcy = c.lat - b.lat;
+    const cross = Math.abs(abx * bcy - aby * bcx);
+    if (cross > 1e-12) turnCount++;
+  }
+  return turnCount >= 1;
 }
 
 export function pathMidpoint(path: LatLng[]): LatLng {
   if (path.length === 0) return { lat: 0, lng: 0 };
   if (path.length === 1) return path[0]!;
-  // Distance-weighted mid
   let total = 0;
   const segs: number[] = [];
   for (let i = 0; i < path.length - 1; i++) {

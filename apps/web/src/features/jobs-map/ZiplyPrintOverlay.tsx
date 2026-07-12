@@ -582,7 +582,9 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                     hubPos,
                     termPos ?? hubPos,
                     idx,
-                    c.path && c.path.length >= 2 ? c.path : null
+                    c.path && c.path.length >= 3 ? c.path : null,
+                    null,
+                    c.lengthFt
                   );
                   const labelParts = [
                     c.label,
@@ -611,7 +613,14 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
               : terminals.map((t, idx) => {
                   const st = statusOf(job.jobId, "terminal", t.label, t.status);
                   const cleared = locateCleared(job, "terminal", t.label, t.locateExpires ?? null);
-                  const path = buildCablePath(hubPos, termPositions[idx]!, idx, null);
+                  const path = buildCablePath(
+                    hubPos,
+                    termPositions[idx]!,
+                    idx,
+                    null,
+                    null,
+                    t.footageFt
+                  );
                   return (
                     <CadFiberLine
                       key={`${job.jobId}-spoke-${idx}`}
