@@ -185,8 +185,10 @@ export default function PlanSheetExperiment({ active }: Props) {
   };
 
   const reg: PageReg = key
-    ? (regs[key] ?? { bounds: seed, opacity: 0.55, visible: true })
-    : { bounds: seed, opacity: 0.55, visible: true };
+    // Default OFF so platform GeoJSON twin is the primary view;
+    // user can enable a page underlay when needed.
+    ? (regs[key] ?? { bounds: seed, opacity: 0.45, visible: false })
+    : { bounds: seed, opacity: 0.45, visible: false };
 
   const updateReg = useCallback(
     (patch: Partial<PageReg>) => {
@@ -194,8 +196,8 @@ export default function PlanSheetExperiment({ active }: Props) {
       setRegs((prev) => {
         const base = prev[key] ?? {
           bounds: seed,
-          opacity: 0.55,
-          visible: true,
+          opacity: 0.45,
+          visible: false,
         };
         const next = { ...prev, [key]: { ...base, ...patch } };
         saveRegs(next);

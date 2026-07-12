@@ -7,12 +7,12 @@
   ],
   "seedBounds": {
     "sw": {
-      "lat": 47.915433862197,
-      "lng": -122.149611163321
+      "lat": 47.918206943691146,
+      "lng": -122.1605904228525
     },
     "ne": {
-      "lat": 47.950213050583,
-      "lng": -122.123369168913
+      "lat": 47.95056424260217,
+      "lng": -122.123275613941
     }
   },
   "packages": [
@@ -793,17 +793,30 @@
   ],
   "digitalTwin": {
     "plantJson": "/experiments/lake-stevens/h3024/plant.json",
-    "geojson": "/experiments/lake-stevens/h3024/plant.geojson",
+    "geojson": "/experiments/lake-stevens/h3024/platform.geojson",
+    "platformGeojson": "/experiments/lake-stevens/h3024/platform.geojson",
     "workOrder": "6007959",
     "hubId": "H3024",
     "stats": {
-      "terminals": 206,
-      "terminalsLocated": 170,
-      "cables": 379,
-      "drops": 229,
-      "backbonePts": 161,
-      "addressesGeocoded": 229,
-      "addressesTried": 265
+      "terminals": 109,
+      "terminalsLocated": 109,
+      "services": 239,
+      "cables": 638,
+      "drops": 209,
+      "features": 1064,
+      "addressesGeocoded": 239,
+      "addressesTried": 239,
+      "layers": {
+        "hub": 1,
+        "feeder": 30,
+        "distribution": 375,
+        "bore": 24,
+        "terminal": 109,
+        "service_point": 239,
+        "drop": 209,
+        "pole": 38,
+        "handhole": 39
+      }
     }
   }
 }

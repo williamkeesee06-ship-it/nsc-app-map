@@ -47,8 +47,8 @@ import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 /** Phase D: code-split Print CAD overlay (~large) */
 const ZiplyPrintOverlay = lazy(() => import("./ZiplyPrintOverlay.js"));
 const PlanSheetExperiment = lazy(() => import("../ziply/PlanSheetExperiment.js"));
-const LakeStevensDigitalTwin = lazy(
-  () => import("../ziply/LakeStevensDigitalTwin.js")
+const DesignPrintMapOverlay = lazy(
+  () => import("../ziply/DesignPrintMapOverlay.js")
 );
 import {
   isNorthMetroJob,
@@ -679,7 +679,9 @@ function JobsMapInner({
                 {/* Experiment: digital twin from full 65-page PDF + sheet underlay */}
                 {sheetExperiment ? (
                   <>
-                    <LakeStevensDigitalTwin active />
+                    {/* Primary: print-faithful multi-layer platform GeoJSON */}
+                    <DesignPrintMapOverlay active />
+                    {/* Optional plan-page raster underlay (toggle inside panel) */}
                     <PlanSheetExperiment active />
                   </>
                 ) : (
