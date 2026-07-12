@@ -319,7 +319,6 @@ export function buildConstructionSequence(job: Job): Array<{
 }> {
   const mo = job.ziplyPrintLayer?.mapObjects;
   if (!mo) return [];
-  const hub = mo.hub;
   const out: Array<{
     kind: "hub" | "cable" | "terminal";
     ref: string;
@@ -331,13 +330,15 @@ export function buildConstructionSequence(job: Job): Array<{
     ref: "hub",
     label: job.ziplyPrintLayer?.hubId || "FDH",
   });
-  const cables = [...(mo.cables ?? [])];
-  const feeders = cables.filter((c) => c.role === "feeder");
-  const mains = cables.filter((c) => c.role === "mainline");
-  const laterals = cables
-    .filter((c) => c.role !== "feeder" && c.role !== "mainline")
-    .sort((a, b) => (a.sequenceOrder ?? 999) - (b.sequenceOrder ?? 999));
-  for (const c of [...feeders, ...mains, ...laterals]) {
+  // Single sort by role priority then sequence — avoid 3 filter passes
+  const roleRank = (r: string | null | undefined) =>
+    r === "feeder" ? 0 : r === "mainline" ? 1 : 2;
+  const cables = [...(mo.cables ?? [])].sort((a, b) => {
+    const rr = roleRank(a.role) - roleRank(b.role);
+    if (rr !== 0) return rr;
+    return (a.sequenceOrder ?? 999) - (b.sequenceOrder ?? 999);
+  });
+  for (const c of cables) {
     out.push({
       kind: "cable",
       ref: c.label,
@@ -351,7 +352,6 @@ export function buildConstructionSequence(job: Job): Array<{
   for (const t of terms) {
     out.push({ kind: "terminal", ref: t.label, label: t.label });
   }
-  void hub;
   return out;
 }
 

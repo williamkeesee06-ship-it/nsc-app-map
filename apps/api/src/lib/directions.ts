@@ -1,5 +1,5 @@
-// Google Directions helpers — turn hub→terminal into road-following polylines
-// so Ziply print CAD is not straight sticks.
+// Google Directions — road-following polylines for Ziply plant CAD.
+// Plant layout lives in ziplyPlantEngine.ts (single source of truth).
 
 import { getEnv } from "../config/env.js";
 
@@ -11,7 +11,7 @@ function getApiKey(): string | null {
 }
 
 /** Decode Google encoded polyline into lat/lng points. */
-export function decodePolyline(encoded: string): LatLng[] {
+function decodePolyline(encoded: string): LatLng[] {
   const points: LatLng[] = [];
   let index = 0;
   let lat = 0;
@@ -45,9 +45,28 @@ export function decodePolyline(encoded: string): LatLng[] {
   return points;
 }
 
+/** Drop near-duplicate points (min meters between kept vertices). */
+function simplifyPath(points: LatLng[], minMeters: number): LatLng[] {
+  if (points.length < 3) return points;
+  const out: LatLng[] = [points[0]!];
+  const mPerLat = 111_320;
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = out[out.length - 1]!;
+    const p = points[i]!;
+    const mPerLng = mPerLat * Math.cos((p.lat * Math.PI) / 180);
+    const d = Math.hypot(
+      (p.lat - prev.lat) * mPerLat,
+      (p.lng - prev.lng) * mPerLng
+    );
+    if (d >= minMeters) out.push(p);
+  }
+  out.push(points[points.length - 1]!);
+  return out;
+}
+
 /**
- * Route along public roads (walking mode prefers neighborhood paths/sidewalks
- * that often better match fiber ROW than highway driving).
+ * Route along public roads. Walking first (neighborhood ROW); driving fallback.
+ * Returns null if no API key or zero results.
  */
 export async function routeAlongRoads(
   origin: LatLng,
@@ -80,7 +99,6 @@ export async function routeAlongRoads(
     };
 
     if (data.status !== "OK" || !data.routes?.[0]) {
-      // Walking can fail in rural ROW — try driving once
       if (mode === "walking") {
         return routeAlongRoads(origin, destination, { mode: "driving" });
       }
@@ -88,7 +106,6 @@ export async function routeAlongRoads(
     }
 
     const route = data.routes[0]!;
-    // Prefer step-level polyline (more detail) over overview
     const stepPts: LatLng[] = [];
     for (const leg of route.legs ?? []) {
       for (const step of leg.steps ?? []) {
@@ -96,228 +113,12 @@ export async function routeAlongRoads(
         if (enc) stepPts.push(...decodePolyline(enc));
       }
     }
-    if (stepPts.length >= 2) {
-      return simplifyPath(stepPts, 4);
-    }
+    if (stepPts.length >= 2) return simplifyPath(stepPts, 4);
 
     const overview = route.overview_polyline?.points;
-    if (overview) {
-      return simplifyPath(decodePolyline(overview), 4);
-    }
+    if (overview) return simplifyPath(decodePolyline(overview), 4);
     return null;
   } catch {
     return null;
   }
-}
-
-/** Drop near-duplicate points (min ~meters between kept vertices). */
-function simplifyPath(points: LatLng[], minMeters: number): LatLng[] {
-  if (points.length < 3) return points;
-  const out: LatLng[] = [points[0]!];
-  const mPerLat = 111_320;
-  for (let i = 1; i < points.length - 1; i++) {
-    const prev = out[out.length - 1]!;
-    const p = points[i]!;
-    const mPerLng = mPerLat * Math.cos((p.lat * Math.PI) / 180);
-    const d = Math.hypot(
-      (p.lat - prev.lat) * mPerLat,
-      (p.lng - prev.lng) * mPerLng
-    );
-    if (d >= minMeters) out.push(p);
-  }
-  out.push(points[points.length - 1]!);
-  return out;
-}
-
-/**
- * Arterial plant layout: backbone along the dominant street axis (Metron Rd style),
- * laterals as short L-runs from the backbone to each terminal/parcel.
- * Matches Booker plan sheets far better than hub-spoke starbursts.
- */
-export function buildArterialPlantLayout(
-  hub: LatLng,
-  terminals: Array<{
-    label: string;
-    lat: number;
-    lng: number;
-    footageFt?: number | null;
-  }>
-): {
-  backbone: LatLng[];
-  laterals: Array<{ label: string; path: LatLng[] }>;
-  /** Unit vector along mainline (east/north components in degrees). */
-  axis: { dLat: number; dLng: number };
-} {
-  if (terminals.length === 0) {
-    return {
-      backbone: [hub],
-      laterals: [],
-      axis: { dLat: 1, dLng: 0 },
-    };
-  }
-
-  // Dominant axis from terminal cloud vs hub (N-S road → large lat span)
-  let sumLat = 0;
-  let sumLng = 0;
-  for (const t of terminals) {
-    sumLat += Math.abs(t.lat - hub.lat);
-    sumLng += Math.abs(t.lng - hub.lng);
-  }
-  const northSouth = sumLat >= sumLng * 0.85;
-  const axis = northSouth
-    ? { dLat: 1, dLng: 0 }
-    : { dLat: 0, dLng: 1 };
-
-  // Project point onto axis through hub: scalar s in degrees along axis
-  const project = (p: LatLng) =>
-    northSouth ? p.lat - hub.lat : p.lng - hub.lng;
-
-  const alongPoint = (s: number): LatLng =>
-    northSouth
-      ? { lat: hub.lat + s, lng: hub.lng }
-      : { lat: hub.lat, lng: hub.lng + s };
-
-  const scalars = terminals.map((t) => project({ lat: t.lat, lng: t.lng }));
-  const sHub = 0;
-  let sMin = Math.min(sHub, ...scalars);
-  let sMax = Math.max(sHub, ...scalars);
-  // Pad backbone ~40m beyond extreme terminals
-  const mPerLat = 111_320;
-  const mPerLng = mPerLat * Math.cos((hub.lat * Math.PI) / 180);
-  const padDeg = northSouth ? 40 / mPerLat : 40 / mPerLng;
-  sMin -= padDeg;
-  sMax += padDeg;
-
-  // Densify backbone along arterial
-  const segs = Math.max(8, Math.min(40, Math.round(((sMax - sMin) * mPerLat) / 25)));
-  const backbone: LatLng[] = [];
-  for (let i = 0; i <= segs; i++) {
-    const s = sMin + ((sMax - sMin) * i) / segs;
-    backbone.push(alongPoint(s));
-  }
-
-  const laterals: Array<{ label: string; path: LatLng[] }> = [];
-  terminals.forEach((t, index) => {
-    const s = project({ lat: t.lat, lng: t.lng });
-    const join = alongPoint(s);
-    // L-path: join on arterial → small jog → terminal (parcel approach)
-    const side = index % 2 === 0 ? 1 : -1;
-    const jogM = 8 + (index % 3) * 4;
-    const jog: LatLng = northSouth
-      ? {
-          lat: join.lat,
-          lng: join.lng + (side * jogM) / mPerLng,
-        }
-      : {
-          lat: join.lat + (side * jogM) / mPerLat,
-          lng: join.lng,
-        };
-    const path = buildSyntheticRowPath(join, { lat: t.lat, lng: t.lng }, index, t.footageFt);
-    // Prefer short L if terminal is close; else synthetic jogs
-    const shortL: LatLng[] = [join, jog, { lat: t.lat, lng: t.lng }];
-    const useShort = distApprox(join, { lat: t.lat, lng: t.lng }) < 120;
-    laterals.push({
-      label: t.label,
-      path: useShort ? densifyLocal(shortL, 4) : path,
-    });
-  });
-
-  return { backbone, laterals, axis };
-}
-
-function distApprox(a: LatLng, b: LatLng): number {
-  const mPerLat = 111_320;
-  const mPerLng = mPerLat * Math.cos((a.lat * Math.PI) / 180);
-  return Math.hypot((b.lat - a.lat) * mPerLat, (b.lng - a.lng) * mPerLng);
-}
-
-function densifyLocal(points: LatLng[], steps: number): LatLng[] {
-  if (points.length < 2) return points.slice();
-  const out: LatLng[] = [];
-  for (let i = 0; i < points.length - 1; i++) {
-    const a = points[i]!;
-    const b = points[i + 1]!;
-    for (let s = 0; s < steps; s++) {
-      const t = s / steps;
-      out.push({
-        lat: a.lat + (b.lat - a.lat) * t,
-        lng: a.lng + (b.lng - a.lng) * t,
-      });
-    }
-  }
-  out.push(points[points.length - 1]!);
-  return out;
-}
-
-/**
- * High-detail synthetic ROW path when Directions is unavailable.
- * Multi-jog manhattan with intermediate vertices (not a 2-point stick).
- */
-export function buildSyntheticRowPath(
-  hub: LatLng,
-  terminal: LatLng,
-  index: number,
-  footageFt?: number | null
-): LatLng[] {
-  const mPerLat = 111_320;
-  const mPerLng = mPerLat * Math.cos((hub.lat * Math.PI) / 180);
-  const side = index % 2 === 0 ? 1 : -1;
-  const dx = terminal.lng - hub.lng;
-  const dy = terminal.lat - hub.lat;
-  const eastFirst = Math.abs(dx) >= Math.abs(dy);
-
-  // Number of jogs scales with footage so long laterals look like real plant
-  const ft = footageFt != null && footageFt > 0 ? footageFt : 800;
-  const jogs = Math.min(6, Math.max(3, Math.round(ft / 350)));
-
-  const pts: LatLng[] = [hub];
-  let cur = { ...hub };
-
-  for (let j = 1; j <= jogs; j++) {
-    const t = j / (jogs + 1);
-    const alongLat = hub.lat + dy * t;
-    const alongLng = hub.lng + dx * t;
-    // Alternate axis steps with small ROW offset so parallel laterals separate
-    const jogM = (12 + (index % 5) * 6) * side * (j % 2 === 0 ? 1 : -0.6);
-    if (eastFirst) {
-      // E/W then N/S step
-      const mid = {
-        lat: cur.lat,
-        lng: alongLng + (j % 2 === 0 ? 0 : jogM / mPerLng),
-      };
-      pts.push(mid);
-      cur = { lat: alongLat + (j % 2 === 1 ? jogM / mPerLat : 0), lng: mid.lng };
-      pts.push(cur);
-    } else {
-      const mid = {
-        lat: alongLat + (j % 2 === 0 ? 0 : jogM / mPerLat),
-        lng: cur.lng,
-      };
-      pts.push(mid);
-      cur = { lat: mid.lat, lng: alongLng + (j % 2 === 1 ? jogM / mPerLng : 0) };
-      pts.push(cur);
-    }
-  }
-
-  // Final approach corner into terminal
-  if (eastFirst) {
-    pts.push({ lat: cur.lat, lng: terminal.lng });
-  } else {
-    pts.push({ lat: terminal.lat, lng: cur.lng });
-  }
-  pts.push(terminal);
-
-  // Deduplicate consecutive identical points
-  const clean: LatLng[] = [];
-  for (const p of pts) {
-    const last = clean[clean.length - 1];
-    if (
-      !last ||
-      Math.abs(last.lat - p.lat) > 1e-8 ||
-      Math.abs(last.lng - p.lng) > 1e-8
-    ) {
-      clean.push(p);
-    }
-  }
-  return clean;
 }

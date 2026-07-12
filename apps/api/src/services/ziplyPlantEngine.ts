@@ -44,14 +44,17 @@ export function distM(a: LatLng, b: LatLng): number {
   return Math.hypot((b.lat - a.lat) * M_PER_LAT, (b.lng - a.lng) * mPerLng(mid));
 }
 
-export function densify(points: LatLng[], stepsPerSeg = 5): LatLng[] {
+function densify(points: LatLng[], stepsPerSeg = 5): LatLng[] {
   if (points.length < 2) return points.slice();
+  // Cap explosion on long road polylines
+  if (points.length >= 40) return points.slice();
+  const steps = points.length >= 16 ? Math.min(stepsPerSeg, 2) : stepsPerSeg;
   const out: LatLng[] = [];
   for (let i = 0; i < points.length - 1; i++) {
     const a = points[i]!;
     const b = points[i + 1]!;
-    for (let s = 0; s < stepsPerSeg; s++) {
-      const t = s / stepsPerSeg;
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
       out.push({
         lat: a.lat + (b.lat - a.lat) * t,
         lng: a.lng + (b.lng - a.lng) * t,
@@ -62,7 +65,7 @@ export function densify(points: LatLng[], stepsPerSeg = 5): LatLng[] {
   return out;
 }
 
-export function cleanPath(points: LatLng[]): LatLng[] {
+function cleanPath(points: LatLng[]): LatLng[] {
   const out: LatLng[] = [];
   for (const p of points) {
     if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
@@ -80,11 +83,11 @@ export function cleanPath(points: LatLng[]): LatLng[] {
  * Fit a principal axis through hub + terminals (PCA-lite).
  * Booker plans almost always run mainline along one street (N-S or E-W).
  */
-export function fitPlantAxis(
+function fitPlantAxis(
   hub: LatLng,
   terminals: PlantTerminal[]
-): { northSouth: boolean; bearingDeg: number } {
-  if (terminals.length === 0) return { northSouth: true, bearingDeg: 0 };
+): { northSouth: boolean } {
+  if (terminals.length === 0) return { northSouth: true };
 
   let sxx = 0;
   let syy = 0;
@@ -108,10 +111,9 @@ export function fitPlantAxis(
   }
   // Principal eigenvector of covariance
   const angle = 0.5 * Math.atan2(2 * sxy, sxx - syy);
-  const bearingDeg = (angle * 180) / Math.PI;
   // Prefer N-S if variance in lat is larger, or angle near 90°
   const northSouth = syy >= sxx * 0.75 || Math.abs(Math.sin(angle)) > Math.abs(Math.cos(angle));
-  return { northSouth, bearingDeg };
+  return { northSouth };
 }
 
 /**
@@ -186,7 +188,7 @@ export function buildMasterPlantLayout(
     });
 
   const laterals: PlantLateral[] = [];
-  ordered.forEach(({ t, index }, ord) => {
+  ordered.forEach(({ t, index }) => {
     const s = project({ lat: t.lat, lng: t.lng });
     const join = unproject(s);
     // Find nearest backbone index for join
@@ -207,8 +209,6 @@ export function buildMasterPlantLayout(
       : t.lat - hub.lat;
     const side =
       t.side === "left" ? -1 : t.side === "right" ? 1 : cross >= 0 ? 1 : -1;
-    void ord;
-    void index;
 
     // Approach: join → shoulder (ROW) → parcel front → terminal
     const shoulderM = 6 + (index % 3) * 2;

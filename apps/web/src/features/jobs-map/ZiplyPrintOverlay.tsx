@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { DigTicket, Job, ZiplyObjectStatus, ZiplySectionScope } from "@nsc/types";
 import { InfoWindow, Marker, useMap } from "@vis.gl/react-google-maps";
@@ -24,6 +24,7 @@ import {
   pathControlPoints,
   removeVertex,
 } from "../ziply/ziplyPlantEdit.js";
+import { subscribeFlowTick } from "../ziply/ziplyFlowClock.js";
 import "./ziplyPrintCad.css";
 
 // ── Neon CAD palette ────────────────────────────────────────────────────────
@@ -115,7 +116,16 @@ function CadFiberLine({
   onClick?: (mid: LatLng) => void;
 }) {
   const map = useMap();
-  const pathKey = path.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join("|");
+  const onClickRef = useRef(onClick);
+  onClickRef.current = onClick;
+  // Cheap path identity — endpoints + mid sample (catches path-edit middle moves)
+  const pathKey = useMemo(() => {
+    if (path.length < 2) return "";
+    const a = path[0]!;
+    const b = path[path.length - 1]!;
+    const m = path[Math.floor(path.length / 2)]!;
+    return `${path.length}:${a.lat.toFixed(5)},${a.lng.toFixed(5)}:${m.lat.toFixed(5)},${m.lng.toFixed(5)}:${b.lat.toFixed(5)},${b.lng.toFixed(5)}`;
+  }, [path]);
 
   useEffect(() => {
     if (!map || path.length < 2) return;
@@ -132,39 +142,31 @@ function CadFiberLine({
     const mainW = isMain ? 7.5 : isBore ? 5 : isAerial ? 3.5 : 4.5;
     const layers: google.maps.Polyline[] = [];
 
-    // Outer neon bloom (progress / complete only)
+    // One bloom layer max (was 2) — less overdraw when many laterals selected
     if (neonGlow && (status === "complete" || status === "in_progress" || selected)) {
-      const bloom = new google.maps.Polyline({
-        path,
-        map,
-        strokeColor: selected ? "#fbbf24" : glow,
-        strokeOpacity: status === "complete" ? 0.35 : 0.28,
-        strokeWeight: (isMain ? 22 : 16) + weightBoost,
-        zIndex: selected ? 12 : isMain ? 6 : 5,
-        clickable: false,
-      });
-      layers.push(bloom);
-      const midBloom = new google.maps.Polyline({
-        path,
-        map,
-        strokeColor: selected ? "#fde68a" : glow,
-        strokeOpacity: status === "complete" ? 0.45 : 0.38,
-        strokeWeight: (isMain ? 14 : 10) + weightBoost,
-        zIndex: selected ? 13 : isMain ? 7 : 6,
-        clickable: false,
-      });
-      layers.push(midBloom);
+      layers.push(
+        new google.maps.Polyline({
+          path,
+          map,
+          strokeColor: selected ? "#fbbf24" : glow,
+          strokeOpacity: status === "complete" ? 0.32 : 0.26,
+          strokeWeight: (isMain ? 16 : 12) + weightBoost,
+          zIndex: selected ? 12 : isMain ? 6 : 5,
+          clickable: false,
+        })
+      );
     } else {
-      const halo = new google.maps.Polyline({
-        path,
-        map,
-        strokeColor: selected ? "#fbbf24" : isMain ? "#e0f2fe" : "#ffffff",
-        strokeOpacity: selected ? 0.95 : 0.75,
-        strokeWeight: (isMain ? 12 : isBore ? 9 : 7) + weightBoost,
-        zIndex: selected ? 12 : 7,
-        clickable: false,
-      });
-      layers.push(halo);
+      layers.push(
+        new google.maps.Polyline({
+          path,
+          map,
+          strokeColor: selected ? "#fbbf24" : isMain ? "#e0f2fe" : "#ffffff",
+          strokeOpacity: selected ? 0.95 : 0.7,
+          strokeWeight: (isMain ? 10 : isBore ? 8 : 6) + weightBoost,
+          zIndex: selected ? 12 : 7,
+          clickable: false,
+        })
+      );
     }
 
     const hit = new google.maps.Polyline({
@@ -172,13 +174,12 @@ function CadFiberLine({
       map,
       strokeColor: "#000000",
       strokeOpacity: 0.01,
-      strokeWeight: 20,
+      strokeWeight: 18,
       zIndex: selected ? 20 : 14,
       clickable: true,
     });
     layers.push(hit);
 
-    // Core fiber stroke
     const coreIcons: google.maps.IconSequence[] | undefined = solid
       ? undefined
       : [
@@ -195,22 +196,21 @@ function CadFiberLine({
           },
         ];
 
-    const main = new google.maps.Polyline({
-      path,
-      map,
-      strokeColor: color,
-      strokeWeight: mainW + weightBoost,
-      strokeOpacity: solid ? 0.98 : 0,
-      zIndex: selected ? 16 : isMain ? 11 : 10,
-      clickable: false,
-      icons: coreIcons,
-    });
-    layers.push(main);
+    layers.push(
+      new google.maps.Polyline({
+        path,
+        map,
+        strokeColor: color,
+        strokeWeight: mainW + weightBoost,
+        strokeOpacity: solid ? 0.98 : 0,
+        zIndex: selected ? 16 : isMain ? 11 : 10,
+        clickable: false,
+        icons: coreIcons,
+      })
+    );
 
-    // Animated energy flow along the line (hub → terminal direction)
-    let flow: google.maps.Polyline | null = null;
-    let animId: number | null = null;
-    // Flow only on active/complete/selected — never on every planned lateral (label chaos + lag)
+    // Shared RAF flow (capped globally) — only active/complete/selected
+    let unsubFlow: (() => void) | null = null;
     const shouldFlow =
       animateFlow &&
       (status === "in_progress" || status === "complete" || selected);
@@ -218,7 +218,7 @@ function CadFiberLine({
     if (shouldFlow) {
       const flowColor =
         status === "complete" ? "#bbf7d0" : status === "in_progress" ? "#a5f3fc" : "#7dd3fc";
-      flow = new google.maps.Polyline({
+      const flow = new google.maps.Polyline({
         path,
         map,
         strokeOpacity: 0,
@@ -228,11 +228,11 @@ function CadFiberLine({
           {
             icon: {
               path: google.maps.SymbolPath.CIRCLE,
-              scale: isMain ? 4.5 : 3.2,
+              scale: isMain ? 4 : 3,
               fillColor: flowColor,
               fillOpacity: 1,
               strokeColor: "#fff",
-              strokeWeight: 1.2,
+              strokeWeight: 1,
               strokeOpacity: 0.9,
             },
             offset: "0%",
@@ -240,37 +240,33 @@ function CadFiberLine({
           {
             icon: {
               path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-              scale: isMain ? 3.2 : 2.4,
+              scale: isMain ? 2.8 : 2.2,
               strokeColor: flowColor,
               strokeWeight: 2,
               fillColor: flowColor,
               fillOpacity: 0.95,
             },
             offset: "0%",
-            repeat: isMain ? "48px" : "64px",
+            repeat: isMain ? "56px" : "72px",
           },
         ],
       });
       layers.push(flow);
-
-      let t = 0;
-      const speed = status === "complete" ? 1.1 : status === "in_progress" ? 1.6 : 0.9;
-      const tick = () => {
-        t = (t + speed) % 100;
-        const icons = flow!.get("icons") as google.maps.IconSequence[];
+      unsubFlow = subscribeFlowTick((t) => {
+        const icons = flow.get("icons") as google.maps.IconSequence[];
         if (icons[0]) icons[0].offset = `${t}%`;
-        if (icons[1]) icons[1].offset = `${(t + 12) % 100}%`;
-        flow!.set("icons", icons);
-        animId = window.requestAnimationFrame(tick);
-      };
-      animId = window.requestAnimationFrame(tick);
+        if (icons[1]) icons[1].offset = `${(t + 14) % 100}%`;
+        flow.set("icons", icons);
+      });
     }
 
-    const clickListener = hit.addListener("click", () => onClick?.(pathMidpoint(path)));
+    const clickListener = hit.addListener("click", () =>
+      onClickRef.current?.(pathMidpoint(path))
+    );
 
     return () => {
       google.maps.event.removeListener(clickListener);
-      if (animId != null) window.cancelAnimationFrame(animId);
+      unsubFlow?.();
       layers.forEach((l) => l.setMap(null));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -285,7 +281,6 @@ function CadFiberLine({
     selected,
     animateFlow,
     neonGlow,
-    onClick,
   ]);
 
   const mid = pathMidpoint(path);
@@ -308,7 +303,7 @@ function CadFiberLine({
   );
 }
 
-/** Pulsing neon beacon around the FDH hub. */
+/** Pulsing neon beacon around the FDH hub — rides shared flow clock (no extra rAF). */
 function HubNeonBeacon({
   position,
   active,
@@ -337,11 +332,9 @@ function HubNeonBeacon({
         clickable: false,
       })
     );
-    let frame = 0;
-    let id = 0;
-    const animate = () => {
-      frame += 1;
-      const phase = (Math.sin(frame / 28) + 1) / 2;
+    const unsub = subscribeFlowTick((t) => {
+      // Map 0–100 phase → smooth 0–1 sine-like pulse
+      const phase = (Math.sin((t / 100) * Math.PI * 2) + 1) / 2;
       rings.forEach((c, i) => {
         c.setRadius(9 + i * 7 + phase * (4 + i * 3));
         c.setOptions({
@@ -349,24 +342,26 @@ function HubNeonBeacon({
           strokeOpacity: 0.2 + phase * 0.3 - i * 0.08,
         });
       });
-      id = window.requestAnimationFrame(animate);
-    };
-    id = window.requestAnimationFrame(animate);
+    });
     return () => {
-      window.cancelAnimationFrame(id);
+      unsub();
       rings.forEach((c) => c.setMap(null));
     };
   }, [map, position.lat, position.lng, active, status]);
   return null;
 }
 
-function dropIconDataUrl(): string {
+const DROP_ICON_URL = (() => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14">
     <rect x="3" y="5" width="8" height="7" rx="1" fill="#0ea5e9" stroke="#0f172a" stroke-width="1"/>
     <polygon points="7,1 11,5 3,5" fill="#38bdf8" stroke="#0f172a" stroke-width="1"/>
   </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
+})();
+
+const labelIconCache = new Map<string, string>();
+const hubIconCache = new Map<string, string>();
+const termIconCache = new Map<string, string>();
 
 function PrintCadHud({
   zoom,
@@ -584,17 +579,26 @@ function PrintCadHud({
 }
 
 function makeLabelDataUrl(text: string, color: string): string {
-  const safe = text.replace(/[<>&]/g, "");
+  const key = `${text}|${color}`;
+  const hit = labelIconCache.get(key);
+  if (hit) return hit;
+  const safe = text.replace(/[<>&']/g, "");
   const w = Math.min(140, 24 + safe.length * 6.5);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="18">
     <rect x="0.5" y="0.5" width="${w - 1}" height="17" rx="4" fill="rgba(255,255,255,0.92)" stroke="${color}" stroke-width="1.2"/>
     <text x="${w / 2}" y="12.5" text-anchor="middle" font-size="9" font-weight="700"
       font-family="ui-monospace,Consolas,monospace" fill="#0f172a">${safe}</text>
   </svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  if (labelIconCache.size > 200) labelIconCache.clear();
+  labelIconCache.set(key, url);
+  return url;
 }
 
 function hubIconDataUrl(label: string, fill: string): string {
+  const key = `${label}|${fill}`;
+  const hit = hubIconCache.get(key);
+  if (hit) return hit;
   const safe = (label || "FDH").slice(0, 10);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">
     <circle cx="28" cy="28" r="26" fill="rgba(15,23,42,0.12)"/>
@@ -606,10 +610,16 @@ function hubIconDataUrl(label: string, fill: string): string {
     <text x="28" y="52" text-anchor="middle" font-size="8" font-weight="800"
       font-family="ui-monospace,Consolas,monospace" fill="#0f172a">${safe}</text>
   </svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  if (hubIconCache.size > 40) hubIconCache.clear();
+  hubIconCache.set(key, url);
+  return url;
 }
 
 function termIconDataUrl(label: string, fill: string, stroke: string): string {
+  const key = `${label}|${fill}|${stroke}`;
+  const hit = termIconCache.get(key);
+  if (hit) return hit;
   const safe = label.slice(0, 8);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="36" viewBox="0 0 44 36">
     <circle cx="22" cy="12" r="9" fill="${fill}" stroke="${stroke}" stroke-width="2"/>
@@ -617,7 +627,10 @@ function termIconDataUrl(label: string, fill: string, stroke: string): string {
     <text x="22" y="32" text-anchor="middle" font-size="8" font-weight="700"
       font-family="ui-monospace,Consolas,monospace" fill="#0f172a">${safe}</text>
   </svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  if (termIconCache.size > 80) termIconCache.clear();
+  termIconCache.set(key, url);
+  return url;
 }
 
 interface Props {
@@ -640,7 +653,6 @@ export default function ZiplyPrintOverlay({
   const [crewDraft, setCrewDraft] = useState("");
   const [tickets, setTickets] = useState<DigTicket[]>([]);
   const [overrides, setOverrides] = useState<Record<string, ZiplyObjectStatus>>({});
-  const [didFitPrints, setDidFitPrints] = useState(false);
   const [zoom, setZoom] = useState(14);
   // Defaults calmer: less visual noise until user opts in
   const [flowOn, setFlowOn] = useState(true);
@@ -827,11 +839,7 @@ export default function ZiplyPrintOverlay({
 
   // Fit when focus plant changes (not every multi-plant dump)
   useEffect(() => {
-    if (!visible) {
-      setDidFitPrints(false);
-      return;
-    }
-    if (!map || printJobs.length === 0) return;
+    if (!visible || !map || printJobs.length === 0) return;
     const j = printJobs[0]!;
     const a = getZiplyPrintAnchor(j);
     if (!a) return;
@@ -853,7 +861,6 @@ export default function ZiplyPrintOverlay({
     const z = map.getZoom() ?? 16;
     if (z < 15) map.setZoom(16);
     if (z > 19) map.setZoom(18);
-    setDidFitPrints(true);
   }, [map, visible, printJobs[0]?.jobId]);
 
   const plantStats = useMemo(() => {
@@ -1446,14 +1453,7 @@ export default function ZiplyPrintOverlay({
                             typeof p.lng === "number" &&
                             !(p.lat === 0 && p.lng === 0)
                         )
-                      : buildCablePath(
-                          hubPos,
-                          termPos ?? hubPos,
-                          idx,
-                          null,
-                          null,
-                          c.lengthFt
-                        );
+                      : buildCablePath(hubPos, termPos ?? hubPos, idx, null);
                   if (path.length < 2) return null;
                   const isMainRole = c.role === "mainline" || c.role === "feeder";
                   // Cap lateral labels: only first 12 laterals + all mainlines when zoomed
@@ -1516,9 +1516,7 @@ export default function ZiplyPrintOverlay({
                     hubPos,
                     termPositions[idx]!,
                     idx,
-                    null,
-                    null,
-                    t.footageFt
+                    null
                   );
                   return (
                     <CadFiberLine
@@ -1587,7 +1585,7 @@ export default function ZiplyPrintOverlay({
                             anchor: new google.maps.Point(55, 20),
                           }
                         : {
-                            url: dropIconDataUrl(),
+                            url: DROP_ICON_URL,
                             scaledSize: new google.maps.Size(14, 14),
                             anchor: new google.maps.Point(7, 7),
                           }
