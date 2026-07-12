@@ -1,15 +1,28 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { DigTicket, Job, ZiplyObjectStatus, ZiplySectionScope } from "@nsc/types";
 import { InfoWindow, Marker, useMap } from "@vis.gl/react-google-maps";
 import { api } from "../../lib/api.js";
-import { getZiplyPrintAnchor, isZiplyPrintMapReady } from "../ziply/ziplyUtils.js";
+import {
+  computePlantProgress,
+  emitZiplyPlantSelect,
+  getZiplyPrintAnchor,
+  isZiplyPrintMapReady,
+  type ZiplyPlantSelection,
+} from "../ziply/ziplyUtils.js";
 import {
   buildCablePath,
   pathMidpoint,
   placeTerminalAroundHub,
   type LatLng,
 } from "../ziply/ziplyMapGeometry.js";
+import {
+  insertVertex,
+  moveVertex,
+  nearestSegmentIndex,
+  pathControlPoints,
+  removeVertex,
+} from "../ziply/ziplyPlantEdit.js";
 import "./ziplyPrintCad.css";
 
 // ── Neon CAD palette ────────────────────────────────────────────────────────
@@ -378,6 +391,7 @@ function PrintCadHud({
     inProgress: number;
     planned: number;
     progressPct: number;
+    footageNote?: string | null;
     focusLabel?: string;
     otherPlants?: number;
     showAllPlants?: boolean;
@@ -428,6 +442,11 @@ function PrintCadHud({
               style={{ width: `${Math.max(2, stats.progressPct)}%` }}
             />
           </div>
+          {"footageNote" in stats && stats.footageNote ? (
+            <div style={{ fontSize: 9, color: "#64748b", fontFamily: "monospace" }}>
+              Footage: {String(stats.footageNote)}
+            </div>
+          ) : null}
         </div>
 
         <div className="ziply-cad-hud__stats">
@@ -584,6 +603,18 @@ export default function ZiplyPrintOverlay({
   const [showPlanned, setShowPlanned] = useState(true);
   /** When true, draw every ready plant (legacy). Default: focus one job. */
   const [showAllPlants, setShowAllPlants] = useState(false);
+  /** Path edit session — vertices draggable; map click inserts */
+  const [pathEdit, setPathEdit] = useState<{
+    jobId: string;
+    label: string;
+    role?: "mainline" | "lateral" | "feeder" | null;
+    path: LatLng[];
+  } | null>(null);
+  const [pathEditBusy, setPathEditBusy] = useState(false);
+  const [pathEditMsg, setPathEditMsg] = useState<string | null>(null);
+  const [studioHighlight, setStudioHighlight] = useState<ZiplyPlantSelection | null>(
+    null
+  );
 
   const allReady = useMemo(() => jobs.filter((j) => isZiplyPrintMapReady(j)), [jobs]);
 
@@ -610,6 +641,64 @@ export default function ZiplyPrintOverlay({
     setCrewDraft(selected?.crewName ?? "");
   }, [selected]);
 
+  // Broadcast map selection → Print Studio
+  useEffect(() => {
+    if (!selected) {
+      emitZiplyPlantSelect(null);
+      return;
+    }
+    emitZiplyPlantSelect({
+      jobId: selected.job.jobId,
+      kind: selected.kind,
+      ref: selected.ref,
+      label: selected.title,
+    });
+  }, [selected]);
+
+  // Studio → map selection / path edit
+  useEffect(() => {
+    const onSelect = (e: Event) => {
+      const d = (e as CustomEvent<ZiplyPlantSelection | null>).detail;
+      setStudioHighlight(d);
+    };
+    const onPathEdit = (e: Event) => {
+      const d = (e as CustomEvent<{ jobId: string; cableLabel: string; path?: LatLng[] }>)
+        .detail;
+      if (!d?.jobId || !d.cableLabel) return;
+      const job = jobs.find((j) => j.jobId === d.jobId);
+      const cable = job?.ziplyPrintLayer?.mapObjects?.cables?.find(
+        (c) => c.label === d.cableLabel || c.toTerminal === d.cableLabel
+      );
+      const raw =
+        d.path ??
+        (cable?.path && cable.path.length >= 2
+          ? cable.path
+          : null);
+      if (!raw || raw.length < 2) {
+        setPathEditMsg("No path points to edit — rebuild plant CAD first.");
+        return;
+      }
+      setPathEdit({
+        jobId: d.jobId,
+        label: cable?.label ?? d.cableLabel,
+        role: cable?.role ?? "lateral",
+        path: pathControlPoints(
+          raw.filter(
+            (p): p is LatLng =>
+              typeof p.lat === "number" && typeof p.lng === "number"
+          )
+        ),
+      });
+      setPathEditMsg("Path edit: drag points · click map to insert · Save when done");
+    };
+    window.addEventListener("nsc:ziply-plant-select", onSelect as EventListener);
+    window.addEventListener("nsc:ziply-path-edit", onPathEdit as EventListener);
+    return () => {
+      window.removeEventListener("nsc:ziply-plant-select", onSelect as EventListener);
+      window.removeEventListener("nsc:ziply-path-edit", onPathEdit as EventListener);
+    };
+  }, [jobs]);
+
   useEffect(() => {
     if (!map) return;
     const sync = () => setZoom(map.getZoom() ?? 14);
@@ -617,6 +706,42 @@ export default function ZiplyPrintOverlay({
     const listener = map.addListener("zoom_changed", sync);
     return () => google.maps.event.removeListener(listener);
   }, [map]);
+
+  // Map click while path editing → insert vertex on nearest segment
+  useEffect(() => {
+    if (!map || !pathEdit) return;
+    const listener = map.addListener("click", (e: google.maps.MapMouseEvent) => {
+      const ll = e.latLng;
+      if (!ll) return;
+      const pt = { lat: ll.lat(), lng: ll.lng() };
+      setPathEdit((cur) => {
+        if (!cur) return cur;
+        const seg = nearestSegmentIndex(cur.path, pt);
+        return { ...cur, path: insertVertex(cur.path, seg, pt) };
+      });
+    });
+    return () => google.maps.event.removeListener(listener);
+  }, [map, pathEdit?.jobId, pathEdit?.label]);
+
+  const savePathEdit = useCallback(async () => {
+    if (!pathEdit || pathEdit.path.length < 2) return;
+    setPathEditBusy(true);
+    setPathEditMsg(null);
+    try {
+      await api.updateZiplyCablePath(pathEdit.jobId, {
+        label: pathEdit.label,
+        path: pathEdit.path,
+        role: pathEdit.role,
+      });
+      setPathEditMsg("Path saved.");
+      setPathEdit(null);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    } catch (e) {
+      setPathEditMsg(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setPathEditBusy(false);
+    }
+  }, [pathEdit]);
 
   useEffect(() => {
     if (!visible || !show811Clearance) return;
@@ -673,38 +798,24 @@ export default function ZiplyPrintOverlay({
     let complete = 0;
     let inProgress = 0;
     let planned = 0;
-    // Stats only for the focused plant (not every Ziply job on the sheet)
+    let progressPct = 0;
+    let footageNote: string | null = null;
+    // Real progress from focused plant only (object + footage when known)
     for (const j of printJobs) {
       const mo = j.ziplyPrintLayer?.mapObjects;
       cables += mo?.cables?.length ?? 0;
       terminals += mo?.terminals?.length ?? 0;
       drops += mo?.dropSites?.length ?? 0;
       if (j.ziplyPrintLayer?.printGeometryEnhancedAt) enhanced = true;
-      for (const c of mo?.cables ?? []) {
-        const st =
-          overrides[`${j.jobId}:cable:${c.label}`] ?? c.status ?? "planned";
-        if (st === "complete") complete++;
-        else if (st === "in_progress") inProgress++;
-        else planned++;
+      const p = computePlantProgress(j, overrides);
+      complete += p.complete;
+      inProgress += p.inProgress;
+      planned += p.planned;
+      progressPct = p.progressPct;
+      if (p.footagePct != null && p.totalFt > 0) {
+        footageNote = `${Math.round(p.completeFt)}' / ${Math.round(p.totalFt)}'`;
       }
-      for (const t of mo?.terminals ?? []) {
-        const st =
-          overrides[`${j.jobId}:terminal:${t.label}`] ?? t.status ?? "planned";
-        if (st === "complete") complete++;
-        else if (st === "in_progress") inProgress++;
-        else planned++;
-      }
-      const hubSt =
-        overrides[`${j.jobId}:hub:hub`] ?? mo?.hub?.status ?? "planned";
-      if (hubSt === "complete") complete++;
-      else if (hubSt === "in_progress") inProgress++;
-      else planned++;
     }
-    const total = complete + inProgress + planned;
-    const progressPct =
-      total === 0
-        ? 0
-        : Math.round(((complete + inProgress * 0.5) / total) * 100);
     return {
       cables,
       terminals,
@@ -714,6 +825,7 @@ export default function ZiplyPrintOverlay({
       inProgress,
       planned,
       progressPct,
+      footageNote,
       focusLabel: printJobs[0]
         ? printJobs[0]!.workOrder || printJobs[0]!.jobId.slice(0, 8)
         : "—",
@@ -819,22 +931,169 @@ export default function ZiplyPrintOverlay({
     <>
       {legendHost &&
         createPortal(
-          <PrintCadHud
-            zoom={zoom}
-            stats={plantStats}
-            flowOn={flowOn}
-            setFlowOn={setFlowOn}
-            glowOn={glowOn}
-            setGlowOn={setGlowOn}
-            hubPulseOn={hubPulseOn}
-            setHubPulseOn={setHubPulseOn}
-            showPlanned={showPlanned}
-            setShowPlanned={setShowPlanned}
-            showAllPlants={showAllPlants}
-            setShowAllPlants={setShowAllPlants}
-          />,
+          <>
+            <PrintCadHud
+              zoom={zoom}
+              stats={plantStats}
+              flowOn={flowOn}
+              setFlowOn={setFlowOn}
+              glowOn={glowOn}
+              setGlowOn={setGlowOn}
+              hubPulseOn={hubPulseOn}
+              setHubPulseOn={setHubPulseOn}
+              showPlanned={showPlanned}
+              setShowPlanned={setShowPlanned}
+              showAllPlants={showAllPlants}
+              setShowAllPlants={setShowAllPlants}
+            />
+            {pathEdit && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 12,
+                  bottom: 300,
+                  zIndex: 9,
+                  width: "min(280px, calc(100% - 24px))",
+                  maxWidth: 300,
+                  background: "rgba(8,15,28,0.96)",
+                  border: "1px solid rgba(251,191,36,0.55)",
+                  borderRadius: 12,
+                  padding: 12,
+                  color: "#fde68a",
+                  fontSize: 11,
+                  boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
+                }}
+              >
+                <div style={{ fontWeight: 800, letterSpacing: "0.08em", marginBottom: 6 }}>
+                  PATH EDIT · {pathEdit.label}
+                </div>
+                <div style={{ color: "#94a3b8", fontSize: 10, marginBottom: 8, lineHeight: 1.35 }}>
+                  Drag yellow handles · click map to insert · − Last pt removes ·{" "}
+                  {pathEdit.path.length} points
+                </div>
+                {pathEditMsg && (
+                  <div style={{ color: "#a5f3fc", fontSize: 10, marginBottom: 8 }}>{pathEditMsg}</div>
+                )}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    disabled={pathEditBusy}
+                    onClick={() => void savePathEdit()}
+                    style={{
+                      flex: 1,
+                      minWidth: 90,
+                      background: "linear-gradient(180deg,#fbbf24,#d97706)",
+                      color: "#1c1000",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "8px",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      fontSize: 11,
+                    }}
+                  >
+                    {pathEditBusy ? "Saving…" : "Save path"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pathEditBusy || (pathEdit?.path.length ?? 0) <= 2}
+                    onClick={() =>
+                      setPathEdit((cur) =>
+                        cur && cur.path.length > 2
+                          ? {
+                              ...cur,
+                              path: removeVertex(cur.path, cur.path.length - 1),
+                            }
+                          : cur
+                      )
+                    }
+                    style={{
+                      background: "rgba(255,255,255,0.08)",
+                      color: "#e2e8f0",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRadius: 6,
+                      padding: "8px 10px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontSize: 11,
+                    }}
+                  >
+                    − Last pt
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pathEditBusy}
+                    onClick={() => {
+                      setPathEdit(null);
+                      setPathEditMsg(null);
+                    }}
+                    style={{
+                      background: "rgba(255,255,255,0.08)",
+                      color: "#e2e8f0",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRadius: 6,
+                      padding: "8px 10px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontSize: 11,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </>,
           legendHost
         )}
+
+      {/* Path edit preview line + handles */}
+      {pathEdit && pathEdit.path.length >= 2 && (
+        <>
+          <CadFiberLine
+            path={pathEdit.path}
+            status="in_progress"
+            buildType="trench"
+            role={pathEdit.role}
+            selected
+            animateFlow={false}
+            neonGlow
+            label="EDITING"
+          />
+          {pathEdit.path.map((pt, vi) => (
+            <Marker
+              key={`edit-v-${vi}`}
+              position={pt}
+              zIndex={50}
+              draggable
+              title={`Vertex ${vi + 1} — drag to move`}
+              onDragEnd={(e) => {
+                const ll = e.latLng;
+                if (!ll) return;
+                setPathEdit((cur) =>
+                  cur
+                    ? {
+                        ...cur,
+                        path: moveVertex(cur.path, vi, {
+                          lat: ll.lat(),
+                          lng: ll.lng(),
+                        }),
+                      }
+                    : cur
+                );
+              }}
+              icon={{
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 8,
+                fillColor: "#fbbf24",
+                fillOpacity: 1,
+                strokeColor: "#fff",
+                strokeWeight: 2,
+              }}
+            />
+          ))}
+        </>
+      )}
 
       {/* Dim hub-only markers for non-focused plants */}
       {otherHubJobs.map((j) => {
@@ -1048,9 +1307,17 @@ export default function ZiplyPrintOverlay({
                     c.buildType || null,
                   ].filter(Boolean);
                   const isSel =
-                    selected?.job.jobId === job.jobId &&
-                    selected.kind === "cable" &&
-                    selected.ref === c.label;
+                    (selected?.job.jobId === job.jobId &&
+                      selected.kind === "cable" &&
+                      selected.ref === c.label) ||
+                    (studioHighlight?.jobId === job.jobId &&
+                      studioHighlight.kind === "cable" &&
+                      (studioHighlight.ref === c.label ||
+                        studioHighlight.ref === c.toTerminal));
+                  // While editing this cable, hide stored path (preview drawn separately)
+                  if (pathEdit?.jobId === job.jobId && pathEdit.label === c.label) {
+                    return null;
+                  }
                   return (
                     <CadFiberLine
                       key={`${job.jobId}-cable-${c.label}-${idx}`}
@@ -1359,6 +1626,50 @@ export default function ZiplyPrintOverlay({
                 );
               })}
             </div>
+            {selected.kind === "cable" && (
+              <button
+                type="button"
+                onClick={() => {
+                  const mo = selected.job.ziplyPrintLayer?.mapObjects;
+                  const cable = mo?.cables?.find((c) => c.label === selected.ref);
+                  const raw =
+                    cable?.path && cable.path.length >= 2
+                      ? cable.path
+                      : null;
+                  if (!raw) {
+                    setPathEditMsg("Rebuild plant CAD first so this cable has a path.");
+                    return;
+                  }
+                  setPathEdit({
+                    jobId: selected.job.jobId,
+                    label: selected.ref,
+                    role: cable?.role ?? "lateral",
+                    path: pathControlPoints(
+                      raw.filter(
+                        (p): p is LatLng =>
+                          typeof p.lat === "number" && typeof p.lng === "number"
+                      )
+                    ),
+                  });
+                  setSelected(null);
+                  setPathEditMsg("Drag handles · map-click inserts · Save when matched to print");
+                }}
+                style={{
+                  marginTop: 8,
+                  width: "100%",
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: 8,
+                  background: "linear-gradient(180deg,#fbbf24,#d97706)",
+                  color: "#1c1000",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                }}
+              >
+                ✎ Edit path on map
+              </button>
+            )}
             <div style={{ marginTop: 8, display: "flex", gap: 6, alignItems: "center" }}>
               <input
                 value={crewDraft}

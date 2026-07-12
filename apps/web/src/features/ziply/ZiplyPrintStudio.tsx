@@ -7,9 +7,13 @@ import { useEffect, useMemo, useState } from "react";
 import type { Job, ZiplyObjectStatus } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import {
+  computePlantProgress,
+  emitZiplyPathEditRequest,
+  emitZiplyPlantSelect,
   getZiplyPrintAnchor,
   listZiplyPrintFiles,
   formatBytes,
+  type ZiplyPlantSelection,
 } from "./ziplyUtils.js";
 
 interface Props {
@@ -28,6 +32,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
   const [fileIdx, setFileIdx] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [mapSel, setMapSel] = useState<ZiplyPlantSelection | null>(null);
   const mo = job.ziplyPrintLayer?.mapObjects;
   const active = files[fileIdx] ?? null;
   const anchor = getZiplyPrintAnchor(job);
@@ -36,35 +41,39 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
     const cables = mo?.cables ?? [];
     const terminals = mo?.terminals ?? [];
     const drops = mo?.dropSites ?? [];
-    const complete =
-      cables.filter((c) => c.status === "complete").length +
-      terminals.filter((t) => t.status === "complete").length;
-    const progress =
-      cables.filter((c) => c.status === "in_progress").length +
-      terminals.filter((t) => t.status === "in_progress").length;
-    const total = cables.length + terminals.length + 1;
-    const pct = total
-      ? Math.round(((complete + progress * 0.5) / total) * 100)
-      : 0;
+    const p = computePlantProgress(job);
     return {
       cables,
       terminals,
       drops,
-      complete,
-      progress,
-      pct,
+      complete: p.complete,
+      progress: p.inProgress,
+      pct: p.progressPct,
+      footageNote:
+        p.footagePct != null && p.totalFt > 0
+          ? `${Math.round(p.completeFt)}' / ${Math.round(p.totalFt)}'`
+          : null,
       mainline: mo?.mainlineStreet ?? null,
       backbonePts: mo?.backbonePath?.length ?? 0,
     };
-  }, [mo]);
+  }, [mo, job]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
+    const onMapSel = (e: Event) => {
+      const d = (e as CustomEvent<ZiplyPlantSelection | null>).detail;
+      if (d && d.jobId === job.jobId) setMapSel(d);
+      else if (!d) setMapSel(null);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    window.addEventListener("nsc:ziply-plant-select", onMapSel as EventListener);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("nsc:ziply-plant-select", onMapSel as EventListener);
+    };
+  }, [onClose, job.jobId]);
 
   const panTo = (lat: number, lng: number) => {
     window.dispatchEvent(
@@ -72,6 +81,19 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
         detail: { center: { lat, lng }, zoom: 18 },
       })
     );
+  };
+
+  const selectObject = (
+    kind: "hub" | "terminal" | "cable",
+    ref: string,
+    label: string,
+    lat?: number | null,
+    lng?: number | null
+  ) => {
+    const sel: ZiplyPlantSelection = { jobId: job.jobId, kind, ref, label };
+    setMapSel(sel);
+    emitZiplyPlantSelect(sel);
+    if (lat != null && lng != null) panTo(lat, lng);
   };
 
   const rebuildPlant = async () => {
@@ -348,9 +370,26 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                 fontFamily: "monospace",
               }}
             >
-              <span>Plant complete</span>
+              <span>Plant complete (status{inventory.footageNote ? " + footage" : ""})</span>
               <span style={{ color: "#00E676", fontWeight: 800 }}>{inventory.pct}%</span>
             </div>
+            {inventory.footageNote && (
+              <div style={{ fontSize: 9, color: "#64748b", marginBottom: 4, fontFamily: "monospace" }}>
+                {inventory.footageNote}
+              </div>
+            )}
+            {mapSel && (
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "#fbbf24",
+                  marginBottom: 6,
+                  fontWeight: 700,
+                }}
+              >
+                Map selected: {mapSel.kind} · {mapSel.ref}
+              </div>
+            )}
             <div
               style={{
                 height: 8,
@@ -389,6 +428,16 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
               title={job.ziplyPrintLayer?.hubId || "Hub"}
               sub={job.address || "No address"}
               status={(mo?.hub?.status as ZiplyObjectStatus) || "planned"}
+              selected={mapSel?.kind === "hub"}
+              onSelect={() =>
+                selectObject(
+                  "hub",
+                  "hub",
+                  job.ziplyPrintLayer?.hubId || "Hub",
+                  anchor?.lat,
+                  anchor?.lng
+                )
+              }
               onPan={
                 anchor
                   ? () => panTo(anchor.lat, anchor.lng)
@@ -416,9 +465,28 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                   .filter(Boolean)
                   .join(" · ")}
                 status={(c.status as ZiplyObjectStatus) || "planned"}
+                selected={
+                  mapSel?.kind === "cable" &&
+                  (mapSel.ref === c.label || mapSel.ref === c.toTerminal)
+                }
+                onSelect={() => {
+                  const p = c.path?.[Math.floor((c.path?.length ?? 1) / 2)];
+                  selectObject("cable", c.label, c.label, p?.lat, p?.lng);
+                }}
                 onPan={
                   c.path && c.path[0]
                     ? () => panTo(c.path![0]!.lat, c.path![0]!.lng)
+                    : undefined
+                }
+                onEditPath={
+                  c.path && c.path.length >= 2
+                    ? () => {
+                        emitZiplyPathEditRequest({
+                          jobId: job.jobId,
+                          cableLabel: c.label,
+                        });
+                        setMsg("Path edit mode on map — drag handles, then Save.");
+                      }
                     : undefined
                 }
                 onStatus={(st) => void setObjectStatus("cable", c.label, st)}
@@ -441,6 +509,10 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                   .filter(Boolean)
                   .join(" · ")}
                 status={(t.status as ZiplyObjectStatus) || "planned"}
+                selected={mapSel?.kind === "terminal" && mapSel.ref === t.label}
+                onSelect={() =>
+                  selectObject("terminal", t.label, t.label, t.lat, t.lng)
+                }
                 onPan={
                   typeof t.lat === "number" && typeof t.lng === "number"
                     ? () => panTo(t.lat!, t.lng!)
@@ -535,25 +607,44 @@ function Row({
   title,
   sub,
   status,
+  selected,
+  onSelect,
   onPan,
+  onEditPath,
   onStatus,
   glow,
 }: {
   title: string;
   sub: string;
   status: ZiplyObjectStatus;
+  selected?: boolean;
+  onSelect?: () => void;
   onPan?: () => void;
+  onEditPath?: () => void;
   onStatus: (st: ZiplyObjectStatus) => void;
   glow?: boolean;
 }) {
   return (
     <div
+      onClick={onSelect}
       style={{
-        background: glow ? "rgba(14,165,233,0.08)" : "rgba(255,255,255,0.03)",
-        border: `1px solid ${glow ? "rgba(56,189,248,0.35)" : "rgba(255,255,255,0.06)"}`,
+        background: selected
+          ? "rgba(251,191,36,0.12)"
+          : glow
+            ? "rgba(14,165,233,0.08)"
+            : "rgba(255,255,255,0.03)",
+        border: `1px solid ${
+          selected
+            ? "rgba(251,191,36,0.65)"
+            : glow
+              ? "rgba(56,189,248,0.35)"
+              : "rgba(255,255,255,0.06)"
+        }`,
         borderRadius: 8,
         padding: "8px 8px 6px",
         marginBottom: 6,
+        cursor: onSelect ? "pointer" : "default",
+        boxShadow: selected ? "0 0 14px rgba(251,191,36,0.25)" : "none",
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
@@ -584,8 +675,27 @@ function Row({
           </div>
         </div>
         {onPan && (
-          <button type="button" onClick={onPan} style={smallBtn}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPan();
+            }}
+            style={smallBtn}
+          >
             Map
+          </button>
+        )}
+        {onEditPath && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditPath();
+            }}
+            style={{ ...smallBtn, color: "#fbbf24", borderColor: "rgba(251,191,36,0.5)" }}
+          >
+            Edit
           </button>
         )}
       </div>
@@ -594,7 +704,10 @@ function Row({
           <button
             key={st}
             type="button"
-            onClick={() => onStatus(st)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onStatus(st);
+            }}
             style={{
               flex: 1,
               fontSize: 8,

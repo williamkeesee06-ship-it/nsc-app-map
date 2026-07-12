@@ -196,6 +196,113 @@ export function formatBytes(n?: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Plant progress from build statuses (this job only). */
+export type PlantProgress = {
+  complete: number;
+  inProgress: number;
+  planned: number;
+  total: number;
+  /** Weighted: complete=1, in_progress=0.5, planned=0 */
+  progressPct: number;
+  /** Footage-weighted when lengthFt available */
+  footagePct: number | null;
+  completeFt: number;
+  totalFt: number;
+};
+
+export function computePlantProgress(
+  job: Job,
+  overrides?: Record<string, "planned" | "in_progress" | "complete">
+): PlantProgress {
+  const mo = job.ziplyPrintLayer?.mapObjects;
+  let complete = 0;
+  let inProgress = 0;
+  let planned = 0;
+  let completeFt = 0;
+  let totalFt = 0;
+
+  const stOf = (
+    kind: string,
+    ref: string,
+    stored?: "planned" | "in_progress" | "complete" | null
+  ) => overrides?.[`${job.jobId}:${kind}:${ref}`] ?? stored ?? "planned";
+
+  const count = (
+    kind: string,
+    ref: string,
+    stored: "planned" | "in_progress" | "complete" | null | undefined,
+    ft: number | null | undefined
+  ) => {
+    const st = stOf(kind, ref, stored);
+    if (st === "complete") complete++;
+    else if (st === "in_progress") inProgress++;
+    else planned++;
+    if (ft != null && ft > 0) {
+      totalFt += ft;
+      if (st === "complete") completeFt += ft;
+      else if (st === "in_progress") completeFt += ft * 0.5;
+    }
+  };
+
+  if (mo) {
+    count("hub", "hub", mo.hub?.status, null);
+    for (const c of mo.cables ?? []) {
+      count("cable", c.label, c.status, c.lengthFt);
+    }
+    for (const t of mo.terminals ?? []) {
+      count("terminal", t.label, t.status, t.footageFt);
+    }
+  }
+
+  const total = complete + inProgress + planned;
+  const progressPct =
+    total === 0 ? 0 : Math.round(((complete + inProgress * 0.5) / total) * 100);
+  const footagePct =
+    totalFt > 0 ? Math.round((completeFt / totalFt) * 100) : null;
+
+  return {
+    complete,
+    inProgress,
+    planned,
+    total,
+    progressPct: footagePct != null ? footagePct : progressPct,
+    footagePct,
+    completeFt,
+    totalFt,
+  };
+}
+
+/** Selection shared between map overlay and Print Studio */
+export type ZiplyPlantSelection = {
+  jobId: string;
+  kind: "hub" | "terminal" | "cable";
+  ref: string;
+  label?: string;
+};
+
+export function emitZiplyPlantSelect(sel: ZiplyPlantSelection | null) {
+  try {
+    window.dispatchEvent(
+      new CustomEvent("nsc:ziply-plant-select", { detail: sel })
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export function emitZiplyPathEditRequest(detail: {
+  jobId: string;
+  cableLabel: string;
+}) {
+  try {
+    window.dispatchEvent(
+      new CustomEvent("nsc:ziply-path-edit", { detail })
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Upload print to Storage, kick off AI ingest, refresh jobs list. */
 export async function ingestZiplyPrintForJob(
   jobId: string,
