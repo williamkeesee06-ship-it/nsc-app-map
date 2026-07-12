@@ -7,7 +7,6 @@ import { canDeleteDigTicket } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { statusColor, utilityStatusColor, UTILITY_STATUS_OPTIONS } from "./ticketStyle.js";
 import IticModal from "./IticModal.js";
-import { getBookmarkletCode } from "./bookmarkletCode.js";
 
 interface Props {
   ticket: DigTicket;
@@ -67,7 +66,8 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
   const [iticOpen, setIticOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [extensionActive, setExtensionActive] = useState(false);
-  const [filingMethod, setFilingMethod] = useState<"extension" | "bookmarklet">("extension");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [botBusy, setBotBusy] = useState(false);
 
   const copyToClipboard = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);
@@ -75,17 +75,19 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  // Detect official chrome-extension/ "NSC 811 Autofill"
   useEffect(() => {
     const ping = setInterval(() => {
-      window.postMessage({ type: "NSC_PING_EXTENSION" }, "*");
-    }, 1000);
+      window.postMessage({ type: "NSC_PING_811" }, window.location.origin);
+    }, 1500);
     const listener = (e: MessageEvent) => {
-      if (e.data?.type === "NSC_PONG_EXTENSION") {
+      if (e.data?.type === "NSC_PONG_811" || e.data?.type === "NSC_PONG_EXTENSION") {
         setExtensionActive(true);
         clearInterval(ping);
       }
     };
     window.addEventListener("message", listener);
+    window.postMessage({ type: "NSC_PING_811" }, window.location.origin);
     return () => {
       clearInterval(ping);
       window.removeEventListener("message", listener);
@@ -146,69 +148,92 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
       return t;
     });
 
-  const runExtensionFiler = () => {
-    const payload = {
-      ticketId: ticket.id,
-      address: jobAddress,
-      street: job?.address || "",
-      city: job?.city || "",
-      zip: job?.zipCode || "",
-      workType: ticket.specs.workType || "PED SWAP",
-      workDoneFor: "LUMEN",
-      directionalBoring: ticket.specs.directionalBoring || false,
-      markingInstructions: marking,
-      equipment: ticket.specs.equipment || [],
-      workToBeginDate: workToBeginMDY,
-      duration: ticket.specs.duration || 45,
-      whiteLined: ticket.specs.whiteLined || false,
-      explosives: ticket.specs.explosives || false,
-    };
-    
-    window.postMessage({ type: "NSC_START_ITIC_AUTOMATION", payload }, "*");
-    setNotice("Chrome Extension triggered! A new tab will open to ITIC. Follow the on-screen instructions!");
-  };
-
   const refetch = async () => (await api.getDigTicket(ticket.id)).ticket;
 
+  // Official extension success + legacy copilot message shape
   useEffect(() => {
-    const handleExtensionMessage = async (e: MessageEvent) => {
+    const saveNumber = async (numRaw: string) => {
+      const num = String(numRaw).trim();
+      if (!num) return;
+      setFiledNumber(num);
+      setNotice(`Locate #${num} from extension — saving…`);
+      const now = Date.now();
+      const startsAt = addBusinessDays(new Date(now), 2).getTime();
+      const expiresAt = startsAt + ticket.specs.duration * DAY_MS;
+      try {
+        const { ticket: t } = await api.updateDigTicket(ticket.id, {
+          ticketNumber: num,
+          status: "Filed",
+          dates: {
+            createdAt: ticket.dates.createdAt,
+            submittedAt: now,
+            startsAt,
+            expiresAt,
+          },
+        });
+        setNotice(`Filed ITIC #${num} successfully.`);
+        onUpdated(t);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to save ticket number");
+      }
+    };
+
+    const handleExtensionMessage = (e: MessageEvent) => {
+      if (e.data?.type === "NSC_811_FILED_SUCCESS" && e.data?.payload?.ticketNumber) {
+        void saveNumber(e.data.payload.ticketNumber);
+        return;
+      }
       if (e.data?.type === "NSC_ITIC_FILING_COMPLETED" && e.data?.ticketNumber) {
-        setFiledNumber(e.data.ticketNumber);
-        setNotice(`Scraped ITIC #${e.data.ticketNumber} from Chrome Extension! Saving...`);
-        const num = e.data.ticketNumber;
-        const now = Date.now();
-        const startsAt = addBusinessDays(new Date(now), 2).getTime();
-        const expiresAt = startsAt + ticket.specs.duration * DAY_MS;
-        try {
-          const { ticket: t } = await api.updateDigTicket(ticket.id, {
-            ticketNumber: num,
-            status: "Filed",
-            dates: {
-              createdAt: ticket.dates.createdAt,
-              submittedAt: now,
-              startsAt,
-              expiresAt,
-            },
-          });
-          setNotice(`Filed ITIC #${num} successfully!`);
-          onUpdated(t);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Failed to save ticket number");
-        }
+        void saveNumber(e.data.ticketNumber);
       }
     };
     window.addEventListener("message", handleExtensionMessage);
     return () => window.removeEventListener("message", handleExtensionMessage);
-  }, [ticket, refetch, onUpdated]);
+  }, [ticket, onUpdated]);
 
-  // ── Request 811 ──────────────────────────────────────────────────────────
-  // The primary option is the fully-automated background bot. The manual option
-  // uses the guided browser tab launcher.
+  // ── Request 811 (Roadmap C) ────────────────────────────────────────────
+  // Official path: chrome-extension/ "NSC 811 Autofill" via IticModal.
+  // Advanced: Firebase fileTicketBot (hands-off auto-submit).
   const jobAddress = [job?.address, job?.city, job?.zipCode].filter(Boolean).join(", ");
-  // Work-to-begin = today + 2 business days (ITIC's 48hr notice). Computed here
-  // so both saveFiledTicket and the extension payload agree on the date.
+  const workForLabel =
+    (job?.customerProject ?? "").trim().toLowerCase() === "ziply" ? "ZIPLY" : "LUMEN";
   const workToBeginDate = addBusinessDays(new Date(), 2);
   const workToBeginMDY = formatMDY(workToBeginDate);
+
+  const runCloudBot = async () => {
+    if (
+      !window.confirm(
+        "Run the cloud bot? It logs into ITIC with server secrets and auto-submits end-to-end. Prefer the Autofill extension for day-to-day filing."
+      )
+    ) {
+      return;
+    }
+    setBotBusy(true);
+    setError(null);
+    setNotice("Cloud bot filing… this can take several minutes.");
+    try {
+      await api.updateDigTicket(ticket.id, { status: "Filing" });
+      const result = await api.fileTicketBot(ticket.id);
+      const t = await refetch();
+      onUpdated(t);
+      if (result.ticketNumber) setFiledNumber(result.ticketNumber);
+      setNotice(
+        result.ticketNumber
+          ? `Bot filed ITIC #${result.ticketNumber}.`
+          : `Bot finished with status ${result.status}.`
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Cloud bot failed");
+      try {
+        const t = await refetch();
+        onUpdated(t);
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setBotBusy(false);
+    }
+  };
 
   const saveFiledTicket = () =>
     run("save-filed", async () => {
@@ -267,6 +292,7 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
           jobAddress={jobAddress}
           markingInstructions={marking}
           workToBegin={workToBeginMDY}
+          extensionConnected={extensionActive}
           workToBeginMs={workToBeginDate.getTime()}
           filedNumber={filedNumber}
           onFiledNumberChange={setFiledNumber}
@@ -402,157 +428,154 @@ export default function TicketDetail({ ticket, job, onUpdated, onDeleted, onOpen
         </button>
       </section>
 
-      {/* Request 811: human-in-the-loop ITIC filing inside an embedded iframe
-          (draw + submit in ITIC → paste ticket # back). */}
-      {/* Redesigned Copilot filing section */}
+      {/* Official 811 filing (Roadmap C) — one path */}
       <section className="dt-copilot-card">
         <div className="dt-copilot-header">
-          <span className="dt-copilot-title">NSC Copilot Filing Center</span>
-          {filingMethod === "extension" && (
-            <span className={`dt-extension-status ${extensionActive ? "" : "not-detected"}`}>
-              {extensionActive ? "● Copilot Connected" : "○ Copilot Not Active"}
-            </span>
-          )}
+          <span className="dt-copilot-title">File 811 dig ticket</span>
+          <span className={`dt-extension-status ${extensionActive ? "" : "not-detected"}`}>
+            {extensionActive ? "● NSC 811 Autofill connected" : "○ Extension not detected"}
+          </span>
         </div>
 
-        {/* Tab selection */}
-        <div style={{ display: "flex", gap: "12px", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px", marginBottom: "16px" }}>
-          <button
-            style={{ background: "none", border: "none", borderBottom: filingMethod === "extension" ? "2px solid #2563eb" : "none", color: filingMethod === "extension" ? "#1e3a8a" : "#64748b", fontWeight: 700, cursor: "pointer", paddingBottom: "4px", fontSize: "13px" }}
-            onClick={() => setFilingMethod("extension")}
-          >
-            Chrome Extension
-          </button>
-          <button
-            style={{ background: "none", border: "none", borderBottom: filingMethod === "bookmarklet" ? "2px solid #2563eb" : "none", color: filingMethod === "bookmarklet" ? "#1e3a8a" : "#64748b", fontWeight: 700, cursor: "pointer", paddingBottom: "4px", fontSize: "13px" }}
-            onClick={() => setFilingMethod("bookmarklet")}
-          >
-            Magic Bookmarklet (IT Fallback)
-          </button>
-        </div>
+        <p style={{ margin: "0 0 12px", fontSize: 12, color: "#475569", lineHeight: 1.45 }}>
+          <strong>Official path:</strong> draw dig shape on the map (TOOLS) → create ticket → answer
+          questions → <strong>File with Autofill</strong> → ITIC opens, extension fills fields,{" "}
+          <em>you</em> draw/confirm the dig area on ITIC → locate # saves here. App then tracks
+          utilities, active window, and expiry.
+        </p>
 
         <div className="dt-request811__summary">
           <div><span>Address</span><b>{jobAddress || "—"}</b></div>
           <div><span>Work type</span><b>{ticket.specs.workType || "—"}</b></div>
-          <div><span>Work for</span><b>LUMEN</b></div>
-          <div><span>Duration</span><b>45 days</b></div>
+          <div><span>Work for</span><b>{workForLabel}</b></div>
+          <div><span>Duration</span><b>{ticket.specs.duration || 45} days</b></div>
+          <div><span>Work to begin</span><b>{workToBeginMDY}</b></div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px", width: "100%" }}>
-          {filingMethod === "extension" ? (
-            <>
-              <div style={{ display: "flex", gap: "8px", width: "100%" }}>
-                <button
-                  className="dt-btn dt-btn--primary"
-                  style={{ flex: "1 1 50%", background: "#1d4ed8", fontWeight: 700 }}
-                  onClick={runExtensionFiler}
-                  disabled={!!busy}
-                >
-                  Launch NSC Copilot
-                </button>
-                <button
-                  className="dt-btn dt-btn--secondary"
-                  style={{ flex: "1 1 50%", border: "1px solid #cbd5e1", background: "#ffffff", color: "#1e293b", fontWeight: 700 }}
-                  onClick={() => setIticOpen(true)}
-                  disabled={!!busy}
-                >
-                  File Manually (Guided Tab)
-                </button>
-              </div>
-
-              <div className="dt-copilot-instructions">
-                <strong>Chrome Extension Setup Instructions:</strong>
-                <ol className="dt-instruction-steps">
-                  <li>Open Chrome and navigate to: <code>chrome://extensions/</code></li>
-                  <li>In the top-right corner, toggle <strong>Developer mode</strong> to <strong>ON</strong>.</li>
-                  <li>Click <strong>Load unpacked</strong> in the top-left, and select the <code>apps/extension</code> folder in this project directory.</li>
-                </ol>
-                <div style={{ marginTop: "10px", fontSize: "12px", color: "#64748b" }}>
-                  *Once installed, click "Launch NSC Copilot" to trigger the automatic page-filling. Follow the green notifications at the top of the ITIC portal pages.
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-                <a
-                  href={getBookmarkletCode(window.location.origin)}
-                  className="dt-btn dt-btn--primary"
-                  style={{ display: "block", textAlign: "center", textDecoration: "none", background: "#16a34a", borderColor: "#16a34a", padding: "10px", borderRadius: "8px", color: "white", fontWeight: 700 }}
-                  onClick={(e) => {
-                    alert("Drag this green button directly to your Chrome Bookmarks Bar, then click 'Open ITIC in New Tab'!");
-                    e.preventDefault();
-                  }}
-                >
-                  Drag to Bookmarks: NSC Copilot
-                </a>
-                <button
-                  className="dt-btn dt-btn--secondary"
-                  style={{ width: "100%", fontWeight: 700 }}
-                  onClick={() => window.open(`https://wa.itic.occinc.com/#nscTicketId=${ticket.id}`, "_blank")}
-                >
-                  Open ITIC in New Tab
-                </button>
-              </div>
-
-              <div className="dt-copilot-instructions">
-                <strong>Bookmarklet Setup & Instructions:</strong>
-                <ol className="dt-instruction-steps">
-                  <li><strong>Drag the green button above</strong> directly onto your Chrome bookmarks bar.</li>
-                  <li>Click <strong>"Open ITIC in New Tab"</strong> to launch the portal with the ticket context.</li>
-                  <li>At any form page on ITIC (Step 1, Step 2, etc.), **simply click the "NSC Copilot" bookmark** in your bookmarks bar. It will instantly autofill the fields!</li>
-                  <li>Once you submit, click the bookmark on the confirmation page to automatically sync the Ticket Number back to this app!</li>
-                </ol>
-              </div>
-            </>
-          )}
-
-          {/* Manual Backup copy helper list */}
-          <div style={{ marginTop: "12px", borderTop: "1px dashed #e2e8f0", paddingTop: "12px" }}>
-            <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", display: "block", marginBottom: "8px" }}>
-              Manual Filing Clipboard Helpers
-            </span>
-            <div className="dt-copy-helper">
-              <span>Street Address:</span>
-              <code>{job?.address || "—"}</code>
-              <button 
-                className={`dt-btn-copy ${copiedField === "address" ? "copied" : ""}`}
-                onClick={() => copyToClipboard(job?.address || "", "address")}
-              >
-                {copiedField === "address" ? "Copied!" : "Copy"}
-              </button>
-            </div>
-            <div className="dt-copy-helper">
-              <span>Marking Instructions:</span>
-              <code style={{ maxWidth: "250px" }}>{marking || "—"}</code>
-              <button 
-                className={`dt-btn-copy ${copiedField === "marking" ? "copied" : ""}`}
-                onClick={() => copyToClipboard(marking || "", "marking")}
-              >
-                {copiedField === "marking" ? "Copied!" : "Copy"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="dt-request811__filed" style={{ marginTop: "18px" }}>
-          <label className="dt-field">
-            <span>Filed ticket #</span>
-            <input
-              value={filedNumber}
-              onChange={(e) => setFiledNumber(e.target.value)}
-              placeholder="Paste the ITIC ticket # after you submit"
-            />
-          </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16, width: "100%" }}>
           <button
-            className="dt-btn dt-btn--primary dt-btn--sm"
-            onClick={saveFiledTicket}
-            disabled={busy === "save-filed" || filedNumber.trim() === ""}
+            type="button"
+            className="dt-btn dt-btn--primary"
+            style={{ width: "100%", background: "#1d4ed8", fontWeight: 700, padding: "12px 16px" }}
+            onClick={() => setIticOpen(true)}
+            disabled={!!busy || botBusy}
           >
-            {busy === "save-filed" ? "Saving…" : "Save filed ticket"}
+            File 811 with Autofill (official)
           </button>
+
+          <div className="dt-copilot-instructions">
+            <strong>Install once (Chrome):</strong>
+            <ol className="dt-instruction-steps">
+              <li>Open <code>chrome://extensions/</code></li>
+              <li>Turn on <strong>Developer mode</strong></li>
+              <li>
+                <strong>Load unpacked</strong> → select folder{" "}
+                <code>chrome-extension</code> in this project
+                (name: <strong>NSC 811 Autofill</strong>)
+              </li>
+              <li>Do <em>not</em> install <code>apps/extension</code> (deprecated)</li>
+            </ol>
+          </div>
+
+          <div className="dt-request811__filed" style={{ marginTop: 4 }}>
+            <label className="dt-field">
+              <span>Filed ticket #</span>
+              <input
+                value={filedNumber}
+                onChange={(e) => setFiledNumber(e.target.value)}
+                placeholder="Paste ITIC locate # after submit"
+              />
+            </label>
+            <button
+              type="button"
+              className="dt-btn dt-btn--primary dt-btn--sm"
+              onClick={saveFiledTicket}
+              disabled={busy === "save-filed" || filedNumber.trim() === ""}
+            >
+              {busy === "save-filed" ? "Saving…" : "Save filed ticket"}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#64748b",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              textAlign: "left",
+              padding: 0,
+            }}
+          >
+            {showAdvanced ? "▾ Hide advanced options" : "▸ Advanced / emergency options"}
+          </button>
+
+          {showAdvanced && (
+            <div
+              style={{
+                border: "1px dashed #cbd5e1",
+                borderRadius: 8,
+                padding: 12,
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                background: "#f8fafc",
+              }}
+            >
+              <p style={{ margin: 0, fontSize: 11, color: "#64748b", lineHeight: 1.4 }}>
+                Cloud bot uses server ITIC secrets and <strong>auto-submits</strong>. Prefer Autofill
+                for normal work.
+              </p>
+              <button
+                type="button"
+                className="dt-btn dt-btn--secondary"
+                style={{ fontWeight: 700 }}
+                onClick={() => void runCloudBot()}
+                disabled={botBusy || !!busy}
+              >
+                {botBusy ? "Bot running…" : "File with cloud bot (auto-submit)"}
+              </button>
+
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  color: "#64748b",
+                }}
+              >
+                Clipboard helpers (manual ITIC)
+              </span>
+              <div className="dt-copy-helper">
+                <span>Street Address:</span>
+                <code>{job?.address || "—"}</code>
+                <button
+                  type="button"
+                  className={`dt-btn-copy ${copiedField === "address" ? "copied" : ""}`}
+                  onClick={() => copyToClipboard(job?.address || "", "address")}
+                >
+                  {copiedField === "address" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+              <div className="dt-copy-helper">
+                <span>Marking Instructions:</span>
+                <code style={{ maxWidth: 250 }}>{marking || "—"}</code>
+                <button
+                  type="button"
+                  className={`dt-btn-copy ${copiedField === "marking" ? "copied" : ""}`}
+                  onClick={() => copyToClipboard(marking || "", "marking")}
+                >
+                  {copiedField === "marking" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-        {notice && <div className="dt-request811__notice" style={{ marginTop: "12px" }}>{notice}</div>}
+
+        {notice && <div className="dt-request811__notice" style={{ marginTop: 12 }}>{notice}</div>}
 
         {/* PDF & Screenshot links */}
         {(ticket.iticPdfUrl || ticket.automation.reviewScreenshotUrl || ticket.automation.confirmationScreenshotUrl) && (

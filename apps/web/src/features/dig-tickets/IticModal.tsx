@@ -1,9 +1,6 @@
-// Full-screen ITIC filing modal: guides the user through filing in a new tab.
-// This bypasses browser SameSite cookie restrictions that block third-party logins in iframes.
-//
-// On open we broadcast the job data over window.postMessage on the well-known
-// NSC_811_JOB_DATA channel. The companion Chrome extension (chrome-extension/)
-// listens for it, stashes the payload, and drives the ITIC autofill inside the new tab.
+// Official 811 filing modal (Roadmap C).
+// Opens ITIC in a new tab and broadcasts job data on NSC_811_JOB_DATA for the
+// chrome-extension/ "NSC 811 Autofill" companion. You draw the dig shape on ITIC.
 import { useEffect } from "react";
 import type { DigTicket, Job } from "@nsc/types";
 
@@ -20,6 +17,7 @@ export interface Itic811JobData {
   durationDays: number;
   markingInstructions: string;
   workOrder: string;
+  ticketId?: string;
 }
 
 interface Props {
@@ -27,13 +25,14 @@ interface Props {
   job: Job | null;
   jobAddress: string;
   markingInstructions: string;
-  workToBegin: string; // MM/DD/YYYY (today + 2 business days)
+  workToBegin: string;
   workToBeginMs: number;
   filedNumber: string;
   onFiledNumberChange: (v: string) => void;
   onSaveFiled: () => void;
   saving: boolean;
   onClose: () => void;
+  extensionConnected?: boolean;
 }
 
 export default function IticModal({
@@ -48,52 +47,54 @@ export default function IticModal({
   onSaveFiled,
   saving,
   onClose,
+  extensionConnected = false,
 }: Props) {
-  // Broadcast the job data for the extension exactly once, on open.
+  const excavator =
+    (job?.customerProject ?? "").trim().toLowerCase() === "ziply" ? "ZIPLY" : "LUMEN";
+
+  // Broadcast job data for the official extension on open (and re-broadcast
+  // if marking/address changes while modal is open).
   useEffect(() => {
     const payload: Itic811JobData = {
       address: jobAddress,
       workType: ticket.specs.workType || "",
       ticketType: TICKET_TYPE,
-      excavator: "LUMEN",
+      excavator,
       workToBegin,
       workToBeginMs,
-      durationDays: 45,
+      durationDays: ticket.specs.duration || 45,
       markingInstructions: markingInstructions || "",
       workOrder: job?.workOrder ?? ticket.jobId,
+      ticketId: ticket.id,
     };
     window.postMessage({ type: "NSC_811_JOB_DATA", payload }, window.location.origin);
   }, [
     jobAddress,
     ticket.specs.workType,
+    ticket.specs.duration,
     ticket.jobId,
+    ticket.id,
     workToBegin,
     workToBeginMs,
     markingInstructions,
     job?.workOrder,
+    excavator,
   ]);
 
-  // Attempt to open the tab automatically on mount (pop-up blockers might block it)
   useEffect(() => {
     window.open(ITIC_URL, "_blank");
   }, []);
 
-  // Listen for the Chrome extension bridging the successfully filed ticket number
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
       const data = e.data;
       if (data && data.type === "NSC_811_FILED_SUCCESS" && data.payload?.ticketNumber) {
-        const ticketNo = data.payload.ticketNumber;
-        console.log("[IticModal] auto-save message captured:", ticketNo);
+        const ticketNo = String(data.payload.ticketNumber);
         onFiledNumberChange(ticketNo);
-        
-        // Auto-save the ticket number once React finishes state updates
         setTimeout(() => {
-          const btn = document.querySelector(".itic-save-btn") as HTMLButtonElement;
-          if (btn && !btn.disabled) {
-            btn.click();
-          }
+          const btn = document.querySelector(".itic-save-btn") as HTMLButtonElement | null;
+          if (btn && !btn.disabled) btn.click();
         }, 300);
       }
     };
@@ -101,7 +102,6 @@ export default function IticModal({
     return () => window.removeEventListener("message", handleMessage);
   }, [onFiledNumberChange]);
 
-  // Close on Escape for keyboard users.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -122,22 +122,57 @@ export default function IticModal({
         <div className="itic-modal__body">
           <div className="itic-modal__instruction-pane">
             <div className="itic-instruction__card">
-              <h2 className="itic-instruction__heading">Filing 811 Dig Ticket securely</h2>
+              <h2 className="itic-instruction__heading">Official path: NSC 811 Autofill</h2>
               <p className="itic-instruction__intro">
-                Due to modern browser security restrictions on third-party cookies, ITIC's login session cannot run reliably inside an iframe. We've opened ITIC in a new browser tab for you to file securely.
+                ITIC opens in a new tab using <strong>your</strong> browser login. The Chrome
+                extension pre-fills fields from this app. <strong>You draw the dig shape</strong>{" "}
+                on ITIC, then submit. Paste or auto-sync the locate number back here.
               </p>
-              
+              <p
+                style={{
+                  margin: "0 0 12px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: extensionConnected ? "#15803d" : "#b45309",
+                }}
+              >
+                {extensionConnected
+                  ? "● NSC 811 Autofill extension detected"
+                  : "○ Extension not detected — install chrome-extension/ (Load unpacked)"}
+              </p>
+
               <div className="itic-steps">
                 <div className="itic-step">
                   <div className="itic-step__num">1</div>
                   <div className="itic-step__text">
-                    <strong>Launch ITIC Tab</strong>
-                    <p>Log in with your standard credentials in the new browser tab.</p>
+                    <strong>ITIC tab</strong>
+                    <p>Log in if needed. Job data was sent to the extension for autofill.</p>
                     <button
-                      onClick={() => window.open(ITIC_URL, "_blank")}
+                      type="button"
+                      onClick={() => {
+                        window.postMessage(
+                          {
+                            type: "NSC_811_JOB_DATA",
+                            payload: {
+                              address: jobAddress,
+                              workType: ticket.specs.workType || "",
+                              ticketType: TICKET_TYPE,
+                              excavator,
+                              workToBegin,
+                              workToBeginMs,
+                              durationDays: ticket.specs.duration || 45,
+                              markingInstructions: markingInstructions || "",
+                              workOrder: job?.workOrder ?? ticket.jobId,
+                              ticketId: ticket.id,
+                            } satisfies Itic811JobData,
+                          },
+                          window.location.origin
+                        );
+                        window.open(ITIC_URL, "_blank");
+                      }}
                       className="dt-btn dt-btn--primary itic-launch-btn"
                     >
-                      🚀 Open ITIC in New Tab
+                      Open / re-open ITIC
                     </button>
                   </div>
                 </div>
@@ -145,39 +180,66 @@ export default function IticModal({
                 <div className="itic-step">
                   <div className="itic-step__num">2</div>
                   <div className="itic-step__text">
-                    <strong>Extension Autofill</strong>
-                    <p>The companion Chrome extension will automatically pre-fill the job address, work order, and marking instructions in the tab.</p>
+                    <strong>Autofill</strong>
+                    <p>
+                      Extension fills address, work type, dates, and marking text. Confirm fields
+                      look right.
+                    </p>
                   </div>
                 </div>
 
                 <div className="itic-step">
                   <div className="itic-step__num">3</div>
                   <div className="itic-step__text">
-                    <strong>Draw & Submit</strong>
-                    <p>Draw your excavation boundary shape on the map, confirm the details, and submit the ticket on the ITIC site.</p>
+                    <strong>Draw dig shape &amp; submit</strong>
+                    <p>
+                      On the ITIC map step, draw the excavation boundary (same shape you planned in
+                      the app), then submit the ticket.
+                    </p>
                   </div>
                 </div>
 
                 <div className="itic-step">
                   <div className="itic-step__num">4</div>
                   <div className="itic-step__text">
-                    <strong>Automatic Sync</strong>
-                    <p>Once you click submit, the extension will automatically capture the ticket number, close the tab, and save it back here.</p>
+                    <strong>Save locate #</strong>
+                    <p>
+                      Extension may fill the ticket # automatically. Otherwise paste it and click
+                      Save filed ticket.
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          
+
           <aside className="itic-modal__side">
             <section className="itic-side__card">
               <div className="itic-side__title">JOB</div>
-              <div className="itic-side__row"><span>Address</span><b>{jobAddress || "—"}</b></div>
-              <div className="itic-side__row"><span>Work order</span><b>{job?.workOrder ?? ticket.jobId}</b></div>
-              <div className="itic-side__row"><span>Work for</span><b>LUMEN</b></div>
-              <div className="itic-side__row"><span>Ticket type</span><b>{TICKET_TYPE}</b></div>
-              <div className="itic-side__row"><span>Work to begin</span><b>{workToBegin}</b></div>
-              <div className="itic-side__row"><span>Duration</span><b>45 days</b></div>
+              <div className="itic-side__row">
+                <span>Address</span>
+                <b>{jobAddress || "—"}</b>
+              </div>
+              <div className="itic-side__row">
+                <span>Work order</span>
+                <b>{job?.workOrder ?? ticket.jobId}</b>
+              </div>
+              <div className="itic-side__row">
+                <span>Work for</span>
+                <b>{excavator}</b>
+              </div>
+              <div className="itic-side__row">
+                <span>Ticket type</span>
+                <b>{TICKET_TYPE}</b>
+              </div>
+              <div className="itic-side__row">
+                <span>Work to begin</span>
+                <b>{workToBegin}</b>
+              </div>
+              <div className="itic-side__row">
+                <span>Duration</span>
+                <b>{ticket.specs.duration || 45} days</b>
+              </div>
             </section>
 
             <section className="itic-side__card">
@@ -192,10 +254,11 @@ export default function IticModal({
                 <input
                   value={filedNumber}
                   onChange={(e) => onFiledNumberChange(e.target.value)}
-                  placeholder="Waiting for extension sync..."
+                  placeholder="Paste locate # from ITIC"
                 />
               </label>
               <button
+                type="button"
                 className="dt-btn dt-btn--primary dt-btn--sm itic-save-btn"
                 onClick={onSaveFiled}
                 disabled={saving || filedNumber.trim() === ""}
@@ -203,7 +266,7 @@ export default function IticModal({
                 {saving ? "Saving…" : "Save filed ticket"}
               </button>
               <p className="itic-side__hint">
-                You can manually paste the ticket number here if you don't have the extension active.
+                Saving marks this ticket Filed and starts Smartsheet write-back when configured.
               </p>
             </section>
           </aside>

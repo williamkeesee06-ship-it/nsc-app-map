@@ -1,143 +1,80 @@
-# 811 Automation — Deployment
+# 811 Dig Tickets — Official path & deploy
 
-The 811 Locate & Dig Ticket Manager has two runtimes:
+## Operator workflow (Roadmap C — single path)
 
-| Runtime | What runs there | Deploy |
-| --- | --- | --- |
-| **Vercel** (`apps/web`, `apps/api`) | UI, ticket CRUD, Gemini marking-instruction generation | existing Vercel pipeline (auto on push) |
-| **Firebase Functions** (`functions/`) | ITIC Playwright bot, Smartsheet write-back, daily sweep, notifications | `firebase deploy --only functions` |
+```
+1. MAP / TOOLS  →  draw dig boundary with the 3 dig tools
+2. 811 tab      →  create ticket (scope of work, work-for, dates, etc.)
+3. Ticket detail →  "File 811 with Autofill (official)"
+4. ITIC tab      →  extension autofills; YOU draw/confirm shape; submit
+5. Locate #      →  saves on the ticket (auto or paste)
+6. App manages   →  utility responses, active window, expiry (sweep + check)
+```
 
-Playwright + headless Chromium are too heavy for Vercel's 60s serverless limit, so
-all browser automation lives in Firebase Functions Gen2 (2 GiB / 540 s).
+### Official Chrome extension
 
-## Functions
+| | |
+|--|--|
+| **Folder** | `chrome-extension/` |
+| **Name** | **NSC 811 Autofill** |
+| **Protocol** | `NSC_811_JOB_DATA` → ITIC autofill → `NSC_811_FILED_SUCCESS` |
+
+Install: `chrome://extensions` → Developer mode → **Load unpacked** → select `chrome-extension/`.
+
+**Do not install** `apps/extension/` (deprecated ITIC Copilot — see `apps/extension/DEPRECATED.md`).
+
+### Advanced only
+
+| Path | When |
+|------|------|
+| **Cloud bot** (`fileTicketBot`) | Ticket UI → Advanced → auto-submits with server ITIC secrets |
+| Clipboard helpers | Manual ITIC typing if extension unavailable |
+
+Bookmarklet is **no longer** a first-class UI path (API auth lock broke unauthenticated bookmarklet calls).
+
+---
+
+## Runtimes
+
+| Runtime | What | Deploy |
+|---------|------|--------|
+| **Vercel** (`apps/web`, `apps/api`) | UI, ticket CRUD, Gemini marking text | Auto on push to `main` |
+| **Firebase Functions** (`functions/`) | Playwright bot, utility scrape, dailySweep, Smartsheet write-back on Filed | Auto on `functions/**` changes or `firebase deploy --only functions` |
+
+Callables require a **signed-in Firebase user** (solo lock).
+
+---
+
+## Functions (current behavior)
 
 | Function | Trigger | Purpose |
-| --- | --- | --- |
-| `fileTicketBot` | callable | Log into ITIC, fill the ticket form, capture a **review** screenshot, move ticket → `Review`. Does not submit. |
-| `confirmAndSubmit` | callable | After operator sign-off, re-fill and **submit** to ITIC, record the locate number, move ticket → `Filed`. |
-| `checkUtilityResponses` | callable | Scrape member responses for one filed ticket and update `utilityStatuses` / `readyToDig`. |
-| `dailySweep` | schedule `0 6 * * *` `America/Los_Angeles` | Expire/renew tickets and poll open tickets for responses. |
-| `onTicketFiled` | Firestore `digTickets/{id}` update | On the transition into `Filed`, write the locate number + expiration back to Smartsheet and notify. |
+|----------|---------|---------|
+| `fileTicketBot` | callable | Full auto-file on ITIC (login → fill → **auto-submit** → Filed) |
+| `confirmAndSubmit` | callable | **Deprecated no-op** (kept for old clients) |
+| `checkUtilityResponses` | callable | Scrape utility responses for one ticket |
+| `dailySweep` | schedule 6am PT | Active/Expiring/Expired + poll responses |
+| `onTicketFiled` | Firestore | Smartsheet locate write-back + notify |
 
-`fileTicketBot` and `confirmAndSubmit` are split so a human can approve the review
-screenshot before anything is filed. Because Cloud Functions are stateless
-between invocations, `confirmAndSubmit` re-fills the form in a fresh browser
-session rather than resuming the review session.
+---
 
-## One-time setup
-
-1. **Install the Firebase CLI** and log in:
-   ```bash
-   npm i -g firebase-tools
-   firebase login
-   firebase use <your-project-id>
-   ```
-2. **Set secrets** (Secret Manager — never committed):
-   ```bash
-   ITIC_USERNAME=wkeesee@northskyComm.com \
-   ITIC_PASSWORD='<password>' \
-   GEMINI_API_KEY='<key>' \
-   SMARTSHEET_ACCESS_TOKEN='<token>' \
-   PUSHOVER_TOKEN='<optional>' PUSHOVER_USER='<optional>' \
-   ./scripts/set-811-secrets.sh
-   ```
-   `GEMINI_API_KEY` is consumed by `apps/api` (set it in Vercel too); the rest are
-   consumed by the functions.
-3. **Enable Cloud Storage** in the Firebase console — bot screenshots are written
-   to `dig-tickets/{ticketId}/…` in the default bucket.
-
-## Deploy
-
-Deployment is **automatic**. A GitHub Actions workflow
-(`.github/workflows/deploy-functions.yml`) redeploys the functions on every push
-to `main` that touches `functions/**` or `firebase.json`, and can also be run
-on demand from the Actions tab ("Run workflow"). You do **not** need the Firebase
-CLI on your machine. The only one-time step is adding two GitHub secrets
-(`FIREBASE_SERVICE_ACCOUNT` and `FIREBASE_PROJECT_ID`) — see
-[Auto-deploy setup (one-time, browser-only)](#auto-deploy-setup-one-time-browser-only).
-
-The manual CLI path is still available if you ever need it:
+## Secrets (Firebase Functions)
 
 ```bash
-npm --prefix functions install   # first time only
-npm --prefix functions run deploy
+ITIC_USERNAME=... \
+ITIC_PASSWORD=... \
+SMARTSHEET_ACCESS_TOKEN=... \
+./scripts/set-811-secrets.sh
 ```
 
-or from the repo root: `firebase deploy --only functions`.
+Do not commit credentials. `GEMINI_API_KEY` for marking instructions lives on **Vercel** (API).
 
-## Auto-deploy setup (one-time, browser-only)
+---
 
-Do this once from your browser — no command line required. After that, every push
-to `main` deploys the functions automatically.
+## Local / prod app origins for the extension
 
-### 1. Create a Firebase service account key
+`chrome-extension/manifest.json` allows:
 
-1. Open <https://console.firebase.google.com> and select the **nsc-app-map** project.
-2. Click the **gear icon** (top-left) → **Project Settings**.
-3. Open the **Service accounts** tab.
-4. Click **Generate new private key** → **Generate key** to confirm. A `.json`
-   file downloads to your computer.
-5. Open that `.json` file in **Notepad**, press **Ctrl+A** to select all, then
-   **Ctrl+C** to copy the entire contents.
-
-### 2. Get your Firebase project ID
-
-1. On the same **Project Settings** page, open the **General** tab.
-2. Find **Project ID** (looks like `nsc-app-map-xxxxx`).
-3. Copy it.
-
-### 3. Add both to GitHub Secrets
-
-1. Go to <https://github.com/williamkeesee06-ship-it/nsc-app-map/settings/secrets/actions>.
-2. Click **New repository secret**.
-   - **Name:** `FIREBASE_SERVICE_ACCOUNT`
-   - **Value:** paste the **entire JSON** you copied in step 1.
-   - Click **Add secret**.
-3. Click **New repository secret** again.
-   - **Name:** `FIREBASE_PROJECT_ID`
-   - **Value:** the project ID from step 2.
-   - Click **Add secret**.
-
-> Never commit the service account `.json` to the repo — it lives only in GitHub
-> Secrets.
-
-### 4. Trigger the first deploy
-
-1. Go to <https://github.com/williamkeesee06-ship-it/nsc-app-map/actions>.
-2. Click **Deploy Firebase Functions** in the left sidebar.
-3. Click **Run workflow** → **Run workflow**.
-4. Wait ~3–5 minutes. The run should turn **green ✓**.
-
-### 5. Get the deployed function URLs
-
-1. Once green, click into the workflow run.
-2. Expand the **Deploy Functions** step.
-3. Copy the base URL from the output
-   (e.g. `https://us-central1-nsc-app-map.cloudfunctions.net`).
-
-## Verifying ITIC selectors
-
-ITIC's form markup (`itic.occinc.com`) is not publicly documented and changes
-over time. All selectors live in one place — `ITIC_SELECTORS` in
-`functions/src/itic.ts`. Before the first production run, log into ITIC manually,
-inspect the New Ticket form, and confirm each selector (login, work type, depth,
-duration, start date, remarks, the four checkboxes, review/submit buttons, and
-the response-lookup table). The control flow does not change; only the selectors
-may need updating. Run the emulator to iterate:
-
-```bash
-npm --prefix functions run serve
-```
-
-## Smartsheet mapping
-
-Write-back targets the Master Schedule sheet `1833739362822020`:
-
-- Work Order (match key) — col `4680657223346052`
-- Locate # (written) — col `7141137686783876`
-- Locate Expiration (written) — col `1511638152570756`
-- Address / Zip — fallback match keys when Work Order is blank
-
-If no row matches, the write-back logs a warning and no-ops rather than failing
-the file flow.
+- `https://nsc-app-map.vercel.app/*`
+- `http://localhost:5173/*`
+- `http://127.0.0.1:5173/*`
+- `https://wa.itic.occinc.com/*`

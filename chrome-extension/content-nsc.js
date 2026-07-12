@@ -1,13 +1,12 @@
-// NSC App Map bridge (runs on https://nsc-app-map.vercel.app/*).
+// NSC App Map bridge (runs on the map app origin).
 //
-// The web app posts the current job's 811 data over window.postMessage on the
-// NSC_811_JOB_DATA channel when the "Open ITIC" modal opens. We stash it into
-// chrome.storage.local so the ITIC-side content script (running inside the
-// embedded iframe, a different origin) can read it and drive the autofill.
+// Official 811 filing path (Roadmap C):
+//   1. App opens IticModal → posts NSC_811_JOB_DATA
+//   2. This script stores payload in chrome.storage.local
+//   3. content-itic.js autofills ITIC (stops at map draw)
+//   4. On success, posts NSC_811_FILED_SUCCESS back to the app
 //
-// ITIC cookies are HttpOnly, so there is no session handoff here — the iframe
-// simply reuses the user's existing wa.itic.occinc.com session. This bridge
-// only moves the *job data*.
+// Also answers NSC_PING_811 so the app can show "extension connected".
 (function () {
   "use strict";
 
@@ -15,10 +14,22 @@
   const STORAGE_KEY = "nsc811Job";
 
   window.addEventListener("message", (event) => {
-    // Only trust messages from this same page (the app posts to its own window).
     if (event.source !== window) return;
     const data = event.data;
-    if (!data || data.type !== CHANNEL || !data.payload) return;
+    if (!data) return;
+
+    // Health-check from TicketDetail
+    if (data.type === "NSC_PING_811" || data.type === "NSC_PING_EXTENSION") {
+      window.postMessage(
+        { type: "NSC_PONG_811", extension: "nsc-811-autofill", version: "1.1.0" },
+        window.location.origin
+      );
+      // Back-compat alias used by older UI code
+      window.postMessage({ type: "NSC_PONG_EXTENSION" }, window.location.origin);
+      return;
+    }
+
+    if (data.type !== CHANNEL || !data.payload) return;
 
     try {
       chrome.storage.local.set({
@@ -31,7 +42,7 @@
     }
   });
 
-  // Listen for success data written by the ITIC tab and bridge it back to the React app window
+  // Bridge success from ITIC tab storage back into the React app
   try {
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local") return;

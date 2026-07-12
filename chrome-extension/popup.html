@@ -6,7 +6,7 @@
     <title>NSC 811 Autofill</title>
     <style>
       body {
-        width: 260px;
+        width: 280px;
         margin: 0;
         padding: 14px;
         font: 13px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -14,10 +14,21 @@
         color: #e8edf2;
       }
       h1 {
-        font-size: 14px;
-        letter-spacing: 0.06em;
-        color: #ffb37a;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        color: #3aa7ff;
         margin: 0 0 8px;
+      }
+      .badge {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: #04222e;
+        background: #00e676;
+        padding: 2px 8px;
+        border-radius: 999px;
+        margin-bottom: 10px;
       }
       #status {
         padding: 8px 10px;
@@ -25,25 +36,39 @@
         background: rgba(255, 255, 255, 0.05);
         border: 1px solid rgba(255, 255, 255, 0.1);
         margin-bottom: 10px;
+        font-size: 12px;
       }
       ol {
         margin: 0;
         padding-left: 18px;
         color: #b7c0cb;
+        font-size: 12px;
       }
       li {
-        margin-bottom: 4px;
+        margin-bottom: 6px;
+      }
+      .path {
+        margin-top: 10px;
+        font-size: 10px;
+        color: #6b7280;
+      }
+      code {
+        color: #93c5fd;
+        font-size: 10px;
       }
     </style>
   </head>
   <body>
+    <div class="badge">OFFICIAL 811 PATH</div>
     <h1>NSC 811 AUTOFILL</h1>
     <div id="status">No job captured yet.</div>
     <ol>
-      <li>Open a ticket's <b>Request 811 → Open ITIC</b> in the app.</li>
-      <li>The bot picks a 2-day ticket &amp; fills the address.</li>
-      <li>Draw your shape, hit Next, then submit.</li>
+      <li>In the map app, open a dig ticket → <b>File 811 with Autofill</b>.</li>
+      <li>Stay logged into ITIC in Chrome (your session).</li>
+      <li>Extension fills form fields; <b>you draw the dig shape</b> on ITIC map.</li>
+      <li>Submit on ITIC — locate # can sync back to the app.</li>
     </ol>
+    <p class="path">Load unpacked from repo: <code>chrome-extension/</code></p>
     <script src="popup.js"></script>
   </body>
 </html>
