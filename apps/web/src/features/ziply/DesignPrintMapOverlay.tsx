@@ -1,9 +1,8 @@
 /**
  * Digital Field Operations Platform — H3024 Design Print Map
- * Multi-layer GeoJSON with neon/metal futuristic styling on Google Maps.
  *
- * Visual system: layer-primary colors (not grey "designed" override),
- * dual-pass glow cables, SVG markers with soft bloom, dark glass HUD.
+ * Palette: royal blue · white · stainless steel · carbon fiber accents
+ * (light modern metal — not dark mode)
  */
 import {
   useCallback,
@@ -30,101 +29,101 @@ export type LayerKey =
 type LayerMeta = {
   label: string;
   color: string;
-  glow: string;
+  soft: string;
   defaultOn: boolean;
   minZoom: number;
   lineWeight: number;
 };
 
-/** Royal-blue / metal / neon palette — never force grey for "designed" */
+/** Royal blue / steel / carbon plant palette */
 const LAYER_META: Record<LayerKey, LayerMeta> = {
   hub: {
     label: "Hub / FDH",
-    color: "#3B82F6",
-    glow: "#60A5FA",
+    color: "#1D4ED8",
+    soft: "#93C5FD",
     defaultOn: true,
     minZoom: 0,
     lineWeight: 0,
   },
   feeder: {
     label: "Feeder cables",
-    color: "#FF6B2C",
-    glow: "#FFB086",
+    color: "#1E40AF",
+    soft: "#60A5FA",
     defaultOn: true,
     minZoom: 12,
-    lineWeight: 7,
+    lineWeight: 6.5,
   },
   distribution: {
     label: "Distribution",
-    color: "#22D3EE",
-    glow: "#67E8F9",
+    color: "#2563EB",
+    soft: "#93C5FD",
     defaultOn: true,
     minZoom: 13,
-    lineWeight: 4.5,
+    lineWeight: 4.2,
   },
   drop: {
     label: "Drops",
-    color: "#A78BFA",
-    glow: "#C4B5FD",
+    color: "#3B82F6",
+    soft: "#BFDBFE",
     defaultOn: true,
     minZoom: 14,
-    lineWeight: 2.5,
+    lineWeight: 2.4,
   },
   bore: {
     label: "Bore / trench",
-    color: "#FBBF24",
-    glow: "#FDE68A",
+    color: "#64748B",
+    soft: "#94A3B8",
     defaultOn: true,
     minZoom: 13,
     lineWeight: 3.5,
   },
   terminal: {
     label: "Splice terminals",
-    color: "#C084FC",
-    glow: "#E9D5FF",
+    color: "#1D4ED8",
+    soft: "#93C5FD",
     defaultOn: true,
     minZoom: 13,
     lineWeight: 0,
   },
   service_point: {
     label: "Service addresses",
-    color: "#38BDF8",
-    glow: "#7DD3FC",
+    color: "#0EA5E9",
+    soft: "#BAE6FD",
     defaultOn: true,
     minZoom: 14,
     lineWeight: 0,
   },
   pole: {
     label: "Poles",
-    color: "#F87171",
-    glow: "#FECACA",
+    color: "#475569",
+    soft: "#CBD5E1",
     defaultOn: true,
     minZoom: 14,
     lineWeight: 0,
   },
   handhole: {
     label: "Handholes",
-    color: "#2DD4BF",
-    glow: "#99F6E4",
+    color: "#334155",
+    soft: "#94A3B8",
     defaultOn: true,
     minZoom: 14,
     lineWeight: 0,
   },
 };
 
-/** Status only tints non-default states — designed keeps layer color */
+/** Status only overrides non-default work states */
 const STATUS_TINT: Record<string, string | null> = {
   designed: null,
   planned: null,
-  permitted: "#38BDF8",
-  ticket_active: "#FACC15",
-  in_progress: "#FB923C",
-  in_progress_alt: "#38BDF8",
-  placed: "#2DD4BF",
-  spliced: "#C084FC",
-  tested: "#4ADE80",
-  complete: "#22C55E",
-  on_hold: "#F87171",
+  permitted: "#2563EB",
+  ticket_active: "#CA8A04",
+  in_progress: "#EA580C",
+  in_progress_alt: "#2563EB",
+  placed: "#0D9488",
+  spliced: "#1D4ED8",
+  tested: "#16A34A",
+  complete: "#15803D",
+  on_hold: "#DC2626",
 };
 
 type GeoFeature = {
@@ -146,69 +145,80 @@ type FeatureCollection = {
 
 function featureColor(layer: string, status?: string): string {
   const meta = LAYER_META[layer as LayerKey];
-  const base = meta?.color ?? "#94A3B8";
+  const base = meta?.color ?? "#64748B";
   if (!status) return base;
   const tint = STATUS_TINT[status];
   return tint ?? base;
 }
 
-/** SVG marker with soft outer bloom (depth without Mapbox extrusion) */
+/** Stainless / carbon marker with soft blue halo (light theme) */
 function makeMarkerIcon(
   kind: "hub" | "terminal" | "service" | "pole" | "handhole",
   color: string,
-  glow: string,
+  soft: string,
   size: number
 ): google.maps.Icon {
   const s = 64;
-  const c = s / 2;
   let body = "";
   if (kind === "hub") {
-    // hexagon + core
     body = `
-      <polygon points="32,8 52,18 52,38 32,48 12,38 12,18" fill="${color}" stroke="#E0F2FE" stroke-width="2.5"/>
-      <circle cx="32" cy="28" r="7" fill="#0B1220" stroke="${glow}" stroke-width="2"/>
-      <circle cx="32" cy="28" r="3" fill="${glow}"/>`;
+      <polygon points="32,8 52,18 52,38 32,48 12,38 12,18"
+        fill="url(#steel)" stroke="${color}" stroke-width="2.8"/>
+      <circle cx="32" cy="28" r="8" fill="${color}" stroke="#FFFFFF" stroke-width="2"/>
+      <circle cx="32" cy="28" r="3.2" fill="#FFFFFF"/>`;
   } else if (kind === "terminal") {
-    // diamond
     body = `
-      <polygon points="32,10 50,32 32,54 14,32" fill="${color}" stroke="#F5F3FF" stroke-width="2.5"/>
-      <polygon points="32,20 42,32 32,44 22,32" fill="#0B1220" opacity="0.55"/>
-      <circle cx="32" cy="32" r="3.5" fill="${glow}"/>`;
+      <polygon points="32,10 50,32 32,54 14,32"
+        fill="url(#steel)" stroke="${color}" stroke-width="2.6"/>
+      <polygon points="32,20 42,32 32,44 22,32" fill="${color}" opacity="0.9"/>
+      <circle cx="32" cy="32" r="3" fill="#FFFFFF"/>`;
   } else if (kind === "pole") {
     body = `
-      <circle cx="32" cy="32" r="11" fill="${color}" stroke="#fff" stroke-width="2"/>
-      <line x1="32" y1="18" x2="32" y2="46" stroke="#0B1220" stroke-width="2.5"/>
-      <line x1="18" y1="32" x2="46" y2="32" stroke="#0B1220" stroke-width="2.5"/>`;
+      <circle cx="32" cy="32" r="12" fill="url(#steel)" stroke="${color}" stroke-width="2.4"/>
+      <line x1="32" y1="18" x2="32" y2="46" stroke="${color}" stroke-width="2.6"/>
+      <line x1="18" y1="32" x2="46" y2="32" stroke="${color}" stroke-width="2.6"/>`;
   } else if (kind === "handhole") {
     body = `
-      <rect x="16" y="16" width="32" height="32" rx="5" fill="${color}" stroke="#ECFDF5" stroke-width="2.5"/>
-      <rect x="24" y="24" width="16" height="16" rx="2" fill="#0B1220" opacity="0.4"/>`;
+      <rect x="15" y="15" width="34" height="34" rx="5"
+        fill="url(#carbon)" stroke="${color}" stroke-width="2.4"/>
+      <rect x="24" y="24" width="16" height="16" rx="2" fill="#FFFFFF" opacity="0.85"/>`;
   } else {
-    // service — small rounded diamond
     body = `
-      <circle cx="32" cy="32" r="12" fill="${color}" stroke="#E0F2FE" stroke-width="2.2"/>
-      <circle cx="32" cy="32" r="4.5" fill="#0B1220"/>
-      <circle cx="32" cy="32" r="2" fill="${glow}"/>`;
+      <circle cx="32" cy="32" r="13" fill="url(#steel)" stroke="${color}" stroke-width="2.4"/>
+      <circle cx="32" cy="32" r="5" fill="${color}"/>
+      <circle cx="32" cy="32" r="2" fill="#FFFFFF"/>`;
   }
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
   <defs>
-    <filter id="bloom" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="b"/>
+    <linearGradient id="steel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="45%" stop-color="#E8EEF5"/>
+      <stop offset="100%" stop-color="#B8C4D4"/>
+    </linearGradient>
+    <linearGradient id="carbon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3A4454"/>
+      <stop offset="50%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2.2" result="b"/>
+      <feOffset dy="1" result="o"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.28"/></feComponentTransfer>
       <feMerge>
-        <feMergeNode in="b"/>
+        <feMergeNode/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
-    <radialGradient id="rg" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="${glow}" stop-opacity="0.75"/>
-      <stop offset="70%" stop-color="${color}" stop-opacity="0.2"/>
-      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="${soft}" stop-opacity="0.55"/>
+      <stop offset="70%" stop-color="${soft}" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="${soft}" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <circle cx="${c}" cy="${c}" r="26" fill="url(#rg)"/>
-  <g filter="url(#bloom)">${body}</g>
+  <circle cx="32" cy="32" r="26" fill="url(#halo)"/>
+  <g filter="url(#soft)">${body}</g>
 </svg>`;
 
   const url = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
@@ -246,10 +256,9 @@ export default function DesignPrintMapOverlay({
     return o;
   });
 
-  // Soft pulse for hub / HUD chrome
   useEffect(() => {
     if (!active) return;
-    const id = window.setInterval(() => setPulse((p) => (p + 1) % 100), 80);
+    const id = window.setInterval(() => setPulse((p) => (p + 1) % 100), 90);
     return () => clearInterval(id);
   }, [active]);
 
@@ -280,18 +289,18 @@ export default function DesignPrintMapOverlay({
     return () => google.maps.event.removeListener(l);
   }, [map, active]);
 
-  // Darker futuristic basemap + mild tilt for depth when experiment is on
+  // Light stainless basemap + mild 3D tilt (not dark mode)
   useEffect(() => {
     if (!map || !active) return;
     const prevTilt = map.getTilt?.() ?? 0;
     try {
       map.setOptions({
-        tilt: 45,
-        styles: DARK_MAP_STYLES,
-        backgroundColor: "#070B14",
+        tilt: 35,
+        styles: STEEL_MAP_STYLES,
+        backgroundColor: "#F1F5F9",
       });
     } catch {
-      /* styles optional */
+      /* optional */
     }
     return () => {
       try {
@@ -302,7 +311,6 @@ export default function DesignPrintMapOverlay({
     };
   }, [map, active]);
 
-  // Fit plant
   useEffect(() => {
     if (!map || !active || !fc) return;
     const bounds = new google.maps.LatLngBounds();
@@ -328,7 +336,6 @@ export default function DesignPrintMapOverlay({
     if (n > 0) map.fitBounds(bounds, 64);
   }, [map, active, fc]);
 
-  // Dual Data layers: underglow + crisp core
   useEffect(() => {
     if (!map || !active || !fc) {
       glowRef.current?.setMap(null);
@@ -356,17 +363,14 @@ export default function DesignPrintMapOverlay({
       const status = feature.getProperty("status") as string | undefined;
       const meta = LAYER_META[layer as LayerKey];
       const color = featureColor(layer, status);
-      const glowColor = meta?.glow ?? color;
+      const soft = meta?.soft ?? color;
       const on = layers[layer as LayerKey] !== false;
       const minZ = meta?.minZoom ?? 0;
       const visible = on && zoom >= minZ;
       const geom = feature.getGeometry()?.getType();
 
       if (geom === "Point") {
-        if (pass === "glow") {
-          // hide points on glow pass — core pass owns markers
-          return { visible: false };
-        }
+        if (pass === "glow") return { visible: false };
         const isHub = layer === "hub";
         const isTerm = layer === "terminal";
         const isPole = layer === "pole";
@@ -383,7 +387,7 @@ export default function DesignPrintMapOverlay({
         const size = isHub ? 44 : isTerm ? 30 : isPole || isHh ? 24 : 20;
         return {
           visible,
-          icon: makeMarkerIcon(kind, color, glowColor, size),
+          icon: makeMarkerIcon(kind, color, soft, size),
           zIndex: isHub ? 40 : isTerm ? 28 : 22,
           title: String(
             feature.getProperty("label") ||
@@ -395,7 +399,6 @@ export default function DesignPrintMapOverlay({
         };
       }
 
-      // LineString
       const isFeeder = layer === "feeder";
       const isBore = layer === "bore";
       const isDrop = layer === "drop";
@@ -404,15 +407,14 @@ export default function DesignPrintMapOverlay({
       if (pass === "glow") {
         return {
           visible,
-          strokeColor: glowColor,
-          strokeOpacity: isDrop ? 0.25 : isFeeder ? 0.45 : 0.35,
-          strokeWeight: baseW + (isFeeder ? 10 : 7),
+          strokeColor: soft,
+          strokeOpacity: isDrop ? 0.28 : isFeeder ? 0.42 : 0.34,
+          strokeWeight: baseW + (isFeeder ? 8 : 6),
           zIndex: isFeeder ? 6 : isBore ? 4 : 5,
           clickable: false,
         };
       }
 
-      // Core pass — crisp neon line + optional flow chevrons
       const icons: google.maps.IconSequence[] | undefined = isBore
         ? [
             {
@@ -420,7 +422,7 @@ export default function DesignPrintMapOverlay({
                 path: "M 0,-1 0,1",
                 strokeOpacity: 1,
                 strokeColor: color,
-                scale: 3.2,
+                scale: 3,
                 strokeWeight: 2,
               },
               offset: "0",
@@ -432,36 +434,22 @@ export default function DesignPrintMapOverlay({
               {
                 icon: {
                   path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-                  scale: 2.4,
-                  strokeColor: "#0B1220",
+                  scale: 2.2,
+                  strokeColor: "#FFFFFF",
                   strokeWeight: 1,
-                  fillColor: glowColor,
+                  fillColor: color,
                   fillOpacity: 1,
                 },
                 offset: "0%",
-                repeat: "48px",
+                repeat: "52px",
               },
             ]
-          : isDrop
-            ? undefined
-            : [
-                {
-                  icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 1.6,
-                    fillColor: glowColor,
-                    fillOpacity: 0.9,
-                    strokeWeight: 0,
-                  },
-                  offset: "0",
-                  repeat: "36px",
-                },
-              ];
+          : undefined;
 
       return {
         visible,
         strokeColor: color,
-        strokeOpacity: isDrop ? 0.88 : 0.98,
+        strokeOpacity: isDrop ? 0.9 : 0.98,
         strokeWeight: baseW,
         zIndex: isFeeder ? 14 : isBore ? 10 : isDrop ? 11 : 12,
         icons,
@@ -472,30 +460,23 @@ export default function DesignPrintMapOverlay({
     glow.setStyle((f) => styleFn(f, "glow"));
     data.setStyle((f) => styleFn(f, "core"));
 
-    // Animate feeder arrows
     let offset = 0;
     dashTimer.current = window.setInterval(() => {
-      offset = (offset + 2) % 48;
+      offset = (offset + 2) % 52;
       data.setStyle((f) => {
         const st = styleFn(f, "core") as google.maps.Data.StyleOptions;
         const layer = String(f.getProperty("layer") || "");
         if (layer === "feeder" && st.icons?.[0]) {
-          st.icons = [
-            {
-              ...st.icons[0],
-              offset: `${offset}px`,
-            },
-          ];
+          st.icons = [{ ...st.icons[0], offset: `${offset}px` }];
         }
         return st;
       });
-    }, 90);
+    }, 95);
 
-    // Pulsing hub marker ring (extra depth)
     const hubFeat = fc.features.find((f) => f.properties?.layer === "hub");
     if (hubFeat?.geometry?.type === "Point") {
       const [lng, lat] = hubFeat.geometry.coordinates as [number, number];
-      const hub = new google.maps.Marker({
+      pulseRef.current = new google.maps.Marker({
         map,
         position: { lat, lng },
         clickable: false,
@@ -503,15 +484,13 @@ export default function DesignPrintMapOverlay({
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           scale: 18,
-          fillColor: "#3B82F6",
-          fillOpacity: 0.12,
-          strokeColor: "#60A5FA",
-          strokeOpacity: 0.75,
+          fillColor: "#1D4ED8",
+          fillOpacity: 0.1,
+          strokeColor: "#3B82F6",
+          strokeOpacity: 0.55,
           strokeWeight: 2,
         },
-        title: "FDH H3024",
       });
-      pulseRef.current = hub;
     }
 
     const clickL = data.addListener("click", (e: google.maps.Data.MouseEvent) => {
@@ -536,7 +515,6 @@ export default function DesignPrintMapOverlay({
       setSelected({ type: "Feature", properties: props, geometry });
     });
 
-    // Hover cursor feedback
     const mouseover = data.addListener("mouseover", () => {
       map.setOptions({ draggableCursor: "pointer" });
     });
@@ -564,21 +542,20 @@ export default function DesignPrintMapOverlay({
     };
   }, [map, active, fc, layers, zoom]);
 
-  // Animate hub ring scale with pulse
   useEffect(() => {
     const m = pulseRef.current;
     if (!m) return;
     const t = pulse / 100;
-    const scale = 16 + Math.sin(t * Math.PI * 2) * 6;
-    const opacity = 0.35 + Math.sin(t * Math.PI * 2) * 0.25;
+    const scale = 15 + Math.sin(t * Math.PI * 2) * 5;
+    const opacity = 0.3 + Math.sin(t * Math.PI * 2) * 0.2;
     m.setIcon({
       path: google.maps.SymbolPath.CIRCLE,
       scale,
-      fillColor: "#3B82F6",
-      fillOpacity: Math.max(0.08, opacity * 0.35),
-      strokeColor: "#93C5FD",
-      strokeOpacity: Math.max(0.35, opacity),
-      strokeWeight: 2.5,
+      fillColor: "#1D4ED8",
+      fillOpacity: Math.max(0.06, opacity * 0.28),
+      strokeColor: "#60A5FA",
+      strokeOpacity: Math.max(0.3, opacity),
+      strokeWeight: 2.2,
     });
   }, [pulse]);
 
@@ -598,22 +575,13 @@ export default function DesignPrintMapOverlay({
 
   if (!active) return null;
 
-  const glowPulse = 0.45 + Math.sin((pulse / 100) * Math.PI * 2) * 0.25;
-
   return (
     <>
       <style>{HUD_CSS}</style>
 
-      {/* Ambient vignette / scanline overlay */}
-      <div className="h3024-vignette" aria-hidden />
-      <div className="h3024-scanlines" aria-hidden />
-
-      {/* Layer HUD */}
       <div className="h3024-hud" style={panelStyle}>
         <div className="h3024-hud-header">
-          <div className="h3024-hud-badge" style={{ boxShadow: `0 0 18px rgba(59,130,246,${glowPulse})` }}>
-            ◆
-          </div>
+          <div className="h3024-hud-badge">◆</div>
           <div>
             <div className="h3024-hud-title">H3024 FIELD OPS</div>
             <div className="h3024-hud-sub">
@@ -627,9 +595,9 @@ export default function DesignPrintMapOverlay({
                   </span>
                 </>
               ) : err ? (
-                <span style={{ color: "#F87171" }}> {err}</span>
+                <span style={{ color: "#DC2626" }}> {err}</span>
               ) : (
-                " · linking plant…"
+                " · loading plant…"
               )}
             </div>
           </div>
@@ -651,7 +619,7 @@ export default function DesignPrintMapOverlay({
                 style={
                   {
                     ["--lc" as string]: meta.color,
-                    ["--lg" as string]: meta.glow,
+                    ["--ls" as string]: meta.soft,
                   } as CSSProperties
                 }
               >
@@ -670,8 +638,8 @@ export default function DesignPrintMapOverlay({
         </div>
 
         <div className="h3024-hud-footer">
-          Click any neon path or node for live asset detail. Flow arrows mark feeder
-          direction · dashed gold = bore.
+          Royal blue plant paths · stainless markers · carbon bore dashes. Click any
+          asset for the field detail sheet.
         </div>
       </div>
 
@@ -692,46 +660,60 @@ export default function DesignPrintMapOverlay({
   );
 }
 
-const DARK_MAP_STYLES: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#0B1220" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#0B1220" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#8B9BB4" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#1A2438" }] },
+/** Clean light map with steel roads — not dark mode */
+const STEEL_MAP_STYLES: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#F4F7FB" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#475569" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#FFFFFF" }] },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#FFFFFF" }],
+  },
   {
     featureType: "road",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#0F172A" }],
+    stylers: [{ color: "#CBD5E1" }],
   },
   {
     featureType: "road.highway",
     elementType: "geometry",
-    stylers: [{ color: "#243044" }],
+    stylers: [{ color: "#E2E8F0" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#94A3B8" }],
   },
   {
     featureType: "water",
     elementType: "geometry",
-    stylers: [{ color: "#0A1628" }],
+    stylers: [{ color: "#DBEAFE" }],
   },
   {
     featureType: "poi",
     elementType: "geometry",
-    stylers: [{ color: "#121A2B" }],
+    stylers: [{ color: "#EEF2F7" }],
   },
   {
     featureType: "poi.park",
     elementType: "geometry",
-    stylers: [{ color: "#0F1A14" }],
+    stylers: [{ color: "#E8F0E9" }],
+  },
+  {
+    featureType: "landscape",
+    elementType: "geometry",
+    stylers: [{ color: "#F1F5F9" }],
+  },
+  {
+    featureType: "administrative",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#94A3B8" }],
   },
   {
     featureType: "transit",
     elementType: "geometry",
-    stylers: [{ color: "#151E30" }],
-  },
-  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#2A3A55" }] },
-  {
-    featureType: "landscape",
-    elementType: "geometry",
-    stylers: [{ color: "#0E1524" }],
+    stylers: [{ color: "#E2E8F0" }],
   },
 ];
 
@@ -746,41 +728,17 @@ const panelStyle: CSSProperties = {
 };
 
 const HUD_CSS = `
-.h3024-vignette {
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  background:
-    radial-gradient(ellipse 80% 70% at 50% 45%, transparent 40%, rgba(3,8,18,0.55) 100%),
-    linear-gradient(180deg, rgba(8,14,28,0.35) 0%, transparent 18%, transparent 82%, rgba(8,14,28,0.4) 100%);
-}
-.h3024-scanlines {
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  opacity: 0.04;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(147,197,253,0.35) 3px
-  );
-}
 .h3024-hud {
   padding: 14px 14px 12px;
-  border-radius: 16px;
+  border-radius: 14px;
   background:
-    linear-gradient(145deg, rgba(15,23,42,0.92) 0%, rgba(8,12,24,0.94) 100%);
-  border: 1px solid rgba(96,165,250,0.35);
+    linear-gradient(165deg, #FFFFFF 0%, #F1F5F9 48%, #E2E8F0 100%);
+  border: 1px solid #94A3B8;
   box-shadow:
-    0 0 0 1px rgba(15,23,42,0.8),
-    0 18px 50px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(147,197,253,0.18),
-    0 0 40px rgba(37,99,235,0.18);
-  backdrop-filter: blur(14px);
-  color: #E2E8F0;
+    0 14px 40px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255,255,255,0.95),
+    inset 0 -1px 0 rgba(148,163,184,0.35);
+  color: #0F172A;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 .h3024-hud-header {
@@ -794,35 +752,37 @@ const HUD_CSS = `
   border-radius: 10px;
   display: grid;
   place-items: center;
-  font-size: 14px;
-  color: #BFDBFE;
-  background: linear-gradient(145deg, #1E3A8A, #0F172A);
-  border: 1px solid rgba(147,197,253,0.55);
+  font-size: 13px;
+  color: #FFFFFF;
+  background:
+    linear-gradient(145deg, #3B82F6 0%, #1D4ED8 55%, #1E3A8A 100%);
+  border: 1px solid #1E40AF;
+  box-shadow:
+    0 4px 12px rgba(29, 78, 216, 0.35),
+    inset 0 1px 0 rgba(255,255,255,0.35);
   flex-shrink: 0;
 }
 .h3024-hud-title {
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   font-size: 12px;
-  color: #DBEAFE;
-  text-shadow: 0 0 12px rgba(96,165,250,0.55);
+  color: #1E3A8A;
 }
 .h3024-hud-sub {
   font-size: 10px;
-  color: #94A3B8;
+  color: #64748B;
   margin-top: 2px;
   line-height: 1.4;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
 }
 .h3024-hud-metrics {
-  color: #7DD3FC;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  color: #1D4ED8;
+  font-weight: 700;
 }
 .h3024-hud-divider {
   height: 1px;
   margin: 12px 0 10px;
-  background: linear-gradient(90deg, transparent, rgba(96,165,250,0.45), transparent);
+  background: linear-gradient(90deg, transparent, #94A3B8, transparent);
 }
 .h3024-layer-list {
   display: flex;
@@ -837,34 +797,36 @@ const HUD_CSS = `
   width: 100%;
   text-align: left;
   border: 1px solid transparent;
-  background: transparent;
-  color: #CBD5E1;
+  background: rgba(255,255,255,0.55);
+  color: #0F172A;
   border-radius: 10px;
   padding: 7px 8px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 .h3024-layer-row.on {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--lc) 16%, transparent), transparent);
-  border-color: color-mix(in srgb, var(--lc) 40%, transparent);
-  box-shadow: inset 0 0 12px color-mix(in srgb, var(--lg) 12%, transparent);
+  background: linear-gradient(90deg, rgba(29,78,216,0.10), rgba(255,255,255,0.7));
+  border-color: rgba(29, 78, 216, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.8);
 }
 .h3024-layer-row.off {
-  opacity: 0.45;
+  opacity: 0.48;
+  background: rgba(241,245,249,0.7);
 }
 .h3024-layer-row:hover {
-  border-color: color-mix(in srgb, var(--lc) 55%, transparent);
+  border-color: rgba(29, 78, 216, 0.45);
 }
 .h3024-layer-swatch {
   width: 10px;
   height: 10px;
   border-radius: 3px;
   background: var(--lc);
-  box-shadow: 0 0 10px var(--lg);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.9), 0 1px 4px rgba(15,23,42,0.2);
 }
 .h3024-layer-label {
   font-size: 11px;
   font-weight: 650;
+  color: #0F172A;
 }
 .h3024-layer-count {
   font-size: 10px;
@@ -875,24 +837,24 @@ const HUD_CSS = `
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.08em;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 999px;
-  border: 1px solid #334155;
+  border: 1px solid #CBD5E1;
   color: #64748B;
-  background: #0F172A;
+  background: #FFFFFF;
 }
 .h3024-layer-toggle.on {
-  color: #0B1220;
-  background: var(--lc);
-  border-color: var(--lg);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--lg) 50%, transparent);
+  color: #FFFFFF;
+  background: linear-gradient(180deg, #3B82F6, #1D4ED8);
+  border-color: #1E40AF;
+  box-shadow: 0 2px 8px rgba(29,78,216,0.3);
 }
 .h3024-hud-footer {
   margin-top: 12px;
   font-size: 9px;
   line-height: 1.45;
   color: #64748B;
-  border-top: 1px solid rgba(51,65,85,0.7);
+  border-top: 1px solid #CBD5E1;
   padding-top: 10px;
 }
 `;

@@ -1,6 +1,6 @@
 /**
  * Feature detail sheet — 5 tabs (info | progress | 811 | permits | photos)
- * Dark metal / neon glass aesthetic matching DesignPrintMapOverlay.
+ * Royal blue · white · stainless steel · carbon accents (light modern metal).
  * WA 811 = Utility Notification Center (UNC / utn.com).
  */
 import { useState, type CSSProperties } from "react";
@@ -18,28 +18,28 @@ const TABS = ["info", "progress", "811", "permits", "photos"] as const;
 type Tab = (typeof TABS)[number];
 
 const STATUS_COLOR: Record<string, string> = {
-  designed: "#38BDF8",
-  permitted: "#60A5FA",
-  ticket_active: "#FACC15",
-  in_progress: "#FB923C",
-  placed: "#2DD4BF",
-  spliced: "#C084FC",
-  tested: "#4ADE80",
-  complete: "#22C55E",
-  on_hold: "#F87171",
-  planned: "#7DD3FC",
+  designed: "#1D4ED8",
+  permitted: "#2563EB",
+  ticket_active: "#CA8A04",
+  in_progress: "#EA580C",
+  placed: "#0D9488",
+  spliced: "#1E40AF",
+  tested: "#16A34A",
+  complete: "#15803D",
+  on_hold: "#DC2626",
+  planned: "#3B82F6",
 };
 
 const LAYER_ACCENT: Record<string, string> = {
-  hub: "#3B82F6",
-  feeder: "#FF6B2C",
-  distribution: "#22D3EE",
-  drop: "#A78BFA",
-  bore: "#FBBF24",
-  terminal: "#C084FC",
-  service_point: "#38BDF8",
-  pole: "#F87171",
-  handhole: "#2DD4BF",
+  hub: "#1D4ED8",
+  feeder: "#1E40AF",
+  distribution: "#2563EB",
+  drop: "#3B82F6",
+  bore: "#64748B",
+  terminal: "#1D4ED8",
+  service_point: "#0EA5E9",
+  pole: "#475569",
+  handhole: "#334155",
 };
 
 function titleOf(p: Record<string, unknown>): string {
@@ -73,26 +73,26 @@ export default function FeatureDetailSheet({ feature, onClose, onStatusChange }:
   const [tab, setTab] = useState<Tab>("info");
   const p = feature.properties ?? {};
   const status = String(p.status ?? "designed");
-  const sc = STATUS_COLOR[status] ?? "#38BDF8";
+  const sc = STATUS_COLOR[status] ?? "#1D4ED8";
   const layer = String(p.layer || p.type || "asset");
-  const accent = LAYER_ACCENT[layer] ?? "#3B82F6";
+  const accent = LAYER_ACCENT[layer] ?? "#1D4ED8";
 
   return (
     <div
       style={{
         ...sheet,
-        borderColor: `${accent}66`,
-        boxShadow: `0 20px 60px rgba(0,0,0,0.55), 0 0 40px ${accent}33, inset 0 1px 0 rgba(255,255,255,0.08)`,
+        borderColor: `${accent}55`,
+        boxShadow: `0 16px 40px rgba(15,23,42,0.16), 0 0 0 1px rgba(255,255,255,0.8) inset, 0 0 24px ${accent}18`,
       }}
     >
       <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
         <div
           style={{
-            width: 8,
+            width: 7,
             alignSelf: "stretch",
             borderRadius: 99,
-            background: `linear-gradient(180deg, ${accent}, ${sc})`,
-            boxShadow: `0 0 14px ${accent}`,
+            background: `linear-gradient(180deg, ${accent}, #94A3B8)`,
+            boxShadow: `0 0 10px ${accent}55`,
             flexShrink: 0,
           }}
         />
@@ -103,8 +103,7 @@ export default function FeatureDetailSheet({ feature, onClose, onStatusChange }:
               fontWeight: 800,
               color: accent,
               textTransform: "uppercase",
-              letterSpacing: "0.14em",
-              textShadow: `0 0 12px ${accent}88`,
+              letterSpacing: "0.12em",
             }}
           >
             {layer.replace("_", " ")}
@@ -113,7 +112,7 @@ export default function FeatureDetailSheet({ feature, onClose, onStatusChange }:
             style={{
               fontWeight: 800,
               fontSize: 15,
-              color: "#F1F5F9",
+              color: "#0F172A",
               marginTop: 3,
               lineHeight: 1.25,
             }}
@@ -128,12 +127,11 @@ export default function FeatureDetailSheet({ feature, onClose, onStatusChange }:
               fontWeight: 800,
               padding: "3px 10px",
               borderRadius: 999,
-              background: `${sc}22`,
+              background: `${sc}14`,
               color: sc,
-              border: `1px solid ${sc}99`,
+              border: `1px solid ${sc}55`,
               letterSpacing: "0.06em",
               textTransform: "uppercase",
-              boxShadow: `0 0 12px ${sc}33`,
             }}
           >
             {status}
@@ -154,11 +152,14 @@ export default function FeatureDetailSheet({ feature, onClose, onStatusChange }:
               ...tabBtn,
               background:
                 tab === t
-                  ? `linear-gradient(135deg, ${accent}, #1E3A8A)`
-                  : "rgba(15,23,42,0.8)",
-              color: tab === t ? "#F8FAFC" : "#94A3B8",
-              borderColor: tab === t ? `${accent}AA` : "rgba(51,65,85,0.8)",
-              boxShadow: tab === t ? `0 0 16px ${accent}44` : "none",
+                  ? `linear-gradient(180deg, #3B82F6, #1D4ED8)`
+                  : "linear-gradient(180deg, #FFFFFF, #F1F5F9)",
+              color: tab === t ? "#FFFFFF" : "#475569",
+              borderColor: tab === t ? "#1E40AF" : "#CBD5E1",
+              boxShadow:
+                tab === t
+                  ? "0 3px 10px rgba(29,78,216,0.28)"
+                  : "inset 0 1px 0 #FFFFFF",
             }}
           >
             {t.toUpperCase()}
@@ -213,7 +214,7 @@ function InfoTab({
     <div>
       {rows.map(([k, v]) => (
         <div key={k} style={row}>
-          <span style={{ ...rowK, color: `${accent}CC` }}>{k}</span>
+          <span style={{ ...rowK, color: accent }}>{k}</span>
           <span style={rowV}>{v}</span>
         </div>
       ))}
@@ -244,16 +245,16 @@ function ProgressTab({
   const pct = Math.max(0, Math.min(100, Math.round(progressPct * 100)));
   return (
     <div>
-      <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: "#64748B", marginBottom: 10 }}>
         Progress pipeline ·{" "}
-        <strong style={{ color: "#E2E8F0" }}>{pct}%</strong>
+        <strong style={{ color: "#0F172A" }}>{pct}%</strong>
       </div>
       <div
         style={{
           height: 8,
           borderRadius: 99,
-          background: "#0F172A",
-          border: "1px solid #1E293B",
+          background: "#E2E8F0",
+          border: "1px solid #CBD5E1",
           overflow: "hidden",
           marginBottom: 14,
         }}
@@ -263,14 +264,13 @@ function ProgressTab({
             width: `${Math.max(pct, 4)}%`,
             height: "100%",
             borderRadius: 99,
-            background: "linear-gradient(90deg, #1D4ED8, #22D3EE)",
-            boxShadow: "0 0 12px rgba(34,211,238,0.55)",
+            background: "linear-gradient(90deg, #1D4ED8, #60A5FA)",
           }}
         />
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {statuses.map((s) => {
-          const c = STATUS_COLOR[s] ?? "#94a3b8";
+          const c = STATUS_COLOR[s] ?? "#64748B";
           const on = status === s;
           return (
             <button
@@ -282,11 +282,11 @@ function ProgressTab({
                 fontWeight: 700,
                 padding: "5px 9px",
                 borderRadius: 8,
-                border: `1px solid ${c}${on ? "" : "66"}`,
-                background: on ? c : "rgba(15,23,42,0.9)",
-                color: on ? "#0B1220" : "#CBD5E1",
+                border: `1px solid ${on ? c : "#CBD5E1"}`,
+                background: on ? c : "#FFFFFF",
+                color: on ? "#FFFFFF" : "#334155",
                 cursor: "pointer",
-                boxShadow: on ? `0 0 14px ${c}66` : "none",
+                boxShadow: on ? `0 2px 8px ${c}44` : "inset 0 1px 0 #FFFFFF",
               }}
             >
               {s}
@@ -306,8 +306,8 @@ function Locate811Tab({
   geometry?: PlatformFeature["geometry"];
 }) {
   return (
-    <div style={{ fontSize: 11, color: "#CBD5E1", lineHeight: 1.5 }}>
-      <strong style={{ color: "#FACC15" }}>
+    <div style={{ fontSize: 11, color: "#334155", lineHeight: 1.5 }}>
+      <strong style={{ color: "#1D4ED8" }}>
         Washington 811 — Utility Notification Center (UNC)
       </strong>
       <br />
@@ -316,14 +316,14 @@ function Locate811Tab({
         href="https://www.utn.com"
         target="_blank"
         rel="noreferrer"
-        style={{ color: "#38BDF8" }}
+        style={{ color: "#1D4ED8", fontWeight: 600 }}
       >
         utn.com
       </a>
       <br />
       <br />
       Pre-fill for this asset:
-      <ul style={{ margin: "8px 0", paddingLeft: 18, color: "#94A3B8" }}>
+      <ul style={{ margin: "8px 0", paddingLeft: 18, color: "#64748B" }}>
         <li>County: Snohomish</li>
         <li>Project: H3024 Lake Stevens</li>
         <li>Asset: {String(p.label || p.cableId || p.terminalId || "—")}</li>
@@ -358,7 +358,7 @@ function PermitsTab() {
           fontSize: 11,
           fontWeight: 700,
           marginBottom: 8,
-          color: "#E2E8F0",
+          color: "#0F172A",
           letterSpacing: "0.04em",
         }}
       >
@@ -368,7 +368,7 @@ function PermitsTab() {
         <div key={a} style={row}>
           <span style={rowK}>{a}</span>
           <span style={rowV}>
-            <strong style={{ color: r === "YES" ? "#4ADE80" : "#64748B" }}>{r}</strong>
+            <strong style={{ color: r === "YES" ? "#15803D" : "#94A3B8" }}>{r}</strong>
             {t !== "—" ? ` · ${t}` : ""}
           </span>
         </div>
@@ -384,23 +384,22 @@ const sheet: CSSProperties = {
   zIndex: 12,
   width: "min(420px, calc(100% - 24px))",
   padding: 16,
-  borderRadius: 16,
-  background:
-    "linear-gradient(155deg, rgba(15,23,42,0.96) 0%, rgba(8,12,24,0.97) 100%)",
-  border: "1px solid rgba(96,165,250,0.35)",
-  backdropFilter: "blur(16px)",
-  color: "#E2E8F0",
+  borderRadius: 14,
+  background: "linear-gradient(165deg, #FFFFFF 0%, #F8FAFC 45%, #E8EEF5 100%)",
+  border: "1px solid #94A3B8",
+  color: "#0F172A",
 };
 const xBtn: CSSProperties = {
-  border: "1px solid rgba(71,85,105,0.9)",
-  background: "rgba(15,23,42,0.9)",
-  color: "#E2E8F0",
+  border: "1px solid #CBD5E1",
+  background: "linear-gradient(180deg, #FFFFFF, #F1F5F9)",
+  color: "#334155",
   borderRadius: 8,
   width: 30,
   height: 30,
   cursor: "pointer",
   fontWeight: 700,
   flexShrink: 0,
+  boxShadow: "inset 0 1px 0 #FFFFFF",
 };
 const tabsRow: CSSProperties = {
   display: "flex",
@@ -423,7 +422,7 @@ const row: CSSProperties = {
   gap: 8,
   fontSize: 11,
   padding: "5px 0",
-  borderBottom: "1px solid rgba(30,41,59,0.9)",
+  borderBottom: "1px solid #E2E8F0",
 };
 const rowK: CSSProperties = {
   color: "#64748B",
@@ -431,7 +430,7 @@ const rowK: CSSProperties = {
   textTransform: "lowercase",
 };
 const rowV: CSSProperties = {
-  color: "#E2E8F0",
+  color: "#0F172A",
   wordBreak: "break-word",
   fontWeight: 500,
 };
