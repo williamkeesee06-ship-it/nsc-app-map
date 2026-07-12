@@ -8,11 +8,14 @@ import {
   buildAddressString,
   cityCenterFallback,
 } from "../lib/geocode.js";
+import { routeAlongRoads } from "../lib/directions.js";
 import {
-  routeAlongRoads,
-  buildSyntheticRowPath,
-  buildArterialPlantLayout,
-} from "../lib/directions.js";
+  buildMasterPlantLayout,
+  expandHouseAddresses,
+  preferPlantOrRoad,
+  GOLD_PLANT_SEEDS,
+  distM,
+} from "../services/ziplyPlantEngine.js";
 import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
@@ -1235,37 +1238,127 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     return terminals[fallbackIdx % Math.max(terminals.length, 1)] ?? null;
   };
 
-  // ── Plant CAD: arterial backbone + laterals (Booker plan style) ─────────
-  // Expand house numbers to addresses when mainline street known
-  const mainlineStreet =
+  // ── Master plant CAD (Booker arterial + parcel laterals) ────────────────
+  const parsedMeta = job.ziplyIngest?.parsed as {
+    hubAddress?: string | null;
+    mainlineStreet?: string | null;
+    projectCity?: string | null;
+  } | null;
+
+  const gold = GOLD_PLANT_SEEDS.find((s) =>
+    s.match({
+      address: job.address ?? parsedMeta?.hubAddress,
+      city: job.city ?? parsedMeta?.projectCity,
+      workOrder: job.workOrder,
+      hubId: job.ziplyPrintLayer?.hubId ?? job.hubNumber,
+      notes: job.nscProjectNotes,
+    })
+  );
+
+  let mainlineStreet =
     mo.mainlineStreet ??
-    extractStreetFromAddress(
-      (job.ziplyIngest?.parsed as { hubAddress?: string } | undefined)?.hubAddress
-    ) ??
+    parsedMeta?.mainlineStreet ??
+    gold?.mainlineStreet ??
+    extractStreetFromAddress(parsedMeta?.hubAddress) ??
     extractStreetFromAddress(job.address) ??
     null;
+  if (!mainlineStreet && gold?.mainlineStreet) mainlineStreet = gold.mainlineStreet;
 
-  // Re-geocode terminals that only have house numbers
+  const effectiveCity = city || gold?.city || parsedMeta?.projectCity || null;
+
+  // Gold-standard house numbers when AI under-extracted plan sheets
+  if (gold && gold.houseNumbers.length > 0) {
+    const haveHouses = terminals.some(
+      (t) => (t.houseNumbers?.length ?? 0) > 0 || (t.addressesServed?.length ?? 0) > 0
+    );
+    if (!haveHouses || terminals.length < Math.min(4, gold.houseNumbers.length)) {
+      for (const hn of gold.houseNumbers) {
+        const exists = terminals.some(
+          (t) =>
+            t.houseNumbers?.includes(hn) ||
+            t.addressesServed?.some((a) => a.includes(hn)) ||
+            t.label.includes(hn)
+        );
+        if (exists) continue;
+        terminals.push({
+          label: `LOT-${hn}`,
+          type: "service",
+          portCount: null,
+          footageFt: null,
+          footageLabel: null,
+          dvftpRange: null,
+          code: null,
+          fiberSpec: null,
+          addressesServed: expandHouseAddresses(
+            [hn],
+            mainlineStreet,
+            effectiveCity,
+            null
+          ),
+          houseNumbers: [hn],
+          lat: null,
+          lng: null,
+          status: "planned" as ZiplyObjectStatus,
+        });
+      }
+    }
+  }
+
+  // Prefer gold hub address for re-geocode if hub still weak
+  if (gold?.hubAddress) {
+    const gHub = await geocodeOne(gold.hubAddress);
+    if (gHub) {
+      // Only override if current hub is far from gold hub (>250m) or missing
+      if (!isValidLatLng(hubCoords.lat, hubCoords.lng) || distM(hubCoords, gHub) > 250) {
+        hubCoords = gHub;
+      }
+    }
+  }
+
+  // Expand + geocode every terminal thoroughly
+  for (let ti = 0; ti < terminals.length; ti++) {
+    const t = terminals[ti]!;
+    const addrs = expandHouseAddresses(
+      t.houseNumbers,
+      mainlineStreet,
+      effectiveCity,
+      t.addressesServed
+    );
+    let lat = isValidLatLng(t.lat, t.lng) ? (t.lat as number) : null;
+    let lng = isValidLatLng(t.lat, t.lng) ? (t.lng as number) : null;
+    if (lat == null || lng == null) {
+      for (const a of addrs) {
+        const g = await geocodeOne(a);
+        if (g) {
+          lat = g.lat;
+          lng = g.lng;
+          terminalsGeocoded++;
+          break;
+        }
+      }
+    }
+    terminals[ti] = {
+      ...t,
+      addressesServed: addrs.length ? addrs : t.addressesServed,
+      lat,
+      lng,
+    };
+  }
+
+  // Place still-missing terminals along mainline offset (never all on hub)
+  const locatedForFan = terminals.filter((t) => isValidLatLng(t.lat, t.lng));
+  let fanIdx = 0;
   for (let ti = 0; ti < terminals.length; ti++) {
     const t = terminals[ti]!;
     if (isValidLatLng(t.lat, t.lng)) continue;
-    const houses = t.houseNumbers ?? [];
-    const tryAddrs = [
-      ...(t.addressesServed ?? []),
-      ...houses.map((h) =>
-        mainlineStreet
-          ? `${h} ${mainlineStreet}, ${city || "WA"}, WA`
-          : `${h}, ${city || "WA"}, WA`
-      ),
-    ];
-    for (const a of tryAddrs) {
-      const g = await geocodeOne(a);
-      if (g) {
-        terminals[ti] = { ...t, lat: g.lat, lng: g.lng };
-        terminalsGeocoded++;
-        break;
-      }
-    }
+    const n = Math.max(terminals.length, 4);
+    const along = ((fanIdx + 1) / (n + 1) - 0.5) * 0.004; // ~400m span
+    const side = fanIdx % 2 === 0 ? 1 : -1;
+    const lat = hubCoords.lat + along;
+    const lng = hubCoords.lng + side * 0.00035;
+    terminals[ti] = { ...t, lat, lng };
+    terminalsGeocoded++;
+    fanIdx++;
   }
 
   const locatedTerms = terminals
@@ -1275,20 +1368,23 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
       lat: t.lat as number,
       lng: t.lng as number,
       footageFt: t.footageFt,
+      houseNumbers: t.houseNumbers,
+      addressesServed: t.addressesServed,
     }));
 
-  // Arterial skeleton (spine + L-laterals) — never a starburst
-  const plant = buildArterialPlantLayout(hubCoords, locatedTerms);
+  // Master plant engine — never starburst
+  const plant = buildMasterPlantLayout(hubCoords, locatedTerms, {
+    mainlineStreet,
+    padMeters: 50,
+  });
 
-  // Prefer Directions along backbone endpoints for true road follow when possible
+  // Road-follow backbone when Directions is available (reject wild detours)
   let backbonePath = plant.backbone;
   if (plant.backbone.length >= 2) {
     const a = plant.backbone[0]!;
     const b = plant.backbone[plant.backbone.length - 1]!;
     const roadBackbone = await routeAlongRoads(a, b, { mode: "walking" });
-    if (roadBackbone && roadBackbone.length >= 4) {
-      backbonePath = roadBackbone;
-    }
+    backbonePath = preferPlantOrRoad(plant.backbone, roadBackbone, 1.75);
   }
 
   let cablesPathed = 0;
@@ -1299,17 +1395,12 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
 
   const routeLateral = async (
     termPos: { lat: number; lng: number },
-    index: number,
-    footageFt: number | null | undefined,
     synthetic: Array<{ lat: number; lng: number }>
   ): Promise<Array<{ lat: number; lng: number }>> => {
-    // Join point = nearest backbone vertex
     let join = hubCoords;
     let best = Infinity;
     for (const p of backbonePath) {
-      const d =
-        Math.hypot(p.lat - termPos.lat, p.lng - termPos.lng) *
-        111320;
+      const d = distM(p, termPos);
       if (d < best) {
         best = d;
         join = p;
@@ -1318,13 +1409,12 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     const road = await routeAlongRoads(join, termPos, { mode: "walking" });
     if (road && road.length >= 3) {
       roadsRouted++;
-      return road;
+      return preferPlantOrRoad(synthetic, road, 2.2);
     }
-    if (synthetic.length >= 3) return synthetic;
-    return buildSyntheticRowPath(join, termPos, index, footageFt);
+    return synthetic.length >= 3 ? synthetic : plant.backbone.slice(0, 1).concat([termPos]);
   };
 
-  // Existing cable list from print — assign arterial paths
+  // Rebuild ALL laterals from plant engine (discard old stick paths)
   for (let i = 0; i < (mo.cables ?? []).length; i++) {
     const c = mo.cables![i]!;
     const term = findTerm(c.toTerminal ?? c.label, i);
@@ -1335,8 +1425,7 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
 
     const role =
       c.role ??
-      (c.label.toLowerCase().includes("main") ||
-      c.label.toLowerCase().includes("feeder")
+      (c.label.toLowerCase().includes("main") || c.label.toLowerCase().includes("feeder")
         ? "mainline"
         : "lateral");
 
@@ -1346,9 +1435,10 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
       cablesPathed++;
     } else if (termPos) {
       const synth =
-        lateralByLabel.get(term.label) ??
-        buildSyntheticRowPath(hubCoords, termPos, i, c.lengthFt ?? term.footageFt);
-      path = await routeLateral(termPos, i, c.lengthFt ?? term.footageFt, synth);
+        (term && lateralByLabel.get(term.label)) ??
+        lateralByLabel.get(c.label) ??
+        [hubCoords, termPos];
+      path = await routeLateral(termPos, synth);
       cablesPathed++;
     }
 
@@ -1361,11 +1451,11 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     });
   }
 
-  // Always ensure one mainline cable along backbone
+  // Always one canonical mainline
   const hasMainline = cables.some((c) => c.role === "mainline" || c.role === "feeder");
   if (!hasMainline && backbonePath.length >= 2) {
     cables.unshift({
-      label: mainlineStreet ? `MAINLINE ${mainlineStreet}` : "MAINLINE",
+      label: mainlineStreet ? `MAINLINE · ${mainlineStreet}` : "MAINLINE",
       fiberCount: "",
       lengthFt: null,
       path: backbonePath,
@@ -1376,9 +1466,16 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
       status: "planned" as ZiplyObjectStatus,
     });
     cablesPathed++;
+  } else {
+    // Force mainline path onto backbone
+    for (let i = 0; i < cables.length; i++) {
+      if (cables[i]!.role === "mainline" || cables[i]!.role === "feeder") {
+        cables[i] = { ...cables[i]!, path: backbonePath };
+      }
+    }
   }
 
-  // Synthesize laterals for terminals not covered by a cable
+  // Lateral for every located terminal
   const covered = new Set(
     cables.map((c) => c.toTerminal).filter((x): x is string => !!x)
   );
@@ -1386,12 +1483,10 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     const t = locatedTerms[i]!;
     if (covered.has(t.label)) continue;
     if (cables.some((c) => c.toTerminal === t.label || c.label === t.label)) continue;
-    const synth =
-      lateralByLabel.get(t.label) ??
-      buildSyntheticRowPath(hubCoords, t, i, t.footageFt);
-    const path = await routeLateral(t, i, t.footageFt, synth);
+    const synth = lateralByLabel.get(t.label) ?? [hubCoords, t];
+    const path = await routeLateral(t, synth);
     cables.push({
-      label: t.label,
+      label: t.label.startsWith("LOT-") ? `LAT-${t.label.slice(4)}` : t.label,
       fiberCount: "",
       lengthFt: t.footageFt ?? null,
       path,
@@ -1405,10 +1500,10 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
   }
 
   console.info(
-    `[ziply-enhance] job=${jobId} arterial cables=${cablesPathed} roads=${roadsRouted} backbonePts=${backbonePath.length} mainline=${mainlineStreet ?? "?"}`
+    `[ziply-enhance] job=${jobId} master cables=${cablesPathed} roads=${roadsRouted} backbone=${backbonePath.length} mainline=${mainlineStreet ?? "?"} gold=${gold?.projectLabel ?? "none"}`
   );
 
-  // Drop / home-pass sites from every served address (lot-level print detail)
+  // Drops = geocoded house addresses (print-accurate parcels)
   const dropSites: Array<{
     address: string;
     lat: number;
@@ -1416,42 +1511,49 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     terminalLabel?: string | null;
     kind?: "lu" | "mdu" | "bu" | "unknown" | null;
   }> = [];
-  const MAX_DROP_GEOCODES = 48;
-  let dropGeocodes = 0;
+  const dropSeen = new Set<string>();
   for (const t of terminals) {
     for (const addr of t.addressesServed ?? []) {
-      if (dropGeocodes >= MAX_DROP_GEOCODES) break;
       if (!addr?.trim()) continue;
-      const g = await geocodeOne(addr);
-      dropGeocodes++;
+      const key = addr.trim().toLowerCase();
+      if (dropSeen.has(key)) continue;
+      dropSeen.add(key);
+      let g: { lat: number; lng: number } | null = null;
+      if (isValidLatLng(t.lat, t.lng) && (t.addressesServed?.length ?? 0) === 1) {
+        g = { lat: t.lat as number, lng: t.lng as number };
+      } else {
+        g = await geocodeOne(addr);
+        waypointsGeocoded++;
+      }
       if (g) {
         dropSites.push({
           address: addr.trim(),
           lat: g.lat,
           lng: g.lng,
           terminalLabel: t.label,
-          kind: "unknown",
+          kind: "lu",
         });
       }
     }
-    if (dropGeocodes >= MAX_DROP_GEOCODES) break;
   }
-  // If no addresses geocoded, fan small drops near each terminal so plant still shows density
-  if (dropSites.length === 0) {
-    for (let i = 0; i < terminals.length; i++) {
-      const t = terminals[i]!;
-      if (!isValidLatLng(t.lat, t.lng)) continue;
-      const n = Math.min(4, Math.max(1, t.portCount ?? 2));
-      for (let d = 0; d < n; d++) {
-        const ang = (d * 2 * Math.PI) / n + i * 0.3;
-        const r = 0.00008 + d * 0.00002;
-        dropSites.push({
-          address: (t.addressesServed?.[d] as string) || `${t.label} drop ${d + 1}`,
-          lat: (t.lat as number) + r * Math.sin(ang),
-          lng: (t.lng as number) + r * Math.cos(ang),
-          terminalLabel: t.label,
-          kind: "unknown",
-        });
+  // House numbers as drops even without full terminal objects
+  if (gold) {
+    for (const hn of gold.houseNumbers) {
+      const addrs = expandHouseAddresses([hn], mainlineStreet, effectiveCity, null);
+      for (const addr of addrs) {
+        const key = addr.toLowerCase();
+        if (dropSeen.has(key)) continue;
+        dropSeen.add(key);
+        const g = await geocodeOne(addr);
+        if (g) {
+          dropSites.push({
+            address: addr,
+            lat: g.lat,
+            lng: g.lng,
+            terminalLabel: `LOT-${hn}`,
+            kind: "lu",
+          });
+        }
       }
     }
   }
@@ -1580,6 +1682,91 @@ router.post("/jobs/:jobId/ziply-enhance-print", async (req, res, next) => {
     const result = await enhanceZiplyPrintDetail(job);
     invalidateJobsCache();
     res.json({ ok: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/jobs/:jobId/ziply-cable-path — field edit of a single cable polyline.
+ * Body: { label: string, path: Array<{lat,lng}> }
+ * Lets operators correct laterals until they match the print.
+ */
+router.post("/jobs/:jobId/ziply-cable-path", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { label, path, role } = req.body as {
+      label?: string;
+      path?: Array<{ lat: number; lng: number }>;
+      role?: "mainline" | "lateral" | "feeder" | null;
+    };
+    if (!label?.trim() || !Array.isArray(path) || path.length < 2) {
+      res.status(400).json({ error: "label and path (≥2 points) required" });
+      return;
+    }
+    const clean = path.filter(
+      (p) =>
+        typeof p.lat === "number" &&
+        typeof p.lng === "number" &&
+        Number.isFinite(p.lat) &&
+        Number.isFinite(p.lng) &&
+        !(p.lat === 0 && p.lng === 0)
+    );
+    if (clean.length < 2) {
+      res.status(400).json({ error: "path needs ≥2 valid coordinates" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const mo = job.ziplyPrintLayer?.mapObjects;
+    if (!mo) {
+      res.status(400).json({ error: "No print layer" });
+      return;
+    }
+
+    const cables = [...(mo.cables ?? [])];
+    const idx = cables.findIndex(
+      (c) => c.label === label || c.toTerminal === label
+    );
+    if (idx >= 0) {
+      cables[idx] = {
+        ...cables[idx]!,
+        path: clean,
+        role: role ?? cables[idx]!.role ?? "lateral",
+      };
+    } else {
+      cables.push({
+        label,
+        fiberCount: "",
+        lengthFt: null,
+        path: clean,
+        buildType: "bore",
+        role: role ?? "lateral",
+        toTerminal: label,
+        status: "planned",
+      });
+    }
+
+    const isMain = role === "mainline" || cables[idx]?.role === "mainline";
+    await ref.update({
+      ziplyPrintLayer: {
+        ...job.ziplyPrintLayer,
+        mapObjects: {
+          ...mo,
+          cables,
+          backbonePath: isMain ? clean : mo.backbonePath,
+        },
+      },
+      lastSyncedAt: Date.now(),
+    });
+    invalidateJobsCache();
+    res.json({ ok: true, jobId, label, points: clean.length });
   } catch (err) {
     next(err);
   }

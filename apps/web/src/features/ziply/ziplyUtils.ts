@@ -173,6 +173,7 @@ export function listZiplyPrintFiles(job: Job): Array<{
   size?: number;
   downloadUrl?: string;
   storagePath?: string;
+  contentType?: string;
 }> {
   const files = job.ziplyIngest?.storageFiles ?? [];
   return files
@@ -182,6 +183,7 @@ export function listZiplyPrintFiles(job: Job): Array<{
       size: f?.size,
       downloadUrl: f?.downloadUrl,
       storagePath: f?.storagePath,
+      contentType: f?.contentType,
     }));
 }
 

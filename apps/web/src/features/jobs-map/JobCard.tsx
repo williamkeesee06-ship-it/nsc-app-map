@@ -24,6 +24,7 @@ import {
   ziplyPrintStatusLabel,
   type ZiplyPermitTypeKey,
 } from "../ziply/ziplyUtils.js";
+import ZiplyPrintStudio from "../ziply/ZiplyPrintStudio.js";
 
 interface Props {
   job: Job;
@@ -687,6 +688,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
   const [repairBusy, setRepairBusy] = useState(false);
   const [enhanceBusy, setEnhanceBusy] = useState(false);
   const [enhanceMsg, setEnhanceMsg] = useState<string | null>(null);
+  const [studioOpen, setStudioOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const status = getZiplyPrintDocStatus(job);
   const files = listZiplyPrintFiles(job);
@@ -777,6 +779,9 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
 
   return (
     <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
+      {studioOpen && (
+        <ZiplyPrintStudio job={job} onClose={() => setStudioOpen(false)} />
+      )}
       <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#00E676", margin: "0 0 8px 0" }}>
         🗺️ ENGINEERING PRINT
       </h4>
@@ -853,12 +858,32 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
               {repairBusy ? "REPAIRING…" : "REPAIR LOCATION"}
             </button>
           )}
+          {layer?.mapObjects && (
+            <button
+              type="button"
+              onClick={() => setStudioOpen(true)}
+              style={{
+                background: "linear-gradient(180deg, rgba(0,230,118,0.25), rgba(0,230,118,0.1))",
+                border: "1px solid rgba(0,230,118,0.55)",
+                color: "#00E676",
+                fontSize: 9,
+                fontWeight: 800,
+                padding: "6px 10px",
+                borderRadius: 4,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                boxShadow: "0 0 12px rgba(0,230,118,0.2)",
+              }}
+            >
+              ✦ PRINT STUDIO
+            </button>
+          )}
           {layer?.mapObjects && mapReady && (
             <button
               type="button"
               disabled={enhanceBusy || busy || repairBusy}
               onClick={() => void enhanceCad()}
-              title="Geocode terminals/addresses and rebuild multi-point cable paths + drops on the map"
+              title="Rebuild arterial mainline + parcel laterals + drops (master plant CAD)"
               style={{
                 background: enhancedAt ? "rgba(8,145,178,0.18)" : "rgba(56,189,248,0.22)",
                 border: "1px solid rgba(56,189,248,0.55)",
@@ -871,7 +896,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
                 whiteSpace: "nowrap",
               }}
             >
-              {enhanceBusy ? "ENHANCING CAD…" : enhancedAt ? "RE-ENHANCE CAD" : "ENHANCE CAD DETAIL"}
+              {enhanceBusy ? "REBUILDING…" : enhancedAt ? "REBUILD PLANT CAD" : "BUILD PLANT CAD"}
             </button>
           )}
           <label

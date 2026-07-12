@@ -251,6 +251,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+  /** Field-correct a cable polyline so the map twin matches the print. */
+  updateZiplyCablePath: (
+    jobId: string,
+    body: {
+      label: string;
+      path: Array<{ lat: number; lng: number }>;
+      role?: "mainline" | "lateral" | "feeder" | null;
+    }
+  ) =>
+    request<{ ok: boolean; jobId: string; label: string; points: number }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/ziply-cable-path`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
   /** Batch-repair Ziply prints missing map coordinates. */
   repairAllZiplyPrints: () =>
     request<{

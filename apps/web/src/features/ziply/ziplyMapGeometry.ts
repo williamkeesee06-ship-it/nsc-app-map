@@ -152,8 +152,8 @@ export function buildStreetGridPath(
 
 /**
  * Build cable polyline for map.
- * 1) Stored multi-point path (roads / enhance) — needs ≥3 vertices
- * 2) Street-grid multi-jog synthetic (never 2-point stick)
+ * 1) Stored multi-point path from master plant engine (preferred)
+ * 2) Multi-jog ROW synthetic — NEVER a single straight stick
  */
 export function buildCablePath(
   hub: LatLng,
@@ -165,15 +165,25 @@ export function buildCablePath(
 ): LatLng[] {
   if (realPath && realPath.length >= 3) {
     const cleaned = realPath.filter((p) => isValidLatLng(p));
-    // 2-point "paths" are still sticks — rebuild. 3+ verts = real detail.
     if (cleaned.length >= 3) {
-      // If path is almost collinear (old stick densified), rebuild
-      if (cleaned.length >= 4 || pathHasTurns(cleaned)) {
-        return densifyPath(cleaned, cleaned.length >= 8 ? 2 : 4);
+      // Prefer server plant paths even if nearly collinear (short laterals)
+      if (cleaned.length >= 3) {
+        return densifyPath(cleaned, cleaned.length >= 10 ? 2 : 4);
       }
     }
   }
-  return buildStreetGridPath(hub, terminal, index, waypoints, footageFt);
+  // Lateral L: join-ish point toward hub axis then into terminal
+  const dx = terminal.lng - hub.lng;
+  const dy = terminal.lat - hub.lat;
+  const eastFirst = Math.abs(dx) >= Math.abs(dy);
+  const join: LatLng = eastFirst
+    ? { lat: hub.lat, lng: terminal.lng }
+    : { lat: terminal.lat, lng: hub.lng };
+  const shoulder: LatLng = {
+    lat: join.lat + (index % 2 === 0 ? 1 : -1) * 0.00004,
+    lng: join.lng + (index % 2 === 0 ? 1 : -1) * 0.00004,
+  };
+  return densifyPath([hub, join, shoulder, terminal], 6);
 }
 
 /** True if path has at least one meaningful corner (not a straight stick). */

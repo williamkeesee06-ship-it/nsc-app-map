@@ -349,16 +349,22 @@ function JobsMapInner({
   useEffect(() => {
     const handlePan = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail && detail.bounds && mapRef.current) {
+      if (!mapRef.current || !detail) return;
+      if (detail.bounds) {
         const bounds = new google.maps.LatLngBounds();
-        detail.bounds.forEach((pt: { lat: number, lng: number }) => {
+        detail.bounds.forEach((pt: { lat: number; lng: number }) => {
           bounds.extend(pt);
         });
         mapRef.current.fitBounds(bounds);
-      } else if (detail && detail.lat && detail.lng && mapRef.current) {
-        mapRef.current.panTo({ lat: detail.lat, lng: detail.lng });
+        return;
+      }
+      const center = detail.center ?? (detail.lat != null && detail.lng != null
+        ? { lat: detail.lat, lng: detail.lng }
+        : null);
+      if (center && typeof center.lat === "number" && typeof center.lng === "number") {
+        mapRef.current.panTo(center);
         mapRef.current.setZoom(
-          typeof detail.zoom === "number" ? detail.zoom : 16
+          typeof detail.zoom === "number" ? detail.zoom : 17
         );
       }
     };
