@@ -735,8 +735,10 @@ async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): 
       label: c.label,
       fiberCount: c.fiberCount,
       lengthFt: c.lengthFt,
-      path: null,
+      path: null as Array<{ lat: number; lng: number }> | null,
       buildType: c.buildType ?? null,
+      toTerminal: c.toTerminal ?? null,
+      routeStreets: c.routeStreets ?? null,
       status: "planned" as ZiplyObjectStatus,
     }));
 

@@ -53,6 +53,10 @@ export interface ZiplyParsedPrint {
       fiberCount: string;
       lengthFt: number | null;
       buildType?: "bore" | "trench" | "aerial" | null;
+      /** Terminal this cable feeds (e.g. MST-3) — improves map routing. */
+      toTerminal?: string | null;
+      /** Intermediate street names the cable follows (geocode later / layout hints). */
+      routeStreets?: string[] | null;
     }>;
     terminals: Array<{
       label: string;
@@ -200,8 +204,11 @@ FIELDS TO LOOK FOR:
 10. Permits Status Table: Find status or require check for City, WSDOT, County, Railroad, PGE/PA, TCP (typically under a PERMITS card). Status must be: Pending, Approved, Active, Closed, or null.
 11. Hub Address: The physical street address where the FDH cabinet is located (used to place it on a map).
 12. Map Objects: Look for EVERY labeled cable, line, and MST/terminal designation across ALL pages. Extract:
-    - cables: list of { label, fiberCount, lengthFt, buildType }. buildType is the placement
-      method for the segment: "bore", "trench", or "aerial" (null if unknown).
+    - cables: list of {
+        label, fiberCount, lengthFt, buildType,
+        toTerminal (MST/terminal label this cable feeds, if shown),
+        routeStreets (array of street names the cable runs along, in order, if shown on plan)
+      }. buildType is "bore", "trench", or "aerial" (null if unknown).
     - terminals: list of ALL service terminals. For each, extract as many of these as the print shows:
         label      (e.g. "MST-1", "T205")
         type       (e.g. "8-port MST", "12-port MST")
@@ -241,7 +248,7 @@ Return a JSON block strictly complying with this schema:
     "tcp": "Pending | Approved | Active | Closed | null"
   },
   "mapObjects": {
-    "cables": [{"label": "C-1", "fiberCount": "48F", "lengthFt": 250, "buildType": "bore"}],
+    "cables": [{"label": "C-1", "fiberCount": "48F", "lengthFt": 250, "buildType": "bore", "toTerminal": "MST-1", "routeStreets": ["Main St", "1st Ave"]}],
     "terminals": [{"label": "MST-1", "type": "8-port MST", "portCount": 8, "footageFt": 1000, "footageLabel": "1000' (593' OL)", "dvftpRange": "H2051, 205-216", "code": null, "fiberSpec": "12F", "addressesServed": ["13613 Division St"]}],
     "notes": "string or null"
   }

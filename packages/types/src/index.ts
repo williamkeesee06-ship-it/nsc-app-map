@@ -389,10 +389,14 @@ export interface Job {
         label: string;
         fiberCount: string;
         lengthFt: number | null;
-        /** Georeferenced polyline path when known (else rendered as a spoke). */
+        /** Georeferenced polyline path when known (else curved synthetic lateral). */
         path?: Array<{ lat: number; lng: number }> | null;
         /** Placement method drives the CAD dash pattern/color. */
         buildType?: "bore" | "trench" | "aerial" | null;
+        /** Terminal label this cable feeds (from print). */
+        toTerminal?: string | null;
+        /** Street names along the route (layout hints). */
+        routeStreets?: string[] | null;
         status?: ZiplyObjectStatus;
         /** Section-scoped 811 + crew metadata keyed by hubId + label/range. */
         locateTicketId?: string | null;
