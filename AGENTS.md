@@ -20,7 +20,7 @@
 
 - Adaptive UI: if **NSC 811 Autofill** (`chrome-extension/`) is detected → Autofill primary;
   if not (work-managed Chrome) → **cloud bot** primary.
-- Do not install `apps/extension/` (deprecated). See `README-811-DEPLOY.md`.
+- Only extension folder: `chrome-extension/`. See `README-811-DEPLOY.md`.
 
 ## Related folders (leave alone unless the user asks)
 

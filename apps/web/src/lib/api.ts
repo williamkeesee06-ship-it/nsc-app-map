@@ -162,6 +162,40 @@ export const api = {
       `/api/jobs/${encodeURIComponent(jobId)}/ziply-ingest`,
       { method: "POST", body: JSON.stringify({ storageFiles }) }
     ),
+  /** Re-geocode hub/terminals for one already-ingested print (no AI). */
+  repairZiplyPrint: (jobId: string) =>
+    request<{
+      ok: boolean;
+      jobId: string;
+      workOrder?: string | null;
+      repaired: boolean;
+      reason: string;
+      lat?: number;
+      lng?: number;
+      terminalsFixed?: number;
+    }>(`/api/jobs/${encodeURIComponent(jobId)}/ziply-repair-print`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  /** Batch-repair Ziply prints missing map coordinates. */
+  repairAllZiplyPrints: () =>
+    request<{
+      ok: boolean;
+      repaired: number;
+      skipped: number;
+      failed: number;
+      results: Array<{
+        jobId: string;
+        workOrder?: string | null;
+        repaired: boolean;
+        reason: string;
+        lat?: number;
+        lng?: number;
+      }>;
+    }>("/api/jobs/ziply-repair-prints", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
   // Ziply — persist a single map object's build status (spec §4 click-to-drawer).
   // kind identifies the object family; ref is the hub/terminal/cable label.
 	  updateZiplyObjectStatus: (

@@ -819,6 +819,250 @@ async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): 
   }
 }
 
+function isValidLatLng(lat: unknown, lng: unknown): boolean {
+  return (
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180
+  );
+}
+
+type RepairResult = {
+  jobId: string;
+  workOrder?: string | null;
+  repaired: boolean;
+  reason: string;
+  lat?: number;
+  lng?: number;
+  terminalsFixed?: number;
+};
+
+/**
+ * Fill missing hub/terminal lat/lng for an already-ingested Ziply print so it
+ * shows on the map without re-running Gemini.
+ */
+async function repairZiplyPrintLocation(job: Job): Promise<RepairResult> {
+  const jobId = job.jobId;
+  const mo = job.ziplyPrintLayer?.mapObjects;
+  if (!mo) {
+    return { jobId, workOrder: job.workOrder, repaired: false, reason: "no_mapObjects" };
+  }
+
+  const hubAlready = isValidLatLng(mo.hub?.lat, mo.hub?.lng);
+  const geoAlready =
+    job.geocode?.status === "OK" && isValidLatLng(job.geocode.lat, job.geocode.lng);
+
+  const geoCache = new Map<string, { lat: number; lng: number } | null>();
+  const geocodeOne = async (raw: string | null): Promise<{ lat: number; lng: number } | null> => {
+    if (!raw?.trim()) return null;
+    const addr = buildAddressString({
+      address: raw,
+      city: job.city,
+      zipCode: job.zipCode,
+    });
+    if (!addr) return null;
+    if (geoCache.has(addr)) return geoCache.get(addr)!;
+    const g = await geocodeAddress(addr);
+    const coords = g.status === "OK" ? { lat: g.lat, lng: g.lng } : null;
+    geoCache.set(addr, coords);
+    return coords;
+  };
+
+  // Prefer existing good coords, then geocode candidates.
+  let hubCoords: { lat: number; lng: number } | null = null;
+  if (hubAlready) {
+    hubCoords = { lat: mo.hub!.lat as number, lng: mo.hub!.lng as number };
+  } else if (geoAlready) {
+    hubCoords = { lat: job.geocode!.lat, lng: job.geocode!.lng };
+  }
+
+  if (!hubCoords) {
+    const parsed = job.ziplyIngest?.parsed as { hubAddress?: string | null } | null | undefined;
+    const candidates = [
+      parsed?.hubAddress ?? null,
+      job.address,
+      [job.address, job.city, job.zipCode].filter(Boolean).join(", ") || null,
+      job.city ? `${job.city}, WA` : null,
+      job.hubNumber ? `Hub ${job.hubNumber}, ${job.city || "WA"}` : null,
+    ];
+    for (const c of candidates) {
+      hubCoords = await geocodeOne(c);
+      if (hubCoords) break;
+    }
+  }
+
+  if (!hubCoords) {
+    return {
+      jobId,
+      workOrder: job.workOrder,
+      repaired: false,
+      reason: "geocode_failed",
+    };
+  }
+
+  let terminalsFixed = 0;
+  const rawTerms = mo.terminals ?? [];
+  const fixedTerminals = [];
+  for (let i = 0; i < rawTerms.length; i++) {
+    const t = rawTerms[i]!;
+    if (isValidLatLng(t.lat, t.lng)) {
+      fixedTerminals.push(t);
+      continue;
+    }
+    const firstAddr = t.addressesServed?.[0] ?? null;
+    const c = firstAddr ? await geocodeOne(firstAddr) : null;
+    terminalsFixed++;
+    if (c) {
+      fixedTerminals.push({ ...t, lat: c.lat, lng: c.lng });
+    } else {
+      // Ring around hub so each terminal is distinct and spokes still draw
+      const angle = (i * 2 * Math.PI) / Math.max(rawTerms.length, 1);
+      const r = 0.00035;
+      fixedTerminals.push({
+        ...t,
+        lat: hubCoords.lat + r * Math.sin(angle),
+        lng: hubCoords.lng + r * Math.cos(angle),
+      });
+    }
+  }
+
+  const now = Date.now();
+  const layer = {
+    ...job.ziplyPrintLayer!,
+    mapObjects: {
+      ...mo,
+      hub: {
+        ...(mo.hub ?? {}),
+        lat: hubCoords.lat,
+        lng: hubCoords.lng,
+        status: mo.hub?.status ?? ("planned" as const),
+      },
+      terminals: fixedTerminals,
+      cables: mo.cables ?? [],
+      notes: mo.notes ?? null,
+    },
+  };
+
+  const updates: Record<string, unknown> = {
+    ziplyPrintLayer: layer,
+    lastSyncedAt: now,
+    customerProject: "Ziply",
+  };
+  if (!geoAlready) {
+    updates.geocode = {
+      lat: hubCoords.lat,
+      lng: hubCoords.lng,
+      formattedAddress: job.address ?? "",
+      sourceAddress: job.address ?? "",
+      cachedAt: now,
+      status: "OK",
+    };
+  }
+
+  await db().collection("jobs").doc(jobId).update(updates);
+  return {
+    jobId,
+    workOrder: job.workOrder,
+    repaired: true,
+    reason: hubAlready ? "terminals_only" : "hub_and_anchor",
+    lat: hubCoords.lat,
+    lng: hubCoords.lng,
+    terminalsFixed,
+  };
+}
+
+// POST /api/jobs/:jobId/ziply-repair-print — re-geocode hub/terminals for an
+// already-ingested print (no Gemini). Makes old prints visible on the map.
+router.post("/jobs/:jobId/ziply-repair-print", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    if ((job.customerProject ?? "").trim().toLowerCase() !== "ziply") {
+      res.status(400).json({ error: "Not a Ziply job" });
+      return;
+    }
+    if (!job.ziplyPrintLayer?.mapObjects) {
+      res.status(400).json({
+        error: "No print layer on this job — upload/ingest a print first",
+      });
+      return;
+    }
+    const result = await repairZiplyPrintLocation(job);
+    invalidateJobsCache();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/ziply-repair-prints — batch-repair all Ziply jobs that have
+// print mapObjects but missing/unusable coordinates.
+router.post("/jobs/ziply-repair-prints", async (_req, res, next) => {
+  try {
+    const snap = await db().collection("jobs").where("customerProject", "==", "Ziply").get();
+    const results: RepairResult[] = [];
+    let repaired = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const doc of snap.docs) {
+      const job = doc.data() as Job;
+      if (!job.ziplyPrintLayer?.mapObjects) {
+        skipped++;
+        continue;
+      }
+      // Always attempt if hub missing or geocode missing — repairZiplyPrintLocation is idempotent-ish
+      const hubOk = isValidLatLng(
+        job.ziplyPrintLayer.mapObjects.hub?.lat,
+        job.ziplyPrintLayer.mapObjects.hub?.lng
+      );
+      const geoOk =
+        job.geocode?.status === "OK" &&
+        isValidLatLng(job.geocode.lat, job.geocode.lng);
+      if (hubOk && geoOk) {
+        skipped++;
+        continue;
+      }
+      try {
+        const r = await repairZiplyPrintLocation(job);
+        results.push(r);
+        if (r.repaired) repaired++;
+        else if (r.reason === "geocode_failed") failed++;
+        else skipped++;
+      } catch (e) {
+        failed++;
+        results.push({
+          jobId: job.jobId,
+          workOrder: job.workOrder,
+          repaired: false,
+          reason: e instanceof Error ? e.message : "error",
+        });
+      }
+    }
+
+    invalidateJobsCache();
+    res.json({
+      ok: true,
+      repaired,
+      skipped,
+      failed,
+      results: results.filter((r) => r.repaired || r.reason === "geocode_failed"),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/jobs/:jobId/ziply-ingest — starts async Ziply FTTH print parsing.
 router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
   try {

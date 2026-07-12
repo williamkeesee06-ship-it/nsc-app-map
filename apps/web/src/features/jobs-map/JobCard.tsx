@@ -417,6 +417,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+  const [repairBusy, setRepairBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const status = getZiplyPrintDocStatus(job);
   const files = listZiplyPrintFiles(job);
@@ -425,6 +426,22 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
   const cableCount = layer?.mapObjects?.cables?.length ?? null;
   const mapReady = isZiplyPrintMapReady(job);
   const anchor = getZiplyPrintAnchor(job);
+
+  const repairLocation = async () => {
+    setRepairBusy(true);
+    setErr(null);
+    try {
+      const r = await api.repairZiplyPrint(job.jobId);
+      if (!r.repaired) {
+        setErr(r.reason === "geocode_failed" ? "Could not geocode address — check job address/city." : r.reason);
+      }
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Repair failed");
+    } finally {
+      setRepairBusy(false);
+    }
+  };
 
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -477,7 +494,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           )}
           {status === "ready" && !mapReady && (
             <span style={{ fontSize: 9, color: "#fbbf24" }}>
-              Print data is saved but has no location. Fix job address / geocode, then re-upload print.
+              Print data is saved but has no location. Use Repair location (no re-upload needed).
             </span>
           )}
           {status === "failed" && job.ziplyIngest?.errorMessage && (
@@ -488,29 +505,52 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           )}
           {err && <span style={{ fontSize: 9, color: "#f87171" }}>{err}</span>}
         </div>
-        <label
-          style={{
-            background: busy ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.15)",
-            border: "1px solid rgba(0,230,118,0.45)",
-            color: "#00E676",
-            fontSize: 9,
-            fontWeight: 700,
-            padding: "6px 10px",
-            borderRadius: 4,
-            cursor: busy ? "wait" : "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {busy ? `${pct}%` : "UPLOAD PRINT"}
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,image/*"
-            disabled={busy}
-            onChange={(ev) => void onPick(ev)}
-            style={{ display: "none" }}
-          />
-        </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+          {layer?.mapObjects && !mapReady && (
+            <button
+              type="button"
+              disabled={repairBusy || busy}
+              onClick={() => void repairLocation()}
+              style={{
+                background: "rgba(251,191,36,0.2)",
+                border: "1px solid rgba(251,191,36,0.55)",
+                color: "#fbbf24",
+                fontSize: 9,
+                fontWeight: 700,
+                padding: "6px 10px",
+                borderRadius: 4,
+                cursor: repairBusy ? "wait" : "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {repairBusy ? "REPAIRING…" : "REPAIR LOCATION"}
+            </button>
+          )}
+          <label
+            style={{
+              background: busy ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.15)",
+              border: "1px solid rgba(0,230,118,0.45)",
+              color: "#00E676",
+              fontSize: 9,
+              fontWeight: 700,
+              padding: "6px 10px",
+              borderRadius: 4,
+              cursor: busy ? "wait" : "pointer",
+              whiteSpace: "nowrap",
+              textAlign: "center",
+            }}
+          >
+            {busy ? `${pct}%` : "UPLOAD PRINT"}
+            <input
+              ref={inputRef}
+              type="file"
+              accept="application/pdf,image/*"
+              disabled={busy}
+              onChange={(ev) => void onPick(ev)}
+              style={{ display: "none" }}
+            />
+          </label>
+        </div>
       </div>
       {files.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

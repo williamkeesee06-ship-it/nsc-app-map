@@ -31,8 +31,6 @@ The UI detects the extension automatically (`NSC_PING_811` / `NSC_PONG_811`).
 
 Install: `chrome://extensions` → Developer mode → **Load unpacked** → `chrome-extension/`.
 
-**Do not install** `apps/extension/` (deprecated — see `apps/extension/DEPRECATED.md`).
-
 ### Cloud bot (work PCs)
 
 | | |
@@ -61,7 +59,6 @@ Callables require a **signed-in Firebase user** (solo lock).
 | Function | Trigger | Purpose |
 |----------|---------|---------|
 | `fileTicketBot` | callable | Full auto-file on ITIC (login → fill → **auto-submit** → Filed) |
-| `confirmAndSubmit` | callable | **Deprecated no-op** (kept for old clients) |
 | `checkUtilityResponses` | callable | Scrape utility responses for one ticket |
 | `dailySweep` | schedule 6am PT | Active/Expiring/Expired + poll responses |
 | `onTicketFiled` | Firestore | Smartsheet locate write-back + notify |

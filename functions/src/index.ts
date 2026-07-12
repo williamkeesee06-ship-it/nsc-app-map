@@ -3,7 +3,6 @@
 //   fileTicketBot         callable — fill ITIC form AND auto-submit end-to-end,
 //                         then record the assigned locate number, expiration,
 //                         and confirmation PDF (ticket → Filed)
-//   confirmAndSubmit      callable — DEPRECATED no-op (auto-submit is now inline)
 //   checkUtilityResponses callable — scrape member responses for a filed ticket
 //   dailySweep            scheduled — 6am Pacific: expire/renew + poll responses
 //   onTicketFiled         Firestore trigger — Smartsheet write-back on Filed
@@ -158,21 +157,6 @@ export const fileTicketBot = onCall(
     } finally {
       await browser?.close();
     }
-  }
-);
-
-// ── confirmAndSubmit (DEPRECATED) ─────────────────────────────────────────────
-// Auto-submit is now handled inline by fileTicketBot, so this callable is kept
-// only for backwards compatibility with any stale clients. It no-ops.
-export const confirmAndSubmit = onCall(
-  { ...HEAVY, secrets: [ITIC_USERNAME, ITIC_PASSWORD] },
-  async (req) => {
-    requireCallableAuth(req);
-    const ticketId = req.data?.ticketId as string | undefined;
-    logger.warn("confirmAndSubmit is deprecated and no longer submits; fileTicketBot auto-submits", {
-      ticketId,
-    });
-    return { ok: true, deprecated: true };
   }
 );
 

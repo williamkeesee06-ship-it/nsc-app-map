@@ -2,9 +2,11 @@ import { useMemo, useState } from "react";
 import type { Job } from "@nsc/types";
 import type { Filters } from "./FilterRail.js";
 import { ChevronRight, ChevronDown } from "lucide-react";
+import { api } from "../../lib/api.js";
 import {
   getZiplyPrintDocStatus,
   isNorthMetroJob,
+  isZiplyPrintMapReady,
   type ZiplyPrintFilter,
   type ZiplyStatusGroup,
   ziplyPrintStatusColor,
@@ -56,12 +58,33 @@ export default function ZiplyFilterPanel({
   );
 
   const printCounts = useMemo(() => {
-    const c = { ready: 0, processing: 0, failed: 0, none: 0 };
+    const c = { ready: 0, processing: 0, failed: 0, none: 0, onMap: 0, needRepair: 0 };
     for (const j of ziplyJobs) {
       c[getZiplyPrintDocStatus(j)]++;
+      if (isZiplyPrintMapReady(j)) c.onMap++;
+      else if (j.ziplyPrintLayer?.mapObjects) c.needRepair++;
     }
     return c;
   }, [ziplyJobs]);
+
+  const [repairBusy, setRepairBusy] = useState(false);
+  const [repairMsg, setRepairMsg] = useState<string | null>(null);
+
+  const runBatchRepair = async () => {
+    setRepairBusy(true);
+    setRepairMsg(null);
+    try {
+      const r = await api.repairAllZiplyPrints();
+      setRepairMsg(
+        `Repaired ${r.repaired} · skipped ${r.skipped} · failed ${r.failed}`
+      );
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    } catch (e) {
+      setRepairMsg(e instanceof Error ? e.message : "Repair failed");
+    } finally {
+      setRepairBusy(false);
+    }
+  };
 
   const getStatusCount = (group: ZiplyStatusGroup) =>
     ziplyJobs.filter((j) => ziplyStatusGroupForJob(j) === group).length;
@@ -166,10 +189,49 @@ export default function ZiplyFilterPanel({
             : ""}
         </p>
         <p style={{ margin: "4px 0 0", fontSize: 9, color: "#6b7280" }}>
-          Print docs: {printCounts.ready} on map · {printCounts.processing}{" "}
-          ingesting · {printCounts.none} none · {printCounts.failed} failed
+          Prints: {printCounts.onMap} plottable on map · {printCounts.needRepair}{" "}
+          need location repair · {printCounts.processing} ingesting ·{" "}
+          {printCounts.none} none
         </p>
       </div>
+
+      {(printCounts.needRepair > 0 || repairMsg) && (
+        <div
+          style={{
+            padding: 8,
+            background: "rgba(251,191,36,0.1)",
+            border: "1px solid rgba(251,191,36,0.35)",
+            borderRadius: 6,
+          }}
+        >
+          <p style={{ margin: "0 0 8px", fontSize: 10, color: "#fbbf24", lineHeight: 1.4 }}>
+            {printCounts.needRepair > 0
+              ? `${printCounts.needRepair} print(s) have design data but missing lat/lng — they will not show until repaired.`
+              : "Print location repair ready."}
+          </p>
+          <button
+            type="button"
+            disabled={repairBusy}
+            onClick={() => void runBatchRepair()}
+            style={{
+              width: "100%",
+              background: repairBusy ? "rgba(255,255,255,0.1)" : "#ca8a04",
+              border: "none",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 11,
+              padding: "8px 10px",
+              borderRadius: 4,
+              cursor: repairBusy ? "wait" : "pointer",
+            }}
+          >
+            {repairBusy ? "Repairing locations…" : "Repair print locations (batch)"}
+          </button>
+          {repairMsg && (
+            <p style={{ margin: "6px 0 0", fontSize: 9, color: "#e2e8f0" }}>{repairMsg}</p>
+          )}
+        </div>
+      )}
 
       {/* North Metro */}
       <div
