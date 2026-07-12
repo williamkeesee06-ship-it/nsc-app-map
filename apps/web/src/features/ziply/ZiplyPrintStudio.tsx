@@ -25,7 +25,7 @@ interface Props {
 const STATUS_COLOR: Record<ZiplyObjectStatus, string> = {
   planned: "#64748b",
   in_progress: "#22D3EE",
-  complete: "#00E676",
+  complete: "#1d4ed8",
 };
 
 export default function ZiplyPrintStudio({ job, onClose }: Props) {
@@ -227,9 +227,10 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
           gap: 0,
           borderRadius: 16,
           overflow: "hidden",
-          border: "1px solid rgba(0,230,118,0.35)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.65), 0 0 40px rgba(0,230,118,0.12)",
-          background: "#0a1018",
+          border: "1px solid #8e96a0",
+          boxShadow:
+            "0 18px 50px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.8)",
+          background: "linear-gradient(165deg, #f4f6f8 0%, #d8dde4 100%)",
           minHeight: "min(92vh, 900px)",
         }}
       >
@@ -240,7 +241,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
             flexDirection: "column",
             minWidth: 0,
             borderRight: "1px solid rgba(148,163,184,0.15)",
-            background: "#05080e",
+            background: "#f4f6f8",
           }}
         >
           <div
@@ -250,16 +251,15 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
               gap: 10,
               padding: "10px 14px",
               borderBottom: "1px solid rgba(148,163,184,0.12)",
-              background: "linear-gradient(180deg,#0f1a14,#0a1210)",
+              background: "linear-gradient(180deg,#15202c,#eef2f6)",
             }}
           >
             <span
               style={{
-                color: "#00E676",
+                color: "#1d4ed8",
                 fontWeight: 800,
                 letterSpacing: "0.12em",
                 fontSize: 12,
-                textShadow: "0 0 12px rgba(0,230,118,0.4)",
               }}
             >
               PRINT STUDIO
@@ -292,7 +292,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                 >
                   ‹
                 </button>
-                <span style={{ color: "#94a3b8", fontSize: 11, fontFamily: "monospace" }}>
+                <span style={{ color: "#5b6776", fontSize: 11, fontFamily: "monospace" }}>
                   {fileIdx + 1}/{files.length}
                 </span>
                 <button
@@ -313,7 +313,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                 padding: "8px 12px",
                 background: "linear-gradient(90deg, rgba(251,191,36,0.15), transparent)",
                 borderBottom: "1px solid rgba(251,191,36,0.35)",
-                color: "#fde68a",
+                color: "#1e3a5f",
                 fontSize: 11,
                 fontWeight: 600,
                 lineHeight: 1.35,
@@ -322,9 +322,9 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
               <span style={{ color: "#fbbf24", fontWeight: 800, letterSpacing: "0.06em" }}>
                 MAP → PRINT CALLOUT
               </span>
-              <div style={{ marginTop: 2, color: "#e2e8f0" }}>{callout}</div>
+              <div style={{ marginTop: 2, color: "#15202c" }}>{callout}</div>
               {sheetHint != null && (
-                <div style={{ marginTop: 2, fontSize: 10, color: "#94a3b8" }}>
+                <div style={{ marginTop: 2, fontSize: 10, color: "#5b6776" }}>
                   Plan sheet page ~{sheetHint} (re-ingest to refresh AI page tags)
                 </div>
               )}
@@ -385,20 +385,20 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                 padding: "8px 14px",
                 borderTop: "1px solid rgba(148,163,184,0.1)",
                 fontSize: 10,
-                color: "#94a3b8",
+                color: "#5b6776",
                 display: "flex",
                 gap: 12,
                 flexWrap: "wrap",
               }}
             >
-              <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{active.name}</span>
+              <span style={{ color: "#15202c", fontWeight: 600 }}>{active.name}</span>
               {active.size != null && <span>{formatBytes(active.size)}</span>}
               {active.downloadUrl && (
                 <a
                   href={active.downloadUrl}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ color: "#38bdf8", fontWeight: 700 }}
+                  style={{ color: "#1e5eff", fontWeight: 700 }}
                 >
                   Open full screen ↗
                 </a>
@@ -414,7 +414,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
             flexDirection: "column",
             minWidth: 0,
             background: "linear-gradient(180deg,#0c121c 0%,#080c12 100%)",
-            color: "#e2e8f0",
+            color: "#15202c",
           }}
         >
           <div
@@ -432,13 +432,13 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                   fontSize: 11,
                   fontWeight: 800,
                   letterSpacing: "0.1em",
-                  color: "#22d3ee",
+                  color: "#0ea5e9",
                   textTransform: "uppercase",
                 }}
               >
                 Digital twin plant
               </div>
-              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: "#5b6776", marginTop: 2 }}>
                 {inventory.mainline
                   ? `Mainline · ${inventory.mainline}`
                   : "Mainline street from print"}
@@ -453,7 +453,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
               style={{
                 background: "rgba(255,255,255,0.06)",
                 border: "1px solid rgba(255,255,255,0.12)",
-                color: "#e2e8f0",
+                color: "#15202c",
                 borderRadius: 6,
                 padding: "6px 10px",
                 fontWeight: 700,
@@ -472,13 +472,13 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                 display: "flex",
                 justifyContent: "space-between",
                 fontSize: 10,
-                color: "#94a3b8",
+                color: "#5b6776",
                 marginBottom: 4,
                 fontFamily: "monospace",
               }}
             >
               <span>Plant complete (status{inventory.footageNote ? " + footage" : ""})</span>
-              <span style={{ color: "#00E676", fontWeight: 800 }}>{inventory.pct}%</span>
+              <span style={{ color: "#1d4ed8", fontWeight: 800 }}>{inventory.pct}%</span>
             </div>
             {inventory.footageNote && (
               <div style={{ fontSize: 9, color: "#64748b", marginBottom: 4, fontFamily: "monospace" }}>
@@ -510,8 +510,8 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                   width: `${Math.max(3, inventory.pct)}%`,
                   height: "100%",
                   borderRadius: 99,
-                  background: "linear-gradient(90deg,#0ea5e9,#00e676)",
-                  boxShadow: "0 0 12px rgba(0,230,118,0.5)",
+                  background: "linear-gradient(90deg,#0ea5e9,#1d4ed8)",
+                  boxShadow: "0 0 12px rgba(30, 94, 255,0.5)",
                 }}
               />
             </div>
@@ -646,7 +646,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
               style={{
                 background: busy
                   ? "rgba(255,255,255,0.08)"
-                  : "linear-gradient(180deg,#00e676,#00a854)",
+                  : "linear-gradient(180deg,#1d4ed8,#1e5eff)",
                 color: busy ? "#94a3b8" : "#04120a",
                 border: "none",
                 borderRadius: 8,
@@ -655,17 +655,17 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                 fontSize: 12,
                 cursor: busy ? "wait" : "pointer",
                 letterSpacing: "0.04em",
-                boxShadow: busy ? "none" : "0 0 20px rgba(0,230,118,0.35)",
+                boxShadow: busy ? "none" : "0 0 20px rgba(30, 94, 255,0.35)",
               }}
             >
               {busy ? "REBUILDING PLANT…" : "⚡ REBUILD PLANT CAD (MASTER)"}
             </button>
             {msg && (
-              <div style={{ fontSize: 10, color: "#a5f3fc", lineHeight: 1.4 }}>{msg}</div>
+              <div style={{ fontSize: 10, color: "#1d4ed8", lineHeight: 1.4 }}>{msg}</div>
             )}
             <p style={{ margin: 0, fontSize: 9, color: "#64748b", lineHeight: 1.4 }}>
               Rebuild geocodes house numbers, lays arterial mainline, laterals to parcels,
-              and neon-ready multi-point paths. Use map click to set Live / Neon Done.
+              multi-point plant paths. Use map click to set Live / Done.
             </p>
           </div>
         </div>
@@ -770,7 +770,7 @@ function Row({
           <div
             style={{
               fontSize: 9,
-              color: "#94a3b8",
+              color: "#5b6776",
               marginTop: 2,
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -836,20 +836,21 @@ function Row({
 }
 
 const navBtnStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "#e2e8f0",
+  background: "linear-gradient(180deg, #ffffff 0%, #e4e9f0 100%)",
+  border: "1px solid #8e96a0",
+  color: "#15202c",
   borderRadius: 4,
   width: 28,
   height: 28,
   cursor: "pointer",
   fontWeight: 800,
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9)",
 };
 
 const smallBtn: React.CSSProperties = {
-  background: "rgba(56,189,248,0.12)",
-  border: "1px solid rgba(56,189,248,0.4)",
-  color: "#38bdf8",
+  background: "linear-gradient(180deg, #e8f0ff 0%, #d0e0ff 100%)",
+  border: "1px solid #1e5eff",
+  color: "#1d4ed8",
   borderRadius: 4,
   padding: "3px 8px",
   fontSize: 9,

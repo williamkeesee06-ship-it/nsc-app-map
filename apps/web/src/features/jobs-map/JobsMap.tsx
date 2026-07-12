@@ -770,34 +770,32 @@ function ZiplyPrintMapBanner({
         gap: 10,
         padding: "9px 14px",
         borderRadius: 12,
-        background:
-          "linear-gradient(135deg, rgba(6,18,14,0.95) 0%, rgba(8,24,36,0.94) 100%)",
-        border: "1px solid rgba(0,230,118,0.5)",
-        color: "#e8fff2",
+        background: "linear-gradient(180deg, #f4f6f8 0%, #d8dde4 55%, #c5ccd6 100%)",
+        border: "1px solid #8e96a0",
+        color: "#15202c",
         fontSize: 11,
         fontFamily: "var(--font-mono, ui-monospace, Consolas, monospace)",
         boxShadow:
-          "0 10px 28px rgba(0,0,0,0.45), 0 0 24px rgba(0,230,118,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
+          "0 8px 22px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.85)",
         maxWidth: "min(720px, calc(100% - 160px))",
       }}
     >
       <span
         style={{
-          color: "#00E676",
+          color: "#1d4ed8",
           fontWeight: 800,
           letterSpacing: "0.12em",
-          textShadow: "0 0 12px rgba(0,230,118,0.55)",
         }}
       >
         ✦ PRINT CAD
       </span>
-      <span style={{ color: "#a7f3d0" }}>
+      <span style={{ color: "#3a4654" }}>
         {readyCount > 0
           ? `${readyCount} live design${readyCount === 1 ? "" : "s"}`
           : "No plottable prints yet"}
       </span>
       {orphanCount > 0 && (
-        <span style={{ color: "#fbbf24" }} title="Ingest finished but no lat/lng for hub or job">
+        <span style={{ color: "#b45309" }} title="Ingest finished but no lat/lng for hub or job">
           · {orphanCount} need location
         </span>
       )}
@@ -806,17 +804,16 @@ function ZiplyPrintMapBanner({
         onClick={onToggleLayer}
         style={{
           background: layerOn
-            ? "linear-gradient(180deg, rgba(0,230,118,0.28), rgba(0,230,118,0.12))"
-            : "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(0,230,118,0.55)",
-          color: "#00E676",
+            ? "linear-gradient(180deg, #e8f0ff 0%, #d0e0ff 100%)"
+            : "linear-gradient(180deg, #ffffff 0%, #e4e9f0 100%)",
+          border: "1px solid #1e5eff",
+          color: "#1d4ed8",
           borderRadius: 6,
           padding: "4px 10px",
           fontSize: 10,
           fontWeight: 800,
           cursor: "pointer",
           letterSpacing: "0.06em",
-          boxShadow: layerOn ? "0 0 14px rgba(0,230,118,0.25)" : "none",
         }}
       >
         {layerOn ? "LAYER ON" : "LAYER OFF"}
@@ -827,17 +824,16 @@ function ZiplyPrintMapBanner({
         disabled={readyCount === 0}
         style={{
           background: readyCount
-            ? "linear-gradient(180deg, #00e676, #00a854)"
-            : "rgba(255,255,255,0.08)",
-          border: "none",
-          color: readyCount ? "#04120a" : "#64748b",
+            ? "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)"
+            : "linear-gradient(180deg, #e4e9f0 0%, #c5ccd6 100%)",
+          border: "1px solid #1d4ed8",
+          color: readyCount ? "#ffffff" : "#5b6776",
           borderRadius: 6,
           padding: "4px 12px",
           fontSize: 10,
           fontWeight: 800,
           cursor: readyCount ? "pointer" : "not-allowed",
           letterSpacing: "0.04em",
-          boxShadow: readyCount ? "0 0 16px rgba(0,230,118,0.35)" : "none",
         }}
       >
         FLY TO PRINTS
@@ -1017,7 +1013,7 @@ function JobMarkers({
         if (count === 0) return;
         const center = { lat: sumLat / count, lng: sumLng / count };
         const pct = totalEstimated > 0 ? Math.round((totalCompleted / totalEstimated) * 100) : 45; 
-        const color = pct >= 80 ? "#00E676" : pct >= 50 ? "#ffb300" : "#ff7043";
+        const color = pct >= 80 ? "#1d4ed8" : pct >= 50 ? "#ffb300" : "#ff7043";
 
         // Draw a large glowing radar circle SVG
         const clusterSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
@@ -1086,7 +1082,7 @@ function JobMarkers({
           const pinColor = color.core;
           const printDot =
             printStatus === "ready"
-              ? "#00E676"
+              ? "#1d4ed8"
               : printStatus === "processing"
                 ? "#38bdf8"
                 : printStatus === "failed"

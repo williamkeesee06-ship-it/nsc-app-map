@@ -344,7 +344,7 @@ function ZiplyPermitsSection({ job }: { job: Job }) {
   const board = layer?.permits;
 
   const statusColor = (s: string) => {
-    if (s === "Approved" || s === "Active") return "#00E676";
+    if (s === "Approved" || s === "Active") return "#1d4ed8";
     if (s === "Closed") return "#6b7280";
     if (s === "processing" || s === "Pending") return "#ffb300";
     if (s === "failed") return "#f87171";
@@ -391,7 +391,7 @@ function ZiplyPermitsSection({ job }: { job: Job }) {
           fontSize: 11,
           fontWeight: 700,
           textTransform: "uppercase",
-          color: "#00E676",
+          color: "#1d4ed8",
           margin: "0 0 8px 0",
         }}
       >
@@ -466,8 +466,8 @@ function ZiplyPermitsSection({ job }: { job: Job }) {
       {/* Upload controls */}
       <div
         style={{
-          background: "rgba(0,230,118,0.06)",
-          border: "1px solid rgba(0,230,118,0.25)",
+          background: "rgba(30, 94, 255,0.06)",
+          border: "1px solid rgba(30, 94, 255,0.25)",
           borderRadius: 6,
           padding: 10,
           display: "flex",
@@ -505,9 +505,9 @@ function ZiplyPermitsSection({ job }: { job: Job }) {
         </label>
         <label
           style={{
-            background: busy ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.18)",
-            border: "1px solid rgba(0,230,118,0.5)",
-            color: "#00E676",
+            background: busy ? "rgba(255,255,255,0.06)" : "rgba(30, 94, 255,0.18)",
+            border: "1px solid rgba(30, 94, 255,0.5)",
+            color: "#1d4ed8",
             fontSize: 10,
             fontWeight: 800,
             padding: "8px 12px",
@@ -784,7 +784,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
       {studioOpen && (
         <ZiplyPrintStudio job={job} onClose={() => setStudioOpen(false)} />
       )}
-      <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#00E676", margin: "0 0 8px 0" }}>
+      <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", margin: "0 0 8px 0" }}>
         🗺️ ENGINEERING PRINT
       </h4>
       <div
@@ -797,7 +797,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           background: "rgba(0,0,0,0.2)",
           padding: 8,
           borderRadius: 4,
-          border: "1px solid rgba(0,230,118,0.2)",
+          border: "1px solid rgba(30, 94, 255,0.2)",
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -851,7 +851,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           {busy && (
             <span style={{ fontSize: 9, color: "#38bdf8" }}>Uploading / starting ingest… {pct}%</span>
           )}
-          {enhanceMsg && <span style={{ fontSize: 9, color: "#00E676" }}>{enhanceMsg}</span>}
+          {enhanceMsg && <span style={{ fontSize: 9, color: "#1d4ed8" }}>{enhanceMsg}</span>}
           {err && <span style={{ fontSize: 9, color: "#f87171" }}>{err}</span>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
@@ -880,16 +880,16 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
               type="button"
               onClick={() => setStudioOpen(true)}
               style={{
-                background: "linear-gradient(180deg, rgba(0,230,118,0.25), rgba(0,230,118,0.1))",
-                border: "1px solid rgba(0,230,118,0.55)",
-                color: "#00E676",
+                background: "linear-gradient(180deg, rgba(30, 94, 255,0.25), rgba(30, 94, 255,0.1))",
+                border: "1px solid rgba(30, 94, 255,0.55)",
+                color: "#1d4ed8",
                 fontSize: 9,
                 fontWeight: 800,
                 padding: "6px 10px",
                 borderRadius: 4,
                 cursor: "pointer",
                 whiteSpace: "nowrap",
-                boxShadow: "0 0 12px rgba(0,230,118,0.2)",
+                boxShadow: "0 0 12px rgba(30, 94, 255,0.2)",
               }}
             >
               ✦ PRINT STUDIO
@@ -918,9 +918,9 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           )}
           <label
             style={{
-              background: busy ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.15)",
-              border: "1px solid rgba(0,230,118,0.45)",
-              color: "#00E676",
+              background: busy ? "rgba(255,255,255,0.06)" : "rgba(30, 94, 255,0.15)",
+              border: "1px solid rgba(30, 94, 255,0.45)",
+              color: "#1d4ed8",
               fontSize: 9,
               fontWeight: 700,
               padding: "6px 10px",

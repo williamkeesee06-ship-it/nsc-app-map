@@ -57,7 +57,7 @@
   --neon-green:           #39ff7a;
   --neon-red:             #ff2d4a;
   --neon-cyan:            var(--accent-blue);
-  --ziply:                #00b248;
+  --ziply:                var(--accent-blue-deep);
 }
 
 /* ── Reusable brushed-steel surface mixin ──────────────────
@@ -402,29 +402,29 @@ button:hover,
   color: rgba(255, 255, 255, 0.85) !important;
 }
 
-/* ── Ziply FTTH Accent Override ── */
+/* ── Ziply FTTH — same royal blue + steel as Lumen (no green neon) ── */
 .contract-ziply {
-  --accent-blue: #00E676;
-  --accent-blue-deep: #00b248;
-  --accent-blue-soft: rgba(0, 230, 118, 0.18);
-  --accent: #00E676;
-  --accent-hover: #00b248;
-  --primary: #00E676;
-  --primary-hover: #00b248;
-  --rail-accent: #00E676;
-  --rail-accent-soft: rgba(0, 230, 118, 0.16);
+  --accent-blue: #1e5eff;
+  --accent-blue-deep: #1d4ed8;
+  --accent-blue-soft: rgba(30, 94, 255, 0.16);
+  --accent: var(--accent-blue);
+  --accent-hover: var(--accent-blue-deep);
+  --primary: var(--accent-blue);
+  --primary-hover: var(--accent-blue-deep);
+  --rail-accent: var(--accent-blue);
+  --rail-accent-soft: var(--accent-blue-soft);
 }
 
-/* Ziply active tool tiles use green neon */
+/* Ziply active tool tiles: metal face + royal blue */
 .contract-ziply .tool-tile--active {
-  border-color: #00e676 !important;
-  background: linear-gradient(160deg, #0a2e22 0%, #062018 60%, #041510 100%) !important;
+  border-color: var(--accent-blue) !important;
+  background: linear-gradient(160deg, #e8eef8 0%, #c5d0e0 55%, #a8b4c4 100%) !important;
 }
 .contract-ziply .tool-tile--active .tool-tile__icon,
 .contract-ziply .tool-tile--active .tool-tile__label {
-  color: #00e676 !important;
+  color: var(--accent-blue-deep) !important;
 }
 .contract-ziply .tool-tile--active .tool-tile__icon svg {
-  stroke: #00e676 !important;
+  stroke: var(--accent-blue-deep) !important;
 }
 

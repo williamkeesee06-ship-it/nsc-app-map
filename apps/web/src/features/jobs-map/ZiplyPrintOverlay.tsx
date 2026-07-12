@@ -27,21 +27,21 @@ import {
 import { subscribeFlowTick } from "../ziply/ziplyFlowClock.js";
 import "./ziplyPrintCad.css";
 
-// ── Neon CAD palette ────────────────────────────────────────────────────────
-const INK = "#0f172a";
+// ── Metal / royal-blue CAD palette ───────────────────────────────────────────
+const INK = "#15202c";
 const STATUS_COLOR: Record<ZiplyObjectStatus, string> = {
-  complete: "#00E676",
-  in_progress: "#22D3EE",
+  complete: "#1d4ed8",
+  in_progress: "#0ea5e9",
   planned: "#64748b",
 };
 const STATUS_GLOW: Record<ZiplyObjectStatus, string> = {
-  complete: "#00E676",
-  in_progress: "#22D3EE",
-  planned: "#475569",
+  complete: "#1e5eff",
+  in_progress: "#38bdf8",
+  planned: "#94a3b8",
 };
 const TERM_FILL: Record<ZiplyObjectStatus, string> = {
-  complete: "#00E676",
-  in_progress: "#22D3EE",
+  complete: "#1d4ed8",
+  in_progress: "#0ea5e9",
   planned: "#f8fafc",
 };
 const BUILD_ACCENT: Record<string, string> = {
@@ -74,9 +74,9 @@ function lineColor(
 ): string {
   if (show811Clearance) return locateCleared ? "#16A34A" : "#DC2626";
   if (role === "mainline" || role === "feeder") {
-    if (status === "complete") return "#00E676";
-    if (status === "in_progress") return "#22D3EE";
-    return "#38BDF8";
+    if (status === "complete") return "#1d4ed8";
+    if (status === "in_progress") return "#0ea5e9";
+    return "#3b82f6";
   }
   if (status === "planned" && buildType && BUILD_ACCENT[buildType]) {
     return BUILD_ACCENT[buildType];
@@ -217,7 +217,7 @@ function CadFiberLine({
 
     if (shouldFlow) {
       const flowColor =
-        status === "complete" ? "#bbf7d0" : status === "in_progress" ? "#a5f3fc" : "#7dd3fc";
+        status === "complete" ? "#93c5fd" : status === "in_progress" ? "#7dd3fc" : "#bfdbfe";
       const flow = new google.maps.Polyline({
         path,
         map,
@@ -442,7 +442,7 @@ function PrintCadHud({
         <div
           style={{
             fontSize: 10,
-            color: "#67e8f9",
+            color: "#1d4ed8",
             fontFamily: "var(--font-mono, monospace)",
             fontWeight: 700,
           }}
@@ -472,7 +472,7 @@ function PrintCadHud({
 
         <div className="ziply-cad-hud__stats">
           <div className="ziply-cad-hud__stat">
-            <span className="ziply-cad-hud__stat-n" style={{ color: "#00E676" }}>
+            <span className="ziply-cad-hud__stat-n" style={{ color: "#1d4ed8" }}>
               {stats.complete}
             </span>
             <span className="ziply-cad-hud__stat-l">Done</span>
@@ -620,7 +620,7 @@ function PrintCadHud({
             {stats.enhanced ? " · enhanced" : ""}
           </span>
           {stats.geometrySource ? (
-            <span style={{ color: "#67e8f9" }}>
+            <span style={{ color: "#1e5eff" }}>
               CAD:{" "}
               {stats.geometrySource === "control_registered"
                 ? "sheet-registered"
@@ -635,7 +635,7 @@ function PrintCadHud({
         </div>
         <p className="ziply-cad-hud__hint">
           Geometry from geocoded parcels + plan topology (not spokes). Run ENHANCE CAD
-          after ingest. Labels at higher zoom. Click cable for Live / Neon Done.
+          after ingest. Labels at higher zoom. Click cable for Live / Done.
         </p>
       </div>
     </div>
@@ -1899,9 +1899,9 @@ export default function ZiplyPrintOverlay({
               style={{
                 background:
                   selected.status === "complete"
-                    ? "linear-gradient(90deg,#00E676,#a3e635)"
+                    ? "linear-gradient(90deg,#1d4ed8,#3b82f6)"
                     : selected.status === "in_progress"
-                      ? "linear-gradient(90deg,#22D3EE,#38bdf8)"
+                      ? "linear-gradient(90deg,#0ea5e9,#38bdf8)"
                       : "linear-gradient(90deg,#64748b,#94a3b8)",
               }}
             />
@@ -1928,7 +1928,7 @@ export default function ZiplyPrintOverlay({
                 [
                   { st: "planned" as const, label: "○ Planned" },
                   { st: "in_progress" as const, label: "◈ Live" },
-                  { st: "complete" as const, label: "● Neon Done" },
+                  { st: "complete" as const, label: "● Done" },
                 ] as const
               ).map(({ st, label }) => {
                 const on = selected.status === st;

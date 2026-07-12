@@ -97,7 +97,7 @@ export default function Eight11Section({ job }: { job: Job }) {
     pillColor = "#1a1a1a";
   } else {
     pillLabel = "ACTIVE";
-    pillBg = "#00E676";
+    pillBg = "#1d4ed8";
     pillColor = "#0a1a0f";
   }
 

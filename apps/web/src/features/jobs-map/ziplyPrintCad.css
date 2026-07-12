@@ -1,4 +1,4 @@
-/* ── Ziply Interactive Print CAD HUD ─────────────────────────────────────── */
+/* ── Ziply Print CAD HUD — royal blue, white, brushed metal ─────────────── */
 
 .ziply-cad-hud {
   position: absolute;
@@ -8,31 +8,33 @@
   width: min(280px, calc(100% - 24px));
   pointer-events: auto;
   font-family: var(--font-sans, Inter, system-ui, sans-serif);
-  color: #e2e8f0;
-  border-radius: 14px;
+  color: #15202c;
+  border-radius: 12px;
   overflow: hidden;
   background: linear-gradient(
     165deg,
-    rgba(8, 16, 28, 0.94) 0%,
-    rgba(6, 12, 22, 0.97) 100%
+    #f4f6f8 0%,
+    #d8dde4 48%,
+    #c5ccd6 100%
   );
-  border: 1px solid rgba(0, 230, 118, 0.28);
+  border: 1px solid #8e96a0;
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 0 32px rgba(0, 230, 118, 0.12);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+    0 10px 28px rgba(0, 0, 0, 0.28),
+    0 2px 6px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .ziply-cad-hud__beam {
-  height: 2px;
+  height: 3px;
   background: linear-gradient(
     90deg,
     transparent,
-    #00e676 20%,
-    #22d3ee 50%,
-    #00e676 80%,
+    #1e5eff 15%,
+    #60a5fa 50%,
+    #1e5eff 85%,
     transparent
   );
   background-size: 200% 100%;
@@ -54,16 +56,17 @@
   justify-content: space-between;
   gap: 8px;
   padding: 10px 12px 6px;
+  border-bottom: 1px solid rgba(142, 150, 160, 0.45);
+  background: linear-gradient(180deg, #eef2f6 0%, #d5dbe4 100%);
 }
 
 .ziply-cad-hud__title {
   font-family: var(--font-display, "Space Grotesk", sans-serif);
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #00e676;
-  text-shadow: 0 0 12px rgba(0, 230, 118, 0.55);
+  color: #1d4ed8;
 }
 
 .ziply-cad-hud__live {
@@ -73,7 +76,7 @@
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #67e8f9;
+  color: #1e5eff;
   text-transform: uppercase;
 }
 
@@ -81,8 +84,8 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #22d3ee;
-  box-shadow: 0 0 8px #22d3ee, 0 0 16px rgba(34, 211, 238, 0.5);
+  background: #1e5eff;
+  box-shadow: 0 0 6px rgba(30, 94, 255, 0.55);
   animation: ziply-cad-pulse 1.4s ease-in-out infinite;
 }
 
@@ -99,10 +102,11 @@
 }
 
 .ziply-cad-hud__body {
-  padding: 4px 12px 12px;
+  padding: 8px 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(232, 236, 242, 0.9) 100%);
 }
 
 .ziply-cad-hud__progress {
@@ -115,30 +119,30 @@
   display: flex;
   justify-content: space-between;
   font-size: 10px;
-  color: #94a3b8;
+  color: #3a4654;
   font-family: var(--font-mono, "JetBrains Mono", monospace);
 }
 
 .ziply-cad-hud__progress-pct {
-  color: #00e676;
+  color: #1d4ed8;
   font-weight: 700;
-  text-shadow: 0 0 8px rgba(0, 230, 118, 0.4);
 }
 
 .ziply-cad-hud__bar {
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #a8b0ba;
   overflow: hidden;
   position: relative;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .ziply-cad-hud__bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #0ea5e9, #00e676 55%, #a3e635);
-  box-shadow: 0 0 12px rgba(0, 230, 118, 0.65);
+  background: linear-gradient(90deg, #1e5eff, #3b82f6 55%, #60a5fa);
+  box-shadow: 0 0 8px rgba(30, 94, 255, 0.35);
   transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
 }
@@ -150,7 +154,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.45),
+    rgba(255, 255, 255, 0.5),
     transparent
   );
   animation: ziply-cad-sheen 1.8s ease-in-out infinite;
@@ -172,11 +176,12 @@
 }
 
 .ziply-cad-hud__stat {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, #ffffff 0%, #e8ecf2 100%);
+  border: 1px solid #a8b0ba;
   border-radius: 8px;
   padding: 6px 4px;
   text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .ziply-cad-hud__stat-n {
@@ -184,7 +189,7 @@
   font-family: var(--font-mono, monospace);
   font-size: 14px;
   font-weight: 700;
-  color: #f1f5f9;
+  color: #15202c;
   line-height: 1.1;
 }
 
@@ -193,7 +198,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #64748b;
+  color: #5b6776;
 }
 
 .ziply-cad-hud__toggles {
@@ -208,30 +213,31 @@
   gap: 8px;
   padding: 6px 8px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid #a8b0ba;
+  background: linear-gradient(180deg, #ffffff 0%, #e4e9f0 100%);
   cursor: pointer;
   font-size: 11px;
   font-weight: 600;
-  color: #cbd5e1;
+  color: #3a4654;
   transition: border-color 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s;
   user-select: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .ziply-cad-hud__toggle:hover {
-  border-color: rgba(0, 230, 118, 0.35);
-  color: #fff;
+  border-color: #1e5eff;
+  color: #15202c;
 }
 
 .ziply-cad-hud__toggle.on {
-  border-color: rgba(0, 230, 118, 0.5);
-  background: rgba(0, 230, 118, 0.1);
-  color: #00e676;
-  box-shadow: 0 0 16px rgba(0, 230, 118, 0.15);
+  border-color: #1d4ed8;
+  background: linear-gradient(180deg, #e8f0ff 0%, #d0e0ff 100%);
+  color: #1d4ed8;
+  box-shadow: 0 0 0 1px rgba(30, 94, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .ziply-cad-hud__toggle input {
-  accent-color: #00e676;
+  accent-color: #1e5eff;
   width: 14px;
   height: 14px;
   margin: 0;
@@ -241,31 +247,28 @@
   display: grid;
   gap: 3px;
   font-size: 10px;
-  color: #94a3b8;
+  color: #5b6776;
   font-family: var(--font-mono, monospace);
   padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(142, 150, 160, 0.5);
 }
 
 .ziply-cad-hud__legend .neon-planned {
   color: #64748b;
 }
 .ziply-cad-hud__legend .neon-progress {
-  color: #22d3ee;
-  text-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+  color: #0ea5e9;
 }
 .ziply-cad-hud__legend .neon-done {
-  color: #00e676;
-  text-shadow: 0 0 8px rgba(0, 230, 118, 0.7);
+  color: #1d4ed8;
 }
 .ziply-cad-hud__legend .neon-main {
-  color: #38bdf8;
-  text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+  color: #1e5eff;
 }
 
 .ziply-cad-hud__hint {
   font-size: 9px;
-  color: #64748b;
+  color: #5b6776;
   line-height: 1.35;
 }
 
@@ -286,6 +289,6 @@
   height: 3px;
   border-radius: 999px;
   margin-bottom: 8px;
-  background: linear-gradient(90deg, #0ea5e9, #00e676);
-  box-shadow: 0 0 10px rgba(0, 230, 118, 0.5);
+  background: linear-gradient(90deg, #1e5eff, #60a5fa);
+  box-shadow: 0 0 8px rgba(30, 94, 255, 0.35);
 }

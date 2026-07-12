@@ -121,7 +121,7 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
 
       <div className="ss-header">
         <h2>
-          <Grid size={20} color="#00a854" />
+          <Grid size={20} color="#1e5eff" />
           Ziply FTTH Jobs
         </h2>
         <div className="ss-header-meta">
@@ -228,9 +228,9 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
             fontWeight: 700,
             padding: "6px 10px",
             borderRadius: 6,
-            border: "1px solid rgba(0,230,118,0.45)",
-            background: "rgba(0,230,118,0.1)",
-            color: "#00E676",
+            border: "1px solid rgba(30, 94, 255,0.45)",
+            background: "rgba(30, 94, 255,0.1)",
+            color: "#1d4ed8",
             cursor: fleetBusy ? "wait" : "pointer",
           }}
         >

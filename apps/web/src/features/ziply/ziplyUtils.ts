@@ -69,7 +69,7 @@ export function getCadFidelity(job: Job): {
     return {
       grade: "A",
       label: residualM != null ? `A · ±${Math.round(residualM)}m` : "A · registered",
-      color: "#00E676",
+      color: "#1d4ed8",
       source,
       residualM,
     };
@@ -226,7 +226,7 @@ export function ziplyPrintStatusLabel(status: ZiplyPrintDocStatus): string {
 export function ziplyPrintStatusColor(status: ZiplyPrintDocStatus): string {
   switch (status) {
     case "ready":
-      return "#00E676";
+      return "#1d4ed8";
     case "processing":
       return "#38bdf8";
     case "failed":

@@ -177,7 +177,7 @@ export default function ZiplyFilterPanel({
             margin: "0 0 4px 0",
             fontSize: 13,
             letterSpacing: "0.05em",
-            color: "#00E676",
+            color: "#1d4ed8",
           }}
         >
           ZIPLY MAP FILTERS
@@ -237,8 +237,8 @@ export default function ZiplyFilterPanel({
       <div
         style={{
           padding: 8,
-          background: "rgba(0,230,118,0.08)",
-          border: "1px solid rgba(0,230,118,0.25)",
+          background: "rgba(30, 94, 255,0.08)",
+          border: "1px solid rgba(30, 94, 255,0.25)",
           borderRadius: 6,
         }}
       >
@@ -258,7 +258,7 @@ export default function ZiplyFilterPanel({
             onChange={(e) =>
               setFilters({ ...filters, ziplyNorthMetroOnly: e.target.checked })
             }
-            style={{ accentColor: "#00E676" }}
+            style={{ accentColor: "#1d4ed8" }}
           />
           <span>NORTH METRO ONLY</span>
           <span style={{ marginLeft: "auto", fontSize: 10, color: "#6b7280" }}>
@@ -297,7 +297,7 @@ export default function ZiplyFilterPanel({
                 padding: "5px 8px",
                 background:
                   (filters.ziplyPrintFilter ?? "all") === opt.id
-                    ? "rgba(0,230,118,0.12)"
+                    ? "rgba(30, 94, 255,0.12)"
                     : "rgba(255,255,255,0.03)",
                 border: "1px solid rgba(255,255,255,0.08)",
                 borderRadius: 4,
@@ -312,7 +312,7 @@ export default function ZiplyFilterPanel({
                 onChange={() =>
                   setFilters({ ...filters, ziplyPrintFilter: opt.id })
                 }
-                style={{ accentColor: "#00E676" }}
+                style={{ accentColor: "#1d4ed8" }}
               />
               <span>{opt.label}</span>
             </label>
@@ -324,8 +324,8 @@ export default function ZiplyFilterPanel({
       <div
         style={{
           padding: 8,
-          background: "rgba(0,230,118,0.06)",
-          border: "1px solid rgba(0,230,118,0.15)",
+          background: "rgba(30, 94, 255,0.06)",
+          border: "1px solid rgba(30, 94, 255,0.15)",
           borderRadius: 6,
         }}
       >
@@ -343,7 +343,7 @@ export default function ZiplyFilterPanel({
             type="checkbox"
             checked={ziplyPrintLayerVisible}
             onChange={(e) => setZiplyPrintLayerVisible(e.target.checked)}
-            style={{ accentColor: "#00E676" }}
+            style={{ accentColor: "#1d4ed8" }}
           />
           <span>SHOW PRINT DESIGN LAYER</span>
         </label>
@@ -420,7 +420,7 @@ export default function ZiplyFilterPanel({
                   type="checkbox"
                   checked={isStatusChecked(id)}
                   onChange={() => handleStatusToggle(id)}
-                  style={{ accentColor: "#00E676" }}
+                  style={{ accentColor: "#1d4ed8" }}
                 />
                 <span>{label}</span>
               </div>
@@ -503,7 +503,7 @@ export default function ZiplyFilterPanel({
                     type="button"
                     onClick={(e) => handlePanToSite(site, e)}
                     style={{
-                      background: "var(--accent, #00E676)",
+                      background: "var(--accent, #1d4ed8)",
                       border: "none",
                       borderRadius: 12,
                       color: "#000",
@@ -572,7 +572,7 @@ export default function ZiplyFilterPanel({
                           <span
                             style={{
                               color:
-                                job.jobStatus === "Complete" ? "#00E676" : "#4facfe",
+                                job.jobStatus === "Complete" ? "#1d4ed8" : "#4facfe",
                               fontSize: 9,
                             }}
                           >
@@ -620,7 +620,7 @@ export default function ZiplyFilterPanel({
             onChange={(e) =>
               setFilters({ ...filters, hideUnmapped: e.target.checked })
             }
-            style={{ accentColor: "#00E676" }}
+            style={{ accentColor: "#1d4ed8" }}
           />
           <span>Hide unmapped jobs</span>
         </label>
@@ -640,7 +640,7 @@ export default function ZiplyFilterPanel({
             onChange={(e) =>
               setFilters({ ...filters, inTrackerOnly: e.target.checked })
             }
-            style={{ accentColor: "#00E676" }}
+            style={{ accentColor: "#1d4ed8" }}
           />
           <span>On tracker only</span>
         </label>

@@ -149,7 +149,7 @@ export default function ZiplyDashboardTab({ jobs }: Props) {
               <span style={{ color: "var(--accent)" }}>{rollup.pct}%</span>
             </div>
             <div style={{ width: "100%", height: 4, background: "#111827", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ width: `${rollup.pct}%`, height: "100%", background: "var(--accent, #00E676)", borderRadius: 2 }} />
+              <div style={{ width: `${rollup.pct}%`, height: "100%", background: "var(--accent, #1d4ed8)", borderRadius: 2 }} />
             </div>
             <div style={{ fontSize: 9, color: "#6b7280", marginTop: 8 }}>
               {rollup.completedJobs} completed job records · {rollup.activeCrews.length} active crews · {rollup.unclearedSections} sections needing active 811 coverage

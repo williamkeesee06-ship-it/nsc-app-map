@@ -530,7 +530,7 @@ a { color: var(--accent); }
 }
 
 .contract-ziply .left-rail-tabstrip {
-  background: linear-gradient(180deg, #064e3b 0%, #022c22 55%, #011a14 100%);
+  background: linear-gradient(180deg, #1e3a6e 0%, #152a52 55%, #0f1f3d 100%);
 }
 
 .left-rail-tabstrip::-webkit-scrollbar {
@@ -567,8 +567,8 @@ a { color: var(--accent); }
 }
 
 .contract-ziply .left-rail-tab.active {
-  color: #00e676;
-  box-shadow: inset 0 0 0 1px rgba(0, 230, 118, 0.4);
+  color: #7eb6ff;
+  box-shadow: inset 0 0 0 1px rgba(30, 94, 255, 0.45);
 }
 
 /* Layer rows */
