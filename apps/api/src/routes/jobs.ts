@@ -1049,11 +1049,13 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
   }
 
   // Terminals — geocode every served address; keep best
+  type ZiplyTerm = NonNullable<NonNullable<Job["ziplyPrintLayer"]>["mapObjects"]>["terminals"][number];
+  type ZiplyCable = NonNullable<NonNullable<Job["ziplyPrintLayer"]>["mapObjects"]>["cables"][number];
   let terminalsGeocoded = 0;
-  const terminals = [];
+  const terminals: ZiplyTerm[] = [];
   for (const t of mo.terminals ?? []) {
-    let lat = isValidLatLng(t.lat, t.lng) ? (t.lat as number) : null;
-    let lng = isValidLatLng(t.lat, t.lng) ? (t.lng as number) : null;
+    let lat: number | null = isValidLatLng(t.lat, t.lng) ? (t.lat as number) : null;
+    let lng: number | null = isValidLatLng(t.lat, t.lng) ? (t.lng as number) : null;
     if (lat == null || lng == null) {
       const addrs = t.addressesServed ?? [];
       for (const a of addrs) {
@@ -1069,8 +1071,8 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     // Fallback: offset from hub by footage so plant still has structure
     if (lat == null || lng == null) {
       const n = Math.max((mo.terminals ?? []).length, 1);
-      const idx = terminals.length;
-      const angle = (idx * 2 * Math.PI) / n - Math.PI / 2;
+      const idx: number = terminals.length;
+      const angle: number = (idx * 2 * Math.PI) / n - Math.PI / 2;
       const ft = t.footageFt != null && t.footageFt > 0 ? t.footageFt : 600;
       const meters = Math.min(380, Math.max(55, ft * 0.085));
       const mPerLat = 111320;
@@ -1099,7 +1101,7 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
   // Cables — build multi-point paths via route streets + terminal
   let cablesPathed = 0;
   let waypointsGeocoded = 0;
-  const cables = [];
+  const cables: ZiplyCable[] = [];
   for (let i = 0; i < (mo.cables ?? []).length; i++) {
     const c = mo.cables![i]!;
     const term = findTerm(c.toTerminal ?? c.label, i);
