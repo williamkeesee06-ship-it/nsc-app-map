@@ -758,23 +758,32 @@ function ZiplyPrintMapBanner({
         alignItems: "center",
         flexWrap: "wrap",
         gap: 10,
-        padding: "8px 12px",
-        borderRadius: 8,
-        background: "rgba(10, 20, 16, 0.92)",
-        border: "1px solid rgba(0,230,118,0.45)",
+        padding: "9px 14px",
+        borderRadius: 12,
+        background:
+          "linear-gradient(135deg, rgba(6,18,14,0.95) 0%, rgba(8,24,36,0.94) 100%)",
+        border: "1px solid rgba(0,230,118,0.5)",
         color: "#e8fff2",
         fontSize: 11,
-        fontFamily: "ui-monospace, Consolas, monospace",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-        maxWidth: "min(640px, calc(100% - 160px))",
+        fontFamily: "var(--font-mono, ui-monospace, Consolas, monospace)",
+        boxShadow:
+          "0 10px 28px rgba(0,0,0,0.45), 0 0 24px rgba(0,230,118,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
+        maxWidth: "min(720px, calc(100% - 160px))",
       }}
     >
-      <span style={{ color: "#00E676", fontWeight: 800, letterSpacing: "0.06em" }}>
-        PRINT LAYER
+      <span
+        style={{
+          color: "#00E676",
+          fontWeight: 800,
+          letterSpacing: "0.12em",
+          textShadow: "0 0 12px rgba(0,230,118,0.55)",
+        }}
+      >
+        ✦ PRINT CAD
       </span>
-      <span>
+      <span style={{ color: "#a7f3d0" }}>
         {readyCount > 0
-          ? `${readyCount} design${readyCount === 1 ? "" : "s"} on map`
+          ? `${readyCount} live design${readyCount === 1 ? "" : "s"}`
           : "No plottable prints yet"}
       </span>
       {orphanCount > 0 && (
@@ -786,14 +795,18 @@ function ZiplyPrintMapBanner({
         type="button"
         onClick={onToggleLayer}
         style={{
-          background: layerOn ? "rgba(0,230,118,0.2)" : "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(0,230,118,0.4)",
+          background: layerOn
+            ? "linear-gradient(180deg, rgba(0,230,118,0.28), rgba(0,230,118,0.12))"
+            : "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(0,230,118,0.55)",
           color: "#00E676",
-          borderRadius: 4,
-          padding: "3px 8px",
+          borderRadius: 6,
+          padding: "4px 10px",
           fontSize: 10,
-          fontWeight: 700,
+          fontWeight: 800,
           cursor: "pointer",
+          letterSpacing: "0.06em",
+          boxShadow: layerOn ? "0 0 14px rgba(0,230,118,0.25)" : "none",
         }}
       >
         {layerOn ? "LAYER ON" : "LAYER OFF"}
@@ -803,17 +816,21 @@ function ZiplyPrintMapBanner({
         onClick={onFitPrints}
         disabled={readyCount === 0}
         style={{
-          background: readyCount ? "#00a854" : "rgba(255,255,255,0.08)",
+          background: readyCount
+            ? "linear-gradient(180deg, #00e676, #00a854)"
+            : "rgba(255,255,255,0.08)",
           border: "none",
-          color: readyCount ? "#fff" : "#64748b",
-          borderRadius: 4,
-          padding: "3px 10px",
+          color: readyCount ? "#04120a" : "#64748b",
+          borderRadius: 6,
+          padding: "4px 12px",
           fontSize: 10,
-          fontWeight: 700,
+          fontWeight: 800,
           cursor: readyCount ? "pointer" : "not-allowed",
+          letterSpacing: "0.04em",
+          boxShadow: readyCount ? "0 0 16px rgba(0,230,118,0.35)" : "none",
         }}
       >
-        SHOW PRINTS
+        FLY TO PRINTS
       </button>
     </div>
   );

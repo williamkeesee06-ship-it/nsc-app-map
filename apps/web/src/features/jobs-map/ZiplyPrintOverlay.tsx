@@ -10,24 +10,29 @@ import {
   placeTerminalAroundHub,
   type LatLng,
 } from "../ziply/ziplyMapGeometry.js";
+import "./ziplyPrintCad.css";
 
-// ── CAD blueprint look ──────────────────────────────────────────────────────
+// ── Neon CAD palette ────────────────────────────────────────────────────────
 const INK = "#0f172a";
 const STATUS_COLOR: Record<ZiplyObjectStatus, string> = {
-  complete: "#15803D",
-  in_progress: "#0891B2",
+  complete: "#00E676",
+  in_progress: "#22D3EE",
   planned: "#64748b",
 };
+const STATUS_GLOW: Record<ZiplyObjectStatus, string> = {
+  complete: "#00E676",
+  in_progress: "#22D3EE",
+  planned: "#475569",
+};
 const TERM_FILL: Record<ZiplyObjectStatus, string> = {
-  complete: "#15803D",
-  in_progress: "#0891B2",
+  complete: "#00E676",
+  in_progress: "#22D3EE",
   planned: "#f8fafc",
 };
-/** Build-type accents (underlay / pattern) — status still drives main color. */
 const BUILD_ACCENT: Record<string, string> = {
-  aerial: "#7c3aed",
-  bore: "#ea580c",
-  trench: "#ca8a04",
+  aerial: "#a78bfa",
+  bore: "#fb923c",
+  trench: "#facc15",
 };
 
 type StatusKind = "hub" | "terminal" | "cable";
@@ -49,17 +54,27 @@ function lineColor(
   status: ZiplyObjectStatus,
   buildType: string | null | undefined,
   locateCleared: boolean | undefined,
-  show811Clearance: boolean
+  show811Clearance: boolean,
+  role?: string | null
 ): string {
   if (show811Clearance) return locateCleared ? "#16A34A" : "#DC2626";
+  if (role === "mainline" || role === "feeder") {
+    if (status === "complete") return "#00E676";
+    if (status === "in_progress") return "#22D3EE";
+    return "#38BDF8";
+  }
   if (status === "planned" && buildType && BUILD_ACCENT[buildType]) {
-    // Planned: tint by build method so the design reads as a real print
     return BUILD_ACCENT[buildType];
   }
   return STATUS_COLOR[status];
 }
 
-/** Rich fiber cable: halo + main stroke + optional dash; clickable for CAD detail. */
+/**
+ * Neon multi-layer fiber path with optional animated flow pulses.
+ * complete → solid neon green glow
+ * in_progress → cyan neon + flowing particles from hub
+ * planned → soft dashed construction line
+ */
 function CadFiberLine({
   path,
   status,
@@ -69,17 +84,20 @@ function CadFiberLine({
   show811Clearance,
   label,
   selected,
+  animateFlow,
+  neonGlow,
   onClick,
 }: {
   path: LatLng[];
   status: ZiplyObjectStatus;
   buildType?: string | null;
-  /** mainline/feeder = thick spine; lateral = thinner branch */
   role?: "mainline" | "lateral" | "feeder" | null;
   locateCleared?: boolean;
   show811Clearance?: boolean;
   label?: string;
   selected?: boolean;
+  animateFlow?: boolean;
+  neonGlow?: boolean;
   onClick?: (mid: LatLng) => void;
 }) {
   const map = useMap();
@@ -88,74 +106,172 @@ function CadFiberLine({
   useEffect(() => {
     if (!map || path.length < 2) return;
     const isMain = role === "mainline" || role === "feeder";
-    const color = isMain
-      ? status === "complete"
-        ? "#0f766e"
-        : "#0ea5e9"
-      : lineColor(status, buildType, locateCleared, !!show811Clearance);
-    const solid = show811Clearance ? !!locateCleared : status === "complete" || isMain;
+    const color = lineColor(status, buildType, locateCleared, !!show811Clearance, role);
+    const glow = STATUS_GLOW[status];
+    const solid =
+      show811Clearance
+        ? !!locateCleared
+        : status === "complete" || (isMain && status !== "planned");
     const isAerial = buildType === "aerial";
     const isBore = buildType === "bore";
-    const weightBoost = selected ? 2 : 0;
-    const mainW = isMain ? 7 : isBore ? 5 : isAerial ? 3.5 : 4.5;
-    const haloW = isMain ? 14 : isBore ? 10 : 8;
+    const weightBoost = selected ? 2.5 : 0;
+    const mainW = isMain ? 7.5 : isBore ? 5 : isAerial ? 3.5 : 4.5;
+    const layers: google.maps.Polyline[] = [];
 
-    const halo = new google.maps.Polyline({
-      path,
-      map,
-      strokeColor: selected ? "#fbbf24" : isMain ? "#e0f2fe" : "#ffffff",
-      strokeOpacity: selected ? 0.95 : 0.9,
-      strokeWeight: haloW + weightBoost,
-      zIndex: selected ? 14 : isMain ? 9 : 8,
-      clickable: false,
-    });
+    // Outer neon bloom (progress / complete only)
+    if (neonGlow && (status === "complete" || status === "in_progress" || selected)) {
+      const bloom = new google.maps.Polyline({
+        path,
+        map,
+        strokeColor: selected ? "#fbbf24" : glow,
+        strokeOpacity: status === "complete" ? 0.35 : 0.28,
+        strokeWeight: (isMain ? 22 : 16) + weightBoost,
+        zIndex: selected ? 12 : isMain ? 6 : 5,
+        clickable: false,
+      });
+      layers.push(bloom);
+      const midBloom = new google.maps.Polyline({
+        path,
+        map,
+        strokeColor: selected ? "#fde68a" : glow,
+        strokeOpacity: status === "complete" ? 0.45 : 0.38,
+        strokeWeight: (isMain ? 14 : 10) + weightBoost,
+        zIndex: selected ? 13 : isMain ? 7 : 6,
+        clickable: false,
+      });
+      layers.push(midBloom);
+    } else {
+      const halo = new google.maps.Polyline({
+        path,
+        map,
+        strokeColor: selected ? "#fbbf24" : isMain ? "#e0f2fe" : "#ffffff",
+        strokeOpacity: selected ? 0.95 : 0.75,
+        strokeWeight: (isMain ? 12 : isBore ? 9 : 7) + weightBoost,
+        zIndex: selected ? 12 : 7,
+        clickable: false,
+      });
+      layers.push(halo);
+    }
 
     const hit = new google.maps.Polyline({
       path,
       map,
       strokeColor: "#000000",
       strokeOpacity: 0.01,
-      strokeWeight: 18,
-      zIndex: selected ? 16 : 11,
+      strokeWeight: 20,
+      zIndex: selected ? 20 : 14,
       clickable: true,
     });
+    layers.push(hit);
+
+    // Core fiber stroke
+    const coreIcons: google.maps.IconSequence[] | undefined = solid
+      ? undefined
+      : [
+          {
+            icon: {
+              path: "M 0,-1 0,1",
+              strokeOpacity: 1,
+              strokeColor: color,
+              strokeWeight: isAerial ? 2.5 : 3.5,
+              scale: isAerial ? 3 : 4,
+            },
+            offset: "0",
+            repeat: isAerial ? "9px" : "12px",
+          },
+        ];
 
     const main = new google.maps.Polyline({
       path,
       map,
       strokeColor: color,
       strokeWeight: mainW + weightBoost,
-      strokeOpacity: solid ? 0.96 : 0,
-      zIndex: selected ? 15 : isMain ? 12 : 10,
+      strokeOpacity: solid ? 0.98 : 0,
+      zIndex: selected ? 16 : isMain ? 11 : 10,
       clickable: false,
-      icons: solid
-        ? undefined
-        : [
-            {
-              icon: {
-                path: "M 0,-1 0,1",
-                strokeOpacity: 1,
-                strokeColor: color,
-                strokeWeight: isAerial ? 2.5 : 4,
-                scale: isAerial ? 3 : 4.5,
-              },
-              offset: "0",
-              repeat: isAerial ? "8px" : "11px",
-            },
-          ],
+      icons: coreIcons,
     });
+    layers.push(main);
 
-    const mid = pathMidpoint(path);
-    const clickListener = hit.addListener("click", () => onClick?.(mid));
+    // Animated energy flow along the line (hub → terminal direction)
+    let flow: google.maps.Polyline | null = null;
+    let animId: number | null = null;
+    const shouldFlow =
+      animateFlow &&
+      (status === "in_progress" || status === "complete" || isMain || selected);
+
+    if (shouldFlow) {
+      const flowColor =
+        status === "complete" ? "#bbf7d0" : status === "in_progress" ? "#a5f3fc" : "#7dd3fc";
+      flow = new google.maps.Polyline({
+        path,
+        map,
+        strokeOpacity: 0,
+        zIndex: selected ? 18 : 13,
+        clickable: false,
+        icons: [
+          {
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: isMain ? 4.5 : 3.2,
+              fillColor: flowColor,
+              fillOpacity: 1,
+              strokeColor: "#fff",
+              strokeWeight: 1.2,
+              strokeOpacity: 0.9,
+            },
+            offset: "0%",
+          },
+          {
+            icon: {
+              path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+              scale: isMain ? 3.2 : 2.4,
+              strokeColor: flowColor,
+              strokeWeight: 2,
+              fillColor: flowColor,
+              fillOpacity: 0.95,
+            },
+            offset: "0%",
+            repeat: isMain ? "48px" : "64px",
+          },
+        ],
+      });
+      layers.push(flow);
+
+      let t = 0;
+      const speed = status === "complete" ? 1.1 : status === "in_progress" ? 1.6 : 0.9;
+      const tick = () => {
+        t = (t + speed) % 100;
+        const icons = flow!.get("icons") as google.maps.IconSequence[];
+        if (icons[0]) icons[0].offset = `${t}%`;
+        if (icons[1]) icons[1].offset = `${(t + 12) % 100}%`;
+        flow!.set("icons", icons);
+        animId = window.requestAnimationFrame(tick);
+      };
+      animId = window.requestAnimationFrame(tick);
+    }
+
+    const clickListener = hit.addListener("click", () => onClick?.(pathMidpoint(path)));
 
     return () => {
       google.maps.event.removeListener(clickListener);
-      halo.setMap(null);
-      hit.setMap(null);
-      main.setMap(null);
+      if (animId != null) window.cancelAnimationFrame(animId);
+      layers.forEach((l) => l.setMap(null));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, pathKey, status, buildType, role, locateCleared, show811Clearance, selected, onClick]);
+  }, [
+    map,
+    pathKey,
+    status,
+    buildType,
+    role,
+    locateCleared,
+    show811Clearance,
+    selected,
+    animateFlow,
+    neonGlow,
+    onClick,
+  ]);
 
   const mid = pathMidpoint(path);
   if (!label) return null;
@@ -163,15 +279,69 @@ function CadFiberLine({
     <Marker
       position={mid}
       clickable={!!onClick}
-      zIndex={12}
+      zIndex={17}
       onClick={() => onClick?.(mid)}
       icon={{
-        url: makeLabelDataUrl(label, lineColor(status, buildType, locateCleared, !!show811Clearance)),
-        scaledSize: new google.maps.Size(Math.min(140, 28 + label.length * 6), 18),
-        anchor: new google.maps.Point(Math.min(70, 14 + label.length * 3), 9),
+        url: makeLabelDataUrl(
+          label,
+          lineColor(status, buildType, locateCleared, !!show811Clearance, role)
+        ),
+        scaledSize: new google.maps.Size(Math.min(150, 28 + label.length * 6), 18),
+        anchor: new google.maps.Point(Math.min(75, 14 + label.length * 3), 9),
       }}
     />
   );
+}
+
+/** Pulsing neon beacon around the FDH hub. */
+function HubNeonBeacon({
+  position,
+  active,
+  status,
+}: {
+  position: LatLng;
+  active: boolean;
+  status: ZiplyObjectStatus;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (!map || !active) return;
+    const color = STATUS_GLOW[status];
+    const rings: google.maps.Circle[] = [0, 1, 2].map((i) =>
+      new google.maps.Circle({
+        map,
+        center: position,
+        radius: 18 + i * 14,
+        fillColor: color,
+        fillOpacity: 0.12 - i * 0.03,
+        strokeColor: color,
+        strokeOpacity: 0.55 - i * 0.15,
+        strokeWeight: 1.5,
+        zIndex: 4,
+        clickable: false,
+      })
+    );
+    let frame = 0;
+    let id = 0;
+    const animate = () => {
+      frame += 1;
+      const phase = (Math.sin(frame / 22) + 1) / 2;
+      rings.forEach((c, i) => {
+        c.setRadius(16 + i * 12 + phase * (10 + i * 6));
+        c.setOptions({
+          fillOpacity: 0.06 + phase * 0.1 - i * 0.02,
+          strokeOpacity: 0.25 + phase * 0.4 - i * 0.08,
+        });
+      });
+      id = window.requestAnimationFrame(animate);
+    };
+    id = window.requestAnimationFrame(animate);
+    return () => {
+      window.cancelAnimationFrame(id);
+      rings.forEach((c) => c.setMap(null));
+    };
+  }, [map, position.lat, position.lng, active, status]);
+  return null;
 }
 
 function dropIconDataUrl(): string {
@@ -182,63 +352,137 @@ function dropIconDataUrl(): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-function PrintCadLegend({
+function PrintCadHud({
   zoom,
   stats,
+  flowOn,
+  setFlowOn,
+  glowOn,
+  setGlowOn,
+  hubPulseOn,
+  setHubPulseOn,
+  showPlanned,
+  setShowPlanned,
 }: {
   zoom: number;
-  stats: { cables: number; terminals: number; drops: number; enhanced: boolean };
+  stats: {
+    cables: number;
+    terminals: number;
+    drops: number;
+    enhanced: boolean;
+    complete: number;
+    inProgress: number;
+    planned: number;
+    progressPct: number;
+  };
+  flowOn: boolean;
+  setFlowOn: (v: boolean) => void;
+  glowOn: boolean;
+  setGlowOn: (v: boolean) => void;
+  hubPulseOn: boolean;
+  setHubPulseOn: (v: boolean) => void;
+  showPlanned: boolean;
+  setShowPlanned: (v: boolean) => void;
 }) {
   return (
-    <div
-      style={{
-        position: "absolute",
-        left: 12,
-        bottom: 28,
-        zIndex: 5,
-        pointerEvents: "none",
-        background: "rgba(15, 23, 42, 0.92)",
-        border: "1px solid rgba(148,163,184,0.45)",
-        borderRadius: 8,
-        padding: "8px 10px",
-        color: "#e2e8f0",
-        fontSize: 10,
-        fontFamily: "ui-monospace, Consolas, monospace",
-        minWidth: 168,
-        boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
-      }}
-    >
-      <div style={{ fontWeight: 800, color: "#00E676", letterSpacing: "0.06em", marginBottom: 6 }}>
-        PRINT CAD
-      </div>
-      <div style={{ display: "grid", gap: 3 }}>
-        <span>
-          <span style={{ color: "#64748b" }}>━━</span> planned cable
-        </span>
-        <span>
-          <span style={{ color: "#ea580c" }}>━━</span> bore ·{" "}
-          <span style={{ color: "#7c3aed" }}>···</span> aerial ·{" "}
-          <span style={{ color: "#ca8a04" }}>━━</span> trench
-        </span>
-        <span>
-          <span style={{ color: "#15803D" }}>●</span> complete ·{" "}
-          <span style={{ color: "#0891B2" }}>●</span> in progress
-        </span>
-        <span>
-          <span style={{ color: "#0ea5e9" }}>⌂</span> drop / home-pass (z≥16)
+    <div className="ziply-cad-hud">
+      <div className="ziply-cad-hud__beam" />
+      <div className="ziply-cad-hud__head">
+        <span className="ziply-cad-hud__title">Print CAD Live</span>
+        <span className="ziply-cad-hud__live">
+          <span className="ziply-cad-hud__live-dot" />
+          Live
         </span>
       </div>
-      <div
-        style={{
-          marginTop: 6,
-          paddingTop: 6,
-          borderTop: "1px solid rgba(148,163,184,0.25)",
-          color: "#94a3b8",
-        }}
-      >
-        {stats.cables} cables · {stats.terminals} terms · {stats.drops} drops
-        <br />
-        zoom {zoom.toFixed(0)} · {stats.enhanced ? "enhanced paths" : "schematic paths"}
+      <div className="ziply-cad-hud__body">
+        <div className="ziply-cad-hud__progress">
+          <div className="ziply-cad-hud__progress-meta">
+            <span>Plant complete</span>
+            <span className="ziply-cad-hud__progress-pct">{stats.progressPct}%</span>
+          </div>
+          <div className="ziply-cad-hud__bar">
+            <div
+              className="ziply-cad-hud__bar-fill"
+              style={{ width: `${Math.max(2, stats.progressPct)}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="ziply-cad-hud__stats">
+          <div className="ziply-cad-hud__stat">
+            <span className="ziply-cad-hud__stat-n" style={{ color: "#00E676" }}>
+              {stats.complete}
+            </span>
+            <span className="ziply-cad-hud__stat-l">Done</span>
+          </div>
+          <div className="ziply-cad-hud__stat">
+            <span className="ziply-cad-hud__stat-n" style={{ color: "#22D3EE" }}>
+              {stats.inProgress}
+            </span>
+            <span className="ziply-cad-hud__stat-l">Active</span>
+          </div>
+          <div className="ziply-cad-hud__stat">
+            <span className="ziply-cad-hud__stat-n" style={{ color: "#94a3b8" }}>
+              {stats.planned}
+            </span>
+            <span className="ziply-cad-hud__stat-l">Planned</span>
+          </div>
+        </div>
+
+        <div className="ziply-cad-hud__toggles">
+          <label className={`ziply-cad-hud__toggle ${flowOn ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={flowOn}
+              onChange={(e) => setFlowOn(e.target.checked)}
+            />
+            Fiber flow animation
+          </label>
+          <label className={`ziply-cad-hud__toggle ${glowOn ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={glowOn}
+              onChange={(e) => setGlowOn(e.target.checked)}
+            />
+            Neon progress glow
+          </label>
+          <label className={`ziply-cad-hud__toggle ${hubPulseOn ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={hubPulseOn}
+              onChange={(e) => setHubPulseOn(e.target.checked)}
+            />
+            Hub beacon pulse
+          </label>
+          <label className={`ziply-cad-hud__toggle ${showPlanned ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={showPlanned}
+              onChange={(e) => setShowPlanned(e.target.checked)}
+            />
+            Show planned paths
+          </label>
+        </div>
+
+        <div className="ziply-cad-hud__legend">
+          <span>
+            <span className="neon-main">━━</span> mainline spine
+          </span>
+          <span>
+            <span className="neon-planned">- -</span> planned ·{" "}
+            <span className="neon-progress">━━</span> in progress ·{" "}
+            <span className="neon-done">━━</span> complete
+          </span>
+          <span>
+            {stats.cables} cables · {stats.terminals} MST · {stats.drops} drops · z
+            {zoom.toFixed(0)}
+            {stats.enhanced ? " · enhanced" : ""}
+          </span>
+        </div>
+        <p className="ziply-cad-hud__hint">
+          Click a cable to set planned → in progress → complete. Active paths glow and
+          pulse energy from the hub.
+        </p>
       </div>
     </div>
   );
@@ -296,6 +540,10 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
   const [overrides, setOverrides] = useState<Record<string, ZiplyObjectStatus>>({});
   const [didFitPrints, setDidFitPrints] = useState(false);
   const [zoom, setZoom] = useState(14);
+  const [flowOn, setFlowOn] = useState(true);
+  const [glowOn, setGlowOn] = useState(true);
+  const [hubPulseOn, setHubPulseOn] = useState(true);
+  const [showPlanned, setShowPlanned] = useState(true);
 
   const printJobs = useMemo(() => jobs.filter((j) => isZiplyPrintMapReady(j)), [jobs]);
 
@@ -365,15 +613,51 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
     let terminals = 0;
     let drops = 0;
     let enhanced = false;
+    let complete = 0;
+    let inProgress = 0;
+    let planned = 0;
     for (const j of printJobs) {
       const mo = j.ziplyPrintLayer?.mapObjects;
       cables += mo?.cables?.length ?? 0;
       terminals += mo?.terminals?.length ?? 0;
       drops += mo?.dropSites?.length ?? 0;
       if (j.ziplyPrintLayer?.printGeometryEnhancedAt) enhanced = true;
+      for (const c of mo?.cables ?? []) {
+        const st =
+          overrides[`${j.jobId}:cable:${c.label}`] ?? c.status ?? "planned";
+        if (st === "complete") complete++;
+        else if (st === "in_progress") inProgress++;
+        else planned++;
+      }
+      for (const t of mo?.terminals ?? []) {
+        const st =
+          overrides[`${j.jobId}:terminal:${t.label}`] ?? t.status ?? "planned";
+        if (st === "complete") complete++;
+        else if (st === "in_progress") inProgress++;
+        else planned++;
+      }
+      const hubSt =
+        overrides[`${j.jobId}:hub:hub`] ?? mo?.hub?.status ?? "planned";
+      if (hubSt === "complete") complete++;
+      else if (hubSt === "in_progress") inProgress++;
+      else planned++;
     }
-    return { cables, terminals, drops, enhanced };
-  }, [printJobs]);
+    const total = complete + inProgress + planned;
+    const progressPct =
+      total === 0
+        ? 0
+        : Math.round(((complete + inProgress * 0.5) / total) * 100);
+    return {
+      cables,
+      terminals,
+      drops,
+      enhanced,
+      complete,
+      inProgress,
+      planned,
+      progressPct,
+    };
+  }, [printJobs, overrides]);
 
   if (!visible) return null;
 
@@ -469,7 +753,21 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
   return (
     <>
       {legendHost &&
-        createPortal(<PrintCadLegend zoom={zoom} stats={plantStats} />, legendHost)}
+        createPortal(
+          <PrintCadHud
+            zoom={zoom}
+            stats={plantStats}
+            flowOn={flowOn}
+            setFlowOn={setFlowOn}
+            glowOn={glowOn}
+            setGlowOn={setGlowOn}
+            hubPulseOn={hubPulseOn}
+            setHubPulseOn={setHubPulseOn}
+            showPlanned={showPlanned}
+            setShowPlanned={setShowPlanned}
+          />,
+          legendHost
+        )}
 
       {printJobs.map((job) => {
         const layer = job.ziplyPrintLayer!;
@@ -595,14 +893,22 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
               }}
             />
 
+            <HubNeonBeacon
+              position={hubPos}
+              active={hubPulseOn}
+              status={hubStatus}
+            />
+
             {/* Explicit backbone from enhance (Metron Rd style spine) */}
             {backbonePath && backbonePath.length >= 2 && (
               <CadFiberLine
                 key={`${job.jobId}-backbone`}
                 path={backbonePath}
-                status="in_progress"
+                status={hubStatus === "complete" ? "complete" : "in_progress"}
                 buildType="trench"
                 role="mainline"
+                animateFlow={flowOn}
+                neonGlow={glowOn}
                 label={
                   showCableLabels
                     ? mainlineStreet
@@ -616,6 +922,7 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
             {cables.length > 0
               ? cables.map((c, idx) => {
                   const st = statusOf(job.jobId, "cable", c.label, c.status);
+                  if (!showPlanned && st === "planned") return null;
                   const cleared = locateCleared(job, "cable", c.label, c.locateExpires ?? null);
                   const termPos = resolveTermForCable(c.label, c.toTerminal, idx);
                   const isMain = c.role === "mainline" || c.role === "feeder";
@@ -661,12 +968,15 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                       show811Clearance={show811Clearance}
                       label={showCableLabels ? labelParts.join(" · ") : undefined}
                       selected={isSel}
+                      animateFlow={flowOn}
+                      neonGlow={glowOn}
                       onClick={(mid) => openCable(c, path, st, cleared, mid)}
                     />
                   );
                 })
               : terminals.map((t, idx) => {
                   const st = statusOf(job.jobId, "terminal", t.label, t.status);
+                  if (!showPlanned && st === "planned") return null;
                   const cleared = locateCleared(job, "terminal", t.label, t.locateExpires ?? null);
                   const path = buildCablePath(
                     hubPos,
@@ -683,6 +993,8 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                       status={st}
                       buildType="bore"
                       role="lateral"
+                      animateFlow={flowOn}
+                      neonGlow={glowOn}
                       locateCleared={cleared}
                       show811Clearance={show811Clearance}
                       label={
@@ -890,26 +1202,19 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
 
       {selected && (
         <InfoWindow position={selected.position} onCloseClick={() => setSelected(null)}>
-          <div
-            style={{
-              color: "#111",
-              fontFamily: "system-ui, sans-serif",
-              fontSize: 12,
-              minWidth: 240,
-              padding: 4,
-            }}
-          >
-            <h4
+          <div className="ziply-cad-popup" style={{ color: "#111", fontSize: 12, padding: 4 }}>
+            <div
+              className="ziply-cad-popup__glow-bar"
               style={{
-                margin: "0 0 6px 0",
-                fontSize: 13,
-                borderBottom: "1px solid #ddd",
-                paddingBottom: 4,
-                color: STATUS_COLOR[selected.status],
+                background:
+                  selected.status === "complete"
+                    ? "linear-gradient(90deg,#00E676,#a3e635)"
+                    : selected.status === "in_progress"
+                      ? "linear-gradient(90deg,#22D3EE,#38bdf8)"
+                      : "linear-gradient(90deg,#64748b,#94a3b8)",
               }}
-            >
-              {selected.title}
-            </h4>
+            />
+            <h4 style={{ color: STATUS_COLOR[selected.status] }}>{selected.title}</h4>
             <p style={{ margin: "2px 0", color: "#555" }}>
               <strong>WO:</strong> {selected.job.workOrder}
             </p>
@@ -928,26 +1233,37 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
               </p>
             ))}
             <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {(["planned", "in_progress", "complete"] as ZiplyObjectStatus[]).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void applyStatus(selected, st)}
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: "3px 6px",
-                    borderRadius: 4,
-                    border: `1px solid ${STATUS_COLOR[st]}`,
-                    background: selected.status === st ? STATUS_COLOR[st] : "#fff",
-                    color: selected.status === st ? "#fff" : STATUS_COLOR[st],
-                    cursor: "pointer",
-                  }}
-                >
-                  {st}
-                </button>
-              ))}
+              {(
+                [
+                  { st: "planned" as const, label: "○ Planned" },
+                  { st: "in_progress" as const, label: "◈ Live" },
+                  { st: "complete" as const, label: "● Neon Done" },
+                ] as const
+              ).map(({ st, label }) => {
+                const on = selected.status === st;
+                return (
+                  <button
+                    key={st}
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void applyStatus(selected, st)}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: "5px 8px",
+                      borderRadius: 6,
+                      border: `1.5px solid ${STATUS_COLOR[st]}`,
+                      background: on ? STATUS_COLOR[st] : "#0f172a",
+                      color: on ? "#04120a" : STATUS_COLOR[st],
+                      cursor: "pointer",
+                      boxShadow: on ? `0 0 12px ${STATUS_COLOR[st]}88` : "none",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
             <div style={{ marginTop: 8, display: "flex", gap: 6, alignItems: "center" }}>
               <input
