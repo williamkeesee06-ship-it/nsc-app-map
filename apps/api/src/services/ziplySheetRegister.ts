@@ -27,6 +27,13 @@ export type SheetControl = {
   side?: "left" | "right" | null;
   sequenceOrder?: number | null;
   footageFt?: number | null;
+  /** Normalized sheet coords 0–1 (plan page space) for affine registration. */
+  sheetX?: number | null;
+  sheetY?: number | null;
+  /** Cross-street name when lateral leaves mainline. */
+  crossStreet?: string | null;
+  /** Manual field pin — highest priority control. */
+  manual?: boolean;
 };
 
 export type RegisteredLateral = {
@@ -427,6 +434,153 @@ export function buildRegisteredLateral(
 }
 
 /**
+ * Reject geocode outliers far from hub cluster (bad parcel hits).
+ * Manual pins are never rejected.
+ */
+export function filterControlOutliers(
+  hub: LatLng,
+  controls: SheetControl[],
+  maxDistM = 1400
+): { kept: SheetControl[]; rejected: SheetControl[] } {
+  const kept: SheetControl[] = [];
+  const rejected: SheetControl[] = [];
+  for (const c of controls) {
+    if (c.manual || c.kind === "hub") {
+      kept.push(c);
+      continue;
+    }
+    if (distM(hub, { lat: c.lat, lng: c.lng }) > maxDistM) {
+      rejected.push(c);
+    } else {
+      kept.push(c);
+    }
+  }
+  // Need at least hub + 1; if all rejected, keep originals
+  if (kept.filter((c) => c.kind !== "hub").length === 0 && controls.length > 1) {
+    return { kept: controls, rejected: [] };
+  }
+  return { kept, rejected };
+}
+
+/**
+ * Similarity transform (scale + rotation + translation) from sheetXY → lat/lng.
+ * Needs ≥2 pairs with both sheet coords and world coords.
+ * Returns transform function or null.
+ */
+export function fitSheetSimilarity(
+  pairs: Array<{ sheetX: number; sheetY: number; lat: number; lng: number }>
+): ((sx: number, sy: number) => LatLng) | null {
+  if (pairs.length < 2) return null;
+  // Use first two strongest (prefer more pairs with least-squares if ≥3)
+  const n = pairs.length;
+  // Centroid in sheet + world (local meters from first point)
+  const origin = pairs[0]!;
+  let sx = 0;
+  let sy = 0;
+  let wx = 0;
+  let wy = 0;
+  for (const p of pairs) {
+    sx += p.sheetX;
+    sy += p.sheetY;
+    wx += (p.lng - origin.lng) * mPerLng(origin.lat);
+    wy += (p.lat - origin.lat) * M_PER_LAT;
+  }
+  sx /= n;
+  sy /= n;
+  wx /= n;
+  wy /= n;
+
+  let sxx = 0;
+  let syy = 0;
+  let sxy = 0;
+  let swx = 0;
+  let swy = 0;
+  for (const p of pairs) {
+    const dx = p.sheetX - sx;
+    const dy = p.sheetY - sy;
+    const ex = (p.lng - origin.lng) * mPerLng(origin.lat) - wx;
+    const ey = (p.lat - origin.lat) * M_PER_LAT - wy;
+    sxx += dx * dx;
+    syy += dy * dy;
+    sxy += dx * dy;
+    swx += dx * ex + dy * ey; // for scale via correlation magnitude
+    swy += dx * ey - dy * ex; // rotation component
+  }
+  const sheetVar = sxx + syy;
+  if (sheetVar < 1e-12) return null;
+  // Umeyama-lite: complex multiply sheet→world
+  const scale = Math.sqrt((swx * swx + swy * swy) / (sheetVar * sheetVar || 1e-12));
+  // Better: |W| / |S|
+  let sumSheetR2 = 0;
+  let sumCrossRe = 0;
+  let sumCrossIm = 0;
+  for (const p of pairs) {
+    const dx = p.sheetX - sx;
+    const dy = p.sheetY - sy;
+    const ex = (p.lng - origin.lng) * mPerLng(origin.lat) - wx;
+    const ey = (p.lat - origin.lat) * M_PER_LAT - wy;
+    sumSheetR2 += dx * dx + dy * dy;
+    sumCrossRe += dx * ex + dy * ey;
+    sumCrossIm += dx * ey - dy * ex;
+  }
+  if (sumSheetR2 < 1e-12) return null;
+  const sc = Math.sqrt(sumCrossRe * sumCrossRe + sumCrossIm * sumCrossIm) / sumSheetR2;
+  const ang = Math.atan2(sumCrossIm, sumCrossRe);
+  const cos = Math.cos(ang) * sc;
+  const sin = Math.sin(ang) * sc;
+  void scale;
+
+  return (sheetX: number, sheetY: number) => {
+    const dx = sheetX - sx;
+    const dy = sheetY - sy;
+    // rotate+scale
+    const ex = cos * dx - sin * dy + wx;
+    const ey = sin * dx + cos * dy + wy;
+    return {
+      lat: origin.lat + ey / M_PER_LAT,
+      lng: origin.lng + ex / mPerLng(origin.lat),
+    };
+  };
+}
+
+/**
+ * Apply sheet similarity to controls missing world coords but having sheetXY,
+ * and optionally rebuild positions for all sheet-tagged points.
+ */
+export function applySheetAffineToControls(controls: SheetControl[]): SheetControl[] {
+  const pairs = controls
+    .filter(
+      (c) =>
+        c.sheetX != null &&
+        c.sheetY != null &&
+        Number.isFinite(c.lat) &&
+        Number.isFinite(c.lng)
+    )
+    .map((c) => ({
+      sheetX: c.sheetX as number,
+      sheetY: c.sheetY as number,
+      lat: c.lat,
+      lng: c.lng,
+    }));
+  const xf = fitSheetSimilarity(pairs);
+  if (!xf) return controls;
+  return controls.map((c) => {
+    if (c.sheetX == null || c.sheetY == null) return c;
+    // Manual pins keep lat/lng; others with sheetXY get refined if residual large
+    if (c.manual) return c;
+    const p = xf(c.sheetX, c.sheetY);
+    // Blend: if existing geocode close to affine, keep geocode; else prefer affine when no geocode
+    if (Number.isFinite(c.lat) && Number.isFinite(c.lng) && !(c.lat === 0 && c.lng === 0)) {
+      const d = distM({ lat: c.lat, lng: c.lng }, p);
+      if (d < 25) return c; // geocode agrees
+      // Prefer geocode for terminal endpoints (parcel truth) unless very far from affine
+      if (d < 120) return c;
+    }
+    return { ...c, lat: p.lat, lng: p.lng };
+  });
+}
+
+/**
  * Register a full plant from hub + control terminals.
  * `roadBackbone` optional Directions polyline (may include waypoints).
  */
@@ -437,15 +591,23 @@ export function registerPlant(
     mainlineStreet?: string | null;
     padMeters?: number;
     roadBackbone?: LatLng[] | null;
+    /** Max meters from hub before geocode is treated as outlier. */
+    outlierMaxM?: number;
   }
 ): RegisteredPlant {
   const mainlineStreet = opts?.mainlineStreet ?? null;
   const padM = opts?.padMeters ?? 40;
-  const controls = controlsIn.filter(
+  let raw = controlsIn.filter(
     (c) =>
       Number.isFinite(c.lat) &&
       Number.isFinite(c.lng) &&
       !(c.lat === 0 && c.lng === 0)
+  );
+  raw = applySheetAffineToControls(raw);
+  const { kept: controls } = filterControlOutliers(
+    hub,
+    raw,
+    opts?.outlierMaxM ?? 1400
   );
 
   if (controls.length < 2) {

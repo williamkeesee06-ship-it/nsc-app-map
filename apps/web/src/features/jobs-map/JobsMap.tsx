@@ -1,5 +1,5 @@
 // Jobs Map — Phase 3: full drawing toolbar + Firestore persistence
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Map, useMap } from "@vis.gl/react-google-maps";
 import { stylesFor, ZIPLY_MUTED_STYLE, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
 import { useMapTheme } from "../map/themeContext.js";
@@ -44,7 +44,8 @@ import LuminaOrb from "../lumina/Orb.js";
 import LuminaChatPanel from "../lumina/ChatPanel.js";
 import LuminaMapBridge from "../lumina/MapBridge.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
-import ZiplyPrintOverlay from "./ZiplyPrintOverlay.js";
+/** Phase D: code-split Print CAD overlay (~large) */
+const ZiplyPrintOverlay = lazy(() => import("./ZiplyPrintOverlay.js"));
 import {
   isNorthMetroJob,
   isZiplyJob,
@@ -592,12 +593,14 @@ function JobsMapInner({
                 />
               )}
               <CentralOfficesOverlay visible={showCOs} />
-              <ZiplyPrintOverlay
-                jobs={ziplyPrintReadyJobs}
-                focusJobId={selected?.jobId ?? null}
-                visible={contract === "Ziply" && ziplyPrintLayerVisible}
-                show811Clearance={ziply811OverlayVisible}
-              />
+              <Suspense fallback={null}>
+                <ZiplyPrintOverlay
+                  jobs={ziplyPrintReadyJobs}
+                  focusJobId={selected?.jobId ?? null}
+                  visible={contract === "Ziply" && ziplyPrintLayerVisible}
+                  show811Clearance={ziply811OverlayVisible}
+                />
+              </Suspense>
               {contract !== "Ziply" && <DrawingOverlay />}
               <SavedDigShapeOverlay />
               {filters.showDigPolygons !== false && (

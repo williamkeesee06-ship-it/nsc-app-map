@@ -28,6 +28,72 @@ export type ZiplyPrintDocStatus = "none" | "processing" | "ready" | "failed";
 
 export type ZiplyPrintFilter = "all" | "has_print" | "no_print" | "processing" | "failed";
 
+/** Client-side CAD fidelity grade (mirrors server ziplyFidelity). */
+export type CadFidelityGrade = "A" | "B" | "C" | "D" | "F" | "N/A";
+
+export function getCadFidelity(job: Job): {
+  grade: CadFidelityGrade;
+  label: string;
+  color: string;
+  source: string | null;
+  residualM: number | null;
+} {
+  const mo = job.ziplyPrintLayer?.mapObjects;
+  if (!mo) {
+    return { grade: "N/A", label: "No print", color: "#64748b", source: null, residualM: null };
+  }
+  const source = mo.geometrySource ?? null;
+  const residualM = mo.geometryResidualM ?? null;
+  const enhanced = !!job.ziplyPrintLayer?.printGeometryEnhancedAt;
+  const terms = mo.terminals ?? [];
+  const geoN = terms.filter(
+    (t) => typeof t.lat === "number" && typeof t.lng === "number" && t.lat && t.lng
+  ).length;
+  const cables = mo.cables ?? [];
+  const pathN = cables.filter((c) => (c.path?.length ?? 0) >= 2).length;
+  const geoRatio = terms.length > 0 ? geoN / terms.length : 0;
+  const pathRatio = cables.length > 0 ? pathN / cables.length : 0;
+
+  if (!isZiplyPrintMapReady(job)) {
+    return { grade: "F", label: "Off map", color: "#f87171", source, residualM };
+  }
+  if (!enhanced) {
+    return { grade: "D", label: "Not enhanced", color: "#fbbf24", source, residualM };
+  }
+  if (
+    (source === "control_registered" || source === "road_snapped") &&
+    geoRatio >= 0.7 &&
+    pathRatio >= 0.8 &&
+    (residualM == null || residualM < 40)
+  ) {
+    return {
+      grade: "A",
+      label: residualM != null ? `A · ±${Math.round(residualM)}m` : "A · registered",
+      color: "#00E676",
+      source,
+      residualM,
+    };
+  }
+  if (
+    source !== "synthetic" &&
+    geoRatio >= 0.5 &&
+    pathRatio >= 0.6 &&
+    (residualM == null || residualM < 80)
+  ) {
+    return {
+      grade: "B",
+      label: residualM != null ? `B · ±${Math.round(residualM)}m` : "B · good",
+      color: "#38bdf8",
+      source,
+      residualM,
+    };
+  }
+  if (pathRatio >= 0.4) {
+    return { grade: "C", label: "C · partial", color: "#a78bfa", source, residualM };
+  }
+  return { grade: "D", label: "D · synthetic", color: "#fb923c", source, residualM };
+}
+
 export function isNorthMetroJob(job: Job): boolean {
   const base = (job.constructionBase ?? "").trim().toLowerCase();
   if (base.includes("north metro") || base.includes("northmetro") || base.includes("n. metro")) {

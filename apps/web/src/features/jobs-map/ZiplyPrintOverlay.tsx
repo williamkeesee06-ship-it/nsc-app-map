@@ -381,6 +381,12 @@ function PrintCadHud({
   playLabel,
   networkMode,
   setNetworkMode,
+  corridorMode,
+  setCorridorMode,
+  asBuiltOnly,
+  setAsBuiltOnly,
+  pinMode,
+  setPinMode,
 }: {
   zoom: number;
   stats: {
@@ -415,6 +421,12 @@ function PrintCadHud({
   playLabel: string | null;
   networkMode: boolean;
   setNetworkMode: (v: boolean) => void;
+  corridorMode: boolean;
+  setCorridorMode: (v: boolean) => void;
+  asBuiltOnly: boolean;
+  setAsBuiltOnly: (v: boolean) => void;
+  pinMode: boolean;
+  setPinMode: (v: boolean) => void;
 }) {
   return (
     <div className="ziply-cad-hud">
@@ -529,10 +541,46 @@ function PrintCadHud({
               checked={networkMode}
               onChange={(e) => {
                 setNetworkMode(e.target.checked);
-                if (e.target.checked) setShowAllPlants(false);
+                if (e.target.checked) {
+                  setShowAllPlants(false);
+                  setCorridorMode(false);
+                }
               }}
             />
             Network: city mainlines
+          </label>
+          <label className={`ziply-cad-hud__toggle ${corridorMode ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={corridorMode}
+              onChange={(e) => {
+                setCorridorMode(e.target.checked);
+                if (e.target.checked) {
+                  setNetworkMode(false);
+                  setShowAllPlants(false);
+                }
+              }}
+            />
+            Corridor: neighbor plants (dim)
+          </label>
+          <label className={`ziply-cad-hud__toggle ${asBuiltOnly ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={asBuiltOnly}
+              onChange={(e) => {
+                setAsBuiltOnly(e.target.checked);
+                if (e.target.checked) setShowPlanned(false);
+              }}
+            />
+            As-built only (hide planned)
+          </label>
+          <label className={`ziply-cad-hud__toggle ${pinMode ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={pinMode}
+              onChange={(e) => setPinMode(e.target.checked)}
+            />
+            Pin mode: drag terminal = field control
           </label>
           <label className={`ziply-cad-hud__toggle ${playOn ? "on" : ""}`}>
             <input
@@ -694,26 +742,44 @@ export default function ZiplyPrintOverlay({
   const [playIdx, setPlayIdx] = useState(0);
   /** Network mode: mainlines of all ready plants (no laterals) */
   const [networkMode, setNetworkMode] = useState(false);
+  /** Phase E: corridor — dim full plants for same-city neighbors */
+  const [corridorMode, setCorridorMode] = useState(false);
+  /** Phase E: as-built view — hide planned paths (design vs complete) */
+  const [asBuiltOnly, setAsBuiltOnly] = useState(false);
+  /** Phase C: pin mode — next terminal click sets field control */
+  const [pinMode, setPinMode] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
 
   const allReady = useMemo(() => jobs.filter((j) => isZiplyPrintMapReady(j)), [jobs]);
 
   // Primary plant: selected job if it has a print; else first ready job only.
   // Network mode draws all mainlines (handled separately) but focus plant still full.
   const printJobs = useMemo(() => {
-    if (showAllPlants && !networkMode) return allReady;
+    if (showAllPlants && !networkMode && !corridorMode) return allReady;
     if (focusJobId) {
       const focused = allReady.find((j) => j.jobId === focusJobId);
       if (focused) return [focused];
     }
     if (allReady.length === 0) return [];
     return [allReady[0]!];
-  }, [allReady, focusJobId, showAllPlants, networkMode]);
+  }, [allReady, focusJobId, showAllPlants, networkMode, corridorMode]);
 
   const otherHubJobs = useMemo(() => {
-    if (showAllPlants && !networkMode) return [];
+    if (showAllPlants && !networkMode && !corridorMode) return [];
     const focusId = printJobs[0]?.jobId;
     return allReady.filter((j) => j.jobId !== focusId);
-  }, [allReady, printJobs, showAllPlants, networkMode]);
+  }, [allReady, printJobs, showAllPlants, networkMode, corridorMode]);
+
+  /** Corridor: same-city neighbors drawn dim with mainlines only */
+  const corridorJobs = useMemo(() => {
+    if (!corridorMode) return [];
+    const focus = printJobs[0];
+    if (!focus) return [];
+    const city = (focus.city || "").trim().toLowerCase();
+    return otherHubJobs.filter(
+      (j) => !city || (j.city || "").trim().toLowerCase() === city
+    );
+  }, [corridorMode, printJobs, otherHubJobs]);
 
   const sequence = useMemo(() => {
     const j = printJobs[0];
@@ -1049,6 +1115,12 @@ export default function ZiplyPrintOverlay({
               }
               networkMode={networkMode}
               setNetworkMode={setNetworkMode}
+              corridorMode={corridorMode}
+              setCorridorMode={setCorridorMode}
+              asBuiltOnly={asBuiltOnly}
+              setAsBuiltOnly={setAsBuiltOnly}
+              pinMode={pinMode}
+              setPinMode={setPinMode}
             />
             {pathEdit && (
               <div
@@ -1199,6 +1271,38 @@ export default function ZiplyPrintOverlay({
         </>
       )}
 
+      {/* Corridor: dim mainlines for same-city neighbors */}
+      {corridorMode &&
+        corridorJobs.map((j) => {
+          const mo = j.ziplyPrintLayer?.mapObjects;
+          const bb = mo?.backbonePath;
+          const mainCable = mo?.cables?.find(
+            (c) => c.role === "mainline" || c.role === "feeder"
+          );
+          const path =
+            bb && bb.length >= 2
+              ? bb
+              : mainCable?.path && mainCable.path.length >= 2
+                ? mainCable.path
+                : null;
+          if (!path || path.length < 2) return null;
+          return (
+            <CadFiberLine
+              key={`cor-ml-${j.jobId}`}
+              path={path.filter(
+                (p): p is LatLng =>
+                  typeof p.lat === "number" && typeof p.lng === "number"
+              )}
+              status="planned"
+              role="mainline"
+              buildType="trench"
+              animateFlow={false}
+              neonGlow={false}
+              label={showMainlineLabels ? j.workOrder || "MAIN" : undefined}
+            />
+          );
+        })}
+
       {/* Network mode: thin mainlines for every ready plant */}
       {networkMode &&
         allReady.map((j) => {
@@ -1257,6 +1361,7 @@ export default function ZiplyPrintOverlay({
 
       {/* Dim hub-only markers for non-focused plants (when not network/all) */}
       {!networkMode &&
+        !corridorMode &&
         otherHubJobs.map((j) => {
           const a = getZiplyPrintAnchor(j);
           if (!a) return null;
@@ -1456,7 +1561,7 @@ export default function ZiplyPrintOverlay({
             {cables.length > 0
               ? cables.map((c, idx) => {
                   const st = statusOf(job.jobId, "cable", c.label, c.status);
-                  if (!showPlanned && st === "planned") return null;
+                  if ((asBuiltOnly || !showPlanned) && st === "planned") return null;
                   // Network mode: only mainlines (drawn above for all jobs) — skip laterals here
                   if (networkMode && c.role !== "mainline" && c.role !== "feeder") {
                     return null;
@@ -1683,6 +1788,7 @@ export default function ZiplyPrintOverlay({
 
             {terminals.map((t, idx) => {
               const st = statusOf(job.jobId, "terminal", t.label, t.status);
+              if (asBuiltOnly && st === "planned") return null;
               const pos = termPositions[idx]!;
               const cleared = locateCleared(job, "terminal", t.label, t.locateExpires ?? null);
               const fill = show811Clearance
@@ -1699,8 +1805,27 @@ export default function ZiplyPrintOverlay({
                 <Marker
                   key={`${job.jobId}-term-${idx}`}
                   position={pos}
-                  title={`${t.label} (${t.type})`}
+                  title={`${t.label} (${t.type})${pinMode ? " — drag to pin control" : ""}`}
                   zIndex={18}
+                  draggable={pinMode}
+                  onDragEnd={(e) => {
+                    if (!pinMode) return;
+                    const ll = e.latLng;
+                    if (!ll) return;
+                    setPinBusy(true);
+                    void api
+                      .pinZiplyControl(job.jobId, {
+                        kind: "terminal",
+                        ref: t.label,
+                        lat: ll.lat(),
+                        lng: ll.lng(),
+                        reenhance: true,
+                      })
+                      .then(() => {
+                        window.dispatchEvent(new Event("nsc:jobs-reload"));
+                      })
+                      .finally(() => setPinBusy(false));
+                  }}
                   onClick={() =>
                     setSelected({
                       job,
@@ -1873,6 +1998,42 @@ export default function ZiplyPrintOverlay({
                 }}
               >
                 ✎ Edit path on map
+              </button>
+            )}
+            {(selected.kind === "terminal" || selected.kind === "hub") && (
+              <button
+                type="button"
+                disabled={pinBusy}
+                onClick={() => {
+                  setPinBusy(true);
+                  void api
+                    .pinZiplyControl(selected.job.jobId, {
+                      kind: selected.kind === "hub" ? "hub" : "terminal",
+                      ref: selected.ref,
+                      lat: selected.position.lat,
+                      lng: selected.position.lng,
+                      reenhance: true,
+                    })
+                    .then(() => {
+                      setSelected(null);
+                      window.dispatchEvent(new Event("nsc:jobs-reload"));
+                    })
+                    .finally(() => setPinBusy(false));
+                }}
+                style={{
+                  marginTop: 8,
+                  width: "100%",
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: 8,
+                  background: "linear-gradient(180deg,#a78bfa,#7c3aed)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: pinBusy ? "wait" : "pointer",
+                }}
+              >
+                {pinBusy ? "Pinning…" : "📍 Use as field control pin + rebuild"}
               </button>
             )}
             <div style={{ marginTop: 8, display: "flex", gap: 6, alignItems: "center" }}>

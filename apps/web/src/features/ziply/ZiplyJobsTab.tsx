@@ -2,8 +2,10 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import type { Job } from "@nsc/types";
 import { Map as MapIcon, Paperclip, Grid, Search } from "lucide-react";
 import "./ziplyJobsTab.css";
+import { api } from "../../lib/api.js";
 import {
   formatBytes,
+  getCadFidelity,
   getZiplyPrintDocStatus,
   ingestZiplyPrintForJob,
   isNorthMetroJob,
@@ -38,6 +40,8 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadPct, setUploadPct] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [fleetBusy, setFleetBusy] = useState(false);
+  const [fleetMsg, setFleetMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTargetRef = useRef<string | null>(null);
 
@@ -162,7 +166,80 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
           <option value="none">No print ({counts.none})</option>
           <option value="failed">Failed ({counts.failed})</option>
         </select>
+        <button
+          type="button"
+          disabled={fleetBusy}
+          className="ss-action-btn"
+          title="Rebuild plant CAD for stale/synthetic prints (batch)"
+          onClick={() => {
+            setFleetBusy(true);
+            setFleetMsg(null);
+            void api
+              .enhanceAllZiplyPrints({ limit: 20, onlyStale: true })
+              .then((r) => {
+                setFleetMsg(
+                  `Batch CAD: ${r.enhanced} enhanced · ${r.failed} failed · ${r.attempted} attempted`
+                );
+                window.dispatchEvent(new Event("nsc:jobs-reload"));
+              })
+              .catch((e) =>
+                setFleetMsg(e instanceof Error ? e.message : "Batch enhance failed")
+              )
+              .finally(() => setFleetBusy(false));
+          }}
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            padding: "6px 10px",
+            borderRadius: 6,
+            border: "1px solid rgba(56,189,248,0.5)",
+            background: "rgba(56,189,248,0.12)",
+            color: "#38bdf8",
+            cursor: fleetBusy ? "wait" : "pointer",
+          }}
+        >
+          {fleetBusy ? "Rebuilding CAD…" : "Batch rebuild CAD"}
+        </button>
+        <button
+          type="button"
+          disabled={fleetBusy}
+          title="Fleet CAD fidelity QA report"
+          onClick={() => {
+            setFleetBusy(true);
+            setFleetMsg(null);
+            void api
+              .ziplyFidelityReport()
+              .then((r) => {
+                const g = r.byGrade;
+                setFleetMsg(
+                  `Fidelity: ${r.totalPrintJobs} prints · A${g.A ?? 0} B${g.B ?? 0} C${g.C ?? 0} D${g.D ?? 0} F${g.F ?? 0}` +
+                    (r.avgResidualM != null
+                      ? ` · avg ±${Math.round(r.avgResidualM)}m`
+                      : "")
+                );
+              })
+              .catch((e) =>
+                setFleetMsg(e instanceof Error ? e.message : "Fidelity report failed")
+              )
+              .finally(() => setFleetBusy(false));
+          }}
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            padding: "6px 10px",
+            borderRadius: 6,
+            border: "1px solid rgba(0,230,118,0.45)",
+            background: "rgba(0,230,118,0.1)",
+            color: "#00E676",
+            cursor: fleetBusy ? "wait" : "pointer",
+          }}
+        >
+          Fidelity report
+        </button>
         {uploadError && <span className="ss-upload-error">{uploadError}</span>}
+        {fleetMsg && (
+          <span style={{ fontSize: 11, color: "#67e8f9", maxWidth: 420 }}>{fleetMsg}</span>
+        )}
       </div>
 
       <div className="ss-table-container">
@@ -176,6 +253,7 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
               <th style={{ width: 90 }}>Region</th>
               <th style={{ width: 120 }}>Job Status</th>
               <th style={{ width: 130 }}>Print document</th>
+              <th style={{ width: 90 }}>CAD grade</th>
               <th style={{ width: 160 }}>Uploaded files</th>
               <th style={{ width: 100 }}>SAP SO</th>
               <th style={{ width: 160 }}>Actions</th>
@@ -184,7 +262,7 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: "center", padding: 24, color: "#64748b" }}>
+                <td colSpan={11} style={{ textAlign: "center", padding: 24, color: "#64748b" }}>
                   No Ziply jobs match these filters.
                 </td>
               </tr>
@@ -195,6 +273,7 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
                 const files = listZiplyPrintFiles(job);
                 const north = isNorthMetroJob(job);
                 const busy = uploadingId === job.jobId;
+                const cad = getCadFidelity(job);
 
                 return (
                   <tr
@@ -225,6 +304,15 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
                       </span>
                       {busy && (
                         <div className="ss-upload-progress">Uploading {uploadPct}%</div>
+                      )}
+                    </td>
+                    <td>
+                      {pst === "ready" ? (
+                        <span style={{ fontWeight: 800, color: cad.color, fontSize: 11 }}>
+                          {cad.label}
+                        </span>
+                      ) : (
+                        <span className="ss-muted">—</span>
                       )}
                     </td>
                     <td>

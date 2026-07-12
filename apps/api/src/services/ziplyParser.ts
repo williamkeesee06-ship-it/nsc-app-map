@@ -90,6 +90,11 @@ export interface ZiplyParsedPrint {
       stationFt?: number | null;
       /** Offset feet from mainline centerline to MST/parcel. */
       offsetFt?: number | null;
+      /** Normalized page coords 0–1 (left→right, top→bottom) for affine reg. */
+      sheetX?: number | null;
+      sheetY?: number | null;
+      /** Cross street if lateral leaves mainline. */
+      crossStreet?: string | null;
     }>;
     notes: string | null;
     mainlineStreet?: string | null;
@@ -202,6 +207,90 @@ function dataUrlToPart(dataUrl: string): { inlineData: { data: string; mimeType:
   };
 }
 
+async function runGeminiJsonPass(
+  genai: GoogleGenerativeAI,
+  printParts: Array<{ inlineData: { data: string; mimeType: string } }>,
+  prompt: string
+): Promise<ZiplyParsedPrint> {
+  const model = genai.getGenerativeModel({
+    model: ZIPLY_GEMINI_MODEL,
+    systemInstruction: { role: "system", parts: [{ text: SYSTEM_INSTRUCTION }] },
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json",
+      maxOutputTokens: ZIPLY_MAX_OUTPUT_TOKENS,
+    },
+  });
+  const result = await model.generateContent([prompt, ...printParts]);
+  const responseText = result.response.text();
+  const finishReason = result.response.candidates?.[0]?.finishReason;
+  return parseGeminiJson(responseText, finishReason);
+}
+
+function terminalHouseCount(p: ZiplyParsedPrint): number {
+  let n = 0;
+  for (const t of p.mapObjects?.terminals ?? []) {
+    n += t.houseNumbers?.length ?? 0;
+    n += t.addressesServed?.length ?? 0;
+  }
+  return n;
+}
+
+function mergeParsedDetail(base: ZiplyParsedPrint, detail: ZiplyParsedPrint): ZiplyParsedPrint {
+  const bTerms = base.mapObjects?.terminals ?? [];
+  const dTerms = detail.mapObjects?.terminals ?? [];
+  const byLabel = new Map(bTerms.map((t) => [t.label, { ...t }]));
+  for (const t of dTerms) {
+    const prev = byLabel.get(t.label);
+    if (!prev) {
+      byLabel.set(t.label, t);
+      continue;
+    }
+    byLabel.set(t.label, {
+      ...prev,
+      ...t,
+      houseNumbers: [
+        ...new Set([...(prev.houseNumbers ?? []), ...(t.houseNumbers ?? [])]),
+      ],
+      addressesServed: [
+        ...new Set([...(prev.addressesServed ?? []), ...(t.addressesServed ?? [])]),
+      ],
+      stationFt: t.stationFt ?? prev.stationFt,
+      offsetFt: t.offsetFt ?? prev.offsetFt,
+      sheetX: t.sheetX ?? prev.sheetX,
+      sheetY: t.sheetY ?? prev.sheetY,
+      side: t.side ?? prev.side,
+      sequenceOrder: t.sequenceOrder ?? prev.sequenceOrder,
+      crossStreet: t.crossStreet ?? prev.crossStreet,
+    });
+  }
+  const bCables = base.mapObjects?.cables ?? [];
+  const dCables = detail.mapObjects?.cables ?? [];
+  const cableByLabel = new Map(bCables.map((c) => [c.label, { ...c }]));
+  for (const c of dCables) {
+    const prev = cableByLabel.get(c.label);
+    cableByLabel.set(c.label, prev ? { ...prev, ...c } : c);
+  }
+  return {
+    ...base,
+    ...detail,
+    hubId: base.hubId ?? detail.hubId,
+    hubAddress: base.hubAddress ?? detail.hubAddress,
+    projectCity: base.projectCity ?? detail.projectCity,
+    mainlineStreet: base.mainlineStreet ?? detail.mainlineStreet,
+    mapObjects: {
+      mainlineStreet:
+        base.mapObjects?.mainlineStreet ??
+        detail.mapObjects?.mainlineStreet ??
+        base.mainlineStreet ??
+        null,
+      cables: [...cableByLabel.values()],
+      terminals: [...byLabel.values()],
+      notes: detail.mapObjects?.notes ?? base.mapObjects?.notes ?? null,
+    },
+  };
+}
+
 export async function parseZiplyPrint(dataUrls: string | string[]): Promise<ZiplyParsedPrint> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY not set in environment");
@@ -229,6 +318,8 @@ CRITICAL FOR MAP PLACEMENT (read plan sheets carefully):
 - OFFSET: distance from mainline to MST if dimensioned → offsetFt (feet)
 - sequenceOrder: order along mainline south→north or up-station as printed
 - side: "left" or "right" of mainline looking up-station / north
+- sheetX/sheetY: approximate position on the plan page as 0–1 (0,0 = top-left of plan view)
+- crossStreet: if lateral leaves mainline onto another named street
 
 FIELDS:
 1. Hub ID (H1002, S3065 cabinet id, etc.)
@@ -245,7 +336,8 @@ FIELDS:
     cables: { label, fiberCount, lengthFt, buildType, role, toTerminal, routeStreets,
               sheetPage, sequenceOrder, side, stationFt }
     terminals: { label, type, portCount, footageFt, footageLabel, dvftpRange, code, fiberSpec,
-                 addressesServed, houseNumbers, sheetPage, sequenceOrder, side, stationFt, offsetFt }
+                 addressesServed, houseNumbers, sheetPage, sequenceOrder, side, stationFt, offsetFt,
+                 sheetX, sheetY, crossStreet }
     notes, mainlineStreet
     Order terminals south→north or as numbered on the plan index when possible.
 
@@ -275,29 +367,53 @@ Schema:
   "mapObjects": {
     "mainlineStreet": "Metron Rd or null",
     "cables": [{"label":"C-1","fiberCount":"48F","lengthFt":250,"buildType":"bore","role":"lateral","toTerminal":"MST-1","routeStreets":["Metron Rd"],"sheetPage":3,"sequenceOrder":4,"side":"left","stationFt":1250}],
-    "terminals": [{"label":"MST-1","type":"8-port MST","portCount":8,"footageFt":42,"footageLabel":"BORE 42'","dvftpRange":null,"code":null,"fiberSpec":"12F","houseNumbers":["18052"],"addressesServed":["18052 Metron Rd"],"sheetPage":3,"sequenceOrder":4,"side":"left","stationFt":1250,"offsetFt":35}],
+    "terminals": [{"label":"MST-1","type":"8-port MST","portCount":8,"footageFt":42,"footageLabel":"BORE 42'","dvftpRange":null,"code":null,"fiberSpec":"12F","houseNumbers":["18052"],"addressesServed":["18052 Metron Rd"],"sheetPage":3,"sequenceOrder":4,"side":"left","stationFt":1250,"offsetFt":35,"sheetX":0.42,"sheetY":0.55,"crossStreet":null}],
     "notes": "string or null"
   }
 }
 `;
 
-  const model = genai.getGenerativeModel({
-    model: ZIPLY_GEMINI_MODEL,
-    systemInstruction: { role: "system", parts: [{ text: SYSTEM_INSTRUCTION }] },
-    generationConfig: {
-      temperature: 0.1,
-      responseMimeType: "application/json",
-      // Full Ziply packages can include 30+ pages and dozens of terminals; keep
-      // the ceiling at the Gemini 2.5 Flash maximum so JSON is not cut off mid-array.
-      maxOutputTokens: ZIPLY_MAX_OUTPUT_TOKENS,
-    },
-  });
+  // Pass 1: full package (cover + plan overview)
+  let parsed = await runGeminiJsonPass(genai, printParts, prompt);
 
-  const result = await model.generateContent([prompt, ...printParts]);
-  const responseText = result.response.text();
-  const finishReason = result.response.candidates?.[0]?.finishReason;
+  // Pass 2: plan-detail when houses/stations sparse (CAD fidelity)
+  const houses = terminalHouseCount(parsed);
+  const termN = parsed.mapObjects?.terminals?.length ?? 0;
+  const needDetail = houses < 4 || termN < 3 || !parsed.mainlineStreet;
+  if (needDetail && printParts.length > 0) {
+    try {
+      const detailPrompt = `
+PASS 2 — PLAN DETAIL ONLY (Booker / Ziply FTTH plan view sheets).
+Ignore cover fluff. Extract MAXIMUM house numbers, MST labels, stationing, sides,
+sheetX/sheetY (0–1 on plan page), crossStreet for laterals off the mainline.
+Return the SAME schema as mapObjects + hubAddress + mainlineStreet + projectCity.
+Never invent house numbers not printed on the sheets.
+Schema:
+{
+  "hubAddress": "string|null",
+  "projectCity": "string|null",
+  "mainlineStreet": "string|null",
+  "mapObjects": {
+    "mainlineStreet": "string|null",
+    "cables": [{"label":"…","fiberCount":"","lengthFt":null,"buildType":"bore","role":"lateral","toTerminal":"…","routeStreets":[],"sheetPage":null,"sequenceOrder":null,"side":"left","stationFt":null}],
+    "terminals": [{"label":"…","type":"MST","portCount":null,"footageFt":null,"footageLabel":null,"dvftpRange":null,"code":null,"fiberSpec":null,"houseNumbers":["18052"],"addressesServed":["18052 Metron Rd"],"sheetPage":null,"sequenceOrder":1,"side":"left","stationFt":null,"offsetFt":null,"sheetX":0.5,"sheetY":0.5,"crossStreet":null}],
+    "notes": null
+  }
+}
+`;
+      const detail = await runGeminiJsonPass(genai, printParts, detailPrompt);
+      parsed = mergeParsedDetail(parsed, detail);
+      // eslint-disable-next-line no-console
+      console.info(
+        `[ziplyParser] two-pass merge houses=${terminalHouseCount(parsed)} terminals=${parsed.mapObjects?.terminals?.length ?? 0}`
+      );
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("[ziplyParser] pass-2 detail failed; using pass-1 only", e);
+    }
+  }
 
-  return parseGeminiJson(responseText, finishReason);
+  return parsed;
 }
 
 /** Structured fields extracted from a ROW / city / WSDOT / county permit PDF. */

@@ -251,6 +251,55 @@ export const api = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+  /** Batch rebuild plant CAD for print-ready Ziply jobs (stale/synthetic by default). */
+  enhanceAllZiplyPrints: (body?: { limit?: number; onlyStale?: boolean }) =>
+    request<{
+      ok: boolean;
+      attempted: number;
+      enhanced: number;
+      failed: number;
+      results: Array<Record<string, unknown>>;
+    }>("/api/jobs/ziply-enhance-prints", {
+      method: "POST",
+      body: JSON.stringify(body ?? { onlyStale: true, limit: 25 }),
+    }),
+  /** Fleet CAD fidelity QA report. */
+  ziplyFidelityReport: () =>
+    request<{
+      ok: boolean;
+      totalPrintJobs: number;
+      mapReady: number;
+      enhanced: number;
+      byGrade: Record<string, number>;
+      bySource: Record<string, number>;
+      avgResidualM: number | null;
+      jobs: Array<{
+        jobId: string;
+        workOrder?: string | null;
+        grade: string;
+        geometrySource: string | null;
+        residualM: number | null;
+        controlCount: number;
+        notes: string[];
+      }>;
+    }>("/api/jobs/ziply-fidelity"),
+  /** Field control pin for sheet registration. */
+  pinZiplyControl: (
+    jobId: string,
+    body: {
+      kind: "hub" | "terminal" | "cable";
+      ref: string;
+      lat: number;
+      lng: number;
+      sheetX?: number | null;
+      sheetY?: number | null;
+      reenhance?: boolean;
+    }
+  ) =>
+    request<{ ok: boolean; jobId: string; pin: unknown; enhance: unknown }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/ziply-control-pin`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
   /** Field-correct a cable polyline so the map twin matches the print. */
   updateZiplyCablePath: (
     jobId: string,

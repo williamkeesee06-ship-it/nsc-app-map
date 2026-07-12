@@ -497,9 +497,16 @@ export interface Job {
         stationFt?: number | null;
         /** Perpendicular offset feet from mainline on plan. */
         offsetFt?: number | null;
+        /** Normalized plan-page coords 0–1 for affine sheet registration. */
+        sheetX?: number | null;
+        sheetY?: number | null;
+        /** Cross street when lateral leaves mainline (e.g. "64th St SE"). */
+        crossStreet?: string | null;
         /** Georeferenced terminal position (geocoded address / GPS anchor). */
         lat?: number | null;
         lng?: number | null;
+        /** True when crew pinned this terminal on the map. */
+        manualPin?: boolean | null;
         status?: ZiplyObjectStatus;
         /** Section-scoped 811 + crew metadata keyed by hubId + label/range. */
         locateTicketId?: string | null;
@@ -517,6 +524,20 @@ export interface Job {
         lng: number;
         terminalLabel?: string | null;
         kind?: "lu" | "mdu" | "bu" | "unknown" | null;
+      }> | null;
+      /**
+       * Field control pins (Phase C) — highest-priority registration anchors.
+       * kind+ref match terminals/cables/hub.
+       */
+      manualPins?: Array<{
+        kind: "hub" | "terminal" | "cable";
+        ref: string;
+        lat: number;
+        lng: number;
+        sheetX?: number | null;
+        sheetY?: number | null;
+        pinnedAt?: number | null;
+        pinnedBy?: string | null;
       }> | null;
       notes: string | null;
     } | null;

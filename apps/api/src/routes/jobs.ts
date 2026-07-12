@@ -20,7 +20,13 @@ import {
   buildRegisteredLateral,
   type SheetControl,
 } from "../services/ziplySheetRegister.js";
-import { getSheet, buildColumnsById, updateRowCells } from "../lib/smartsheet.js";
+import {
+  getSheet,
+  buildColumnsById,
+  buildColumnsByTitle,
+  updateRowCells,
+  findRowByWorkOrder,
+} from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
 import { getEnv } from "../config/env.js";
 import {
@@ -806,6 +812,9 @@ async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): 
         side: t.side ?? null,
         stationFt: typeof t.stationFt === "number" ? t.stationFt : null,
         offsetFt: typeof t.offsetFt === "number" ? t.offsetFt : null,
+        sheetX: typeof t.sheetX === "number" ? t.sheetX : null,
+        sheetY: typeof t.sheetY === "number" ? t.sheetY : null,
+        crossStreet: typeof t.crossStreet === "string" ? t.crossStreet : null,
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
         status: "planned" as ZiplyObjectStatus,
@@ -1378,6 +1387,47 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
   termByLabel.clear();
   for (const t of terminals) termByLabel.set(t.label, t);
 
+  // Apply manual field pins (highest priority control truth)
+  const manualPins = mo.manualPins ?? [];
+  for (const pin of manualPins) {
+    if (!isValidLatLng(pin.lat, pin.lng)) continue;
+    if (pin.kind === "hub") {
+      hubCoords = { lat: pin.lat, lng: pin.lng };
+    } else if (pin.kind === "terminal") {
+      const idx = terminals.findIndex((t) => t.label === pin.ref);
+      if (idx >= 0) {
+        terminals[idx] = {
+          ...terminals[idx]!,
+          lat: pin.lat,
+          lng: pin.lng,
+          manualPin: true,
+          sheetX: pin.sheetX ?? terminals[idx]!.sheetX,
+          sheetY: pin.sheetY ?? terminals[idx]!.sheetY,
+        };
+      }
+    }
+  }
+
+  // Cross-street geocode: laterals that leave mainline onto named streets
+  for (let ti = 0; ti < terminals.length; ti++) {
+    const t = terminals[ti]!;
+    const cross = t.crossStreet?.trim();
+    if (!cross) continue;
+    if (isValidLatLng(t.lat, t.lng) && t.manualPin) continue;
+    const hn = t.houseNumbers?.[0];
+    const crossAddr = hn
+      ? `${hn} ${cross}, ${effectiveCity || city || "WA"}, WA`
+      : `${cross}, ${effectiveCity || city || "WA"}, WA`;
+    const g = await geocodeOne(crossAddr);
+    if (g) {
+      // Only adopt if closer to hub than 1.4km or replaces missing
+      if (!isValidLatLng(t.lat, t.lng) || distM(hubCoords, g) < 1400) {
+        terminals[ti] = { ...t, lat: g.lat, lng: g.lng };
+        terminalsGeocoded++;
+      }
+    }
+  }
+
   // Control points = every geocoded terminal (+ hub) — plan-sheet registration truth
   const controls: SheetControl[] = [];
   controls.push({
@@ -1388,6 +1438,7 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     lng: hubCoords.lng,
     sequenceOrder: 0,
     stationFt: 0,
+    manual: manualPins.some((p) => p.kind === "hub"),
   });
   for (const t of terminals) {
     if (!isValidLatLng(t.lat, t.lng)) continue;
@@ -1402,6 +1453,10 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
       side: t.side === "left" || t.side === "right" ? t.side : null,
       sequenceOrder: t.sequenceOrder ?? null,
       footageFt: t.footageFt ?? null,
+      sheetX: t.sheetX ?? null,
+      sheetY: t.sheetY ?? null,
+      crossStreet: t.crossStreet ?? null,
+      manual: !!t.manualPin || manualPins.some((p) => p.kind === "terminal" && p.ref === t.label),
     });
   }
 
@@ -1656,6 +1711,7 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
       terminals,
       cables,
       dropSites,
+      manualPins: mo.manualPins ?? [],
       notes: mo.notes ?? null,
     },
   };
@@ -1763,6 +1819,169 @@ router.post("/jobs/:jobId/ziply-enhance-print", async (req, res, next) => {
     const result = await enhanceZiplyPrintDetail(job);
     invalidateJobsCache();
     res.json({ ok: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/ziply-enhance-prints — batch rebuild plant CAD (Phase A)
+// Body optional: { limit?: number, onlyStale?: boolean }
+router.post("/jobs/ziply-enhance-prints", async (req, res, next) => {
+  try {
+    const body = (req.body ?? {}) as { limit?: number; onlyStale?: boolean };
+    const limit = Math.min(Math.max(body.limit ?? 25, 1), 80);
+    const onlyStale = body.onlyStale !== false;
+    const snap = await db()
+      .collection("jobs")
+      .where("customerProject", "==", "Ziply")
+      .get();
+    const candidates = snap.docs
+      .map((d) => d.data() as Job)
+      .filter((j) => j.ziplyPrintLayer?.mapObjects)
+      .filter((j) => {
+        if (!onlyStale) return true;
+        const src = j.ziplyPrintLayer?.mapObjects?.geometrySource;
+        return !j.ziplyPrintLayer?.printGeometryEnhancedAt || src === "synthetic" || !src;
+      })
+      .slice(0, limit);
+
+    const results: Array<Record<string, unknown>> = [];
+    let enhanced = 0;
+    let failed = 0;
+    for (const job of candidates) {
+      try {
+        const r = await enhanceZiplyPrintDetail(job);
+        if (r.enhanced) enhanced++;
+        else failed++;
+        results.push(r);
+      } catch (e) {
+        failed++;
+        results.push({
+          jobId: job.jobId,
+          enhanced: false,
+          reason: e instanceof Error ? e.message : "error",
+        });
+      }
+    }
+    invalidateJobsCache();
+    res.json({
+      ok: true,
+      attempted: candidates.length,
+      enhanced,
+      failed,
+      results,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/ziply-fidelity — fleet CAD fidelity QA report (Phase A)
+router.get("/jobs/ziply-fidelity", async (_req, res, next) => {
+  try {
+    const { summarizeFleetFidelity } = await import("../services/ziplyFidelity.js");
+    const snap = await db()
+      .collection("jobs")
+      .where("customerProject", "==", "Ziply")
+      .get();
+    const jobs = snap.docs.map((d) => d.data() as Job);
+    res.json({ ok: true, ...summarizeFleetFidelity(jobs) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/:jobId/ziply-fidelity — single job fidelity
+router.get("/jobs/:jobId/ziply-fidelity", async (req, res, next) => {
+  try {
+    const { reportJobFidelity } = await import("../services/ziplyFidelity.js");
+    const doc = await db().collection("jobs").doc(req.params.jobId).get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    res.json({ ok: true, report: reportJobFidelity(doc.data() as Job) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-control-pin — field control pin (Phase C)
+router.post("/jobs/:jobId/ziply-control-pin", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { kind, ref, lat, lng, sheetX, sheetY, reenhance } = req.body as {
+      kind?: "hub" | "terminal" | "cable";
+      ref?: string;
+      lat?: number;
+      lng?: number;
+      sheetX?: number | null;
+      sheetY?: number | null;
+      reenhance?: boolean;
+    };
+    if (!kind || !ref || !isValidLatLng(lat, lng)) {
+      res.status(400).json({ error: "kind, ref, lat, lng required" });
+      return;
+    }
+    const dbRef = db().collection("jobs").doc(jobId);
+    const doc = await dbRef.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const mo = job.ziplyPrintLayer?.mapObjects;
+    if (!mo) {
+      res.status(400).json({ error: "No print layer" });
+      return;
+    }
+    const pins = [...(mo.manualPins ?? [])].filter(
+      (p) => !(p.kind === kind && p.ref === ref)
+    );
+    pins.push({
+      kind,
+      ref,
+      lat: lat as number,
+      lng: lng as number,
+      sheetX: sheetX ?? null,
+      sheetY: sheetY ?? null,
+      pinnedAt: Date.now(),
+      pinnedBy: (req as { user?: { email?: string } }).user?.email ?? null,
+    });
+    // Mirror onto terminal/hub immediately
+    if (kind === "hub") {
+      mo.hub = { ...(mo.hub ?? {}), lat: lat as number, lng: lng as number };
+    } else if (kind === "terminal") {
+      const terms = [...(mo.terminals ?? [])];
+      const ti = terms.findIndex((t) => t.label === ref);
+      if (ti >= 0) {
+        terms[ti] = {
+          ...terms[ti]!,
+          lat: lat as number,
+          lng: lng as number,
+          manualPin: true,
+        };
+        mo.terminals = terms;
+      }
+    }
+    mo.manualPins = pins;
+    await dbRef.update({
+      ziplyPrintLayer: { ...job.ziplyPrintLayer, mapObjects: mo },
+      lastSyncedAt: Date.now(),
+    });
+    invalidateJobsCache();
+
+    let enhanceResult: unknown = null;
+    if (reenhance !== false) {
+      const fresh = (await dbRef.get()).data() as Job;
+      try {
+        enhanceResult = await enhanceZiplyPrintDetail(fresh);
+        invalidateJobsCache();
+      } catch (e) {
+        enhanceResult = { enhanced: false, reason: e instanceof Error ? e.message : "enhance failed" };
+      }
+    }
+    res.json({ ok: true, jobId, pin: pins[pins.length - 1], enhance: enhanceResult });
   } catch (err) {
     next(err);
   }
@@ -2047,10 +2266,72 @@ router.post("/jobs/:jobId/ziply-production", async (req, res, next) => {
     await ref.update(updates);
     invalidateJobsCache();
 
-    // NOTE: Smartsheet row propagation is disabled per user request.
-    // We only record production locally in Firestore until explicitly approved.
+    // Opt-in Smartsheet write-back (Phase D) — body.syncSmartsheet === true
+    let smartsheet: { ok: boolean; error?: string } | null = null;
+    const { syncSmartsheet } = req.body as { syncSmartsheet?: boolean };
+    if (syncSmartsheet === true && job.workOrder) {
+      try {
+        const sheet = await getSheet();
+        const row = findRowByWorkOrder(sheet, job.workOrder);
+        if (!row) {
+          smartsheet = { ok: false, error: "work_order_not_found" };
+        } else {
+          const cells: Record<string, string | number | null> = {};
+          // Best-effort common column titles (sheet schemas vary)
+          const tryTitles: Array<[string, number]> = [
+            ["Completed Bore Ft", newBore],
+            ["Completed Bore", newBore],
+            ["Bore Completed", newBore],
+            ["Completed Placing Ft", newPlacing],
+            ["Completed Placing", newPlacing],
+            ["Completed Aerial Ft", newAerial],
+            ["Completed Aerial", newAerial],
+          ];
+          const byTitle = buildColumnsByTitle(sheet);
+          for (const [title, value] of tryTitles) {
+            if (byTitle.has(title) && !Object.keys(cells).includes(title)) {
+              // only first match per metric family
+              if (
+                title.toLowerCase().includes("bore") &&
+                !Object.keys(cells).some((k) => k.toLowerCase().includes("bore"))
+              ) {
+                cells[title] = value;
+              } else if (
+                title.toLowerCase().includes("placing") &&
+                !Object.keys(cells).some((k) => k.toLowerCase().includes("placing"))
+              ) {
+                cells[title] = value;
+              } else if (
+                title.toLowerCase().includes("aerial") &&
+                !Object.keys(cells).some((k) => k.toLowerCase().includes("aerial"))
+              ) {
+                cells[title] = value;
+              }
+            }
+          }
+          if (Object.keys(cells).length === 0) {
+            smartsheet = { ok: false, error: "no_matching_columns" };
+          } else {
+            await updateRowCells(row.id, cells, sheet);
+            smartsheet = { ok: true };
+          }
+        }
+      } catch (e) {
+        smartsheet = {
+          ok: false,
+          error: e instanceof Error ? e.message : "smartsheet_error",
+        };
+      }
+    }
 
-    res.json({ ok: true, jobId, completedBoreFt: newBore, completedPlacingFt: newPlacing, completedAerialFt: newAerial });
+    res.json({
+      ok: true,
+      jobId,
+      completedBoreFt: newBore,
+      completedPlacingFt: newPlacing,
+      completedAerialFt: newAerial,
+      smartsheet,
+    });
   } catch (err) {
     next(err);
   }

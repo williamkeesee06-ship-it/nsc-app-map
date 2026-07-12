@@ -13,6 +13,7 @@ import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
 import {
   formatBytes,
+  getCadFidelity,
   getZiplyPrintAnchor,
   getZiplyPrintDocStatus,
   ingestZiplyPermitForJob,
@@ -699,6 +700,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
   const mapReady = isZiplyPrintMapReady(job);
   const anchor = getZiplyPrintAnchor(job);
   const enhancedAt = layer?.printGeometryEnhancedAt ?? null;
+  const fidelity = getCadFidelity(job);
 
   const repairLocation = async () => {
     setRepairBusy(true);
@@ -816,6 +818,21 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
                 : mapReady
                   ? " · CAD not enhanced yet"
                   : ""}
+            </span>
+          )}
+          {status === "ready" && mapReady && (
+            <span
+              title={`CAD fidelity ${fidelity.grade} · ${fidelity.source ?? "—"}`}
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                color: fidelity.color,
+                letterSpacing: "0.04em",
+                marginTop: 2,
+              }}
+            >
+              CAD {fidelity.label}
+              {fidelity.source ? ` · ${fidelity.source.replace(/_/g, " ")}` : ""}
             </span>
           )}
           {status === "ready" && !mapReady && (

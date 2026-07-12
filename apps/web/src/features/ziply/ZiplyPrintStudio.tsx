@@ -10,6 +10,7 @@ import {
   computePlantProgress,
   emitZiplyPathEditRequest,
   emitZiplyPlantSelect,
+  getCadFidelity,
   getZiplyPrintAnchor,
   listZiplyPrintFiles,
   formatBytes,
@@ -38,12 +39,21 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
   const mo = job.ziplyPrintLayer?.mapObjects;
   const active = files[fileIdx] ?? null;
   const anchor = getZiplyPrintAnchor(job);
+  const fidelity = getCadFidelity(job);
 
   const inventory = useMemo(() => {
     const cables = mo?.cables ?? [];
     const terminals = mo?.terminals ?? [];
     const drops = mo?.dropSites ?? [];
     const p = computePlantProgress(job);
+    // Group cables by sheetPage for Studio page jump
+    const byPage = new Map<number, string[]>();
+    for (const c of cables) {
+      if (c.sheetPage == null) continue;
+      const list = byPage.get(c.sheetPage) ?? [];
+      list.push(c.label);
+      byPage.set(c.sheetPage, list);
+    }
     return {
       cables,
       terminals,
@@ -57,6 +67,9 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
           : null,
       mainline: mo?.mainlineStreet ?? null,
       backbonePts: mo?.backbonePath?.length ?? 0,
+      geometrySource: mo?.geometrySource ?? null,
+      residualM: mo?.geometryResidualM ?? null,
+      pageIndex: byPage,
     };
   }, [mo, job]);
 
@@ -253,6 +266,20 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
             </span>
             <span style={{ color: "#64748b", fontSize: 11 }}>
               {job.workOrder || job.jobId}
+            </span>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                color: fidelity.color,
+                padding: "2px 8px",
+                borderRadius: 4,
+                border: `1px solid ${fidelity.color}55`,
+                background: `${fidelity.color}18`,
+              }}
+              title={inventory.geometrySource ?? undefined}
+            >
+              CAD {fidelity.label}
             </span>
             <div style={{ flex: 1 }} />
             {files.length > 1 && (
