@@ -196,9 +196,10 @@ function CadFiberLine({
     // Animated energy flow along the line (hub → terminal direction)
     let flow: google.maps.Polyline | null = null;
     let animId: number | null = null;
+    // Flow only on active/complete/selected — never on every planned lateral (label chaos + lag)
     const shouldFlow =
       animateFlow &&
-      (status === "in_progress" || status === "complete" || isMain || selected);
+      (status === "in_progress" || status === "complete" || selected);
 
     if (shouldFlow) {
       const flowColor =
@@ -307,16 +308,17 @@ function HubNeonBeacon({
   useEffect(() => {
     if (!map || !active) return;
     const color = STATUS_GLOW[status];
-    const rings: google.maps.Circle[] = [0, 1, 2].map((i) =>
+    // Tight beacon only (~12–22 m) — never city-scale rings
+    const rings: google.maps.Circle[] = [0, 1].map((i) =>
       new google.maps.Circle({
         map,
         center: position,
-        radius: 18 + i * 14,
+        radius: 10 + i * 8,
         fillColor: color,
-        fillOpacity: 0.12 - i * 0.03,
+        fillOpacity: 0.1 - i * 0.04,
         strokeColor: color,
-        strokeOpacity: 0.55 - i * 0.15,
-        strokeWeight: 1.5,
+        strokeOpacity: 0.45 - i * 0.15,
+        strokeWeight: 1.2,
         zIndex: 4,
         clickable: false,
       })
@@ -325,12 +327,12 @@ function HubNeonBeacon({
     let id = 0;
     const animate = () => {
       frame += 1;
-      const phase = (Math.sin(frame / 22) + 1) / 2;
+      const phase = (Math.sin(frame / 28) + 1) / 2;
       rings.forEach((c, i) => {
-        c.setRadius(16 + i * 12 + phase * (10 + i * 6));
+        c.setRadius(9 + i * 7 + phase * (4 + i * 3));
         c.setOptions({
-          fillOpacity: 0.06 + phase * 0.1 - i * 0.02,
-          strokeOpacity: 0.25 + phase * 0.4 - i * 0.08,
+          fillOpacity: 0.05 + phase * 0.08 - i * 0.02,
+          strokeOpacity: 0.2 + phase * 0.3 - i * 0.08,
         });
       });
       id = window.requestAnimationFrame(animate);
@@ -363,6 +365,8 @@ function PrintCadHud({
   setHubPulseOn,
   showPlanned,
   setShowPlanned,
+  showAllPlants,
+  setShowAllPlants,
 }: {
   zoom: number;
   stats: {
@@ -374,6 +378,9 @@ function PrintCadHud({
     inProgress: number;
     planned: number;
     progressPct: number;
+    focusLabel?: string;
+    otherPlants?: number;
+    showAllPlants?: boolean;
   };
   flowOn: boolean;
   setFlowOn: (v: boolean) => void;
@@ -383,6 +390,8 @@ function PrintCadHud({
   setHubPulseOn: (v: boolean) => void;
   showPlanned: boolean;
   setShowPlanned: (v: boolean) => void;
+  showAllPlants: boolean;
+  setShowAllPlants: (v: boolean) => void;
 }) {
   return (
     <div className="ziply-cad-hud">
@@ -395,6 +404,19 @@ function PrintCadHud({
         </span>
       </div>
       <div className="ziply-cad-hud__body">
+        <div
+          style={{
+            fontSize: 10,
+            color: "#67e8f9",
+            fontFamily: "var(--font-mono, monospace)",
+            fontWeight: 700,
+          }}
+        >
+          Focus: {stats.focusLabel ?? "—"}
+          {(stats.otherPlants ?? 0) > 0 && !stats.showAllPlants
+            ? ` · +${stats.otherPlants} hubs dimmed`
+            : ""}
+        </div>
         <div className="ziply-cad-hud__progress">
           <div className="ziply-cad-hud__progress-meta">
             <span>Plant complete</span>
@@ -462,6 +484,14 @@ function PrintCadHud({
             />
             Show planned paths
           </label>
+          <label className={`ziply-cad-hud__toggle ${showAllPlants ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={showAllPlants}
+              onChange={(e) => setShowAllPlants(e.target.checked)}
+            />
+            Show all plants (noisy)
+          </label>
         </div>
 
         <div className="ziply-cad-hud__legend">
@@ -480,8 +510,8 @@ function PrintCadHud({
           </span>
         </div>
         <p className="ziply-cad-hud__hint">
-          Click a cable to set planned → in progress → complete. Active paths glow and
-          pulse energy from the hub.
+          One plant at a time — open a Ziply job with a print to focus it. Labels appear
+          at higher zoom. Click a cable for Live / Neon Done.
         </p>
       </div>
     </div>
@@ -527,11 +557,18 @@ function termIconDataUrl(label: string, fill: string, stroke: string): string {
 
 interface Props {
   jobs: Job[];
+  /** When set, only this job's full plant is drawn (others = hub pin only). */
+  focusJobId?: string | null;
   visible: boolean;
   show811Clearance?: boolean;
 }
 
-export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = false }: Props) {
+export default function ZiplyPrintOverlay({
+  jobs,
+  focusJobId = null,
+  visible,
+  show811Clearance = false,
+}: Props) {
   const map = useMap();
   const [selected, setSelected] = useState<Selected | null>(null);
   const [saving, setSaving] = useState(false);
@@ -540,12 +577,34 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
   const [overrides, setOverrides] = useState<Record<string, ZiplyObjectStatus>>({});
   const [didFitPrints, setDidFitPrints] = useState(false);
   const [zoom, setZoom] = useState(14);
+  // Defaults calmer: less visual noise until user opts in
   const [flowOn, setFlowOn] = useState(true);
   const [glowOn, setGlowOn] = useState(true);
-  const [hubPulseOn, setHubPulseOn] = useState(true);
+  const [hubPulseOn, setHubPulseOn] = useState(false);
   const [showPlanned, setShowPlanned] = useState(true);
+  /** When true, draw every ready plant (legacy). Default: focus one job. */
+  const [showAllPlants, setShowAllPlants] = useState(false);
 
-  const printJobs = useMemo(() => jobs.filter((j) => isZiplyPrintMapReady(j)), [jobs]);
+  const allReady = useMemo(() => jobs.filter((j) => isZiplyPrintMapReady(j)), [jobs]);
+
+  // Primary plant: selected job if it has a print; else first ready job only.
+  const printJobs = useMemo(() => {
+    if (showAllPlants) return allReady;
+    if (focusJobId) {
+      const focused = allReady.find((j) => j.jobId === focusJobId);
+      if (focused) return [focused];
+      // Selected job has no print — still show at most ONE other plant so map stays clean
+    }
+    // No selection / selection without print: show single highest-value plant
+    if (allReady.length === 0) return [];
+    return [allReady[0]!];
+  }, [allReady, focusJobId, showAllPlants]);
+
+  const otherHubJobs = useMemo(() => {
+    if (showAllPlants) return [];
+    const focusId = printJobs[0]?.jobId;
+    return allReady.filter((j) => j.jobId !== focusId);
+  }, [allReady, printJobs, showAllPlants]);
 
   useEffect(() => {
     setCrewDraft(selected?.crewName ?? "");
@@ -575,38 +634,36 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
     };
   }, [visible, show811Clearance]);
 
+  // Fit when focus plant changes (not every multi-plant dump)
   useEffect(() => {
     if (!visible) {
       setDidFitPrints(false);
       return;
     }
-    if (!map || didFitPrints || printJobs.length === 0) return;
+    if (!map || printJobs.length === 0) return;
+    const j = printJobs[0]!;
+    const a = getZiplyPrintAnchor(j);
+    if (!a) return;
     const bounds = new google.maps.LatLngBounds();
-    let n = 0;
-    for (const j of printJobs) {
-      const a = getZiplyPrintAnchor(j);
-      if (!a) continue;
-      bounds.extend({ lat: a.lat, lng: a.lng });
-      n++;
-      const mo = j.ziplyPrintLayer?.mapObjects;
-      for (const t of mo?.terminals ?? []) {
-        if (typeof t.lat === "number" && typeof t.lng === "number" && t.lat && t.lng) {
-          bounds.extend({ lat: t.lat, lng: t.lng });
-        }
+    bounds.extend({ lat: a.lat, lng: a.lng });
+    const mo = j.ziplyPrintLayer?.mapObjects;
+    for (const t of mo?.terminals ?? []) {
+      if (typeof t.lat === "number" && typeof t.lng === "number" && t.lat && t.lng) {
+        bounds.extend({ lat: t.lat, lng: t.lng });
       }
     }
-    if (n === 0) return;
-    if (n === 1) {
-      const a = getZiplyPrintAnchor(printJobs[0]!);
-      if (a) {
-        map.setCenter({ lat: a.lat, lng: a.lng });
-        map.setZoom(17);
+    for (const p of mo?.backbonePath ?? []) {
+      if (typeof p.lat === "number" && typeof p.lng === "number") {
+        bounds.extend({ lat: p.lat, lng: p.lng });
       }
-    } else {
-      map.fitBounds(bounds, 72);
     }
+    map.fitBounds(bounds, 80);
+    // Prefer street-level over city dump
+    const z = map.getZoom() ?? 16;
+    if (z < 15) map.setZoom(16);
+    if (z > 19) map.setZoom(18);
     setDidFitPrints(true);
-  }, [map, visible, printJobs, didFitPrints]);
+  }, [map, visible, printJobs[0]?.jobId]);
 
   const plantStats = useMemo(() => {
     let cables = 0;
@@ -616,6 +673,7 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
     let complete = 0;
     let inProgress = 0;
     let planned = 0;
+    // Stats only for the focused plant (not every Ziply job on the sheet)
     for (const j of printJobs) {
       const mo = j.ziplyPrintLayer?.mapObjects;
       cables += mo?.cables?.length ?? 0;
@@ -656,8 +714,13 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
       inProgress,
       planned,
       progressPct,
+      focusLabel: printJobs[0]
+        ? printJobs[0]!.workOrder || printJobs[0]!.jobId.slice(0, 8)
+        : "—",
+      otherPlants: otherHubJobs.length,
+      showAllPlants,
     };
-  }, [printJobs, overrides]);
+  }, [printJobs, overrides, otherHubJobs.length, showAllPlants]);
 
   if (!visible) return null;
 
@@ -741,10 +804,12 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
     }
   };
 
-  const showCableLabels = zoom >= 15;
-  const showTermLabels = zoom >= 14;
-  const showDrops = zoom >= 16;
-  const showDropLabels = zoom >= 18;
+  // Label LOD — city zoom stays clean; detail only when close
+  const showMainlineLabels = zoom >= 15;
+  const showCableLabels = zoom >= 17;
+  const showTermLabels = zoom >= 16;
+  const showDrops = zoom >= 17;
+  const showDropLabels = zoom >= 19;
   const legendHost =
     typeof document !== "undefined"
       ? document.querySelector(".map-host")
@@ -765,9 +830,34 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
             setHubPulseOn={setHubPulseOn}
             showPlanned={showPlanned}
             setShowPlanned={setShowPlanned}
+            showAllPlants={showAllPlants}
+            setShowAllPlants={setShowAllPlants}
           />,
           legendHost
         )}
+
+      {/* Dim hub-only markers for non-focused plants */}
+      {otherHubJobs.map((j) => {
+        const a = getZiplyPrintAnchor(j);
+        if (!a) return null;
+        return (
+          <Marker
+            key={`dim-hub-${j.jobId}`}
+            position={{ lat: a.lat, lng: a.lng }}
+            title={`${j.workOrder || j.jobId} (select job to open plant)`}
+            zIndex={3}
+            icon={{
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 6,
+              fillColor: "#64748b",
+              fillOpacity: 0.45,
+              strokeColor: "#94a3b8",
+              strokeWeight: 1,
+              strokeOpacity: 0.6,
+            }}
+          />
+        );
+      })}
 
       {printJobs.map((job) => {
         const layer = job.ziplyPrintLayer!;
@@ -877,18 +967,18 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
 
         return (
           <Fragment key={job.jobId}>
-            {/* Design footprint ring — soft area around plant */}
+            {/* Tight design footprint (pixel scale, not city-scale) */}
             <Marker
               position={hubPos}
               clickable={false}
               zIndex={5}
               icon={{
                 path: google.maps.SymbolPath.CIRCLE,
-                scale: 48,
+                scale: 16,
                 fillColor: "#0891B2",
-                fillOpacity: 0.06,
+                fillOpacity: 0.08,
                 strokeColor: "#0891B2",
-                strokeOpacity: 0.25,
+                strokeOpacity: 0.3,
                 strokeWeight: 1,
               }}
             />
@@ -907,10 +997,10 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                 status={hubStatus === "complete" ? "complete" : "in_progress"}
                 buildType="trench"
                 role="mainline"
-                animateFlow={flowOn}
-                neonGlow={glowOn}
+                animateFlow={flowOn && hubStatus !== "planned"}
+                neonGlow={glowOn && hubStatus !== "planned"}
                 label={
-                  showCableLabels
+                  showMainlineLabels
                     ? mainlineStreet
                       ? `MAINLINE · ${mainlineStreet}`
                       : "MAINLINE"
@@ -946,12 +1036,16 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                           c.lengthFt
                         );
                   if (path.length < 2) return null;
+                  const isMainRole = c.role === "mainline" || c.role === "feeder";
+                  // Cap lateral labels: only first 12 laterals + all mainlines when zoomed
+                  const allowLabel =
+                    (isMainRole && showMainlineLabels) ||
+                    (showCableLabels && (st !== "planned" || idx < 12));
                   const labelParts = [
                     c.label,
                     c.fiberCount || null,
                     c.lengthFt != null ? `${c.lengthFt}'` : null,
                     c.buildType || null,
-                    c.role === "lateral" ? null : c.role,
                   ].filter(Boolean);
                   const isSel =
                     selected?.job.jobId === job.jobId &&
@@ -966,10 +1060,10 @@ export default function ZiplyPrintOverlay({ jobs, visible, show811Clearance = fa
                       role={c.role}
                       locateCleared={cleared}
                       show811Clearance={show811Clearance}
-                      label={showCableLabels ? labelParts.join(" · ") : undefined}
+                      label={allowLabel ? labelParts.join(" · ") : undefined}
                       selected={isSel}
-                      animateFlow={flowOn}
-                      neonGlow={glowOn}
+                      animateFlow={flowOn && (st === "in_progress" || st === "complete" || isSel)}
+                      neonGlow={glowOn && (st !== "planned" || isSel)}
                       onClick={(mid) => openCable(c, path, st, cleared, mid)}
                     />
                   );

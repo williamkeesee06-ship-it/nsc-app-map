@@ -594,6 +594,7 @@ function JobsMapInner({
               <CentralOfficesOverlay visible={showCOs} />
               <ZiplyPrintOverlay
                 jobs={ziplyPrintReadyJobs}
+                focusJobId={selected?.jobId ?? null}
                 visible={contract === "Ziply" && ziplyPrintLayerVisible}
                 show811Clearance={ziply811OverlayVisible}
               />

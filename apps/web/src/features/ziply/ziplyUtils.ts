@@ -134,10 +134,12 @@ export function pickZiplyFocusJob(jobs: Job[]): Job | null {
 }
 
 export function getZiplyPrintDocStatus(job: Job): ZiplyPrintDocStatus {
+  // Map-ready plant wins over a stale "failed" ingest flag (common after repair).
+  if (hasZiplyPrintLayer(job) && getZiplyPrintAnchor(job) != null) return "ready";
+  if (hasZiplyPrintLayer(job) || job.ziplyIngest?.status === "complete") return "ready";
   const ingest = job.ziplyIngest?.status;
   if (ingest === "processing") return "processing";
   if (ingest === "failed") return "failed";
-  if (hasZiplyPrintLayer(job) || ingest === "complete") return "ready";
   if ((job.ziplyIngest?.storageFiles?.length ?? 0) > 0) return "processing";
   return "none";
 }
