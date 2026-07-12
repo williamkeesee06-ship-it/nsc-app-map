@@ -1131,19 +1131,19 @@ export default function ZiplyPrintOverlay({
                   zIndex: 9,
                   width: "min(280px, calc(100% - 24px))",
                   maxWidth: 300,
-                  background: "rgba(8,15,28,0.96)",
-                  border: "1px solid rgba(251,191,36,0.55)",
+                  background: "linear-gradient(180deg, #f4f6f8 0%, #d8dde4 100%)",
+                  border: "1px solid #8e96a0",
                   borderRadius: 12,
                   padding: 12,
-                  color: "#fde68a",
+                  color: "#15202c",
                   fontSize: 11,
-                  boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
+                  boxShadow: "0 8px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.85)",
                 }}
               >
-                <div style={{ fontWeight: 800, letterSpacing: "0.08em", marginBottom: 6 }}>
+                <div style={{ fontWeight: 800, letterSpacing: "0.08em", marginBottom: 6, color: "#1d4ed8" }}>
                   PATH EDIT · {pathEdit.label}
                 </div>
-                <div style={{ color: "#94a3b8", fontSize: 10, marginBottom: 8, lineHeight: 1.35 }}>
+                <div style={{ color: "#5b6776", fontSize: 10, marginBottom: 8, lineHeight: 1.35 }}>
                   Drag yellow handles · click map to insert · − Last pt removes ·{" "}
                   {pathEdit.path.length} points
                 </div>
