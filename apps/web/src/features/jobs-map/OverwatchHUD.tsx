@@ -78,8 +78,9 @@ export default function OverwatchHUD() {
   if (!showHud) return null;
 
   return (
-    <>
+    <div className="overwatch-root">
       <button
+        type="button"
         className={`overwatch-toggle ${open ? "active" : ""}`}
         onClick={() => setOpen(!open)}
         title="Toggle Overwatch HUD"
@@ -143,6 +144,6 @@ export default function OverwatchHUD() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

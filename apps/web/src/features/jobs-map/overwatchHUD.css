@@ -1,9 +1,17 @@
+/* Anchors toggle + dropdown inside map chrome (never under app topbar) */
+.overwatch-root {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: auto;
+  z-index: 40;
+}
+
 /* Overwatch HUD Toggle Button */
 .overwatch-toggle {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 50; /* Above the map, below overlays maybe */
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: 40;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -20,6 +28,7 @@
   backdrop-filter: blur(8px);
   transition: all 0.2s ease;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
 }
 
 .overwatch-toggle:hover {
@@ -34,28 +43,31 @@
   box-shadow: 0 0 20px rgba(62, 207, 107, 0.3), inset 0 0 10px rgba(62, 207, 107, 0.1);
 }
 
-/* Overwatch HUD Dropdown Container */
+/* Overwatch HUD Dropdown — anchors under the toggle (map chrome) */
 .overwatch-hud-container {
   position: absolute;
-  top: -200px; /* Hidden by default */
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 45; /* Just under the toggle if they overlap, but they don't */
-  width: 500px;
+  top: -240px; /* Hidden above toggle by default */
+  right: 0;
+  left: auto;
+  transform: none;
+  z-index: 39;
+  width: min(420px, calc(100vw - 100px));
+  max-width: 100%;
   background: linear-gradient(180deg, rgba(15, 20, 30, 0.95) 0%, rgba(10, 15, 25, 0.85) 100%);
   border: 1px solid rgba(62, 207, 107, 0.4);
-  border-top: none;
-  border-radius: 0 0 16px 16px;
+  border-radius: 12px;
   backdrop-filter: blur(12px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(62, 207, 107, 0.15);
-  transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: top 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
   overflow: hidden;
-  pointer-events: none; /* Let clicks pass through when hidden */
+  pointer-events: none;
+  opacity: 0;
 }
 
 .overwatch-hud-container.open {
-  top: 0;
+  top: 48px;
   pointer-events: auto;
+  opacity: 1;
 }
 
 .overwatch-hud-content {

@@ -449,38 +449,41 @@ function JobsMapInner({
       <div className="jobs-map__main">
         {contract !== "Ziply" && <ModifiersPanel />}
         <JobsShownPill shown={mapped.length} total={allJobs.length} />
-        {contract === "Ziply" && (
-          <ZiplyPrintMapBanner
-            readyCount={ziplyPrintReadyJobs.length}
-            orphanCount={ziplyPrintOrphanCount}
-            layerOn={ziplyPrintLayerVisible}
-            onToggleLayer={() => setZiplyPrintLayerVisible((v) => !v)}
-            onFitPrints={() => {
-              if (ziplyPrintReadyJobs.length === 0 || !mapRef.current) return;
-              const bounds = new google.maps.LatLngBounds();
-              let n = 0;
-              for (const j of ziplyPrintReadyJobs) {
-                const a = getZiplyPrintAnchor(j);
-                if (!a) continue;
-                bounds.extend({ lat: a.lat, lng: a.lng });
-                n++;
-              }
-              if (n === 0) return;
-              if (n === 1) {
-                const a = getZiplyPrintAnchor(ziplyPrintReadyJobs[0]!);
-                if (a) {
-                  mapRef.current.panTo({ lat: a.lat, lng: a.lng });
-                  mapRef.current.setZoom(16);
-                }
-              } else {
-                mapRef.current.fitBounds(bounds, 64);
-              }
-            }}
-          />
-        )}
-        <div className="map-host" style={{ position: "absolute", inset: 0, top: 0, display: "flex", flexDirection: "row" }}>
-          <OverwatchHUD />
-          <div style={{ flex: 1, height: "100%", position: "relative" }}>
+        <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
+          {/* All floating map HUD lives here so it cannot sit under the app topbar */}
+          <div className="map-chrome-top">
+            {contract === "Ziply" && (
+              <ZiplyPrintMapBanner
+                readyCount={ziplyPrintReadyJobs.length}
+                orphanCount={ziplyPrintOrphanCount}
+                layerOn={ziplyPrintLayerVisible}
+                onToggleLayer={() => setZiplyPrintLayerVisible((v) => !v)}
+                onFitPrints={() => {
+                  if (ziplyPrintReadyJobs.length === 0 || !mapRef.current) return;
+                  const bounds = new google.maps.LatLngBounds();
+                  let n = 0;
+                  for (const j of ziplyPrintReadyJobs) {
+                    const a = getZiplyPrintAnchor(j);
+                    if (!a) continue;
+                    bounds.extend({ lat: a.lat, lng: a.lng });
+                    n++;
+                  }
+                  if (n === 0) return;
+                  if (n === 1) {
+                    const a = getZiplyPrintAnchor(ziplyPrintReadyJobs[0]!);
+                    if (a) {
+                      mapRef.current.panTo({ lat: a.lat, lng: a.lng });
+                      mapRef.current.setZoom(16);
+                    }
+                  } else {
+                    mapRef.current.fitBounds(bounds, 64);
+                  }
+                }}
+              />
+            )}
+            <OverwatchHUD />
+          </div>
+          <div style={{ flex: 1, height: "100%", position: "relative", minWidth: 0 }}>
             <Map
               defaultCenter={DEFAULT_CENTER}
               defaultZoom={DEFAULT_ZOOM}
@@ -682,23 +685,20 @@ function ZiplyPrintMapBanner({
   return (
     <div
       style={{
-        position: "absolute",
-        top: 10,
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 40,
+        position: "relative",
         display: "flex",
         alignItems: "center",
+        flexWrap: "wrap",
         gap: 10,
         padding: "8px 12px",
         borderRadius: 8,
-        background: "rgba(10, 20, 16, 0.88)",
+        background: "rgba(10, 20, 16, 0.92)",
         border: "1px solid rgba(0,230,118,0.45)",
         color: "#e8fff2",
         fontSize: 11,
         fontFamily: "ui-monospace, Consolas, monospace",
         boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-        maxWidth: "min(920px, 92vw)",
+        maxWidth: "min(640px, calc(100% - 160px))",
       }}
     >
       <span style={{ color: "#00E676", fontWeight: 800, letterSpacing: "0.06em" }}>
