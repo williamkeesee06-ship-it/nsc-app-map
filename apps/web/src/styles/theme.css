@@ -404,9 +404,9 @@ button:hover,
 
 /* ── Ziply FTTH — same royal blue + steel as Lumen (no green neon) ── */
 .contract-ziply {
-  --accent-blue: #1e5eff;
-  --accent-blue-deep: #1d4ed8;
-  --accent-blue-soft: rgba(30, 94, 255, 0.16);
+  --accent-blue: #1d4ed8;
+  --accent-blue-deep: #1e40af;
+  --accent-blue-soft: rgba(29, 78, 216, 0.16);
   --accent: var(--accent-blue);
   --accent-hover: var(--accent-blue-deep);
   --primary: var(--accent-blue);
@@ -418,7 +418,7 @@ button:hover,
 /* Ziply active tool tiles: metal face + royal blue */
 .contract-ziply .tool-tile--active {
   border-color: var(--accent-blue) !important;
-  background: linear-gradient(160deg, #e8eef8 0%, #c5d0e0 55%, #a8b4c4 100%) !important;
+  background: linear-gradient(160deg, #f8fafc 0%, #e2e8f0 55%, #cbd5e1 100%) !important;
 }
 .contract-ziply .tool-tile--active .tool-tile__icon,
 .contract-ziply .tool-tile--active .tool-tile__label {
@@ -426,5 +426,88 @@ button:hover,
 }
 .contract-ziply .tool-tile--active .tool-tile__icon svg {
   stroke: var(--accent-blue-deep) !important;
+}
+
+/* ── Ziply Panel Themes: Clean, White-Royal Blue, Rivets, Tough Metal ── */
+.contract-ziply .job-right-panel.theme-steel {
+  background: #f8fafc !important;
+  background-image: linear-gradient(180deg, #ffffff 0%, #f1f5f9 50%, #e2e8f0 100%) !important;
+  border-left: 4px solid #1d4ed8 !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.9), -5px 0 25px rgba(0,0,0,0.12) !important;
+  color: #0f172a !important;
+  position: relative !important;
+  padding: 20px !important;
+}
+
+/* Futuristic rivets in the corners of panels for Ziply */
+.contract-ziply .job-right-panel::before,
+.contract-ziply .job-right-panel::after,
+.contract-ziply .left-rail__scroll::before,
+.contract-ziply .left-rail__scroll::after {
+  content: "" !important;
+  position: absolute !important;
+  width: 9px !important;
+  height: 9px !important;
+  background: radial-gradient(circle, #f1f5f9 25%, #cbd5e1 60%, #475569 100%) !important;
+  border: 1px solid #94a3b8 !important;
+  border-radius: 50% !important;
+  box-shadow: 1px 1px 2px rgba(15,23,42,0.3), inset -1px -1px 1px rgba(255,255,255,0.8) !important;
+  z-index: 50 !important;
+  pointer-events: none !important;
+}
+.contract-ziply .job-right-panel::before { top: 12px !important; left: 12px !important; }
+.contract-ziply .job-right-panel::after { bottom: 12px !important; left: 12px !important; }
+.contract-ziply .left-rail__scroll::before { top: 12px !important; right: 12px !important; }
+.contract-ziply .left-rail__scroll::after { bottom: 12px !important; right: 12px !important; }
+
+/* Ziply-specific Left Rail sidebar styling */
+.contract-ziply .left-rail__scroll {
+  background: #f8fafc !important;
+  background-image: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
+  color: #0f172a !important;
+  border-right: 1px solid #cbd5e1 !important;
+  position: relative !important;
+  padding: 16px 16px 24px !important;
+}
+.contract-ziply .left-rail-tabstrip {
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 50%, #1e40af 100%) !important;
+  border-right: 2px solid #1e40af !important;
+}
+.contract-ziply .left-rail-tab {
+  color: rgba(255, 255, 255, 0.75) !important;
+  font-weight: 800 !important;
+}
+.contract-ziply .left-rail-tab:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+.contract-ziply .left-rail-tab.active {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 2px #ffffff !important;
+}
+
+/* Translucent details cards inside the job panel */
+.contract-ziply .job-right-panel__card,
+.contract-ziply .job-right-panel__811,
+.contract-ziply .job-right-panel div[style*="background: rgba(0,0,0,0.2)"],
+.contract-ziply .job-right-panel div[style*="background: rgba(255,255,255,0.03)"] {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.04) !important;
+  color: #0f172a !important;
+}
+.contract-ziply .job-right-panel h1,
+.contract-ziply .job-right-panel h2,
+.contract-ziply .job-right-panel h3,
+.contract-ziply .job-right-panel h4 {
+  color: #1d4ed8 !important; /* Royal Blue headers */
+  font-weight: 700 !important;
+}
+.contract-ziply .job-right-panel p,
+.contract-ziply .job-right-panel span,
+.contract-ziply .job-right-panel label {
+  color: #334155 !important;
 }
 

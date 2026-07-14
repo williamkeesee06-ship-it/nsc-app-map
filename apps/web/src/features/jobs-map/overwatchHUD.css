@@ -47,8 +47,8 @@
 .overwatch-hud-container {
   position: absolute;
   top: -240px; /* Hidden above toggle by default */
-  right: 0;
-  left: auto;
+  left: 0;
+  right: auto;
   transform: none;
   z-index: 39;
   width: min(420px, calc(100vw - 100px));

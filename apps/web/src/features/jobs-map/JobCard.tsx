@@ -942,6 +942,30 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           </label>
         </div>
       </div>
+      {busy && (
+        <div style={{ marginTop: 8, background: "rgba(30, 94, 255, 0.05)", borderRadius: 6, padding: 8, border: "1px solid rgba(30, 94, 255, 0.25)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+            <span style={{ fontSize: 9, fontWeight: 800, color: "#38bdf8", letterSpacing: "0.08em" }}>
+              AI INGESTION IN PROGRESS
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 900, color: "#34d399" }}>
+              {pct}%
+            </span>
+          </div>
+          <div style={{ width: "100%", height: 6, background: "rgba(255, 255, 255, 0.05)", borderRadius: 999, overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div
+              style={{
+                width: `${pct}%`,
+                height: "100%",
+                background: "linear-gradient(90deg, #1d4ed8, #3b82f6, #34d399)",
+                boxShadow: "0 0 8px #3b82f6, 0 0 15px #34d399",
+                borderRadius: 999,
+                transition: "width 0.2s ease-out",
+              }}
+            />
+          </div>
+        </div>
+      )}
       {files.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em" }}>

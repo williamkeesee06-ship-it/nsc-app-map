@@ -71,7 +71,7 @@ export default function Orb({ size = 40 }: OrbProps) {
         style={{
           position: "absolute",
           right: 16,
-          bottom: 72,
+          bottom: 140,
           width: frame,
           height: frame,
           padding: 0,
