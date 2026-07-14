@@ -726,7 +726,7 @@ function sanitizeZiplyStorageFiles(body: ZiplyIngestRequestBody) {
   return { files, legacyDataUrlCount };
 }
 
-async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): Promise<void> {
+export async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): Promise<void> {
   const ref = db().collection("jobs").doc(jobId);
 
   try {
