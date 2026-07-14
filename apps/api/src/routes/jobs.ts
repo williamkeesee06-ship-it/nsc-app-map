@@ -1476,7 +1476,7 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     });
   }
 
-  // Road-snap backbone through ordered controls (waypoints preserve station order)
+  // Road-snap backbone through ordered controls (without intermediate waypoints to prevent zig-zagging)
   const orderedCtrls = orderControls(controls, hubCoords);
   let roadBackbone: Array<{ lat: number; lng: number }> | null = null;
   if (orderedCtrls.length >= 2) {
@@ -1485,16 +1485,8 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
       lat: orderedCtrls[orderedCtrls.length - 1]!.lat,
       lng: orderedCtrls[orderedCtrls.length - 1]!.lng,
     };
-    // Sample intermediate controls as waypoints (max 8 for API cost)
-    const mid = orderedCtrls.slice(1, -1);
-    const step = Math.max(1, Math.ceil(mid.length / 8));
-    const waypoints = mid
-      .filter((_, i) => i % step === 0)
-      .slice(0, 8)
-      .map((c) => ({ lat: c.lat, lng: c.lng }));
     roadBackbone = await routeAlongRoads(origin, dest, {
       mode: "walking",
-      waypoints: waypoints.length >= 1 ? waypoints : undefined,
     });
   }
 

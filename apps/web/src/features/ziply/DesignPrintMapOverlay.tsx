@@ -626,22 +626,7 @@ export default function DesignPrintMapOverlay({
               repeat: "14px",
             },
           ]
-        : isFeeder
-          ? [
-              {
-                icon: {
-                  path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-                  scale: 2.2,
-                  strokeColor: "#FFFFFF",
-                  strokeWeight: 1,
-                  fillColor: color,
-                  fillOpacity: 1,
-                },
-                offset: "0%",
-                repeat: "52px",
-              },
-            ]
-          : undefined;
+        : undefined;
 
       return {
         visible,

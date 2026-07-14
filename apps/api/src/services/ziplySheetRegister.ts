@@ -332,11 +332,6 @@ export function preferSkeletonOrRoad(
   maxDetourRatio = 1.65
 ): LatLng[] {
   if (!road || road.length < 3) return skeleton;
-  const skLen = pathLengthM(skeleton);
-  const rdLen = pathLengthM(road);
-  if (skLen < 5) return road;
-  if (rdLen / skLen > maxDetourRatio) return skeleton;
-  // Also reject road that misses most controls (average residual)
   return road;
 }
 
