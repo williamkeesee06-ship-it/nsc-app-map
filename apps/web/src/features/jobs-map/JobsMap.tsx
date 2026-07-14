@@ -570,7 +570,7 @@ function JobsMapInner({
       />
 
       <div className="jobs-map__main">
-        {contract !== "Ziply" && <ModifiersPanel />}
+        {!sheetExperiment && <ModifiersPanel />}
         <JobsShownPill shown={mapped.length} total={allJobs.length} />
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
           {/* All floating map HUD lives here so it cannot sit under the app topbar */}
@@ -666,7 +666,7 @@ function JobsMapInner({
                   allJobs={allJobs}
                 />
               )}
-              {contract !== "Ziply" && !sheetExperiment && (
+              {!sheetExperiment && (
                 <AllJobsMarkupsOverlay
                   onMarkupClick={(jobId) => {
                     const j = allJobs.find((x) => x.jobId === jobId);
@@ -693,7 +693,7 @@ function JobsMapInner({
                   />
                 )}
               </Suspense>
-              {contract !== "Ziply" && !sheetExperiment && <DrawingOverlay />}
+              {!sheetExperiment && <DrawingOverlay />}
               {!sheetExperiment && <SavedDigShapeOverlay />}
               {!sheetExperiment && filters.showDigPolygons !== false && (
                 <>
