@@ -18,7 +18,11 @@ interface GoogleGeocodeResult {
 
 function getApiKey(): string {
   const env = getEnv();
-  const key = env.GOOGLE_GEOCODING_API_KEY ?? env.VITE_GOOGLE_MAPS_API_KEY;
+  const key =
+    (env.GOOGLE_GEOCODING_API_KEY || "").trim() ||
+    (env.VITE_GOOGLE_MAPS_API_KEY || "").trim() ||
+    (process.env.GOOGLE_MAPS_API_KEY || "").trim() ||
+    (process.env.VITE_GOOGLE_MAPS_API_KEY || "").trim();
   if (!key) {
     throw new Error(
       "[geocode] No API key available (set GOOGLE_GEOCODING_API_KEY or VITE_GOOGLE_MAPS_API_KEY)"

@@ -15,6 +15,7 @@ import {
 import { useMap } from "@vis.gl/react-google-maps";
 import FeatureDetailSheet, { type PlatformFeature } from "./FeatureDetailSheet.js";
 import { api } from "../../lib/api.js";
+import type { Job } from "@nsc/types";
 
 export type LayerKey =
   | "feeder"
@@ -258,11 +259,13 @@ function makeMarkerIcon(
 interface Props {
   active: boolean;
   geojsonUrl?: string;
+  job?: Job | null;
 }
 
 export default function DesignPrintMapOverlay({
   active,
   geojsonUrl = "/experiments/lake-stevens/h2043/platform.geojson",
+  job,
 }: Props) {
   const map = useMap();
   const glowRef = useRef<google.maps.Data | null>(null);
@@ -392,23 +395,102 @@ export default function DesignPrintMapOverlay({
   }, [active]);
 
   useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    fetch(geojsonUrl)
-      .then((r) => {
-        if (!r.ok) throw new Error(`GeoJSON ${r.status}`);
-        return r.json() as Promise<FeatureCollection>;
-      })
-      .then((data) => {
-        if (!cancelled) setFc(data);
-      })
-      .catch((e) => {
-        if (!cancelled) setErr(e instanceof Error ? e.message : "Load failed");
+    if (!active || !job) return;
+    const mo = job.ziplyPrintLayer?.mapObjects;
+    if (!mo) return;
+
+    const newFeatures: any[] = [];
+
+    // Hub
+    if (mo.hub && (mo.hub.lat != null || mo.hub.lng != null)) {
+      newFeatures.push({
+        type: "Feature",
+        id: "hub",
+        geometry: { type: "Point", coordinates: [mo.hub.lng ?? 0, mo.hub.lat ?? 0] },
+        properties: {
+          layer: "hub",
+          type: "point",
+          label: job.ziplyPrintLayer?.hubId || "FDH",
+          status: mo.hub.status || "planned"
+        }
       });
+    }
+
+    // Terminals
+    for (const t of mo.terminals || []) {
+      if (t.lat != null && t.lng != null) {
+        newFeatures.push({
+          type: "Feature",
+          id: `term-${t.label}`,
+          geometry: { type: "Point", coordinates: [t.lng, t.lat] },
+          properties: {
+            layer: "terminal",
+            type: "point",
+            label: t.label,
+            status: t.status || "planned",
+            portCount: t.portCount,
+            addressesServed: t.addressesServed
+          }
+        });
+      }
+    }
+
+    // Cables
+    for (const c of mo.cables || []) {
+      if (c.path && c.path.length >= 2) {
+        newFeatures.push({
+          type: "Feature",
+          id: `cable-${c.label}`,
+          geometry: {
+            type: "LineString",
+            coordinates: c.path.map((p: any) => [p.lng, p.lat])
+          },
+          properties: {
+            layer: c.role || "distribution",
+            type: "line",
+            label: c.label,
+            status: c.status || "planned",
+            fiberCount: c.fiberCount,
+            lengthFt: c.lengthFt
+          }
+        });
+      }
+    }
+
+    if (newFeatures.length > 0) {
+      setFc({
+        type: "FeatureCollection",
+        features: newFeatures as any
+      });
+    }
+  }, [active, job]);
+
+  useEffect(() => {
+    if (!active) return;
+    // Only fetch static geojson if we don't have direct database mapObjects
+    if (job?.ziplyPrintLayer?.mapObjects) return;
+
+    let cancelled = false;
+    const load = () => {
+      fetch(geojsonUrl + "?t=" + Date.now())
+        .then((r) => {
+          if (!r.ok) throw new Error(`GeoJSON ${r.status}`);
+          return r.json() as Promise<FeatureCollection>;
+        })
+        .then((data) => {
+          if (!cancelled) setFc(data);
+        })
+        .catch((e) => {
+          if (!cancelled) setErr(e instanceof Error ? e.message : "Load failed");
+        });
+    };
+    load();
+    window.addEventListener("nsc:ziply-geojson-reload", load);
     return () => {
       cancelled = true;
+      window.removeEventListener("nsc:ziply-geojson-reload", load);
     };
-  }, [active, geojsonUrl]);
+  }, [active, geojsonUrl, job]);
 
   useEffect(() => {
     if (!map || !active) return;
