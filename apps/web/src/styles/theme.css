@@ -501,13 +501,27 @@ button:hover,
 .contract-ziply .job-right-panel h1,
 .contract-ziply .job-right-panel h2,
 .contract-ziply .job-right-panel h3,
-.contract-ziply .job-right-panel h4 {
+.contract-ziply .job-right-panel h4,
+.contract-ziply .left-rail__scroll h1,
+.contract-ziply .left-rail__scroll h2,
+.contract-ziply .left-rail__scroll h3,
+.contract-ziply .left-rail__scroll h4,
+.contract-ziply .left-rail-panel h1,
+.contract-ziply .left-rail-panel h2,
+.contract-ziply .left-rail-panel h3,
+.contract-ziply .left-rail-panel h4 {
   color: #1d4ed8 !important; /* Royal Blue headers */
   font-weight: 700 !important;
 }
 .contract-ziply .job-right-panel p,
 .contract-ziply .job-right-panel span,
-.contract-ziply .job-right-panel label {
+.contract-ziply .job-right-panel label,
+.contract-ziply .left-rail__scroll p,
+.contract-ziply .left-rail__scroll span,
+.contract-ziply .left-rail__scroll label,
+.contract-ziply .left-rail-panel p,
+.contract-ziply .left-rail-panel span,
+.contract-ziply .left-rail-panel label {
   color: #334155 !important;
 }
 

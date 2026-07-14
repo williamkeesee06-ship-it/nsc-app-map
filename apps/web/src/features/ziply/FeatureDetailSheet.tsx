@@ -289,13 +289,22 @@ function ProgressTab({
 }
 
 const sheet: CSSProperties = {
-  background: "rgba(15, 23, 42, 0.75)",
-  backdropFilter: "blur(16px)",
-  WebkitBackdropFilter: "blur(16px)",
-  border: "1px solid #334155",
-  borderRadius: 16,
+  position: "absolute",
+  top: 16,
+  left: 16,
+  bottom: 16,
+  width: 380,
+  zIndex: 9999,
+  background: "rgba(15, 23, 42, 0.85)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  border: "1px solid rgba(255, 255, 255, 0.12)",
+  borderRadius: 12,
   padding: 20,
   fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif",
+  display: "flex",
+  flexDirection: "column",
+  boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
 };
 
 const tabsRow: CSSProperties = {

@@ -259,13 +259,15 @@ function makeMarkerIcon(
 interface Props {
   active: boolean;
   geojsonUrl?: string;
-  job?: Job | null;
+  jobs?: Job[];
+  selectedJob?: Job | null;
 }
 
 export default function DesignPrintMapOverlay({
   active,
   geojsonUrl = "/experiments/lake-stevens/h2043/platform.geojson",
-  job,
+  jobs = [],
+  selectedJob,
 }: Props) {
   const map = useMap();
   const glowRef = useRef<google.maps.Data | null>(null);
@@ -395,65 +397,71 @@ export default function DesignPrintMapOverlay({
   }, [active]);
 
   useEffect(() => {
-    if (!active || !job) return;
-    const mo = job.ziplyPrintLayer?.mapObjects;
-    if (!mo) return;
+    if (!active || !jobs || jobs.length === 0) return;
 
     const newFeatures: any[] = [];
 
-    // Hub
-    if (mo.hub && (mo.hub.lat != null || mo.hub.lng != null)) {
-      newFeatures.push({
-        type: "Feature",
-        id: "hub",
-        geometry: { type: "Point", coordinates: [mo.hub.lng ?? 0, mo.hub.lat ?? 0] },
-        properties: {
-          layer: "hub",
-          type: "point",
-          label: job.ziplyPrintLayer?.hubId || "FDH",
-          status: mo.hub.status || "planned"
-        }
-      });
-    }
+    for (const j of jobs) {
+      const mo = j.ziplyPrintLayer?.mapObjects;
+      if (!mo) continue;
 
-    // Terminals
-    for (const t of mo.terminals || []) {
-      if (t.lat != null && t.lng != null) {
+      // Hub
+      if (mo.hub && (mo.hub.lat != null || mo.hub.lng != null)) {
         newFeatures.push({
           type: "Feature",
-          id: `term-${t.label}`,
-          geometry: { type: "Point", coordinates: [t.lng, t.lat] },
+          id: `hub-${j.jobId}`,
+          geometry: { type: "Point", coordinates: [mo.hub.lng ?? 0, mo.hub.lat ?? 0] },
           properties: {
-            layer: "terminal",
+            layer: "hub",
             type: "point",
-            label: t.label,
-            status: t.status || "planned",
-            portCount: t.portCount,
-            addressesServed: t.addressesServed
+            label: j.ziplyPrintLayer?.hubId || "FDH",
+            status: mo.hub.status || "planned",
+            jobId: j.jobId
           }
         });
       }
-    }
 
-    // Cables
-    for (const c of mo.cables || []) {
-      if (c.path && c.path.length >= 2) {
-        newFeatures.push({
-          type: "Feature",
-          id: `cable-${c.label}`,
-          geometry: {
-            type: "LineString",
-            coordinates: c.path.map((p: any) => [p.lng, p.lat])
-          },
-          properties: {
-            layer: c.role || "distribution",
-            type: "line",
-            label: c.label,
-            status: c.status || "planned",
-            fiberCount: c.fiberCount,
-            lengthFt: c.lengthFt
-          }
-        });
+      // Terminals
+      for (const t of mo.terminals || []) {
+        if (t.lat != null && t.lng != null) {
+          newFeatures.push({
+            type: "Feature",
+            id: `term-${j.jobId}-${t.label}`,
+            geometry: { type: "Point", coordinates: [t.lng, t.lat] },
+            properties: {
+              layer: "terminal",
+              type: "point",
+              label: t.label,
+              status: t.status || "planned",
+              portCount: t.portCount,
+              addressesServed: t.addressesServed,
+              jobId: j.jobId
+            }
+          });
+        }
+      }
+
+      // Cables
+      for (const c of mo.cables || []) {
+        if (c.path && c.path.length >= 2) {
+          newFeatures.push({
+            type: "Feature",
+            id: `cable-${j.jobId}-${c.label}`,
+            geometry: {
+              type: "LineString",
+              coordinates: c.path.map((p: any) => [p.lng, p.lat])
+            },
+            properties: {
+              layer: c.role || "distribution",
+              type: "line",
+              label: c.label,
+              status: c.status || "planned",
+              fiberCount: c.fiberCount,
+              lengthFt: c.lengthFt,
+              jobId: j.jobId
+            }
+          });
+        }
       }
     }
 
@@ -462,35 +470,36 @@ export default function DesignPrintMapOverlay({
         type: "FeatureCollection",
         features: newFeatures as any
       });
+    } else {
+      setFc(null);
     }
-  }, [active, job]);
+  }, [active, jobs]);
 
+  // Fit bounds to selected job ONLY when selectedJob changes
   useEffect(() => {
-    if (!active) return;
-    // Only fetch static geojson if we don't have direct database mapObjects
-    if (job?.ziplyPrintLayer?.mapObjects) return;
+    if (!map || !active || !selectedJob) return;
+    const mo = selectedJob.ziplyPrintLayer?.mapObjects;
+    if (!mo) return;
 
-    let cancelled = false;
-    const load = () => {
-      fetch(geojsonUrl + "?t=" + Date.now())
-        .then((r) => {
-          if (!r.ok) throw new Error(`GeoJSON ${r.status}`);
-          return r.json() as Promise<FeatureCollection>;
-        })
-        .then((data) => {
-          if (!cancelled) setFc(data);
-        })
-        .catch((e) => {
-          if (!cancelled) setErr(e instanceof Error ? e.message : "Load failed");
-        });
-    };
-    load();
-    window.addEventListener("nsc:ziply-geojson-reload", load);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("nsc:ziply-geojson-reload", load);
-    };
-  }, [active, geojsonUrl, job]);
+    const bounds = new google.maps.LatLngBounds();
+    let n = 0;
+
+    if (mo.hub && mo.hub.lat != null && mo.hub.lng != null) {
+      bounds.extend({ lat: mo.hub.lat, lng: mo.hub.lng });
+      n++;
+    }
+
+    for (const t of mo.terminals || []) {
+      if (t.lat != null && t.lng != null) {
+        bounds.extend({ lat: t.lat, lng: t.lng });
+        n++;
+      }
+    }
+
+    if (n > 0) {
+      map.fitBounds(bounds, 80);
+    }
+  }, [map, active, selectedJob]);
 
   useEffect(() => {
     if (!map || !active) return;
@@ -522,30 +531,7 @@ export default function DesignPrintMapOverlay({
     };
   }, [map, active]);
 
-  useEffect(() => {
-    if (!map || !active || !fc) return;
-    const bounds = new google.maps.LatLngBounds();
-    let n = 0;
-    for (const f of fc.features) {
-      const g = f.geometry;
-      if (!g) continue;
-      if (g.type === "Point") {
-        const [lng, lat] = g.coordinates as [number, number];
-        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-          bounds.extend({ lat, lng });
-          n++;
-        }
-      } else if (g.type === "LineString") {
-        for (const c of g.coordinates as [number, number][]) {
-          if (Number.isFinite(c[0]) && Number.isFinite(c[1])) {
-            bounds.extend({ lat: c[1], lng: c[0] });
-            n++;
-          }
-        }
-      }
-    }
-    if (n > 0) map.fitBounds(bounds, 64);
-  }, [map, active, fc]);
+
 
   useEffect(() => {
     if (!map || !active || !fc) {
@@ -778,7 +764,28 @@ export default function DesignPrintMapOverlay({
         <FeatureDetailSheet
           feature={selected}
           onClose={() => setSelected(null)}
-          onStatusChange={(status) => {
+          onStatusChange={async (status) => {
+            const jobId = selected.properties.jobId as string | undefined;
+            const label = selected.properties.label as string | undefined;
+            const layer = selected.properties.layer as string | undefined;
+
+            let kind: "hub" | "terminal" | "cable" = "cable";
+            if (layer === "hub") kind = "hub";
+            else if (layer === "terminal") kind = "terminal";
+
+            if (jobId && label) {
+              try {
+                await api.updateZiplyObjectStatus(jobId, {
+                  kind,
+                  ref: label,
+                  status: status as any
+                });
+                window.dispatchEvent(new Event("nsc:jobs-reload"));
+              } catch (ex) {
+                console.error("Failed to update status", ex);
+              }
+            }
+
             setSelected((prev) =>
               prev
                 ? { ...prev, properties: { ...prev.properties, status } }

@@ -329,6 +329,10 @@ function JobsMapInner({
   const [panelTheme, setPanelTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
   const [ziplyPrintLayerVisible, setZiplyPrintLayerVisible] = useState(true);
   const [ziply811OverlayVisible, setZiply811OverlayVisible] = useState(false);
+  const ziplyJobs = useMemo(
+    () => allJobs.filter((j) => j.customerProject === "Ziply"),
+    [allJobs]
+  );
 
   // ── Dual-Pane Street View (#5) ──────────────────────────
   const panoRef = useRef<HTMLDivElement>(null);
@@ -565,7 +569,7 @@ function JobsMapInner({
               <CentralOfficesOverlay visible={showCOs} />
               <Suspense fallback={null}>
                 {contract === "Ziply" && (
-                  <DesignPrintMapOverlay active job={selected} />
+                  <DesignPrintMapOverlay active jobs={ziplyJobs} selectedJob={selected} />
                 )}
               </Suspense>
               <DrawingOverlay />

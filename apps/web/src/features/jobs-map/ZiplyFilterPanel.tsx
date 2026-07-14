@@ -405,8 +405,8 @@ export default function ZiplyFilterPanel({
       <div
         style={{
           padding: 8,
-          background: "rgba(30, 94, 255,0.08)",
-          border: "1px solid rgba(30, 94, 255,0.25)",
+          background: "rgba(29, 78, 216, 0.05)",
+          border: "1px solid rgba(29, 78, 216, 0.15)",
           borderRadius: 6,
         }}
       >
@@ -418,6 +418,7 @@ export default function ZiplyFilterPanel({
             cursor: "pointer",
             fontSize: 11,
             fontWeight: 700,
+            color: "#0f172a",
           }}
         >
           <input
@@ -428,12 +429,12 @@ export default function ZiplyFilterPanel({
             }
             style={{ accentColor: "#1d4ed8" }}
           />
-          <span>NORTH METRO ONLY</span>
-          <span style={{ marginLeft: "auto", fontSize: 10, color: "#6b7280" }}>
+          <span style={{ color: "#0f172a" }}>NORTH METRO ONLY</span>
+          <span style={{ marginLeft: "auto", fontSize: 10, color: "#475569" }}>
             {northMetroJobs.length}
           </span>
         </label>
-        <p style={{ margin: "4px 0 0 20px", fontSize: 9, color: "#9ca3af" }}>
+        <p style={{ margin: "4px 0 0 20px", fontSize: 9, color: "#475569" }}>
           Filters to North Metro cities (Lynnwood, Everett, Edmonds, …) or jobs
           whose construction base says North Metro.
         </p>
@@ -448,43 +449,49 @@ export default function ZiplyFilterPanel({
             fontWeight: 700,
             marginBottom: 6,
             textTransform: "uppercase",
-            color: "#9ca3af",
+            color: "#1d4ed8",
             letterSpacing: "0.05em",
           }}
         >
           Print documents
         </span>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {PRINT_FILTERS.map((opt) => (
-            <label
-              key={opt.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "5px 8px",
-                background:
-                  (filters.ziplyPrintFilter ?? "all") === opt.id
-                    ? "rgba(30, 94, 255,0.12)"
-                    : "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: 4,
-                fontSize: 11,
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="radio"
-                name="ziply-print-filter"
-                checked={(filters.ziplyPrintFilter ?? "all") === opt.id}
-                onChange={() =>
-                  setFilters({ ...filters, ziplyPrintFilter: opt.id })
-                }
-                style={{ accentColor: "#1d4ed8" }}
-              />
-              <span>{opt.label}</span>
-            </label>
-          ))}
+          {PRINT_FILTERS.map((opt) => {
+            const isSelected = (filters.ziplyPrintFilter ?? "all") === opt.id;
+            return (
+              <label
+                key={opt.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "5px 8px",
+                  background: isSelected
+                    ? "rgba(29, 78, 216, 0.08)"
+                    : "rgba(29, 78, 216, 0.02)",
+                  border: isSelected
+                    ? "1px solid rgba(29, 78, 216, 0.25)"
+                    : "1px solid rgba(29, 78, 216, 0.08)",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  cursor: "pointer",
+                  color: isSelected ? "#0f172a" : "#475569",
+                  fontWeight: isSelected ? 700 : 500,
+                }}
+              >
+                <input
+                  type="radio"
+                  name="ziply-print-filter"
+                  checked={isSelected}
+                  onChange={() =>
+                    setFilters({ ...filters, ziplyPrintFilter: opt.id })
+                  }
+                  style={{ accentColor: "#1d4ed8" }}
+                />
+                <span style={{ color: isSelected ? "#0f172a" : "#475569" }}>{opt.label}</span>
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -492,8 +499,8 @@ export default function ZiplyFilterPanel({
       <div
         style={{
           padding: 8,
-          background: "rgba(30, 94, 255,0.06)",
-          border: "1px solid rgba(30, 94, 255,0.15)",
+          background: "rgba(29, 78, 216, 0.05)",
+          border: "1px solid rgba(29, 78, 216, 0.15)",
           borderRadius: 6,
         }}
       >
@@ -505,6 +512,7 @@ export default function ZiplyFilterPanel({
             cursor: "pointer",
             fontSize: 11,
             fontWeight: 700,
+            color: "#0f172a",
           }}
         >
           <input
@@ -513,9 +521,9 @@ export default function ZiplyFilterPanel({
             onChange={(e) => setZiplyPrintLayerVisible(e.target.checked)}
             style={{ accentColor: "#1d4ed8" }}
           />
-          <span>SHOW PRINT DESIGN LAYER</span>
+          <span style={{ color: "#0f172a" }}>SHOW PRINT DESIGN LAYER</span>
         </label>
-        <p style={{ margin: "4px 0 0 20px", fontSize: 9, color: "#9ca3af" }}>
+        <p style={{ margin: "4px 0 0 20px", fontSize: 9, color: "#475569" }}>
           Overlay hubs, terminals, and cables for jobs that already ingested a
           print ({printCounts.ready} ready).
         </p>
@@ -525,15 +533,15 @@ export default function ZiplyFilterPanel({
         <div
           style={{
             padding: 10,
-            background: "rgba(255, 255, 255, 0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(29, 78, 216, 0.04)",
+            border: "1px solid rgba(29, 78, 216, 0.1)",
             borderRadius: 6,
             display: "flex",
             flexDirection: "column",
             gap: 6,
           }}
         >
-          <span style={{ fontSize: 9, fontWeight: 800, color: "#38bdf8", letterSpacing: "0.08em" }}>
+          <span style={{ fontSize: 10, fontWeight: 800, color: "#1d4ed8", letterSpacing: "0.08em" }}>
             FIELD OPS LAYER CONTROLS
           </span>
           <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 4 }}>
@@ -550,10 +558,10 @@ export default function ZiplyFilterPanel({
                     display: "flex",
                     alignItems: "center",
                     padding: "4px 6px",
-                    background: on ? "rgba(255,255,255,0.04)" : "transparent",
-                    border: "none",
+                    background: on ? "rgba(29, 78, 216, 0.08)" : "transparent",
+                    border: on ? "1px solid rgba(29, 78, 216, 0.15)" : "1px solid transparent",
                     borderRadius: 4,
-                    color: on ? "#fff" : "#9ca3af",
+                    color: on ? "#0f172a" : "#475569",
                     fontSize: 10,
                     cursor: "pointer",
                     textAlign: "left",
@@ -570,12 +578,12 @@ export default function ZiplyFilterPanel({
                       boxShadow: on ? `0 0 8px ${meta.color}` : "none",
                     }}
                   />
-                  <span style={{ flex: 1 }}>{meta.label}</span>
+                  <span style={{ flex: 1, fontWeight: on ? 700 : 500 }}>{meta.label}</span>
                   <span style={{ fontSize: 9, opacity: 0.6, marginRight: 8 }}>{count}</span>
                   <span style={{
                     fontSize: 8,
                     fontWeight: 800,
-                    color: on ? "#34d399" : "#f43f5e",
+                    color: on ? "#059669" : "#dc2626",
                   }}>
                     {on ? "ON" : "OFF"}
                   </span>
