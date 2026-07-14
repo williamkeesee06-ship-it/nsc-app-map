@@ -46,7 +46,7 @@ import LuminaMapBridge from "../lumina/MapBridge.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 /** Phase D: code-split Print CAD overlay (~large) */
 const ZiplyPrintOverlay = lazy(() => import("./ZiplyPrintOverlay.js"));
-const PlanSheetExperiment = lazy(() => import("../ziply/PlanSheetExperiment.js"));
+
 const DesignPrintMapOverlay = lazy(
   () => import("../ziply/DesignPrintMapOverlay.js")
 );
@@ -681,8 +681,6 @@ function JobsMapInner({
                   <>
                     {/* Primary: print-faithful multi-layer platform GeoJSON */}
                     <DesignPrintMapOverlay active />
-                    {/* Optional plan-page raster underlay (toggle inside panel) */}
-                    <PlanSheetExperiment active />
                   </>
                 ) : (
                   <ZiplyPrintOverlay

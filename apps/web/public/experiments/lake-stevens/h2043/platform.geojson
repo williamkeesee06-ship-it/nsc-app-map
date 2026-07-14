@@ -1,0 +1,157 @@
+{
+  "type": "FeatureCollection",
+  "name": "H2043_Lake_Stevens_Platform",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "metadata": {
+    "projectId": "H2043",
+    "workOrder": "6007556",
+    "city": "Snohomish, WA",
+    "hub": {
+      "lat": 47.9,
+      "lng": -122.05
+    },
+    "stats": {
+      "services": 155,
+      "terminals": 36,
+      "cables": 100
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "hub-H2043",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.05,
+          47.9
+        ]
+      },
+      "properties": {
+        "type": "hub",
+        "layer": "hub",
+        "terminalId": "H2043",
+        "hubId": "H2043",
+        "label": "FDH H2043 — 432-port vault",
+        "address": "15718 Dubuque Rd, Snohomish WA",
+        "status": "spliced"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "feeder-mainline",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.05,
+            47.9
+          ],
+          [
+            -122.051,
+            47.901
+          ],
+          [
+            -122.052,
+            47.902
+          ],
+          [
+            -122.053,
+            47.9015
+          ],
+          [
+            -122.055,
+            47.903
+          ]
+        ]
+      },
+      "properties": {
+        "type": "feeder",
+        "layer": "feeder",
+        "cableId": "MAINLINE-H2043",
+        "fiberCount": 288,
+        "label": "Mainline Feeder",
+        "status": "fiber_placed",
+        "lengthM": 1500
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "terminal-t1",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.055,
+          47.903
+        ]
+      },
+      "properties": {
+        "type": "terminal",
+        "layer": "terminal",
+        "terminalId": "T1",
+        "label": "T1 (2421.201) 164th Dr SE",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "dist-t1",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.055,
+            47.903
+          ],
+          [
+            -122.056,
+            47.9035
+          ],
+          [
+            -122.057,
+            47.904
+          ]
+        ]
+      },
+      "properties": {
+        "type": "distribution",
+        "layer": "distribution",
+        "cableId": "DIST-T1",
+        "fiberCount": 48,
+        "label": "T1 Distribution",
+        "status": "designed",
+        "lengthM": 300
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "drop-1",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.055,
+            47.903
+          ],
+          [
+            -122.0545,
+            47.9035
+          ]
+        ]
+      },
+      "properties": {
+        "type": "drop",
+        "layer": "drop",
+        "cableId": "DROP-4433",
+        "label": "Drop to 4433 164th Dr SE",
+        "status": "live",
+        "lengthM": 50
+      }
+    }
+  ]
+}

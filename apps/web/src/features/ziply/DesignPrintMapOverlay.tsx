@@ -116,11 +116,10 @@ const STATUS_TINT: Record<string, string | null> = {
   designed: null,
   planned: null,
   permitted: "#2563EB",
-  ticket_active: "#CA8A04",
-  in_progress: "#EA580C",
-  in_progress_alt: "#2563EB",
-  placed: "#0D9488",
-  spliced: "#1D4ED8",
+  conduit_placed: "#0EA5E9",
+  fiber_placed: "#F59E0B",
+  spliced: "#A855F7",
+  live: "#39FF14",
   tested: "#16A34A",
   complete: "#15803D",
   on_hold: "#DC2626",
@@ -161,32 +160,38 @@ function makeMarkerIcon(
   const s = 64;
   let body = "";
   if (kind === "hub") {
+    // Legend: HUB/SPLITTER is a circle with a chevron/triangle inside
     body = `
-      <polygon points="32,8 52,18 52,38 32,48 12,38 12,18"
-        fill="url(#steel)" stroke="${color}" stroke-width="2.8"/>
-      <circle cx="32" cy="28" r="8" fill="${color}" stroke="#FFFFFF" stroke-width="2"/>
-      <circle cx="32" cy="28" r="3.2" fill="#FFFFFF"/>`;
+      <circle cx="32" cy="32" r="20" fill="url(#steel)" stroke="${color}" stroke-width="2.8"/>
+      <polygon points="26,20 44,32 26,44" fill="${color}"/>
+    `;
   } else if (kind === "terminal") {
+    // Legend: SPLICE CHEVRON is a triangle
     body = `
-      <polygon points="32,10 50,32 32,54 14,32"
-        fill="url(#steel)" stroke="${color}" stroke-width="2.6"/>
-      <polygon points="32,20 42,32 32,44 22,32" fill="${color}" opacity="0.9"/>
-      <circle cx="32" cy="32" r="3" fill="#FFFFFF"/>`;
+      <polygon points="16,20 48,32 16,44" fill="url(#steel)" stroke="${color}" stroke-width="2.6"/>
+      <circle cx="24" cy="32" r="3" fill="${color}"/>
+    `;
   } else if (kind === "pole") {
+    // Legend: POLE is a circle with a dot/number
     body = `
       <circle cx="32" cy="32" r="12" fill="url(#steel)" stroke="${color}" stroke-width="2.4"/>
-      <line x1="32" y1="18" x2="32" y2="46" stroke="${color}" stroke-width="2.6"/>
-      <line x1="18" y1="32" x2="46" y2="32" stroke="${color}" stroke-width="2.6"/>`;
+      <circle cx="32" cy="32" r="4" fill="${color}"/>
+    `;
   } else if (kind === "handhole") {
+    // Legend: HANDHOLE is a square with an internal pattern (4 squares/cross)
     body = `
-      <rect x="15" y="15" width="34" height="34" rx="5"
-        fill="url(#carbon)" stroke="${color}" stroke-width="2.4"/>
-      <rect x="24" y="24" width="16" height="16" rx="2" fill="#FFFFFF" opacity="0.85"/>`;
+      <rect x="16" y="16" width="32" height="32" fill="url(#carbon)" stroke="${color}" stroke-width="2.4"/>
+      <rect x="22" y="22" width="8" height="8" fill="#FFFFFF" opacity="0.8"/>
+      <rect x="34" y="22" width="8" height="8" fill="#FFFFFF" opacity="0.8"/>
+      <rect x="22" y="34" width="8" height="8" fill="#FFFFFF" opacity="0.8"/>
+      <rect x="34" y="34" width="8" height="8" fill="#FFFFFF" opacity="0.8"/>
+    `;
   } else {
+    // Default service point
     body = `
       <circle cx="32" cy="32" r="13" fill="url(#steel)" stroke="${color}" stroke-width="2.4"/>
       <circle cx="32" cy="32" r="5" fill="${color}"/>
-      <circle cx="32" cy="32" r="2" fill="#FFFFFF"/>`;
+    `;
   }
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
@@ -236,7 +241,7 @@ interface Props {
 
 export default function DesignPrintMapOverlay({
   active,
-  geojsonUrl = "/experiments/lake-stevens/h3024/platform.geojson",
+  geojsonUrl = "/experiments/lake-stevens/h2043/platform.geojson",
 }: Props) {
   const map = useMap();
   const glowRef = useRef<google.maps.Data | null>(null);
@@ -296,8 +301,8 @@ export default function DesignPrintMapOverlay({
     try {
       map.setOptions({
         tilt: 35,
-        styles: STEEL_MAP_STYLES,
-        backgroundColor: "#F1F5F9",
+        styles: DARK_NEON_STYLES,
+        backgroundColor: "#0F172A",
       });
     } catch {
       /* optional */
@@ -660,60 +665,39 @@ export default function DesignPrintMapOverlay({
   );
 }
 
-/** Clean light map with steel roads — not dark mode */
-const STEEL_MAP_STYLES: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#F4F7FB" }] },
+const DARK_NEON_STYLES: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#0F172A" }] },
   { elementType: "labels.text.fill", stylers: [{ color: "#475569" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#FFFFFF" }] },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#FFFFFF" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#CBD5E1" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [{ color: "#E2E8F0" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#94A3B8" }],
-  },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#0F172A" }] },
   {
     featureType: "water",
     elementType: "geometry",
-    stylers: [{ color: "#DBEAFE" }],
+    stylers: [{ color: "#020617" }],
+  },
+  {
+    featureType: "landscape.man_made",
+    elementType: "geometry",
+    stylers: [{ color: "#1E293B" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#334155" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#475569" }],
+  },
+  {
+    featureType: "transit.line",
+    elementType: "geometry",
+    stylers: [{ visibility: "off" }],
   },
   {
     featureType: "poi",
-    elementType: "geometry",
-    stylers: [{ color: "#EEF2F7" }],
-  },
-  {
-    featureType: "poi.park",
-    elementType: "geometry",
-    stylers: [{ color: "#E8F0E9" }],
-  },
-  {
-    featureType: "landscape",
-    elementType: "geometry",
-    stylers: [{ color: "#F1F5F9" }],
-  },
-  {
-    featureType: "administrative",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#94A3B8" }],
-  },
-  {
-    featureType: "transit",
-    elementType: "geometry",
-    stylers: [{ color: "#E2E8F0" }],
+    elementType: "labels",
+    stylers: [{ visibility: "off" }],
   },
 ];
 
@@ -732,13 +716,15 @@ const HUD_CSS = `
   padding: 14px 14px 12px;
   border-radius: 14px;
   background:
-    linear-gradient(165deg, #FFFFFF 0%, #F1F5F9 48%, #E2E8F0 100%);
-  border: 1px solid #94A3B8;
+    linear-gradient(165deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid #334155;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow:
     0 14px 40px rgba(15, 23, 42, 0.18),
     inset 0 1px 0 rgba(255,255,255,0.95),
     inset 0 -1px 0 rgba(148,163,184,0.35);
-  color: #0F172A;
+  color: #F8FAFC;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 .h3024-hud-header {
@@ -766,23 +752,23 @@ const HUD_CSS = `
   font-weight: 800;
   letter-spacing: 0.12em;
   font-size: 12px;
-  color: #1E3A8A;
+  color: #60A5FA;
 }
 .h3024-hud-sub {
   font-size: 10px;
-  color: #64748B;
+  color: #94A3B8;
   margin-top: 2px;
   line-height: 1.4;
   letter-spacing: 0.03em;
 }
 .h3024-hud-metrics {
-  color: #1D4ED8;
+  color: #38BDF8;
   font-weight: 700;
 }
 .h3024-hud-divider {
   height: 1px;
   margin: 12px 0 10px;
-  background: linear-gradient(90deg, transparent, #94A3B8, transparent);
+  background: linear-gradient(90deg, transparent, #334155, transparent);
 }
 .h3024-layer-list {
   display: flex;
@@ -797,21 +783,21 @@ const HUD_CSS = `
   width: 100%;
   text-align: left;
   border: 1px solid transparent;
-  background: rgba(255,255,255,0.55);
-  color: #0F172A;
+  background: rgba(30,41,59,0.55);
+  color: #F8FAFC;
   border-radius: 10px;
   padding: 7px 8px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 .h3024-layer-row.on {
-  background: linear-gradient(90deg, rgba(29,78,216,0.10), rgba(255,255,255,0.7));
-  border-color: rgba(29, 78, 216, 0.28);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.8);
+  background: linear-gradient(90deg, rgba(56,189,248,0.15), rgba(30,41,59,0.8));
+  border-color: rgba(56,189,248,0.35);
+  box-shadow: inset 0 0 0 1px rgba(56,189,248,0.1);
 }
 .h3024-layer-row.off {
   opacity: 0.48;
-  background: rgba(241,245,249,0.7);
+  background: rgba(15,23,42,0.6);
 }
 .h3024-layer-row:hover {
   border-color: rgba(29, 78, 216, 0.45);
@@ -826,7 +812,7 @@ const HUD_CSS = `
 .h3024-layer-label {
   font-size: 11px;
   font-weight: 650;
-  color: #0F172A;
+  color: #E2E8F0;
 }
 .h3024-layer-count {
   font-size: 10px;
@@ -839,9 +825,9 @@ const HUD_CSS = `
   letter-spacing: 0.08em;
   padding: 2px 7px;
   border-radius: 999px;
-  border: 1px solid #CBD5E1;
-  color: #64748B;
-  background: #FFFFFF;
+  border: 1px solid #475569;
+  color: #94A3B8;
+  background: #1E293B;
 }
 .h3024-layer-toggle.on {
   color: #FFFFFF;
