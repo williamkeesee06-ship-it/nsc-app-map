@@ -194,25 +194,24 @@ function makeMarkerIcon(
       <circle cx="24" cy="32" r="3" fill="${color}"/>
     `;
   } else if (kind === "pole") {
-    // Legend: POLE is a circle with a dot/number
+    // Legend: POLE is a circle with a cross (X) inside
     body = `
-      <circle cx="32" cy="32" r="12" fill="url(#steel)" stroke="${color}" stroke-width="2.4"/>
-      <circle cx="32" cy="32" r="4" fill="${color}"/>
+      <circle cx="32" cy="32" r="14" fill="url(#steel)" stroke="${color}" stroke-width="2.6"/>
+      <line x1="24" y1="24" x2="40" y2="40" stroke="${color}" stroke-width="2.8" stroke-linecap="round"/>
+      <line x1="40" y1="24" x2="24" y2="40" stroke="${color}" stroke-width="2.8" stroke-linecap="round"/>
     `;
   } else if (kind === "handhole") {
-    // Legend: HANDHOLE is a square with an internal pattern (4 squares/cross)
+    // Legend: HANDHOLE is a square with dashed inner cross
     body = `
-      <rect x="16" y="16" width="32" height="32" fill="url(#carbon)" stroke="${color}" stroke-width="2.4"/>
-      <rect x="22" y="22" width="8" height="8" fill="#FFFFFF" opacity="0.8"/>
-      <rect x="34" y="22" width="8" height="8" fill="#FFFFFF" opacity="0.8"/>
-      <rect x="22" y="34" width="8" height="8" fill="#FFFFFF" opacity="0.8"/>
-      <rect x="34" y="34" width="8" height="8" fill="#FFFFFF" opacity="0.8"/>
+      <rect x="16" y="16" width="32" height="32" fill="url(#carbon)" stroke="${color}" stroke-width="2.8" rx="2" ry="2"/>
+      <line x1="32" y1="16" x2="32" y2="48" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,3"/>
+      <line x1="16" y1="32" x2="48" y2="32" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,3"/>
     `;
   } else {
-    // Default service point
+    // Service Point: House icon matching My Maps screenshot
     body = `
-      <circle cx="32" cy="32" r="13" fill="url(#steel)" stroke="${color}" stroke-width="2.4"/>
-      <circle cx="32" cy="32" r="5" fill="${color}"/>
+      <polygon points="32,16 14,28 14,48 50,48 50,28" fill="url(#steel)" stroke="${color}" stroke-width="2.8" stroke-linejoin="round"/>
+      <rect x="27" y="34" width="10" height="14" fill="${color}"/>
     `;
   }
 
