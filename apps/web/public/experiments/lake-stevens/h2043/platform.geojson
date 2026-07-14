@@ -11,9 +11,12 @@
     "projectId": "H2043",
     "city": "Woodinville",
     "stats": {
-      "services": 0,
-      "terminals": 72,
-      "cables": 39
+      "services": 35,
+      "terminals": 10,
+      "cables": 39,
+      "poles": 25,
+      "handholes": 1,
+      "hubs": 2
     }
   },
   "features": [
@@ -28,7 +31,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P1",
         "description": "<div><b>name</b>: P1</div><div><b>description</b>: PSE 226988-169290</div>",
@@ -46,7 +49,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P3",
         "description": "<div><b>name</b>: P3</div><div><b>description</b>: PSE 227028-167291</div>",
@@ -64,7 +67,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P4",
         "description": "<div><b>name</b>: P4</div><div><b>description</b>: PSE 227057-167292</div>",
@@ -82,7 +85,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P5",
         "description": "<div><b>name</b>: P5</div><div><b>description</b>: PSE 227085-167292</div>",
@@ -100,7 +103,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "PSE 227113-167298",
         "description": "<div><b>name</b>: PSE 227113-167298</div><div><b>description</b>: <i>empty</i></div>",
@@ -118,7 +121,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P6",
         "description": "<div><b>name</b>: P6</div><div><b>description</b>: PSE 227112-167293</div>",
@@ -136,7 +139,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P8",
         "description": "<div><b>name</b>: P8</div><div><b>description</b>: PSE 227151-167294</div>",
@@ -154,7 +157,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P9",
         "description": "<div><b>name</b>: P9</div><div><b>description</b>: PSE 227176-167294</div>",
@@ -172,7 +175,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "PSE 227113-167268",
         "description": "<div><b>name</b>: PSE 227113-167268</div><div><b>description</b>: <i>empty</i></div>",
@@ -190,7 +193,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "PSE 227112-167247",
         "description": "<div><b>name</b>: PSE 227112-167247</div><div><b>description</b>: <i>empty</i></div>",
@@ -208,7 +211,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "PSE 227152-167222",
         "description": "<div><b>name</b>: PSE 227152-167222</div><div><b>description</b>: <i>empty</i></div>",
@@ -226,7 +229,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "PSE 227152-167240",
         "description": "<div><b>name</b>: PSE 227152-167240</div><div><b>description</b>: <i>empty</i></div>",
@@ -244,7 +247,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "PSE 221787-167224",
         "description": "<div><b>name</b>: PSE 221787-167224</div><div><b>description</b>: <i>empty</i></div>",
@@ -262,7 +265,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "ZIPLY 227169-167224",
         "description": "<div><b>name</b>: ZIPLY 227169-167224</div><div><b>description</b>: <i>empty</i></div>",
@@ -280,7 +283,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "ZIPLY 227187-167201",
         "description": "<div><b>name</b>: ZIPLY 227187-167201</div><div><b>description</b>: <i>empty</i></div>",
@@ -298,7 +301,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P2",
         "description": "<div><b>name</b>: P2</div><div><b>description</b>: ZIPLY 227004-167290</div>",
@@ -316,7 +319,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P11",
         "description": "<div><b>name</b>: P11</div><div><b>description</b>: ZIPLY 227152-167223</div>",
@@ -334,7 +337,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P10",
         "description": "<div><b>name</b>: P10</div><div><b>description</b>: PSE 227152-167240</div>",
@@ -352,7 +355,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "PSE 227149-167216",
         "description": "<div><b>name</b>: PSE 227149-167216</div><div><b>description</b>: <i>empty</i></div>",
@@ -370,7 +373,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P12",
         "description": "<div><b>name</b>: P12</div><div><b>description</b>: ZIPLY 227169-167224</div>",
@@ -388,7 +391,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P13",
         "description": "<div><b>name</b>: P13</div><div><b>description</b>: PSE 221787-167224</div>",
@@ -406,7 +409,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P14",
         "description": "<div><b>name</b>: P14</div><div><b>description</b>: ZIPLY 227187-167201</div>",
@@ -424,7 +427,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "PSE 227188-167185",
         "description": "<div><b>name</b>: PSE 227188-167185</div><div><b>description</b>: <i>empty</i></div>",
@@ -442,7 +445,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P15",
         "description": "<div><b>name</b>: P15</div><div><b>description</b>: PSE 227195-167293</div>",
@@ -460,7 +463,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P16",
         "description": "<div><b>name</b>: P16</div><div><b>description</b>: PSE 227210-167294</div>",
@@ -478,7 +481,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P17",
         "description": "<div><b>name</b>: P17</div><div><b>description</b>: PSE 227225-167296</div>",
@@ -514,7 +517,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "pole",
         "type": "point",
         "label": "P18",
         "description": "<div><b>name</b>: P18</div><div><b>description</b>: PSE 227227-167295</div>",
@@ -604,7 +607,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13001",
         "description": "<div><b>name</b>: 13001</div><div><b>description</b>: <i>empty</i></div>",
@@ -622,7 +625,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13019",
         "description": "<div><b>name</b>: 13019</div><div><b>description</b>: <i>empty</i></div>",
@@ -640,7 +643,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13120",
         "description": "<div><b>name</b>: 13120</div><div><b>description</b>: <i>empty</i></div>",
@@ -658,7 +661,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13019",
         "description": "<div><b>name</b>: 13019</div><div><b>description</b>: <i>empty</i></div>",
@@ -676,7 +679,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15015",
         "description": "<div><b>name</b>: 15015</div><div><b>description</b>: <i>empty</i></div>",
@@ -694,7 +697,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "14915",
         "description": "<div><b>name</b>: 14915</div><div><b>description</b>: <i>empty</i></div>",
@@ -712,7 +715,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13124",
         "description": "<div><b>name</b>: 13124</div><div><b>description</b>: <i>empty</i></div>",
@@ -730,7 +733,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "14800",
         "description": "<div><b>name</b>: 14800</div><div><b>description</b>: <i>empty</i></div>",
@@ -748,7 +751,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "14723",
         "description": "<div><b>name</b>: 14723</div><div><b>description</b>: <i>empty</i></div>",
@@ -766,7 +769,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13102",
         "description": "<div><b>name</b>: 13102</div><div><b>description</b>: <i>empty</i></div>",
@@ -784,7 +787,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "12918",
         "description": "<div><b>name</b>: 12918</div><div><b>description</b>: <i>empty</i></div>",
@@ -802,7 +805,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "12917",
         "description": "<div><b>name</b>: 12917</div><div><b>description</b>: <i>empty</i></div>",
@@ -820,7 +823,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "12927",
         "description": "<div><b>name</b>: 12927</div><div><b>description</b>: <i>empty</i></div>",
@@ -838,7 +841,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15121",
         "description": "<div><b>name</b>: 15121</div><div><b>description</b>: <i>empty</i></div>",
@@ -856,7 +859,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "12810",
         "description": "<div><b>name</b>: 12810</div><div><b>description</b>: <i>empty</i></div>",
@@ -874,7 +877,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15124",
         "description": "<div><b>name</b>: 15124</div><div><b>description</b>: <i>empty</i></div>",
@@ -892,7 +895,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "12909",
         "description": "<div><b>name</b>: 12909</div><div><b>description</b>: <i>empty</i></div>",
@@ -910,7 +913,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15120",
         "description": "<div><b>name</b>: 15120</div><div><b>description</b>: <i>empty</i></div>",
@@ -928,7 +931,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15124",
         "description": "<div><b>name</b>: 15124</div><div><b>description</b>: <i>empty</i></div>",
@@ -946,7 +949,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15128",
         "description": "<div><b>name</b>: 15128</div><div><b>description</b>: <i>empty</i></div>",
@@ -964,7 +967,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15182",
         "description": "<div><b>name</b>: 15182</div><div><b>description</b>: <i>empty</i></div>",
@@ -982,7 +985,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15186",
         "description": "<div><b>name</b>: 15186</div><div><b>description</b>: <i>empty</i></div>",
@@ -1000,7 +1003,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15190",
         "description": "<div><b>name</b>: 15190</div><div><b>description</b>: <i>empty</i></div>",
@@ -1018,7 +1021,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13321",
         "description": "<div><b>name</b>: 13321</div><div><b>description</b>: <i>empty</i></div>",
@@ -1036,7 +1039,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13323",
         "description": "<div><b>name</b>: 13323</div><div><b>description</b>: <i>empty</i></div>",
@@ -1054,7 +1057,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13325",
         "description": "<div><b>name</b>: 13325</div><div><b>description</b>: <i>empty</i></div>",
@@ -1072,7 +1075,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13327",
         "description": "<div><b>name</b>: 13327</div><div><b>description</b>: <i>empty</i></div>",
@@ -1090,7 +1093,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13383",
         "description": "<div><b>name</b>: 13383</div><div><b>description</b>: <i>empty</i></div>",
@@ -1108,7 +1111,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13385",
         "description": "<div><b>name</b>: 13385</div><div><b>description</b>: <i>empty</i></div>",
@@ -1126,7 +1129,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13387",
         "description": "<div><b>name</b>: 13387</div><div><b>description</b>: <i>empty</i></div>",
@@ -1144,7 +1147,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "13389",
         "description": "<div><b>name</b>: 13389</div><div><b>description</b>: <i>empty</i></div>",
@@ -1642,7 +1645,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "hub",
         "type": "point",
         "label": "S1-S2107",
         "description": "<div><b>name</b>: S1-S2107</div><div><b>description</b>: <i>empty</i></div>",
@@ -1848,7 +1851,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "hub",
         "type": "point",
         "label": "S2108",
         "description": "<div><b>name</b>: S2108</div><div><b>description</b>: 72(2)/12(2)</div>",
@@ -1908,7 +1911,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15321",
         "description": "<div><b>name</b>: 15321</div><div><b>description</b>: <i>empty</i></div>",
@@ -1926,7 +1929,7 @@
         ]
       },
       "properties": {
-        "layer": "terminal",
+        "layer": "service_point",
         "type": "point",
         "label": "15221",
         "description": "<div><b>name</b>: 15221</div><div><b>description</b>: <i>empty</i></div>",

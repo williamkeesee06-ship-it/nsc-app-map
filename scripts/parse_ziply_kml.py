@@ -25,28 +25,36 @@ def clean_text(text):
     return text.strip()
 
 def guess_layer(name, desc, geom_type):
-    text = (clean_text(name) + " " + clean_text(desc)).lower()
+    name_clean = clean_text(name)
+    desc_clean = clean_text(desc)
+    text = (name_clean + " " + desc_clean).lower()
     
     if geom_type == "Point":
-        if "handhole" in text or "hh" in text or "vault" in text:
-            return "handhole"
-        if "pole" in text:
-            return "pole"
-        if "hub" in text or "fdh" in text or "splitter" in text:
+        # 1. Hub / Splitter (e.g. S2107, S2108, Splitter, FDH)
+        if re.search(r'\bS\d{4}\b', name_clean) or "hub" in text or "fdh" in text or "splitter" in text:
             return "hub"
-        if "terminal" in text or "mst" in text or "splice" in text or "closure" in text:
+        # 2. Poles (e.g. P1, P-3, PSE 227113)
+        if re.match(r'^P\d+$', name_clean) or re.match(r'^P-\d+$', name_clean) or "pole" in text or "pse" in text:
+            return "pole"
+        # 3. Handholes (e.g. HH1, HH-3, vault, handhole)
+        if re.match(r'^HH\d*$', name_clean, re.IGNORECASE) or re.match(r'^HH-\d+$', name_clean, re.IGNORECASE) or "handhole" in text or "hh" in text or "vault" in text:
+            return "handhole"
+        # 4. Terminals (e.g. T3, T-4, PRT-9, MST)
+        if re.match(r'^T\d+$', name_clean) or re.match(r'^T-\d+$', name_clean) or re.match(r'^PRT-\d+$', name_clean) or "terminal" in text or "mst" in text or "splice" in text or "closure" in text:
             return "terminal"
-        if "service" in text or "address" in text:
+        # 5. Service Points (matches address number or "service")
+        if "service" in text or "address" in text or re.match(r'^\d+$', name_clean) or len(name_clean) > 5:
             return "service_point"
         return "terminal" # fallback for points
-    else: # LineString / Polygon
+    else: # LineString
+        # guess lines
         if "feeder" in text or "mainline" in text:
             return "feeder"
         if "drop" in text:
             return "drop"
         if "bore" in text or "trench" in text or "duct" in text:
             return "bore"
-        return "distribution" # fallback for lines
+        return "distribution"
 
 features = []
 count_pts = 0
@@ -97,7 +105,6 @@ for pm in root.findall('.//kml:Placemark', ns):
         coord_el = line.find('kml:coordinates', ns)
         if coord_el is not None and coord_el.text:
             coords_str = coord_el.text.strip()
-            # Split coordinates (might be spaces or newlines separated)
             coord_list = []
             for coord_pair in re.split(r'\s+', coords_str):
                 if not coord_pair:
@@ -131,6 +138,18 @@ for pm in root.findall('.//kml:Placemark', ns):
 
 print(f"Parsed {count_pts} points, {count_lines} lines.")
 
+# Compute statistics based on guessed layers
+stats = {
+    "services": len([f for f in features if f["properties"]["layer"] == "service_point"]),
+    "terminals": len([f for f in features if f["properties"]["layer"] == "terminal"]),
+    "cables": len([f for f in features if f["properties"]["layer"] in ("feeder", "distribution")]),
+    "poles": len([f for f in features if f["properties"]["layer"] == "pole"]),
+    "handholes": len([f for f in features if f["properties"]["layer"] == "handhole"]),
+    "hubs": len([f for f in features if f["properties"]["layer"] == "hub"]),
+}
+
+print("Ingestion layer summary:", stats)
+
 geojson = {
     "type": "FeatureCollection",
     "name": "Ziply_Woodinville_Imported",
@@ -143,11 +162,7 @@ geojson = {
     "metadata": {
         "projectId": "H2043",
         "city": "Woodinville",
-        "stats": {
-            "services": len([f for f in features if f["properties"]["layer"] == "service_point"]),
-            "terminals": len([f for f in features if f["properties"]["layer"] == "terminal"]),
-            "cables": len([f for f in features if f["properties"]["layer"] in ("feeder", "distribution")]),
-        }
+        "stats": stats
     },
     "features": features
 }

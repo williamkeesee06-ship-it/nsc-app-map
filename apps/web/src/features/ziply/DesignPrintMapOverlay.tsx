@@ -40,71 +40,71 @@ type LayerMeta = {
 const LAYER_META: Record<LayerKey, LayerMeta> = {
   hub: {
     label: "Hub / FDH",
-    color: "#1D4ED8",
-    soft: "#93C5FD",
+    color: "#EF4444", // Red
+    soft: "#FCA5A5",
     defaultOn: true,
     minZoom: 0,
     lineWeight: 0,
   },
   feeder: {
     label: "Feeder cables",
-    color: "#1E40AF",
-    soft: "#60A5FA",
+    color: "#06B6D4", // Cyan
+    soft: "#67E8F9",
     defaultOn: true,
     minZoom: 12,
     lineWeight: 6.5,
   },
   distribution: {
     label: "Distribution",
-    color: "#2563EB",
-    soft: "#93C5FD",
+    color: "#6366F1", // Indigo / Royal Blue
+    soft: "#A5B4FC",
     defaultOn: true,
     minZoom: 13,
     lineWeight: 4.2,
   },
   drop: {
     label: "Drops",
-    color: "#3B82F6",
-    soft: "#BFDBFE",
+    color: "#F59E0B", // Amber / Yellow
+    soft: "#FDE047",
     defaultOn: true,
     minZoom: 14,
     lineWeight: 2.4,
   },
   bore: {
     label: "Bore / trench",
-    color: "#64748B",
-    soft: "#94A3B8",
+    color: "#10B981", // Emerald Green
+    soft: "#6EE7B7",
     defaultOn: true,
     minZoom: 13,
     lineWeight: 3.5,
   },
   terminal: {
     label: "Splice terminals",
-    color: "#1D4ED8",
-    soft: "#93C5FD",
+    color: "#A855F7", // Purple
+    soft: "#D8B4FE",
     defaultOn: true,
     minZoom: 13,
     lineWeight: 0,
   },
   service_point: {
     label: "Service addresses",
-    color: "#0EA5E9",
-    soft: "#BAE6FD",
+    color: "#3B82F6", // Blue
+    soft: "#93C5FD",
     defaultOn: true,
     minZoom: 14,
     lineWeight: 0,
   },
   pole: {
     label: "Poles",
-    color: "#475569",
-    soft: "#CBD5E1",
+    color: "#B45309", // Amber Brown
+    soft: "#F59E0B",
     defaultOn: true,
     minZoom: 14,
     lineWeight: 0,
   },
   handhole: {
     label: "Handholes",
-    color: "#334155",
+    color: "#64748B", // Slate
     soft: "#94A3B8",
     defaultOn: true,
     minZoom: 14,
@@ -155,15 +155,20 @@ function featureColor(layer: string, status?: string): string {
 }
 
 function guessLayerByNameAndDesc(name: string, desc: string, fallback: string): string {
-  const text = (name + " " + desc).toLowerCase();
-  if (text.includes("handhole") || text.includes("hh") || text.includes("vault")) return "handhole";
-  if (text.includes("pole")) return "pole";
-  if (text.includes("hub") || text.includes("fdh") || text.includes("splitter")) return "hub";
-  if (text.includes("feeder")) return "feeder";
-  if (text.includes("drop")) return "drop";
-  if (text.includes("bore") || text.includes("trench") || text.includes("duct")) return "bore";
-  if (text.includes("terminal") || text.includes("mst") || text.includes("splice") || text.includes("closure")) return "terminal";
-  if (text.includes("service") || text.includes("address")) return "service_point";
+  const nameClean = name.trim();
+  const descClean = desc.trim();
+  const text = (nameClean + " " + descClean).toLowerCase();
+
+  // 1. Hub / Splitter (e.g. S2107, S2108, Splitter, FDH)
+  if (/\bS\d{4}\b/.test(nameClean) || text.includes("hub") || text.includes("fdh") || text.includes("splitter")) return "hub";
+  // 2. Poles (e.g. P1, P-3, PSE 227113)
+  if (/^P\d+$/.test(nameClean) || /^P-\d+$/.test(nameClean) || text.includes("pole") || text.includes("pse")) return "pole";
+  // 3. Handholes (e.g. HH1, HH-3, vault, handhole)
+  if (/^HH\d*$/i.test(nameClean) || /^HH-\d+$/i.test(nameClean) || text.includes("handhole") || text.includes("hh") || text.includes("vault")) return "handhole";
+  // 4. Terminals (e.g. T3, T-4, PRT-9, MST)
+  if (/^T\d+$/.test(nameClean) || /^T-\d+$/.test(nameClean) || /^PRT-\d+$/.test(nameClean) || text.includes("terminal") || text.includes("mst") || text.includes("splice") || text.includes("closure")) return "terminal";
+  // 5. Service Points
+  if (text.includes("service") || text.includes("address") || /^\d+$/.test(nameClean) || nameClean.length > 5) return "service_point";
   return fallback;
 }
 
