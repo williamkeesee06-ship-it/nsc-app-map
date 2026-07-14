@@ -115,6 +115,11 @@ export const api = {
       { method: "PUT", body: JSON.stringify(doc) }
     );
   },
+  saveGeoJson: (projectId: string, geojson: unknown) =>
+    request<{ ok: boolean; path: string }>("/api/asbuilt/save-geojson", {
+      method: "POST",
+      body: JSON.stringify({ projectId, geojson }),
+    }),
 
   listJobs: () => request<{ jobs: Job[]; count: number }>("/api/jobs"),
 

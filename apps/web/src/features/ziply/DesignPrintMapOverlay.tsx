@@ -14,6 +14,7 @@ import {
 } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
 import FeatureDetailSheet, { type PlatformFeature } from "./FeatureDetailSheet.js";
+import { api } from "../../lib/api.js";
 
 export type LayerKey =
   | "feeder"
@@ -139,6 +140,9 @@ type FeatureCollection = {
     hub?: { lat: number; lng: number };
     workOrder?: string;
     hubId?: string;
+    projectId?: string;
+    city?: string;
+    stats?: Record<string, number>;
   };
 };
 
@@ -148,6 +152,19 @@ function featureColor(layer: string, status?: string): string {
   if (!status) return base;
   const tint = STATUS_TINT[status];
   return tint ?? base;
+}
+
+function guessLayerByNameAndDesc(name: string, desc: string, fallback: string): string {
+  const text = (name + " " + desc).toLowerCase();
+  if (text.includes("handhole") || text.includes("hh") || text.includes("vault")) return "handhole";
+  if (text.includes("pole")) return "pole";
+  if (text.includes("hub") || text.includes("fdh") || text.includes("splitter")) return "hub";
+  if (text.includes("feeder")) return "feeder";
+  if (text.includes("drop")) return "drop";
+  if (text.includes("bore") || text.includes("trench") || text.includes("duct")) return "bore";
+  if (text.includes("terminal") || text.includes("mst") || text.includes("splice") || text.includes("closure")) return "terminal";
+  if (text.includes("service") || text.includes("address")) return "service_point";
+  return fallback;
 }
 
 /** Stainless / carbon marker with soft blue halo (light theme) */
@@ -253,6 +270,7 @@ export default function DesignPrintMapOverlay({
   const [zoom, setZoom] = useState(15);
   const [selected, setSelected] = useState<PlatformFeature | null>(null);
   const [pulse, setPulse] = useState(0);
+  const [isCustomLoaded, setIsCustomLoaded] = useState(false);
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>(() => {
     const o = {} as Record<LayerKey, boolean>;
     (Object.keys(LAYER_META) as LayerKey[]).forEach((k) => {
@@ -260,6 +278,108 @@ export default function DesignPrintMapOverlay({
     });
     return o;
   });
+
+  const handleKmlFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const r = new FileReader();
+    r.onload = (evt) => {
+      const text = evt.target?.result as string;
+      try {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, "text/xml");
+        const placemarks = xml.querySelectorAll("Placemark");
+        
+        const newFeatures: GeoFeature[] = [];
+        
+        placemarks.forEach((pm, idx) => {
+          const name = pm.querySelector("name")?.textContent || `Feature ${idx + 1}`;
+          const desc = pm.querySelector("description")?.textContent || "";
+          
+          const point = pm.querySelector("Point");
+          if (point) {
+            const coordsStr = point.querySelector("coordinates")?.textContent || "";
+            const [lng, lat] = coordsStr.trim().split(",").map(Number);
+            if (!isNaN(lat) && !isNaN(lng)) {
+              newFeatures.push({
+                type: "Feature",
+                id: `kml-pt-${idx}`,
+                geometry: { type: "Point", coordinates: [lng, lat] },
+                properties: {
+                  layer: guessLayerByNameAndDesc(name, desc, "terminal"),
+                  type: "point",
+                  label: name,
+                  description: desc,
+                  status: "designed",
+                }
+              });
+            }
+          }
+
+          const line = pm.querySelector("LineString");
+          if (line) {
+            const coordsStr = line.querySelector("coordinates")?.textContent || "";
+            const coords = coordsStr.trim().split(/\s+/).map(c => {
+              const [lng, lat] = c.split(",").map(Number);
+              return [lng, lat];
+            }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+
+            if (coords.length >= 2) {
+              newFeatures.push({
+                type: "Feature",
+                id: `kml-ln-${idx}`,
+                geometry: { type: "LineString", coordinates: coords },
+                properties: {
+                  layer: guessLayerByNameAndDesc(name, desc, "distribution"),
+                  type: "line",
+                  label: name,
+                  description: desc,
+                  status: "designed",
+                }
+              });
+            }
+          }
+        });
+
+        if (newFeatures.length === 0) {
+          alert("No point or line features found in the KML file.");
+          return;
+        }
+
+        const newFc: FeatureCollection = {
+          type: "FeatureCollection",
+          features: newFeatures as any,
+          metadata: {
+            projectId: "H2043",
+            city: "Imported from My Maps",
+            stats: {
+              services: newFeatures.filter(f => f.properties.layer === "service_point").length,
+              terminals: newFeatures.filter(f => f.properties.layer === "terminal").length,
+              cables: newFeatures.filter(f => f.properties.layer === "feeder" || f.properties.layer === "distribution").length,
+            } as any
+          }
+        };
+
+        setFc(newFc as any);
+        setIsCustomLoaded(true);
+      } catch (err) {
+        alert("Error parsing KML: " + (err instanceof Error ? err.message : String(err)));
+      }
+    };
+    r.readAsText(file);
+  };
+
+  const handleSaveImported = async () => {
+    if (!fc) return;
+    try {
+      await api.saveGeoJson("H2043", fc);
+      alert("Successfully saved Google My Maps KML data directly to the server!");
+      setIsCustomLoaded(false);
+    } catch (err) {
+      alert("Error saving GeoJSON: " + (err instanceof Error ? err.message : String(err)));
+    }
+  };
 
   useEffect(() => {
     if (!active) return;
@@ -643,8 +763,47 @@ export default function DesignPrintMapOverlay({
         </div>
 
         <div className="h3024-hud-footer">
-          Royal blue plant paths · stainless markers · carbon bore dashes. Click any
-          asset for the field detail sheet.
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+            <label style={{
+              display: "block",
+              background: "linear-gradient(180deg, #1E293B, #0F172A)",
+              border: "1px solid #334155",
+              color: "#38BDF8",
+              padding: "8px 12px",
+              borderRadius: 8,
+              textAlign: "center",
+              fontSize: "11px",
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
+            }}>
+              Import My Maps KML
+              <input type="file" accept=".kml" onChange={handleKmlFile} style={{ display: "none" }} />
+            </label>
+            {isCustomLoaded && (
+              <button
+                type="button"
+                onClick={handleSaveImported}
+                style={{
+                  background: "linear-gradient(180deg, #10B981, #059669)",
+                  border: "1px solid #047857",
+                  color: "#FFFFFF",
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  textAlign: "center",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(16,185,129,0.3)"
+                }}
+              >
+                Save Imported Map to Disk
+              </button>
+            )}
+          </div>
+          <div style={{ marginTop: 10, fontSize: "9px", opacity: 0.6 }}>
+            Click any asset for the field detail sheet.
+          </div>
         </div>
       </div>
 

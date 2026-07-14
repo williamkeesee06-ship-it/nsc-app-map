@@ -2,6 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../lib/firestore.js";
 import { emptyAsbuilt, type AsbuiltDoc } from "@nsc/types";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = Router();
 
@@ -307,6 +313,25 @@ router.put("/asbuilt/:jobId", async (req, res, next) => {
       await target.set({ ...parsed.data, ownerName }, { merge: false });
       res.json(parsed.data);
     }
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/asbuilt/save-geojson", async (req, res, next) => {
+  try {
+    const { geojson, projectId } = req.body;
+    if (!geojson || !projectId) {
+      res.status(400).json({ error: "Missing geojson or projectId" });
+      return;
+    }
+    const targetDir = path.join(__dirname, "../../../web/public/experiments/lake-stevens", projectId.toLowerCase());
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    const targetPath = path.join(targetDir, "platform.geojson");
+    fs.writeFileSync(targetPath, JSON.stringify(geojson, null, 2));
+    res.json({ ok: true, path: targetPath });
   } catch (err) {
     next(err);
   }

@@ -44,9 +44,6 @@ import LuminaOrb from "../lumina/Orb.js";
 import LuminaChatPanel from "../lumina/ChatPanel.js";
 import LuminaMapBridge from "../lumina/MapBridge.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
-/** Phase D: code-split Print CAD overlay (~large) */
-const ZiplyPrintOverlay = lazy(() => import("./ZiplyPrintOverlay.js"));
-
 const DesignPrintMapOverlay = lazy(
   () => import("../ziply/DesignPrintMapOverlay.js")
 );
@@ -120,12 +117,9 @@ export default function JobsMap() {
     setFiltersJobs(allJobs);
   }, [allJobs, setFiltersJobs]);
   const [selected, setSelected] = useState<Job | null>(null);
-  /** Lake Stevens full-print experiment (SHARED PDF → isolated map). */
-  const [sheetExperiment, setSheetExperiment] = useState(false);
   // Ziply focus: North Metro default + clear selection when leaving Ziply
   useEffect(() => {
     setSelected(null);
-    setSheetExperiment(false);
     if (contract === "Ziply") {
       setFilters({
         ...filters,
@@ -175,16 +169,6 @@ export default function JobsMap() {
     if (contract !== "Ziply") {
       return applyFilters(allJobs, filters);
     }
-    // Sheet experiment: ONLY Lake Stevens design job(s) — nothing else on the map
-    if (sheetExperiment) {
-      const ls = allJobs.filter(isLakeStevensExperimentJob);
-      // Prefer jobs with print layer / most plant detail
-      return ls.sort((a, b) => {
-        const ca = a.ziplyPrintLayer?.mapObjects?.cables?.length ?? 0;
-        const cb = b.ziplyPrintLayer?.mapObjects?.cables?.length ?? 0;
-        return cb - ca;
-      });
-    }
     // Shared hide-unmapped / tracker flags only (empty buckets = no Lumen bucket filter)
     let list = applyFilters(allJobs, { ...filters, buckets: new Set() });
     if (filters.ziplyNorthMetroOnly) {
@@ -198,7 +182,7 @@ export default function JobsMap() {
       list = list.filter((j) => groups.has(ziplyStatusGroupForJob(j)));
     }
     return list;
-  }, [allJobs, filters, contract, sheetExperiment, isLakeStevensExperimentJob]);
+  }, [allJobs, filters, contract, isLakeStevensExperimentJob]);
   const mapped = useMemo(() => filtered.filter(
     (j) => j.geocode?.status === "OK" && j.geocode.lat !== 0
   ), [filtered]);
@@ -216,12 +200,8 @@ export default function JobsMap() {
   // Must be plottable on the map (mapObjects + valid lat/lng anchor).
   // "Ingest complete" alone is not enough — many jobs store hub:{lat:null}.
   const ziplyPrintReadyJobs = useMemo(() => {
-    const ready = allJobs.filter((j) => isZiplyPrintMapReady(j));
-    if (!sheetExperiment) return ready;
-    // Experiment: plant CAD for Lake Stevens focus job only
-    const ls = ready.filter(isLakeStevensExperimentJob);
-    return ls.length > 0 ? [ls[0]!] : ready.filter(isLakeStevensJob).slice(0, 1);
-  }, [allJobs, sheetExperiment, isLakeStevensExperimentJob]);
+    return allJobs.filter((j) => isZiplyPrintMapReady(j));
+  }, [allJobs]);
   // Jobs that claim ingest complete/mapObjects but cannot be placed (debug).
   const ziplyPrintOrphanCount = useMemo(() => {
     return allJobs.filter((j) => {
@@ -318,8 +298,6 @@ export default function JobsMap() {
           isManager={isManager}
           allSupervisors={allSupervisors}
           drawingOwner={drawingOwner}
-          sheetExperiment={sheetExperiment}
-          setSheetExperiment={setSheetExperiment}
           isLakeStevensExperimentJob={isLakeStevensExperimentJob}
         />
         </DigPolygonProvider>
@@ -348,8 +326,6 @@ function JobsMapInner({
   isManager,
   allSupervisors,
   drawingOwner,
-  sheetExperiment,
-  setSheetExperiment,
   isLakeStevensExperimentJob,
 }: {
   allJobs: Job[];
@@ -370,8 +346,6 @@ function JobsMapInner({
   isManager: boolean;
   allSupervisors: string[];
   drawingOwner: string;
-  sheetExperiment: boolean;
-  setSheetExperiment: React.Dispatch<React.SetStateAction<boolean>>;
   isLakeStevensExperimentJob: (j: Job) => boolean;
 }) {
   const { contract } = useActiveContract();
@@ -570,71 +544,11 @@ function JobsMapInner({
       />
 
       <div className="jobs-map__main">
-        {!sheetExperiment && <ModifiersPanel />}
+        <ModifiersPanel />
         <JobsShownPill shown={mapped.length} total={allJobs.length} />
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
           {/* All floating map HUD lives here so it cannot sit under the app topbar */}
           <div className="map-chrome-top">
-            {contract === "Ziply" && (
-              <ZiplyPrintMapBanner
-                readyCount={ziplyPrintReadyJobs.length}
-                orphanCount={ziplyPrintOrphanCount}
-                layerOn={ziplyPrintLayerVisible && !sheetExperiment}
-                sheetExperiment={sheetExperiment}
-                onToggleExperiment={() => {
-                  setSheetExperiment((v) => {
-                    const next = !v;
-                    if (next) {
-                      // Lake Stevens isolation: plant CAD ON for LS only; 811/dig off
-                      setZiplyPrintLayerVisible(true);
-                      setZiply811OverlayVisible(false);
-                      setShowCOs(false);
-                      // Select best LS job
-                      const ls = allJobs
-                        .filter(isLakeStevensExperimentJob)
-                        .sort(
-                          (a, b) =>
-                            (b.ziplyPrintLayer?.mapObjects?.cables?.length ?? 0) -
-                            (a.ziplyPrintLayer?.mapObjects?.cables?.length ?? 0)
-                        );
-                      if (ls[0]) {
-                        setSelected(ls[0]);
-                        const a = getZiplyPrintAnchor(ls[0]);
-                        if (a && mapRef.current) {
-                          mapRef.current.panTo({ lat: a.lat, lng: a.lng });
-                          mapRef.current.setZoom(16);
-                        }
-                      }
-                    }
-                    return next;
-                  });
-                }}
-                onToggleLayer={() => {
-                  setZiplyPrintLayerVisible((v) => !v);
-                }}
-                onFitPrints={() => {
-                  if (ziplyPrintReadyJobs.length === 0 || !mapRef.current) return;
-                  const bounds = new google.maps.LatLngBounds();
-                  let n = 0;
-                  for (const j of ziplyPrintReadyJobs) {
-                    const a = getZiplyPrintAnchor(j);
-                    if (!a) continue;
-                    bounds.extend({ lat: a.lat, lng: a.lng });
-                    n++;
-                  }
-                  if (n === 0) return;
-                  if (n === 1) {
-                    const a = getZiplyPrintAnchor(ziplyPrintReadyJobs[0]!);
-                    if (a) {
-                      mapRef.current.panTo({ lat: a.lat, lng: a.lng });
-                      mapRef.current.setZoom(16);
-                    }
-                  } else {
-                    mapRef.current.fitBounds(bounds, 64);
-                  }
-                }}
-              />
-            )}
             <OverwatchHUD />
           </div>
           <div style={{ flex: 1, height: "100%", position: "relative", minWidth: 0 }}>
@@ -658,42 +572,28 @@ function JobsMapInner({
             >
               <MapHandle mapRef={mapRef} />
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
-              {/* Experiment: no multi-job pins — twin plant owns the map */}
-              {!sheetExperiment && (
+              {selected && (
                 <JobMarkers
                   jobs={mapped}
                   onSelect={handleSelect}
                   allJobs={allJobs}
                 />
               )}
-              {!sheetExperiment && (
-                <AllJobsMarkupsOverlay
-                  onMarkupClick={(jobId) => {
-                    const j = allJobs.find((x) => x.jobId === jobId);
-                    if (j) void handleSelect(j);
-                  }}
-                />
-              )}
-              <CentralOfficesOverlay visible={showCOs && !sheetExperiment} />
+              <AllJobsMarkupsOverlay
+                onMarkupClick={(jobId) => {
+                  const j = allJobs.find((x) => x.jobId === jobId);
+                  if (j) void handleSelect(j);
+                }}
+              />
+              <CentralOfficesOverlay visible={showCOs} />
               <Suspense fallback={null}>
-                {/* Experiment: digital twin from full 65-page PDF + sheet underlay */}
-                {sheetExperiment ? (
-                  <>
-                    {/* Primary: print-faithful multi-layer platform GeoJSON */}
-                    <DesignPrintMapOverlay active />
-                  </>
-                ) : (
-                  <ZiplyPrintOverlay
-                    jobs={ziplyPrintReadyJobs}
-                    focusJobId={selected?.jobId ?? null}
-                    visible={contract === "Ziply" && ziplyPrintLayerVisible}
-                    show811Clearance={ziply811OverlayVisible}
-                  />
+                {contract === "Ziply" && (
+                  <DesignPrintMapOverlay active />
                 )}
               </Suspense>
-              {!sheetExperiment && <DrawingOverlay />}
-              {!sheetExperiment && <SavedDigShapeOverlay />}
-              {!sheetExperiment && filters.showDigPolygons !== false && (
+              <DrawingOverlay />
+              <SavedDigShapeOverlay />
+              {filters.showDigPolygons !== false && (
                 <>
                   <AllDigShapesOverlay jobs={mapped} activeJobId={selected?.jobId} />
                   <DigPolygonOverlay />
