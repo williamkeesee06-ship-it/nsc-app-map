@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { Job } from "@nsc/types";
 import type { Filters } from "./FilterRail.js";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { api } from "../../lib/api.js";
+import { useSearchFocus } from "../search/searchContext.js";
 import {
   getZiplyPrintDocStatus,
   isNorthMetroJob,
@@ -13,6 +14,31 @@ import {
   ziplyPrintStatusLabel,
   ziplyStatusGroupForJob,
 } from "../ziply/ziplyUtils.js";
+
+const LAYER_META = {
+  hub: { label: "Hub / FDH", color: "#EF4444" },
+  feeder: { label: "Feeder cables", color: "#06B6D4" },
+  distribution: { label: "Distribution", color: "#6366F1" },
+  drop: { label: "Drops", color: "#F59E0B" },
+  bore: { label: "Bore / trench", color: "#10B981" },
+  terminal: { label: "Splice terminals", color: "#A855F7" },
+  service_point: { label: "Service addresses", color: "#3B82F6" },
+  pole: { label: "Poles", color: "#B45309" },
+  handhole: { label: "Handholes", color: "#64748B" },
+};
+
+function guessLayerByNameAndDesc(name: string, desc: string, fallback: string): string {
+  const nameClean = name.trim();
+  const descClean = desc.trim();
+  const text = (nameClean + " " + descClean).toLowerCase();
+
+  if (/\bS\d{4}\b/.test(nameClean) || text.includes("hub") || text.includes("fdh") || text.includes("splitter")) return "hub";
+  if (/^P\d+$/.test(nameClean) || /^P-\d+$/.test(nameClean) || text.includes("pole") || text.includes("pse")) return "pole";
+  if (/^HH\d*$/i.test(nameClean) || /^HH-\d+$/i.test(nameClean) || text.includes("handhole") || text.includes("hh") || text.includes("vault")) return "handhole";
+  if (/^T\d+$/.test(nameClean) || /^T-\d+$/.test(nameClean) || /^PRT-\d+$/.test(nameClean) || text.includes("terminal") || text.includes("mst") || text.includes("splice") || text.includes("closure")) return "terminal";
+  if (text.includes("service") || text.includes("address") || /^\d+$/.test(nameClean) || nameClean.length > 5) return "service_point";
+  return fallback;
+}
 
 interface Props {
   jobs: Job[];
@@ -47,6 +73,148 @@ export default function ZiplyFilterPanel({
   ziply811OverlayVisible,
   setZiply811OverlayVisible,
 }: Props) {
+  const [fc, setFc] = useState<any | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const { selectedJobId } = useSearchFocus();
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetch("/experiments/lake-stevens/h2043/platform.geojson?t=" + Date.now())
+        .then((r) => {
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
+        .then((data) => {
+          if (!cancelled) setFc(data);
+        })
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener("nsc:ziply-geojson-reload", load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("nsc:ziply-geojson-reload", load);
+    };
+  }, []);
+
+  const counts = useMemo(() => {
+    const res: Record<string, number> = {};
+    if (!fc) return res;
+    for (const f of fc.features) {
+      const lay = f.properties?.layer || f.properties?.type || "";
+      if (lay) {
+        res[lay] = (res[lay] || 0) + 1;
+      }
+    }
+    return res;
+  }, [fc]);
+
+  const activeLayers = filters.ziplyActiveLayers ?? new Set(["hub", "feeder", "distribution", "drop", "bore", "terminal", "service_point", "pole", "handhole"]);
+
+  const toggleLayer = (k: string) => {
+    const next = new Set(activeLayers);
+    if (next.has(k)) next.delete(k);
+    else next.add(k);
+    setFilters({ ...filters, ziplyActiveLayers: next });
+  };
+
+  const handleKmlFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImporting(true);
+
+    const r = new FileReader();
+    r.onload = async (evt) => {
+      const text = evt.target?.result as string;
+      try {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, "text/xml");
+        const placemarks = xml.querySelectorAll("Placemark");
+        
+        const newFeatures: any[] = [];
+        placemarks.forEach((pm, idx) => {
+          const name = pm.querySelector("name")?.textContent || `Feature ${idx + 1}`;
+          const desc = pm.querySelector("description")?.textContent || "";
+          
+          const point = pm.querySelector("Point");
+          if (point) {
+            const coordsStr = point.querySelector("coordinates")?.textContent || "";
+            const [lng, lat] = coordsStr.trim().split(",").map(Number);
+            if (!isNaN(lat) && !isNaN(lng)) {
+              newFeatures.push({
+                type: "Feature",
+                id: `kml-pt-${idx}`,
+                geometry: { type: "Point", coordinates: [lng, lat] },
+                properties: {
+                  layer: guessLayerByNameAndDesc(name, desc, "terminal"),
+                  type: "point",
+                  label: name,
+                  description: desc,
+                  status: "designed",
+                }
+              });
+            }
+          }
+
+          const line = pm.querySelector("LineString");
+          if (line) {
+            const coordsStr = line.querySelector("coordinates")?.textContent || "";
+            const coords = coordsStr.trim().split(/\s+/).map(c => {
+              const [lng, lat] = c.split(",").map(Number);
+              return [lng, lat];
+            }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+
+            if (coords.length >= 2) {
+              newFeatures.push({
+                type: "Feature",
+                id: `kml-ln-${idx}`,
+                geometry: { type: "LineString", coordinates: coords },
+                properties: {
+                  layer: guessLayerByNameAndDesc(name, desc, "distribution"),
+                  type: "line",
+                  label: name,
+                  description: desc,
+                  status: "designed",
+                }
+              });
+            }
+          }
+        });
+
+        if (newFeatures.length === 0) {
+          alert("No point or line features found in the KML file.");
+          setIsImporting(false);
+          return;
+        }
+
+        const newFc = {
+          type: "FeatureCollection",
+          features: newFeatures,
+          metadata: {
+            projectId: "H2043",
+            city: "Imported from My Maps",
+            stats: {
+              services: newFeatures.filter(f => f.properties.layer === "service_point").length,
+              terminals: newFeatures.filter(f => f.properties.layer === "terminal").length,
+              cables: newFeatures.filter(f => f.properties.layer === "feeder" || f.properties.layer === "distribution").length,
+            }
+          }
+        };
+
+        await api.saveGeoJson("H2043", newFc);
+        alert("Successfully saved Google My Maps KML data directly to the server!");
+        
+        setFc(newFc);
+        window.dispatchEvent(new Event("nsc:ziply-geojson-reload"));
+      } catch (err) {
+        alert("Error parsing KML: " + (err instanceof Error ? err.message : String(err)));
+      } finally {
+        setIsImporting(false);
+      }
+    };
+    r.readAsText(file);
+  };
   const ziplyJobs = useMemo(
     () => jobs.filter((j) => j.customerProject === "Ziply"),
     [jobs]
@@ -352,6 +520,97 @@ export default function ZiplyFilterPanel({
           print ({printCounts.ready} ready).
         </p>
       </div>
+
+      {ziplyPrintLayerVisible && (
+        <div
+          style={{
+            padding: 10,
+            background: "rgba(255, 255, 255, 0.03)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 6,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <span style={{ fontSize: 9, fontWeight: 800, color: "#38bdf8", letterSpacing: "0.08em" }}>
+            FIELD OPS LAYER CONTROLS
+          </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 4 }}>
+            {(Object.keys(LAYER_META) as (keyof typeof LAYER_META)[]).map((k) => {
+              const on = activeLayers.has(k);
+              const meta = LAYER_META[k];
+              const count = counts[k] ?? 0;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => toggleLayer(k)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "4px 6px",
+                    background: on ? "rgba(255,255,255,0.04)" : "transparent",
+                    border: "none",
+                    borderRadius: 4,
+                    color: on ? "#fff" : "#9ca3af",
+                    fontSize: 10,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    width: "100%",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: meta.color,
+                      marginRight: 8,
+                      boxShadow: on ? `0 0 8px ${meta.color}` : "none",
+                    }}
+                  />
+                  <span style={{ flex: 1 }}>{meta.label}</span>
+                  <span style={{ fontSize: 9, opacity: 0.6, marginRight: 8 }}>{count}</span>
+                  <span style={{
+                    fontSize: 8,
+                    fontWeight: 800,
+                    color: on ? "#34d399" : "#f43f5e",
+                  }}>
+                    {on ? "ON" : "OFF"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: 8, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 8 }}>
+            <label
+              style={{
+                display: "block",
+                background: "linear-gradient(180deg, #1e293b, #0f172a)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "#38bdf8",
+                padding: "6px 8px",
+                borderRadius: 4,
+                textAlign: "center",
+                fontSize: "10px",
+                fontWeight: 700,
+                cursor: isImporting ? "wait" : "pointer",
+              }}
+            >
+              {isImporting ? "Importing KML..." : "Import My Maps KML"}
+              <input
+                type="file"
+                accept=".kml"
+                onChange={handleKmlFileChange}
+                disabled={isImporting}
+                style={{ display: "none" }}
+              />
+            </label>
+          </div>
+        </div>
+      )}
 
       <div
         style={{

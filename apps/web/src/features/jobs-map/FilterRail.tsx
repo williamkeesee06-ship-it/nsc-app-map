@@ -31,6 +31,8 @@ export interface Filters {
    * status buckets for Ziply map pins. Empty/undefined = show all Ziply jobs.
    */
   ziplyStatusGroups?: Set<"not_started" | "in_progress" | "complete">;
+  /** Ziply-only: active digital twin asset layers. */
+  ziplyActiveLayers?: Set<string>;
 }
 
 export function defaultFilters(): Filters {
@@ -54,6 +56,7 @@ export function defaultFilters(): Filters {
     ziplyNorthMetroOnly: true,
     ziplyPrintFilter: "all",
     ziplyStatusGroups: new Set(),
+    ziplyActiveLayers: new Set(["hub", "feeder", "distribution", "drop", "bore", "terminal", "service_point", "pole", "handhole"]),
   };
 }
 

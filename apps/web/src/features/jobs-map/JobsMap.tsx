@@ -210,7 +210,7 @@ export default function JobsMap() {
     }).length;
   }, [allJobs]);
 
-  // Ziply: one-shot repair missing print coords, then focus Lake Stevens / print job.
+  // Ziply: one-shot repair missing print coords.
   useEffect(() => {
     if (contract !== "Ziply") {
       ziplyFocusDoneRef.current = false;
@@ -230,34 +230,9 @@ export default function JobsMap() {
           if (!cancelled) {
             window.dispatchEvent(new Event("nsc:jobs-reload"));
           }
-          return; // wait for reload; focus runs on next effect
         } catch (e) {
           console.warn("[ziply] auto print-location repair failed:", e);
         }
-      }
-
-      if (ziplyFocusDoneRef.current) return;
-      const focus = pickZiplyFocusJob(allJobs);
-      if (!focus) return;
-      ziplyFocusDoneRef.current = true;
-
-      // Select job card so WO / print panel open
-      setSelected(focus);
-
-      const anchor =
-        getZiplyPrintAnchor(focus) ??
-        (focus.geocode?.status === "OK" && focus.geocode.lat
-          ? { lat: focus.geocode.lat, lng: focus.geocode.lng }
-          : null);
-      if (anchor && mapRef.current) {
-        mapRef.current.panTo({ lat: anchor.lat, lng: anchor.lng });
-        mapRef.current.setZoom(16);
-      } else if (anchor) {
-        window.dispatchEvent(
-          new CustomEvent("nsc:pan-to", {
-            detail: { lat: anchor.lat, lng: anchor.lng, zoom: 16 },
-          })
-        );
       }
     })();
 
@@ -572,19 +547,21 @@ function JobsMapInner({
             >
               <MapHandle mapRef={mapRef} />
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
-              {selected && (
+              {selected && contract !== "Ziply" && (
                 <JobMarkers
                   jobs={mapped}
                   onSelect={handleSelect}
                   allJobs={allJobs}
                 />
               )}
-              <AllJobsMarkupsOverlay
-                onMarkupClick={(jobId) => {
-                  const j = allJobs.find((x) => x.jobId === jobId);
-                  if (j) void handleSelect(j);
-                }}
-              />
+              {contract !== "Ziply" && (
+                <AllJobsMarkupsOverlay
+                  onMarkupClick={(jobId) => {
+                    const j = allJobs.find((x) => x.jobId === jobId);
+                    if (j) void handleSelect(j);
+                  }}
+                />
+              )}
               <CentralOfficesOverlay visible={showCOs} />
               <Suspense fallback={null}>
                 {contract === "Ziply" && (
