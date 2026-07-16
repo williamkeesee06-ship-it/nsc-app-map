@@ -6,7 +6,7 @@
 //   Row 1 — Active Dig Tickets (wide) | Calendar (large)
 //   Row 2 — Map Overview (small) | Lumina Briefing | At Risk Jobs (small)
 
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import type { Job } from "@nsc/types";
 import { useAuth } from "../auth/authContext.js";
 import { useDashboardData } from "./hooks/useDashboardData.js";
@@ -28,8 +28,8 @@ export interface DashboardPageProps {
 }
 
 function firstNameOf(username: string | null): string {
-  if (!username) return "Billy";
-  return username.trim().split(/\s+/)[0] || "Billy";
+  if (!username) return "";
+  return username.trim().split(/\s+/)[0] || "";
 }
 
 export default function DashboardPage({
@@ -39,9 +39,21 @@ export default function DashboardPage({
   onOpenCalendar,
   onOpenJob,
 }: DashboardPageProps) {
-  const { username } = useAuth();
+  const { username, isManager } = useAuth();
   const data = useDashboardData(jobs);
   const firstName = firstNameOf(username);
+
+  const supervisorCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const j of jobs) {
+      const status = (j.jobStatus ?? "").trim().toLowerCase();
+      if (status === "completed") continue;
+      const supervisor = (j.constructionSupervisor ?? "").trim();
+      if (!supervisor) continue;
+      counts[supervisor] = (counts[supervisor] || 0) + 1;
+    }
+    return counts;
+  }, [jobs]);
 
   return (
     <div className="nsc-dashboard" role="region" aria-label="Dashboard home">
@@ -51,6 +63,8 @@ export default function DashboardPage({
         <WeatherStrip
           jobCounts={data.statusCounts}
           onSelectBucket={onFilterStatus}
+          isManager={isManager}
+          supervisorCounts={supervisorCounts}
         />
 
         {/* ── Row 1: Active Dig Tickets | Calendar ───────────────── */}

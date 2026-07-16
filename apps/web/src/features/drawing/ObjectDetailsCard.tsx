@@ -66,6 +66,11 @@ const POINT_TOOLS = new Set([
   "pole_new", "pole_removed",
   "cabinet_new", "cabinet_removed",
   "anchor_new", "anchor_removed",
+  "ziply_hub",
+  "ziply_terminal",
+  "ziply_address",
+  "ziply_pole",
+  "ziply_handhole",
 ]);
 
 function isPointTool(tool: string): boolean {
@@ -83,7 +88,11 @@ function isLine(tool: string): boolean {
     tool === "line" ||
     tool === "arrow" ||
     tool === "freehand" ||
-    tool === "measure"
+    tool === "measure" ||
+    tool === "ziply_feeder" ||
+    tool === "ziply_distribution" ||
+    tool === "ziply_drop" ||
+    tool === "ziply_bore"
   );
 }
 
@@ -508,6 +517,15 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     text: "Text", line: "Line", arrow: "Arrow",
     rectangle: "Rectangle", circle: "Circle", polygon: "Polygon",
     freehand: "Freehand", measure: "Measure",
+    ziply_hub: "Ziply Splitter Hub (FDH)",
+    ziply_terminal: "Ziply Terminal (MST)",
+    ziply_address: "Ziply Service Address",
+    ziply_pole: "Ziply Pole",
+    ziply_handhole: "Ziply Handhole",
+    ziply_feeder: "Ziply Feeder Cable",
+    ziply_distribution: "Ziply Distribution Cable",
+    ziply_drop: "Ziply Drop Cable",
+    ziply_bore: "Ziply Bore / Trench",
   };
   const typeName = TYPE_NAMES[obj.tool] ?? obj.tool;
 

@@ -465,6 +465,10 @@
   transform: translateX(2px);
 }
 
+.hero-card__weather .hero-card__ql-tile:hover {
+  transform: translateY(-2px);
+}
+
 .hero-card__ql-glyph {
   flex: 0 0 auto;
   display: flex;

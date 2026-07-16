@@ -54,8 +54,12 @@ const POINT_TOOLS = new Set([
   "pole_new", "pole_removed",
   "cabinet_new", "cabinet_removed",
   "anchor_new", "anchor_removed",
-  // Edit 3: splice point — single position, diamond + SP icon.
   "splice",
+  "ziply_hub",
+  "ziply_terminal",
+  "ziply_address",
+  "ziply_pole",
+  "ziply_handhole",
 ]);
 
 function isPointTool(tool: string): boolean {

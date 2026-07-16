@@ -27,14 +27,23 @@ type IconPrompt = {
 
 function promptForTool(tool: string): IconPrompt {
   // Pole (new or removed) → A-TAG
-  if (tool === "pole_new" || tool === "pole_removed") {
-    return { placeholder: "A-TAG # (e.g. A-1234)", prefix: "A-" };
+  if (tool === "pole_new" || tool === "pole_removed" || tool === "ziply_pole") {
+    return { placeholder: "Ziply Pole / A-TAG (e.g. A-1234)", prefix: "A-" };
   }
   if (tool === "mh_new" || tool === "mh_removed") {
     return { placeholder: "MH # (e.g. MH-54)", prefix: "MH-" };
   }
-  if (tool === "hh_new" || tool === "hh_removed") {
+  if (tool === "hh_new" || tool === "hh_removed" || tool === "ziply_handhole") {
     return { placeholder: "HH # (e.g. HH-1123)", prefix: "HH-" };
+  }
+  if (tool === "ziply_hub") {
+    return { placeholder: "Ziply Splitter Hub (e.g. S3063)", prefix: null };
+  }
+  if (tool === "ziply_terminal") {
+    return { placeholder: "Ziply Terminal (e.g. T2)", prefix: null };
+  }
+  if (tool === "ziply_address") {
+    return { placeholder: "Customer Address (e.g. 18402 McElroy Rd)", prefix: null };
   }
   if (tool === "ped_new" || tool === "ped_removed") {
     return { placeholder: "PED # / label (e.g. PED-1)", prefix: null };

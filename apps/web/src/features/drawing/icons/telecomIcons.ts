@@ -111,9 +111,49 @@ function anchorSvg(color: string): string {
 
 // ── Rail SVG strings (for React inline rendering) ────────────────────────────
 
+// Ziply specific point icons
+function ziplyHubSvg(color: string): string {
+  return wrap(
+    `<circle cx="16" cy="16" r="10" fill="#f8fafc" stroke="${color}" stroke-width="2"/>
+    <polygon points="13,10 22,16 13,22" fill="${color}"/>`,
+    color
+  );
+}
+
+function ziplyTerminalSvg(color: string): string {
+  return wrap(
+    `<polygon points="8,10 24,16 8,22" fill="#f8fafc" stroke="${color}" stroke-width="2"/>
+    <circle cx="12" cy="16" r="2.5" fill="${color}"/>`,
+    color
+  );
+}
+
+function ziplyAddressSvg(color: string): string {
+  return wrap(
+    `<polygon points="16,6 6,15 6,26 26,26 26,15" fill="#f8fafc" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
+    <rect x="13" y="17" width="6" height="9" fill="${color}"/>`,
+    color
+  );
+}
+
+function ziplyHandholeSvg(color: string): string {
+  return wrap(
+    `<rect x="6" y="6" width="20" height="20" rx="1.5" fill="#f8fafc" stroke="${color}" stroke-width="2"/>
+    <line x1="16" y1="6" x2="16" y2="26" stroke="${color}" stroke-width="1.2" stroke-dasharray="2,2"/>
+    <line x1="6" y1="16" x2="26" y2="16" stroke="${color}" stroke-width="1.2" stroke-dasharray="2,2"/>`,
+    color
+  );
+}
+
 // Returns raw SVG string for use in rail tiles (not data-URI)
 export function railSvgForTool(tool: string, color?: string): string {
   const c = color ?? DEFAULT_ICON_COLOR;
+  if (tool === "ziply_hub") return ziplyHubSvg(c);
+  if (tool === "ziply_terminal") return ziplyTerminalSvg(c);
+  if (tool === "ziply_address") return ziplyAddressSvg(c);
+  if (tool === "ziply_handhole") return ziplyHandholeSvg(c);
+  if (tool === "ziply_pole") return poleSvg(c);
+
   if (tool.startsWith("mh")) return mhSvg(c);
   if (tool.startsWith("hh")) return hhSvg(c);
   if (tool.startsWith("ped")) return pedSvg(c);
@@ -135,7 +175,13 @@ export function iconForTool(
   const px = Math.round(ICON_SIZE * pointSize);
 
   let svg: string;
-  if (tool.startsWith("mh")) svg = mhSvg(color);
+  if (tool === "ziply_hub") svg = ziplyHubSvg(color);
+  else if (tool === "ziply_terminal") svg = ziplyTerminalSvg(color);
+  else if (tool === "ziply_address") svg = ziplyAddressSvg(color);
+  else if (tool === "ziply_handhole") svg = ziplyHandholeSvg(color);
+  else if (tool === "ziply_pole") svg = poleSvg(color);
+
+  else if (tool.startsWith("mh")) svg = mhSvg(color);
   else if (tool.startsWith("hh")) svg = hhSvg(color);
   else if (tool.startsWith("ped")) svg = pedSvg(color);
   else if (tool.startsWith("pole")) svg = poleSvg(color);

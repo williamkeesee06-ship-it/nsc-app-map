@@ -517,12 +517,12 @@ a { color: var(--accent); }
 .left-rail-tabstrip {
   width: 46px;
   flex-shrink: 0;
-  background: linear-gradient(180deg, #0a3d91 0%, #062a66 55%, #041e4a 100%);
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 50%, #1e40af 100%);
   display: flex;
   flex-direction: column;
   padding-top: 10px;
   gap: 2px;
-  border-right: 1px solid rgba(0, 0, 0, 0.35);
+  border-right: 2px solid #1e40af;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;

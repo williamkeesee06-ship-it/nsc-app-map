@@ -89,7 +89,16 @@ export type DrawingTool =
   | "callout"
   | "lasso"
   | "rotate"
-  | "stamp";
+  | "stamp"
+  | "ziply_hub"
+  | "ziply_terminal"
+  | "ziply_feeder"
+  | "ziply_distribution"
+  | "ziply_drop"
+  | "ziply_bore"
+  | "ziply_address"
+  | "ziply_pole"
+  | "ziply_handhole";
 
 export interface DrawingStyle {
   strokeColor: string;
@@ -179,7 +188,18 @@ export interface JobLayer {
 export type DrawingObject =
   | {
       id: string;
-      tool: "placed_cable" | "removed_cable" | "line" | "arrow" | "polygon" | "freehand" | "measure";
+      tool:
+        | "placed_cable"
+        | "removed_cable"
+        | "line"
+        | "arrow"
+        | "polygon"
+        | "freehand"
+        | "measure"
+        | "ziply_feeder"
+        | "ziply_distribution"
+        | "ziply_drop"
+        | "ziply_bore";
       vertices: Array<{ lat: number; lng: number }>;
       style: DrawingStyle;
     }
@@ -223,7 +243,12 @@ export type DrawingObject =
         | "cabinet_removed"
         | "anchor_new"
         | "anchor_removed"
-        | "splice";
+        | "splice"
+        | "ziply_hub"
+        | "ziply_terminal"
+        | "ziply_address"
+        | "ziply_pole"
+        | "ziply_handhole";
       position: { lat: number; lng: number };
       label?: string;
       style: DrawingStyle;

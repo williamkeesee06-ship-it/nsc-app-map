@@ -158,37 +158,9 @@ function firstNumber(s: string): number {
 
 function buildDials(w: WeatherPayload): Dial[] {
   const now = w.periods[0];
-  const humidity = now?.relativeHumidityPct ?? null;
   const precip = now?.precipitationChancePct ?? null;
 
-  let windText = "—";
-  let windNum = 0;
-  if (now) {
-    const cleanSpeed = now.windSpeed
-      .toLowerCase()
-      .replace(/\s*to\s*/g, "-")
-      .replace(/\s*mph\s*/g, " mph");
-    windText = `${cleanSpeed} ${now.windDirection}`.trim();
-    windNum = firstNumber(now.windSpeed);
-  }
-
   return [
-    {
-      label: "Humidity",
-      display: humidity != null ? `${humidity}%` : "—",
-      value: humidity ?? 0,
-      max: 100,
-      color: "#3da9ff",
-      icon: dropletIcon,
-    },
-    {
-      label: "Wind",
-      display: windText || "—",
-      value: windNum,
-      max: 40,
-      color: "#6be7c4",
-      icon: windIcon,
-    },
     {
       label: "Precip",
       display: precip != null ? `${precip}%` : "—",
@@ -214,13 +186,38 @@ function buildDials(w: WeatherPayload): Dial[] {
   ];
 }
 
+const supervisorIcon = (
+  <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden>
+    <path
+      d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+const SUPERVISOR_COLORS = [
+  "#3b82f6", // Royal Blue
+  "#10b981", // Emerald
+  "#f59e0b", // Amber
+  "#ec4899", // Pink
+  "#8b5cf6", // Violet
+  "#06b6d4", // Cyan
+];
+
 export interface WeatherStripProps {
   /** Job counts from useDashboardData — passed through from DashboardPage. */
   jobCounts: BucketCounts;
   onSelectBucket: (bucket: StatusBucket) => void;
+  isManager?: boolean;
+  supervisorCounts?: Record<string, number>;
 }
 
-export default function WeatherStrip({ jobCounts, onSelectBucket }: WeatherStripProps) {
+export default function WeatherStrip({
+  jobCounts,
+  onSelectBucket,
+  isManager = false,
+  supervisorCounts = {},
+}: WeatherStripProps) {
   const [weather, setWeather] = useState<WeatherPayload | null>(null);
   const [error, setError] = useState(false);
   const [nonce, setNonce] = useState(0);
@@ -256,6 +253,17 @@ export default function WeatherStrip({ jobCounts, onSelectBucket }: WeatherStrip
 
   const total = STATUS_BUCKETS.reduce((sum, seg) => sum + jobCounts[seg.key], 0);
 
+  // Group and sort supervisors descending by count, take top 6
+  const sortedSupervisors = isManager && supervisorCounts
+    ? Object.entries(supervisorCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+    : [];
+
+  const totalActiveJobs = isManager && supervisorCounts
+    ? Object.values(supervisorCounts).reduce((sum, c) => sum + c, 0)
+    : 0;
+
   const weatherContent = (() => {
     if (error && !weather) return null;
     if (!weather) return null;
@@ -268,93 +276,128 @@ export default function WeatherStrip({ jobCounts, onSelectBucket }: WeatherStrip
 
   return (
     <Bezel className="weather-strip hero-card">
-      <div className="hero-card__body" role="region" aria-label="Dashboard overview">
+      <div className="hero-card__body" role="region" aria-label="Dashboard overview" style={{ display: "flex", width: "100%", height: "100%" }}>
 
-        {/* ── LEFT ZONE: Weather ──────────────────────────────────── */}
-        <div className="hero-card__weather">
-          {weatherContent ? (
-            <>
-              <div className="weather-strip__lead">
-                <span className="weather-strip__temp">
-                  {weatherContent.temp}
-                  <span className="weather-strip__unit">F</span>
-                </span>
-                <span className="weather-strip__condition">{weatherContent.condition}</span>
-                {weatherContent.area && (
-                  <span className="weather-strip__area">{weatherContent.area}</span>
-                )}
+        {/* ── LEFT ZONE: Weather + Quick Links (underneath) ───────── */}
+        <div className="hero-card__weather" style={{ display: "flex", flexDirection: "column", gap: "12px", flex: "0 0 370px", padding: "0 16px 0 8px" }}>
+          {/* Top: Weather details + compact dials */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", width: "100%" }}>
+            {weatherContent ? (
+              <>
+                <div className="weather-strip__lead" style={{ flexShrink: 0 }}>
+                  <span className="weather-strip__temp">
+                    {weatherContent.temp}
+                    <span className="weather-strip__unit">F</span>
+                  </span>
+                  <span className="weather-strip__condition" style={{ maxWidth: "110px", wordBreak: "break-word" }}>{weatherContent.condition}</span>
+                  {weatherContent.area && (
+                    <span className="weather-strip__area">{weatherContent.area}</span>
+                  )}
+                </div>
+                <div className="weather-strip__dials" style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-start" }}>
+                  {weatherContent.dials.map((d) => (
+                    <RadialGauge
+                      key={d.label}
+                      value={d.value}
+                      max={d.max}
+                      display={d.display}
+                      label={d.label}
+                      color={d.color}
+                      icon={d.icon}
+                      size={64}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="hero-card__weather-skeleton" style={{ width: "100%" }}>
+                <div className="dash-skel dash-skel--strip" aria-hidden />
               </div>
-              <div className="weather-strip__dials">
-                {weatherContent.dials.map((d) => (
-                  <RadialGauge
-                    key={d.label}
-                    value={d.value}
-                    max={d.max}
-                    display={d.display}
-                    label={d.label}
-                    color={d.color}
-                    icon={d.icon}
-                    size={88}
-                  />
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="hero-card__weather-skeleton">
-              <div className="dash-skel dash-skel--strip" aria-hidden />
+            )}
+          </div>
+
+          {/* Bottom: Quick Links (side-by-side) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%", borderTop: "1px solid rgba(255, 255, 255, 0.12)", paddingTop: "10px" }}>
+            <span style={{ fontSize: "10px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(61, 169, 255, 0.6)" }}>Quick Links</span>
+            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+              {QUICK_LINKS.map((l) => (
+                <a
+                  key={l.key}
+                  className="hero-card__ql-tile"
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Open ${l.label}`}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "6px 8px", flex: "1 1 0px", minWidth: 0, textDecoration: "none" }}
+                >
+                  <span className="hero-card__ql-glyph" style={{ display: "flex", alignItems: "center", width: "18px", height: "18px", transform: "scale(0.8)", transformOrigin: "center" }}>{l.glyph}</span>
+                  <span className="hero-card__ql-label" style={{ fontSize: "11px", fontWeight: 700 }}>{l.label}</span>
+                </a>
+              ))}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* ── CENTER ZONE: Job Status Gauges ─────────────────────── */}
+        {/* ── Vertical Divider ── */}
         <div className="hero-card__divider" aria-hidden />
-        <div className="hero-card__gauges" role="region" aria-label="Job status overview">
-          {STATUS_BUCKETS.map((seg) => {
-            const color = bucketCoreColor(seg.key);
-            return (
-              <button
-                key={seg.key}
-                type="button"
-                className="status-bar__seg"
-                style={{ ["--seg-color" as string]: color }}
-                aria-label={`${seg.label}: ${jobCounts[seg.key]} jobs`}
-                onClick={() => onSelectBucket(seg.key)}
-              >
-                <RadialGauge
-                  value={jobCounts[seg.key]}
-                  max={total || undefined}
-                  display={String(jobCounts[seg.key])}
-                  label={seg.label}
-                  color={color}
-                  icon={BUCKET_ICONS[seg.key]}
-                  size={104}
-                />
-              </button>
-            );
-          })}
-        </div>
 
-        {/* ── RIGHT ZONE: Quick Links ─────────────────────────────── */}
-        <div className="hero-card__divider" aria-hidden />
-        <div className="hero-card__quicklinks">
-          <p className="hero-card__ql-title">Quick Links</p>
-          {QUICK_LINKS.map((l) => (
-            <a
-              key={l.key}
-              className="hero-card__ql-tile"
-              href={l.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`Open ${l.label}`}
-            >
-              <span className="hero-card__ql-glyph">{l.glyph}</span>
-              <span className="hero-card__ql-label">{l.label}</span>
-              <svg className="hero-card__ql-arrow" viewBox="0 0 24 24" width="14" height="14" aria-hidden>
-                <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </a>
-          ))}
-        </div>
+        {/* ── RIGHT ZONE: Job Status or Supervisor Gauges ───────── */}
+        {isManager && supervisorCounts ? (
+          <div className="hero-card__gauges" role="region" aria-label="Supervisor job counts" style={{ flex: "1 1 auto" }}>
+            {sortedSupervisors.length === 0 ? (
+              <div style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: "13px" }}>No active jobs assigned to supervisors.</div>
+            ) : (
+              sortedSupervisors.map(([name, count], index) => {
+                const color = SUPERVISOR_COLORS[index % SUPERVISOR_COLORS.length] || "#3b82f6";
+                return (
+                  <div
+                    key={name}
+                    className="status-bar__seg status-bar__seg--static"
+                    style={{ ["--seg-color" as string]: color }}
+                    aria-label={`${name}: ${count} active jobs`}
+                  >
+                    <RadialGauge
+                      value={count}
+                      max={totalActiveJobs || undefined}
+                      display={String(count)}
+                      label={name}
+                      color={color}
+                      icon={supervisorIcon}
+                      size={104}
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <div className="hero-card__gauges" role="region" aria-label="Job status overview" style={{ flex: "1 1 auto" }}>
+            {STATUS_BUCKETS.map((seg) => {
+              const color = bucketCoreColor(seg.key);
+              return (
+                <button
+                  key={seg.key}
+                  type="button"
+                  className="status-bar__seg"
+                  style={{ ["--seg-color" as string]: color }}
+                  aria-label={`${seg.label}: ${jobCounts[seg.key]} jobs`}
+                  onClick={() => onSelectBucket(seg.key)}
+                >
+                  <RadialGauge
+                    key={seg.key}
+                    value={jobCounts[seg.key]}
+                    max={total || undefined}
+                    display={String(jobCounts[seg.key])}
+                    label={seg.label}
+                    color={color}
+                    icon={BUCKET_ICONS[seg.key]}
+                    size={104}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
 
       </div>
     </Bezel>

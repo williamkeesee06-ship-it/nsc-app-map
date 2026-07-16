@@ -551,7 +551,7 @@ function JobsMapInner({
             >
               <MapHandle mapRef={mapRef} />
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
-              {selected && contract !== "Ziply" && (
+              {contract !== "Ziply" && (
                 <JobMarkers
                   jobs={mapped}
                   onSelect={handleSelect}

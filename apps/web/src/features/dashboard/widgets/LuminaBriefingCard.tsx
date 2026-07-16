@@ -60,7 +60,7 @@ export default function LuminaBriefingCard({
     }
   }
 
-  const greeting = briefing?.greeting || `Good morning, ${firstName}.`;
+  const greeting = briefing?.greeting || (firstName ? `Good morning, ${firstName}.` : "Good morning.");
   const bullets = briefing?.bullets ?? [];
 
   return (

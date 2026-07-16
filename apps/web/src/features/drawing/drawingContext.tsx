@@ -89,6 +89,94 @@ export const COLORS = {
 } as const;
 
 function defaultStyleForTool(tool: DrawingTool): DrawingStyle {
+  // Ziply Draw Tools
+  if (tool === "ziply_feeder") {
+    return {
+      strokeColor: "#06B6D4",
+      strokeWidth: 6,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+    };
+  }
+  if (tool === "ziply_distribution") {
+    return {
+      strokeColor: "#6366F1",
+      strokeWidth: 4,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+    };
+  }
+  if (tool === "ziply_drop") {
+    return {
+      strokeColor: "#F59E0B",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+    };
+  }
+  if (tool === "ziply_bore") {
+    return {
+      strokeColor: "#10B981",
+      strokeWidth: 3,
+      strokeStyle: "dashed",
+      fill: { kind: "none" },
+      opacity: 1,
+    };
+  }
+  if (tool === "ziply_hub") {
+    return {
+      strokeColor: "#EF4444",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.25,
+    };
+  }
+  if (tool === "ziply_terminal") {
+    return {
+      strokeColor: "#A855F7",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_address") {
+    return {
+      strokeColor: "#3B82F6",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_pole") {
+    return {
+      strokeColor: "#B45309",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_handhole") {
+    return {
+      strokeColor: "#64748B",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+
   // Phase 4: cable colors are hardcoded in DrawingOverlay, but we still set
   // them here so the modifier strip can show the right color swatch.
   if (tool === "placed_cable") {

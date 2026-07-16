@@ -117,8 +117,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     setFirebaseUser(user);
-    // Solo lock: always map to Billy Keesee until multi-user mapping ships.
-    const operator = SOLO_OPERATOR_NAME;
+    // Map email to respective supervisor/manager name
+    let operator = SOLO_OPERATOR_NAME;
+    const emailNorm = (user.email ?? "").trim().toLowerCase();
+    if (emailNorm === "rthoman@northskycomm.com") {
+      operator = "Robbie Thoman";
+    }
     setUsernameRaw(operator);
     try {
       localStorage.setItem(LS_KEY, operator);

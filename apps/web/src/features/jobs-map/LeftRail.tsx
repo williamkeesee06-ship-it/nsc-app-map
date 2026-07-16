@@ -454,6 +454,62 @@ const TELECOM_TOOL_DEFS: ToolDef[] = [
   },
 ];
 
+const ZIPLY_TOOL_DEFS: ToolDef[] = [
+  {
+    tool: "ziply_feeder",
+    label: "FEEDER CABLE",
+    iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+      <line x1="2" y1="13" x2="30" y2="13" stroke="#06B6D4" stroke-width="4" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
+    tool: "ziply_distribution",
+    label: "DIST CABLE",
+    iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+      <line x1="2" y1="13" x2="30" y2="13" stroke="#6366F1" stroke-width="3.2" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
+    tool: "ziply_drop",
+    label: "DROP CABLE",
+    iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+      <line x1="2" y1="13" x2="30" y2="13" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
+    tool: "ziply_bore",
+    label: "BORE/TRENCH",
+    iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+      <line x1="2" y1="13" x2="30" y2="13" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 3"/>
+    </svg>`,
+  },
+  {
+    tool: "ziply_hub",
+    label: "SPLITTER HUB",
+    iconSvg: (active) => railSvgForTool("ziply_hub", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_terminal",
+    label: "TERMINAL",
+    iconSvg: (active) => railSvgForTool("ziply_terminal", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_address",
+    label: "ADDRESS",
+    iconSvg: (active) => railSvgForTool("ziply_address", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_pole",
+    label: "POLE",
+    iconSvg: (active) => railSvgForTool("ziply_pole", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_handhole",
+    label: "HANDHOLE",
+    iconSvg: (active) => railSvgForTool("ziply_handhole", blackOrActive(active)),
+  },
+];
+
 // ─── Tab Components ────────────────────────────────────────────────────────────
 
 function FiltersTab({
@@ -522,6 +578,7 @@ const DIG_TOOLS: { id: DigTool; label: string; iconSvg: string }[] = [
 ];
 
 function AnnotateTab() {
+  const { contract } = useActiveContract();
   const { state, setTool, deleteSelected, undo, redo, canUndo, canRedo } = useDrawing();
   const { activeTool } = state;
   const hasSelection = state.selectedIds.size > 0;
@@ -544,10 +601,10 @@ function AnnotateTab() {
     const isActive = activeTool === tool;
     return (
       <button
-        key={tool}
-        className={`tool-tile${isActive ? " tool-tile--active" : ""}`}
-        onClick={() => toggleTool(tool)}
-        title={label}
+         key={tool}
+         className={`tool-tile${isActive ? " tool-tile--active" : ""}`}
+         onClick={() => toggleTool(tool)}
+         title={label}
       >
         <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
         <span className="tool-tile__label">{label}</span>
@@ -600,11 +657,22 @@ function AnnotateTab() {
         <button className="undo-redo-btn" onClick={redo} disabled={!canRedo}>↷ REDO</button>
       </div>
 
-      {/* Telecom tools — transplanted from the former Telecom tab. */}
-      <div className="telecom-divider">TELECOM</div>
-      <div className="tool-grid">
-        {TELECOM_TOOL_DEFS.map(renderTile)}
-      </div>
+      {/* Conditionally render Ziply tools or Telecom tools */}
+      {contract === "Ziply" ? (
+        <>
+          <div className="telecom-divider">ZIPLY CONSTRUCTION</div>
+          <div className="tool-grid" style={{ marginBottom: 12 }}>
+            {ZIPLY_TOOL_DEFS.map(renderTile)}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="telecom-divider">TELECOM</div>
+          <div className="tool-grid" style={{ marginBottom: 12 }}>
+            {TELECOM_TOOL_DEFS.map(renderTile)}
+          </div>
+        </>
+      )}
 
       {hasSelection && (
         <button className="tool-btn tool-btn--danger" style={{ width: '100%', marginTop: 6 }} onClick={deleteSelected}>

@@ -39,9 +39,16 @@ const LABEL_REQUIRED_TOOLS = new Set<string>([
   "cabinet_new", "cabinet_removed",
   "placed_cable", "removed_cable",
   "text", "callout",
-  // Edit 3: Splice points open the same popup as MH/HH so user can enter a label.
-  // Empty label → just the diamond. Labeled → diamond + callout box (per render logic).
   "splice",
+  "ziply_hub",
+  "ziply_terminal",
+  "ziply_address",
+  "ziply_pole",
+  "ziply_handhole",
+  "ziply_feeder",
+  "ziply_distribution",
+  "ziply_drop",
+  "ziply_bore",
 ]);
 
 // ── Cable line rendering ──────────────────────────────────────────────────────
@@ -318,8 +325,12 @@ const POINT_TOOLS = new Set([
   "pole_new", "pole_removed",
   "cabinet_new", "cabinet_removed",
   "anchor_new", "anchor_removed",
-  // Edit 3: Splice point is also a point tool (single position, diamond icon).
   "splice",
+  "ziply_hub",
+  "ziply_terminal",
+  "ziply_address",
+  "ziply_pole",
+  "ziply_handhole",
 ]);
 
 function isPointTool(tool: string): boolean {
@@ -500,7 +511,10 @@ export default function DrawingOverlay() {
           o.tool !== "pole_new" && o.tool !== "pole_removed" &&
           o.tool !== "mh_new" && o.tool !== "mh_removed" &&
           o.tool !== "hh_new" && o.tool !== "hh_removed" &&
-          o.tool !== "ped_new" && o.tool !== "ped_removed"
+          o.tool !== "ped_new" && o.tool !== "ped_removed" &&
+          o.tool !== "ziply_hub" && o.tool !== "ziply_terminal" &&
+          o.tool !== "ziply_address" && o.tool !== "ziply_pole" &&
+          o.tool !== "ziply_handhole"
         ) continue;
         if (!("position" in o)) continue;
         out.push({ id: o.id, lat: o.position.lat, lng: o.position.lng });
@@ -930,13 +944,19 @@ export default function DrawingOverlay() {
       const pulseKey = obj.id + "_ziply_pulse";
       let pulseGlow = overlaysRef.current.get(pulseKey) as google.maps.Polyline | undefined;
       
-      const isZiplyComplete = obj.tool === "placed_cable" && obj.style.ziplyStatus === "Complete";
+      const isZiplyComplete = (
+        obj.tool === "placed_cable" ||
+        obj.tool === "ziply_feeder" ||
+        obj.tool === "ziply_distribution" ||
+        obj.tool === "ziply_drop" ||
+        obj.tool === "ziply_bore"
+      ) && obj.style.ziplyStatus === "Complete";
       if (isZiplyComplete && "vertices" in obj) {
         const verts = (obj as any).vertices;
         if (!pulseGlow) {
           pulseGlow = new google.maps.Polyline({
             path: verts.map((v: any) => new google.maps.LatLng(v.lat, v.lng)),
-            strokeColor: "#00ffff",
+            strokeColor: obj.style.strokeColor || "#00ffff",
             strokeWeight: obj.style.strokeWidth * 3.5,
             strokeOpacity: 0.3,
             zIndex: 3,
@@ -948,6 +968,7 @@ export default function DrawingOverlay() {
         } else {
           pulseGlow.setPath(verts.map((v: any) => new google.maps.LatLng(v.lat, v.lng)));
           pulseGlow.setOptions({
+            strokeColor: obj.style.strokeColor || "#00ffff",
             strokeWeight: obj.style.strokeWidth * 3.5
           });
         }
