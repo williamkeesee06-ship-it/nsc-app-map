@@ -185,10 +185,16 @@ function makeMarkerIcon(
   const s = 64;
   let body = "";
   if (kind === "hub") {
-    // Legend: HUB/SPLITTER is a circle with a chevron/triangle inside
+    // Legend: HUB/SPLITTER is Option 2: Server Rack Tower badge with glowing outline + neon green active indicator lights
     body = `
-      <circle cx="32" cy="32" r="20" fill="url(#steel)" stroke="${color}" stroke-width="2.8"/>
-      <polygon points="26,20 44,32 26,44" fill="${color}"/>
+      <circle cx="32" cy="32" r="21" fill="url(#steel)" stroke="${color}" stroke-width="2.8" filter="url(#neon-glow)"/>
+      <rect x="22" y="20" width="20" height="24" fill="url(#carbon)" stroke="${color}" stroke-width="2" rx="3"/>
+      <line x1="26" y1="26" x2="38" y2="26" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="26" y1="32" x2="38" y2="32" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="26" y1="38" x2="38" y2="38" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/>
+      <circle cx="35" cy="26" r="1.6" fill="#39FF14" filter="url(#neon-glow)"/>
+      <circle cx="35" cy="32" r="1.6" fill="#39FF14" filter="url(#neon-glow)"/>
+      <circle cx="35" cy="38" r="1.6" fill="#39FF14" filter="url(#neon-glow)"/>
     `;
   } else if (kind === "terminal") {
     // Legend: SPLICE CHEVRON is a triangle
@@ -237,6 +243,13 @@ function makeMarkerIcon(
       <feComponentTransfer><feFuncA type="linear" slope="0.28"/></feComponentTransfer>
       <feMerge>
         <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="neon-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
