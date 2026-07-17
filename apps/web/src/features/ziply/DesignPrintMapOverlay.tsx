@@ -14,8 +14,10 @@ import {
 } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
 import FeatureDetailSheet, { type PlatformFeature } from "./FeatureDetailSheet.js";
-import { api } from "../../lib/api.js";
 import type { Job } from "@nsc/types";
+import { api } from "../../lib/api.js";
+import { getZiplyPrintBounds, listZiplyPrintFiles } from "./ziplyUtils.js";
+import ZiplyPrintHtmlOverlay from "./ZiplyPrintHtmlOverlay.js";
 
 export type LayerKey =
   | "feeder"
@@ -279,6 +281,13 @@ export default function DesignPrintMapOverlay({
   const [zoom, setZoom] = useState(15);
   const [selected, setSelected] = useState<PlatformFeature | null>(null);
   const [pulse, setPulse] = useState(0);
+
+  const printJobs = useMemo(() => {
+    return jobs.filter((j) => {
+      const filesList = listZiplyPrintFiles(j);
+      return filesList.length > 0;
+    });
+  }, [jobs]);
   const [isCustomLoaded, setIsCustomLoaded] = useState(false);
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>(() => {
     const o = {} as Record<LayerKey, boolean>;
@@ -516,8 +525,7 @@ export default function DesignPrintMapOverlay({
     try {
       map.setOptions({
         tilt: 35,
-        styles: DARK_NEON_STYLES,
-        backgroundColor: "#0F172A",
+        styles: [],
       });
     } catch {
       /* optional */
@@ -745,6 +753,23 @@ export default function DesignPrintMapOverlay({
 
   return (
     <>
+      {active &&
+        printJobs.map((j) => {
+          const filesList = listZiplyPrintFiles(j);
+          const url = filesList[0]?.downloadUrl;
+          const bounds = getZiplyPrintBounds(j);
+          if (!url || !bounds) return null;
+          return (
+            <ZiplyPrintHtmlOverlay
+              key={`print-html-overlay-${j.jobId}`}
+              url={url}
+              bounds={bounds}
+              opacity={0.5}
+              visible={active}
+            />
+          );
+        })}
+
       {selected && (
         <FeatureDetailSheet
           feature={selected}
