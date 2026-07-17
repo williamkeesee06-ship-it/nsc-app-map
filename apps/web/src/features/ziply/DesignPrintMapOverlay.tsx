@@ -28,7 +28,9 @@ export type LayerKey =
   | "service_point"
   | "pole"
   | "handhole"
-  | "hub";
+  | "hub"
+  | "pedestal"
+  | "manhole";
 
 type LayerMeta = {
   label: string;
@@ -113,6 +115,22 @@ const LAYER_META: Record<LayerKey, LayerMeta> = {
     minZoom: 14,
     lineWeight: 0,
   },
+  pedestal: {
+    label: "Pedestals",
+    color: "#059669", // Emerald Green
+    soft: "#34D399",
+    defaultOn: true,
+    minZoom: 14,
+    lineWeight: 0,
+  },
+  manhole: {
+    label: "Manholes",
+    color: "#4B5563", // Slate Grey
+    soft: "#9CA3AF",
+    defaultOn: true,
+    minZoom: 14,
+    lineWeight: 0,
+  },
 };
 
 /** Status only overrides non-default work states */
@@ -166,18 +184,22 @@ function guessLayerByNameAndDesc(name: string, desc: string, fallback: string): 
   if (/\bS\d{4}\b/.test(nameClean) || text.includes("hub") || text.includes("fdh") || text.includes("splitter")) return "hub";
   // 2. Poles (e.g. P1, P-3, PSE 227113)
   if (/^P\d+$/.test(nameClean) || /^P-\d+$/.test(nameClean) || text.includes("pole") || text.includes("pse")) return "pole";
-  // 3. Handholes (e.g. HH1, HH-3, vault, handhole)
+  // 3. Manholes (e.g. MH1, MH-3, manhole, mh)
+  if (/^MH\d*$/i.test(nameClean) || /^MH-\d+$/i.test(nameClean) || text.includes("manhole") || text.includes("mh")) return "manhole";
+  // 4. Handholes (e.g. HH1, HH-3, vault, handhole)
   if (/^HH\d*$/i.test(nameClean) || /^HH-\d+$/i.test(nameClean) || text.includes("handhole") || text.includes("hh") || text.includes("vault")) return "handhole";
-  // 4. Terminals (e.g. T3, T-4, PRT-9, MST)
+  // 5. Pedestals (e.g. PED1, PED-3, pedestal, ped)
+  if (/^PED\d*$/i.test(nameClean) || /^PED-\d+$/i.test(nameClean) || text.includes("pedestal") || text.includes("ped")) return "pedestal";
+  // 6. Terminals (e.g. T3, T-4, PRT-9, MST)
   if (/^T\d+$/.test(nameClean) || /^T-\d+$/.test(nameClean) || /^PRT-\d+$/.test(nameClean) || text.includes("terminal") || text.includes("mst") || text.includes("splice") || text.includes("closure")) return "terminal";
-  // 5. Service Points
+  // 7. Service Points
   if (text.includes("service") || text.includes("address") || /^\d+$/.test(nameClean) || nameClean.length > 5) return "service_point";
   return fallback;
 }
 
 /** Stainless / carbon marker with soft blue halo (light theme) */
 function makeMarkerIcon(
-  kind: "hub" | "terminal" | "service" | "pole" | "handhole",
+  kind: "hub" | "terminal" | "service" | "pole" | "handhole" | "pedestal" | "manhole",
   color: string,
   soft: string,
   size: number
@@ -212,17 +234,36 @@ function makeMarkerIcon(
       <line x1="40" y1="24" x2="24" y2="40" stroke="${color}" stroke-width="2.8" stroke-linecap="round"/>
     `;
   } else if (kind === "handhole") {
-    // Legend: HANDHOLE is a square with dashed inner cross
+    // Legend: HH / Handhole is a square vault box with inner concentric steel ring & glowing center connection core
     body = `
-      <rect x="16" y="16" width="32" height="32" fill="url(#carbon)" stroke="${color}" stroke-width="2.8" rx="2" ry="2"/>
-      <line x1="32" y1="16" x2="32" y2="48" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,3"/>
-      <line x1="16" y1="32" x2="48" y2="32" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,3"/>
+      <rect x="16" y="16" width="32" height="32" fill="url(#carbon)" stroke="${color}" stroke-width="2.8" rx="3" ry="3"/>
+      <circle cx="32" cy="32" r="6" fill="url(#steel)" stroke="${color}" stroke-width="1.5"/>
+      <circle cx="32" cy="32" r="2" fill="#39FF14" filter="url(#neon-glow)"/>
+      <line x1="20" y1="32" x2="26" y2="32" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="38" y1="32" x2="44" y2="32" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
+    `;
+  } else if (kind === "pedestal") {
+    // Legend: PED / Pedestal is a vertical rounded column badge with a glowing neon header light
+    body = `
+      <rect x="22" y="14" width="20" height="36" fill="url(#steel)" stroke="${color}" stroke-width="2.8" rx="4" ry="4"/>
+      <rect x="25" y="24" width="14" height="22" fill="url(#carbon)" stroke="${color}" stroke-width="1.2" rx="2" ry="2"/>
+      <circle cx="32" cy="19" r="2.2" fill="#39FF14" filter="url(#neon-glow)"/>
+      <line x1="32" y1="24" x2="32" y2="46" stroke="${color}" stroke-width="1.5"/>
+    `;
+  } else if (kind === "manhole") {
+    // Legend: MH / Manhole is a concentric steel circular plate with a glowing neon inner ring
+    body = `
+      <circle cx="32" cy="32" r="20" fill="url(#steel)" stroke="${color}" stroke-width="2.8"/>
+      <circle cx="32" cy="32" r="14" fill="url(#carbon)" stroke="${color}" stroke-width="1.8"/>
+      <circle cx="32" cy="32" r="10" fill="none" stroke="#39FF14" stroke-width="1.2" stroke-dasharray="3,3" filter="url(#neon-glow)"/>
+      <circle cx="32" cy="32" r="2" fill="#39FF14" filter="url(#neon-glow)"/>
     `;
   } else {
-    // Service Point: House icon matching My Maps screenshot
+    // Service Point: House icon matching My Maps screenshot with glowing neon entry drop port
     body = `
-      <polygon points="32,16 14,28 14,48 50,48 50,28" fill="url(#steel)" stroke="${color}" stroke-width="2.8" stroke-linejoin="round"/>
-      <rect x="27" y="34" width="10" height="14" fill="${color}"/>
+      <polygon points="32,15 14,28 14,48 50,48 50,28" fill="url(#steel)" stroke="${color}" stroke-width="2.8" stroke-linejoin="round"/>
+      <polygon points="32,20 18,30 18,44 46,44 46,30" fill="url(#carbon)" stroke="${color}" stroke-width="1.2" stroke-linejoin="round"/>
+      <circle cx="32" cy="34" r="3" fill="#39FF14" filter="url(#neon-glow)"/>
     `;
   }
 
@@ -595,6 +636,8 @@ export default function DesignPrintMapOverlay({
         const isTerm = layer === "terminal";
         const isPole = layer === "pole";
         const isHh = layer === "handhole";
+        const isPed = layer === "pedestal";
+        const isMh = layer === "manhole";
         const kind = isHub
           ? "hub"
           : isTerm
@@ -603,8 +646,12 @@ export default function DesignPrintMapOverlay({
               ? "pole"
               : isHh
                 ? "handhole"
-                : "service";
-        const size = isHub ? 44 : isTerm ? 30 : isPole || isHh ? 24 : 20;
+                : isPed
+                  ? "pedestal"
+                  : isMh
+                    ? "manhole"
+                    : "service";
+        const size = isHub ? 44 : isTerm ? 30 : isPed ? 26 : isMh ? 28 : isPole || isHh ? 24 : 20;
         return {
           visible,
           icon: makeMarkerIcon(kind, color, soft, size),
