@@ -197,10 +197,12 @@ function makeMarkerIcon(
       <circle cx="35" cy="38" r="1.6" fill="#39FF14" filter="url(#neon-glow)"/>
     `;
   } else if (kind === "terminal") {
-    // Legend: SPLICE CHEVRON is a triangle
+    // Legend: Option 5: Splitter Box Shield showing glowing fiber line branches
     body = `
-      <polygon points="16,20 48,32 16,44" fill="url(#steel)" stroke="${color}" stroke-width="2.6"/>
-      <circle cx="24" cy="32" r="3" fill="${color}"/>
+      <polygon points="32,13 46,20 46,44 32,51 18,44 18,20" fill="url(#carbon)" stroke="${color}" stroke-width="2.6"/>
+      <rect x="25" y="24" width="14" height="16" fill="url(#steel)" stroke="${color}" stroke-width="1.6" rx="1"/>
+      <circle cx="29" cy="32" r="1.8" fill="#39FF14" filter="url(#neon-glow)"/>
+      <circle cx="35" cy="32" r="1.8" fill="#39FF14" filter="url(#neon-glow)"/>
     `;
   } else if (kind === "pole") {
     // Legend: POLE is a circle with a cross (X) inside
