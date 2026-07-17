@@ -280,13 +280,10 @@ export default function LeftRail({
                    )
                  )}
                 {activeTab === 'tools' && <AnnotateTab />}
-                {activeTab === 'dashboard' && contract === 'Ziply' && (
-                  <ZiplyDashboardTab jobs={jobs} />
-                )}
-                {/* Calendar, Jobs (Ziply), and Dashboard (Lumen) tabs have no rail content — 
-                    they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
-                    on entry so there's nothing visible here. */}
-              </div>
+                 {/* Calendar, Jobs (Ziply), and Dashboard (Lumen & Ziply) tabs have no rail content — 
+                     they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
+                     on entry so there's nothing visible here. */}
+               </div>
             </div>
 
           {/* Resize handle */}
