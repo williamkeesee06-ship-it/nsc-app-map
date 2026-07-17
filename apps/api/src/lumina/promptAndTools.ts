@@ -883,6 +883,60 @@ export const LUMINA_TOOLS = [
         },
       },
 
+      // ── Gigs (Ziply Contract Gigs & Go-backs) ─────────────────────────
+      // Client-side dispatch lives in apps/web/src/features/lumina/tools/
+      // (addGig.ts, completeGig.ts, removeGig.ts, listOpenGigs.ts).
+      {
+        name: "addGig",
+        description:
+          "Create a new gig or go-back task for a Ziply project. Use when Billy asks Lumina to track a gig or go-back like cleanup, irrigation repair, or other small punch list items. Requires jobId/workOrder and task description.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobId: { type: "STRING", description: "The job ID or Work Order number of the project that caused the gig." },
+            task: { type: "STRING", description: "Verbatim description of the gig task (e.g. 'fixing irrigation lines we broke', 'clean up trash')." },
+          },
+          required: ["jobId", "task"],
+        },
+      },
+      {
+        name: "completeGig",
+        description:
+          "Mark a Ziply gig or go-back task as completed/done. Use when Billy says a gig is completed, fixed, or finished.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            gigId: { type: "STRING", description: "The ID of the gig to complete." },
+          },
+          required: ["gigId"],
+        },
+      },
+      {
+        name: "removeGig",
+        description:
+          "Remove/delete a Ziply gig or go-back task. Use when Billy asks to remove or delete a gig.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            gigId: { type: "STRING", description: "The ID of the gig to remove." },
+          },
+          required: ["gigId"],
+        },
+      },
+      {
+        name: "listOpenGigs",
+        description:
+          "List Ziply open gigs and go-backs. Can optionally filter by a specific job ID.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobId: { type: "STRING", description: "Optional job ID or Work Order to only show gigs for that job." },
+          },
+        },
+      },
+
+
+
 
       // ── 811 Dig Ticket tools ───────────────────────────────────────────
       {

@@ -466,7 +466,7 @@ function JobsMapInner({
   const [calendarFullscreen, setCalendarFullscreen] = useState(false);
   // Dashboard is the default landing tab — it mounts full-screen on first
   // paint (LeftRail starts on 'dashboard' and broadcasts it on mount).
-  const [dashboardFullscreen, setDashboardFullscreen] = useState(contract !== "Ziply");
+  const [dashboardFullscreen, setDashboardFullscreen] = useState(true);
   const [ticketsFullscreen, setTicketsFullscreen] = useState(false);
   const [ziplyJobsFullscreen, setZiplyJobsFullscreen] = useState(false);
 
@@ -475,7 +475,7 @@ function JobsMapInner({
       const detail = (e as CustomEvent<{ tab: string; collapsed: boolean }>).detail;
       if (!detail) return;
       setCalendarFullscreen(detail.tab === "calendar");
-      setDashboardFullscreen(detail.tab === "dashboard" && contract !== "Ziply");
+      setDashboardFullscreen(detail.tab === "dashboard");
       setTicketsFullscreen(detail.tab === "811-tickets");
       setZiplyJobsFullscreen(detail.tab === "jobs" && contract === "Ziply");
     }
@@ -534,7 +534,7 @@ function JobsMapInner({
             <Map
               defaultCenter={DEFAULT_CENTER}
               defaultZoom={DEFAULT_ZOOM}
-              styles={contract === "Ziply" ? ZIPLY_MUTED_STYLE : stylesFor(theme)}
+              styles={contract === "Ziply" ? [] : stylesFor(theme)}
               gestureHandling="greedy"
               disableDefaultUI={false}
               streetViewControl={true}

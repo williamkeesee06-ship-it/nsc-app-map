@@ -189,6 +189,11 @@ export const api = {
       `/api/jobs/${encodeURIComponent(jobId)}/ziply-ingest`,
       { method: "POST", body: JSON.stringify({ storageFiles }) }
     ),
+  saveZiplyPrintMarkups: (jobId: string, markups: any[]) =>
+    request<{ ok: boolean }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/ziply-print-markups`,
+      { method: "POST", body: JSON.stringify({ markups }) }
+    ),
   /**
    * Upload metadata for a permit already in Storage; kicks off AI parse
    * (permit #, dates, conditions) onto ziplyPrintLayer.permitFiles.
@@ -586,6 +591,26 @@ export const api = {
     request<any>("/api/lumina/code/read", { method: "POST", body: JSON.stringify(args) }),
   queryFirestore: (args: { collection: string; limit?: number; filters?: any[] }) =>
     request<any>("/api/lumina/data/query", { method: "POST", body: JSON.stringify(args) }),
+
+  // Ziply Gigs / Go-backs
+  listGigs: (jobId?: string) => {
+    const q = jobId ? `?jobId=${encodeURIComponent(jobId)}` : "";
+    return request<{ gigs: import("@nsc/types").Gig[] }>(`/api/gigs${q}`);
+  },
+  addGig: (jobId: string, task: string) =>
+    request<{ gig: import("@nsc/types").Gig }>("/api/gigs", {
+      method: "POST",
+      body: JSON.stringify({ jobId, task }),
+    }),
+  completeGig: (gigId: string) =>
+    request<{ gig: import("@nsc/types").Gig }>(`/api/gigs/${encodeURIComponent(gigId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "completed" }),
+    }),
+  deleteGig: (gigId: string) =>
+    request<void>(`/api/gigs/${encodeURIComponent(gigId)}`, {
+      method: "DELETE",
+    }),
 
   // ── ITIC automation (Firebase Callable Functions) ──────────────────────
   // Trigger background automated filing bot on ITIC

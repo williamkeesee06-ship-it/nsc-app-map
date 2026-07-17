@@ -568,6 +568,8 @@ export interface Job {
     } | null;
     /** Epoch ms when multi-point paths + drop geocodes last ran. */
     printGeometryEnhancedAt?: number | null;
+    /** User-drawn markups (canvas drawings) on the uploaded print PDF/image. */
+    printMarkups?: any[] | null;
   } | null;
 
   // ── 811 Dig Ticket fields (Phase 1) ──────────────────────────────────
@@ -733,3 +735,14 @@ export interface SyncRun {
   geocodeFailed: number;
   error?: string;
 }
+
+export interface Gig {
+  id: string;
+  jobId: string;
+  workOrder: string;
+  task: string;
+  status: "open" | "completed";
+  createdAt: number;
+  completedAt: number | null;
+}
+

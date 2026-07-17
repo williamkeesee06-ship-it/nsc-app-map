@@ -2164,6 +2164,28 @@ router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
   }
 });
 
+// POST /api/jobs/:jobId/ziply-print-markups — Persist drawings made on the print
+router.post("/jobs/:jobId/ziply-print-markups", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { markups } = req.body;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    await ref.update({
+      "ziplyPrintLayer.printMarkups": markups || [],
+      lastSyncedAt: Date.now(),
+    });
+    invalidateJobsCache();
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/jobs/:jobId/ziply-object-status — Persist one map object's build
 // status (spec §4). kind identifies the family; ref matches the object's label
 // (or "hub" for the FDH). Writes into ziplyPrintLayer.mapObjects.

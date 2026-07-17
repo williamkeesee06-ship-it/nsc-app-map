@@ -176,6 +176,52 @@ export function getZiplyPrintAnchor(
   return null;
 }
 
+/** Bounding box that encompasses the hub and all geocoded terminals */
+export function getZiplyPrintBounds(
+  job: Job
+): { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } } | null {
+  const mo = job.ziplyPrintLayer?.mapObjects;
+  if (!mo) return null;
+
+  const coords: { lat: number; lng: number }[] = [];
+  const hub = mo.hub;
+  if (hub && isValidLatLng(hub.lat, hub.lng)) {
+    coords.push({ lat: hub.lat as number, lng: hub.lng as number });
+  }
+
+  const terms = mo.terminals ?? [];
+  for (const t of terms) {
+    if (isValidLatLng(t.lat, t.lng)) {
+      coords.push({ lat: t.lat as number, lng: t.lng as number });
+    }
+  }
+
+  if (coords.length === 0) {
+    if (job.geocode?.status === "OK" && isValidLatLng(job.geocode.lat, job.geocode.lng)) {
+      coords.push({ lat: job.geocode.lat, lng: job.geocode.lng });
+    }
+  }
+
+  if (coords.length === 0) return null;
+
+  let minLat = Infinity, maxLat = -Infinity;
+  let minLng = Infinity, maxLng = -Infinity;
+  for (const c of coords) {
+    if (c.lat < minLat) minLat = c.lat;
+    if (c.lat > maxLat) maxLat = c.lat;
+    if (c.lng < minLng) minLng = c.lng;
+    if (c.lng > maxLng) maxLng = c.lng;
+  }
+
+  // Pad the bounds slightly so the print matches context nicely (~150 meters padding)
+  const padLat = 0.0015;
+  const padLng = 0.0015;
+  return {
+    sw: { lat: minLat - padLat, lng: minLng - padLng },
+    ne: { lat: maxLat + padLat, lng: maxLng + padLng },
+  };
+}
+
 /** True when print data exists AND we can place it on the map. */
 export function isZiplyPrintMapReady(job: Job): boolean {
   if (!isZiplyJob(job)) return false;

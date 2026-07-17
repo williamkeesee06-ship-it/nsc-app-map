@@ -56,5 +56,17 @@ export function useJobs(): JobsState & { reload: () => void } {
     return () => window.removeEventListener("nsc:jobs-reload", onReload);
   }, []);
 
+  // Auto-poll if any job is currently in "processing" state (e.g. ziplyIngest)
+  useEffect(() => {
+    if (s.state !== "ready") return;
+    const hasProcessing = s.jobs.some((j) => j.ziplyIngest?.status === "processing");
+    if (!hasProcessing) return;
+
+    const t = window.setTimeout(() => {
+      setNonce((n) => n + 1);
+    }, 5000);
+    return () => window.clearTimeout(t);
+  }, [s, nonce]);
+
   return { ...s, reload: () => setNonce((n) => n + 1) };
 }

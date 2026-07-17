@@ -93,7 +93,7 @@ export default function LeftRail({
       if (!detail?.tab) return;
       setActiveTab(detail.tab);
       const shouldCollapse = detail.tab === 'calendar' ||
-        (detail.tab === 'dashboard' && contract !== 'Ziply') ||
+        detail.tab === 'dashboard' ||
         detail.tab === '811-tickets' ||
         (detail.tab === 'jobs' && contract === 'Ziply');
       setCollapsed(shouldCollapse);
@@ -114,7 +114,7 @@ export default function LeftRail({
       // Calendar, Dashboard, and 811 Tickets mount full-screen over the map and
       // have no rail body of their own, so collapse the rail when entering them.
       const shouldCollapse = id === 'calendar' ||
-        (id === 'dashboard' && contract !== 'Ziply') ||
+        id === 'dashboard' ||
         id === '811-tickets' ||
         (id === 'jobs' && contract === 'Ziply');
       setCollapsed(shouldCollapse);

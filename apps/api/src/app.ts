@@ -19,11 +19,13 @@ import luminaPushRouter from "./routes/luminaPush.js";
 import luminaSmartsheetRouter from "./routes/luminaSmartsheet.js";
 import luminaBriefRouter from "./routes/luminaBrief.js";
 import tasksRouter from "./routes/tasks.js";
+import gigsRouter from "./routes/gigs.js";
 import luminaStaleTasksRouter from "./routes/luminaStaleTasks.js";
 import luminaCodeRouter from "./routes/luminaCode.js";
 import luminaDataRouter from "./routes/luminaData.js";
 import { getEnv } from "./config/env.js";
 import { isPublicApiPath, requireAuth } from "./middleware/requireAuth.js";
+
 
 function buildCorsAllowlist(): Set<string> {
   const env = getEnv();
@@ -97,6 +99,7 @@ export function createApp() {
   app.use("/api", luminaSmartsheetRouter);
   app.use("/api", luminaBriefRouter);
   app.use("/api", tasksRouter);
+  app.use("/api", gigsRouter);
   app.use("/api", luminaStaleTasksRouter);
   app.use("/api", luminaCodeRouter);
   app.use("/api", luminaDataRouter);

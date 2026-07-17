@@ -3,7 +3,7 @@
  * left: engineering print PDF/image pages
  * right: plant inventory with live status + pan-to-map
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import type { Job, ZiplyObjectStatus } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import {
@@ -40,6 +40,27 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
   const active = files[fileIdx] ?? null;
   const anchor = getZiplyPrintAnchor(job);
   const fidelity = getCadFidelity(job);
+
+  // Live Print Drawing/Markup States
+  const [markupTool, setMarkupTool] = useState<"none" | "pen" | "rect" | "circle" | "text">("none");
+  const [markupColor, setMarkupColor] = useState("#ff0000");
+  const [textDraft, setTextDraft] = useState("");
+  const [shapes, setShapes] = useState<any[]>([]);
+  const [savingMarkups, setSavingMarkups] = useState(false);
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingRef = useRef(false);
+  const startPosRef = useRef({ x: 0, y: 0 });
+  const currentPathRef = useRef<Array<{ x: number; y: number }>>([]);
+
+  // Load existing markups on mount or job change
+  useEffect(() => {
+    if (job.ziplyPrintLayer?.printMarkups) {
+      setShapes(job.ziplyPrintLayer.printMarkups);
+    } else {
+      setShapes([]);
+    }
+  }, [job.jobId, job.ziplyPrintLayer?.printMarkups]);
 
   const inventory = useMemo(() => {
     const cables = mo?.cables ?? [];
@@ -144,6 +165,203 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
       window.removeEventListener("nsc:ziply-print-page", onPage as EventListener);
     };
   }, [onClose, job.jobId, job.ziplyPrintLayer, files.length]);
+
+  // Canvas drawing / markup logic
+  const redrawCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (const s of shapes) {
+      ctx.strokeStyle = s.color;
+      ctx.fillStyle = s.color;
+      ctx.lineWidth = s.lineWidth || 3;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      if (s.type === "pen" && s.points?.length >= 2) {
+        ctx.beginPath();
+        ctx.moveTo(s.points[0].x * canvas.width, s.points[0].y * canvas.height);
+        for (let i = 1; i < s.points.length; i++) {
+          ctx.lineTo(s.points[i].x * canvas.width, s.points[i].y * canvas.height);
+        }
+        ctx.stroke();
+      } else if (s.type === "rect") {
+        ctx.beginPath();
+        ctx.rect(
+          s.x * canvas.width,
+          s.y * canvas.height,
+          s.w * canvas.width,
+          s.h * canvas.height
+        );
+        ctx.stroke();
+      } else if (s.type === "circle") {
+        ctx.beginPath();
+        ctx.arc(
+          s.x * canvas.width,
+          s.y * canvas.height,
+          s.r * Math.sqrt(canvas.width * canvas.height),
+          0,
+          2 * Math.PI
+        );
+        ctx.stroke();
+      } else if (s.type === "text" && s.text) {
+        ctx.font = "14px sans-serif";
+        ctx.fillText(s.text, s.x * canvas.width, s.y * canvas.height);
+      }
+    }
+  };
+
+  const resizeCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !canvas.parentElement) return;
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+    redrawCanvas();
+  };
+
+  useEffect(() => {
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+    return () => window.removeEventListener("resize", resizeCanvas);
+  }, [shapes, markupTool]);
+
+  const getMousePos = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+    };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (markupTool === "none") return;
+    const pos = getMousePos(e);
+    isDrawingRef.current = true;
+    startPosRef.current = pos;
+
+    if (markupTool === "pen") {
+      currentPathRef.current = [pos];
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current || markupTool === "none") return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const pos = getMousePos(e);
+    redrawCanvas();
+
+    ctx.strokeStyle = markupColor;
+    ctx.fillStyle = markupColor;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    if (markupTool === "pen") {
+      currentPathRef.current.push(pos);
+      ctx.beginPath();
+      ctx.moveTo(currentPathRef.current[0].x * canvas.width, currentPathRef.current[0].y * canvas.height);
+      for (let i = 1; i < currentPathRef.current.length; i++) {
+        ctx.lineTo(currentPathRef.current[i].x * canvas.width, currentPathRef.current[i].y * canvas.height);
+      }
+      ctx.stroke();
+    } else if (markupTool === "rect") {
+      ctx.beginPath();
+      const sx = startPosRef.current.x * canvas.width;
+      const sy = startPosRef.current.y * canvas.height;
+      const w = (pos.x - startPosRef.current.x) * canvas.width;
+      const h = (pos.y - startPosRef.current.y) * canvas.height;
+      ctx.rect(sx, sy, w, h);
+      ctx.stroke();
+    } else if (markupTool === "circle") {
+      ctx.beginPath();
+      const sx = startPosRef.current.x * canvas.width;
+      const sy = startPosRef.current.y * canvas.height;
+      const ex = pos.x * canvas.width;
+      const ey = pos.y * canvas.height;
+      const r = Math.sqrt((ex - sx) ** 2 + (ey - sy) ** 2);
+      ctx.arc(sx, sy, r, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+  };
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current || markupTool === "none") return;
+    isDrawingRef.current = false;
+    const pos = getMousePos(e);
+
+    let newShape: any = null;
+
+    if (markupTool === "pen") {
+      if (currentPathRef.current.length >= 2) {
+        newShape = {
+          type: "pen",
+          points: currentPathRef.current,
+          color: markupColor,
+        };
+      }
+    } else if (markupTool === "rect") {
+      const w = pos.x - startPosRef.current.x;
+      const h = pos.y - startPosRef.current.y;
+      newShape = {
+        type: "rect",
+        x: startPosRef.current.x,
+        y: startPosRef.current.y,
+        w,
+        h,
+        color: markupColor,
+      };
+    } else if (markupTool === "circle") {
+      const r = Math.sqrt((pos.x - startPosRef.current.x) ** 2 + (pos.y - startPosRef.current.y) ** 2);
+      newShape = {
+        type: "circle",
+        x: startPosRef.current.x,
+        y: startPosRef.current.y,
+        r,
+        color: markupColor,
+      };
+    } else if (markupTool === "text" && textDraft) {
+      newShape = {
+        type: "text",
+        x: pos.x,
+        y: pos.y,
+        text: textDraft,
+        color: markupColor,
+      };
+      setMarkupTool("none");
+      setTextDraft("");
+    }
+
+    if (newShape) {
+      setShapes((prev) => [...prev, newShape]);
+    }
+  };
+
+  const clearMarkups = () => {
+    setShapes([]);
+  };
+
+  const saveMarkups = async () => {
+    setSavingMarkups(true);
+    try {
+      await api.saveZiplyPrintMarkups(job.jobId, shapes);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+      alert("Markups saved successfully!");
+    } catch (err) {
+      console.error("Save markups failed", err);
+      alert("Failed to save markups.");
+    } finally {
+      setSavingMarkups(false);
+    }
+  };
 
   const panTo = (lat: number, lng: number) => {
     window.dispatchEvent(
@@ -307,6 +525,165 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
             )}
           </div>
 
+          {/* Sub-bar: Markup Toolbar */}
+          {active && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 14px",
+                background: "#e9edf2",
+                borderBottom: "1px solid rgba(148,163,184,0.18)",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#475569",
+                  textTransform: "uppercase",
+                  marginRight: 4,
+                }}
+              >
+                ✏️ Markup:
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setMarkupTool(markupTool === "pen" ? "none" : "pen")}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "4px 8px",
+                  borderRadius: 4,
+                  border: "1px solid #8e96a0",
+                  background: markupTool === "pen" ? "#1ea7ff" : "#ffffff",
+                  color: markupTool === "pen" ? "#ffffff" : "#15202c",
+                  cursor: "pointer",
+                }}
+              >
+                Pen
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMarkupTool(markupTool === "rect" ? "none" : "rect")}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "4px 8px",
+                  borderRadius: 4,
+                  border: "1px solid #8e96a0",
+                  background: markupTool === "rect" ? "#1ea7ff" : "#ffffff",
+                  color: markupTool === "rect" ? "#ffffff" : "#15202c",
+                  cursor: "pointer",
+                }}
+              >
+                Rect
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMarkupTool(markupTool === "circle" ? "none" : "circle")}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "4px 8px",
+                  borderRadius: 4,
+                  border: "1px solid #8e96a0",
+                  background: markupTool === "circle" ? "#1ea7ff" : "#ffffff",
+                  color: markupTool === "circle" ? "#ffffff" : "#15202c",
+                  cursor: "pointer",
+                }}
+              >
+                Circle
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const txt = prompt("Enter text markup:");
+                  if (txt) {
+                    setMarkupTool("text");
+                    setTextDraft(txt);
+                  }
+                }}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "4px 8px",
+                  borderRadius: 4,
+                  border: "1px solid #8e96a0",
+                  background: markupTool === "text" ? "#1ea7ff" : "#ffffff",
+                  color: markupTool === "text" ? "#ffffff" : "#15202c",
+                  cursor: "pointer",
+                }}
+              >
+                Text
+              </button>
+
+              <div style={{ width: 1, height: 16, background: "rgba(148,163,184,0.3)" }} />
+
+              <select
+                value={markupColor}
+                onChange={(e) => setMarkupColor(e.target.value)}
+                style={{
+                  fontSize: 10,
+                  padding: "3px 6px",
+                  borderRadius: 4,
+                  border: "1px solid #8e96a0",
+                  background: "#ffffff",
+                  color: "#15202c",
+                }}
+              >
+                <option value="#ff0000">Red</option>
+                <option value="#00d45a">Green</option>
+                <option value="#1ea7ff">Blue</option>
+                <option value="#eab308">Yellow</option>
+                <option value="#f97316">Orange</option>
+              </select>
+
+              <div style={{ flex: 1 }} />
+
+              <button
+                type="button"
+                onClick={clearMarkups}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "4px 8px",
+                  borderRadius: 4,
+                  border: "1px solid rgba(214,51,51,0.3)",
+                  background: "rgba(214,51,51,0.1)",
+                  color: "#d63333",
+                  cursor: "pointer",
+                }}
+              >
+                Clear
+              </button>
+
+              <button
+                type="button"
+                disabled={savingMarkups}
+                onClick={() => void saveMarkups()}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  padding: "4px 10px",
+                  borderRadius: 4,
+                  border: "none",
+                  background: "linear-gradient(180deg, #1ea7ff, #0084d4)",
+                  color: "#ffffff",
+                  cursor: savingMarkups ? "wait" : "pointer",
+                  boxShadow: "0 2px 6px rgba(30,167,255,0.3)",
+                }}
+              >
+                {savingMarkups ? "Saving..." : "Save Markups"}
+              </button>
+            </div>
+          )}
+
           {callout && (
             <div
               style={{
@@ -331,6 +708,23 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
             </div>
           )}
           <div style={{ flex: 1, minHeight: 0, position: "relative", background: "#111" }}>
+            {active && (
+              <canvas
+                ref={canvasRef}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  zIndex: markupTool !== "none" ? 10 : 1,
+                  pointerEvents: markupTool !== "none" ? "auto" : "none",
+                  cursor: markupTool !== "none" ? "crosshair" : "default",
+                }}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+              />
+            )}
             {active?.downloadUrl ? (
               active.contentType?.includes("pdf") ||
               active.name?.toLowerCase().endsWith(".pdf") ||
