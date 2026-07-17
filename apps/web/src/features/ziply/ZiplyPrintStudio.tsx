@@ -425,7 +425,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
         position: "fixed",
         inset: 0,
         zIndex: 10000,
-        background: "rgba(2, 6, 12, 0.72)",
+        background: "rgba(241, 245, 249, 0.75)",
         backdropFilter: "blur(8px)",
         display: "flex",
         alignItems: "stretch",
@@ -469,7 +469,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
               gap: 10,
               padding: "10px 14px",
               borderBottom: "1px solid rgba(148,163,184,0.12)",
-              background: "linear-gradient(180deg,#15202c,#eef2f6)",
+              background: "linear-gradient(180deg,#ffffff,#eef2f6)",
             }}
           >
             <span
@@ -707,7 +707,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
               )}
             </div>
           )}
-          <div style={{ flex: 1, minHeight: 0, position: "relative", background: "#111" }}>
+          <div style={{ flex: 1, minHeight: 0, position: "relative", background: "#f8fafc" }}>
             {active && (
               <canvas
                 ref={canvasRef}
@@ -732,7 +732,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                 <iframe
                   title={active.name || "print"}
                   src={active.downloadUrl}
-                  style={{ width: "100%", height: "100%", border: 0, background: "#1a1a1a" }}
+                  style={{ width: "100%", height: "100%", border: 0, background: "#ffffff" }}
                 />
               ) : (
                 <div
