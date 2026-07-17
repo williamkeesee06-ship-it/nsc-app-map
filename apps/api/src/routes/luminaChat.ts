@@ -32,6 +32,9 @@ import {
 import { loadMemoriesForPrompt, type MemoryItem } from "./luminaMemories.js";
 import { db } from "../lib/firestore.js";
 import type { Job } from "@nsc/types";
+import { getEnv } from "../config/env.js";
+import { getSheet, buildColumnsById, rowToRecord } from "../lib/smartsheet.js";
+import { normalizeRow } from "../services/jobsSync.js";
 
 const router = Router();
 
@@ -86,6 +89,7 @@ interface ChatRequestBody {
   /** Dashboard briefing mode — bypasses the chat engine and returns computed
    *  bullets from live Firestore data instead of a Gemini turn. */
   mode?: string;
+  contract?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -126,7 +130,177 @@ interface Candidate {
   text: string;
 }
 
-async function buildBriefing(username?: string): Promise<BriefingResponse> {
+async function buildZiplyBriefing(username?: string): Promise<BriefingResponse> {
+  const env = getEnv();
+  const sheetId = env.ZIPLY_SMARTSHEET_SHEET_ID;
+  let ziplyJobs: Job[] = [];
+
+  // Attempt real-time Smartsheet polling
+  if (sheetId) {
+    try {
+      const sheet = await getSheet({}, sheetId);
+      const colsById = buildColumnsById(sheet);
+      for (const row of sheet.rows) {
+        const job = normalizeRow(row, colsById, true);
+        if (job) ziplyJobs.push(job);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[lumina/briefing] smartsheet poll failed, falling back to Firestore:", err);
+      ziplyJobs = [];
+    }
+  }
+
+  // Fallback to Firestore if Smartsheet poll was empty or failed
+  if (ziplyJobs.length === 0) {
+    const snap = await db().collection("jobs").where("customerProject", "==", "Ziply").get();
+    snap.forEach((doc) => {
+      ziplyJobs.push(doc.data() as Job);
+    });
+  }
+
+  // Filter to North Metro Area
+  const NORTH_METRO_CITIES = [
+    "lynnwood",
+    "everett",
+    "edmonds",
+    "lake stevens",
+    "snohomish",
+    "mukilteo",
+    "marysville",
+    "arlington",
+    "bothell",
+    "mill creek",
+    "mountlake terrace",
+    "woodway",
+    "monroe"
+  ];
+
+  const northMetroJobs = ziplyJobs.filter((job) => {
+    const base = (job.constructionBase ?? "").trim().toLowerCase();
+    if (base.includes("north metro") || base.includes("northmetro") || base.includes("n. metro")) {
+      return true;
+    }
+    const city = (job.city ?? "").trim().toLowerCase();
+    if (!city) return false;
+    if (NORTH_METRO_CITIES.includes(city)) return true;
+    return NORTH_METRO_CITIES.some(
+      (c) => city === c || city.startsWith(c + " ") || city.startsWith(c + ",") || city.includes(c)
+    );
+  });
+
+  const candidates: Candidate[] = [];
+
+  // 1 — New Jobs added recently (last 7 days based on dateReceived)
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const newJobs = northMetroJobs.filter((j) => {
+    if (!j.dateReceived) return false;
+    const parsed = Date.parse(j.dateReceived);
+    return !isNaN(parsed) && parsed >= sevenDaysAgo;
+  }).length;
+  if (newJobs > 0) {
+    candidates.push({
+      signal: newJobs * 10, // high priority
+      text: `${newJobs} new Ziply job${newJobs === 1 ? "" : "s"} added to the North Metro tracker this week.`,
+    });
+  }
+
+  // 2 — Active construction jobs (in progress)
+  const activeJobs = northMetroJobs.filter((j) => {
+    const status = (j.jobStatus ?? "").trim().toLowerCase();
+    return status === "in progress" || status === "in-progress" || status === "started";
+  }).length;
+  if (activeJobs > 0) {
+    candidates.push({
+      signal: activeJobs,
+      text: `${activeJobs} active construction project${activeJobs === 1 ? "" : "s"} currently in progress.`,
+    });
+  }
+
+  // 3 — Footage completion metrics
+  let totalEst = 0;
+  let totalComp = 0;
+  northMetroJobs.forEach((j) => {
+    const status = (j.jobStatus ?? "").trim().toLowerCase();
+    if (status === "completed" || status === "complete") return;
+    const est = (j.estBoreFt ?? 0) + (j.estPlacingFt ?? 0) + (j.estAerialFt ?? 0);
+    const comp = (j.completedBoreFt ?? 0) + (j.completedPlacingFt ?? 0) + (j.completedAerialFt ?? 0);
+    if (est > 0) {
+      totalEst += est;
+      totalComp += comp;
+    }
+  });
+  if (totalEst > 0) {
+    const pct = Math.round((totalComp / totalEst) * 100);
+    candidates.push({
+      signal: 8,
+      text: `Footage placed: ${totalComp.toLocaleString()} ft of ${totalEst.toLocaleString()} ft estimated (${pct}% complete).`,
+    });
+  }
+
+  // 4 — Outstanding Go-Backs / Gig Work from Firestore
+  try {
+    const gigsSnap = await db().collection("gigs").where("completed", "==", false).get();
+    const openGigs = gigsSnap.size;
+    if (openGigs > 0) {
+      candidates.push({
+        signal: openGigs * 4,
+        text: `${openGigs} outstanding gig work / go-back task${openGigs === 1 ? "" : "s"} remain open.`,
+      });
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("failed to count gigs for briefing:", err);
+  }
+
+  // 5 — Locates Expiring
+  const locatesExpiring = northMetroJobs.filter((j) => {
+    if (!j.locateExpires) return false;
+    const days = Math.round((j.locateExpires - Date.now()) / (24 * 60 * 60 * 1000));
+    return days >= 0 && days <= 7;
+  }).length;
+  if (locatesExpiring > 0) {
+    candidates.push({
+      signal: locatesExpiring * 5,
+      text: `${locatesExpiring} locate ticket${locatesExpiring === 1 ? "" : "s"} expiring within 7 days.`,
+    });
+  }
+
+  // 6 — Notes highlights: search for keywords in nscProjectNotes
+  const flagWords = ["hold", "blocked", "issue", "irrigation", "damage", "need"];
+  const notesAlerts: string[] = [];
+  for (const j of northMetroJobs) {
+    const notes = (j.nscProjectNotes ?? "").toLowerCase();
+    if (flagWords.some((word) => notes.includes(word))) {
+      notesAlerts.push(`${j.workOrder || j.jobId}: "${j.nscProjectNotes}"`);
+    }
+  }
+  if (notesAlerts.length > 0) {
+    const topAlert = notesAlerts[0];
+    candidates.push({
+      signal: 6,
+      text: `Outstanding task note: ${topAlert}`,
+    });
+  }
+
+  candidates.sort((a, b) => b.signal - a.signal);
+  const bullets =
+    candidates.length === 0
+      ? ["No critical Ziply updates flagged across North Metro today."]
+      : candidates.slice(0, 3).map((c) => c.text);
+
+  return {
+    greeting: `Operational briefing: Ziply North Metro area status and outstanding actions.`,
+    bullets,
+    modelTurnAt: Date.now(),
+  };
+}
+
+async function buildBriefing(username?: string, contract?: string): Promise<BriefingResponse> {
+  if (contract === "Ziply") {
+    return buildZiplyBriefing(username);
+  }
+
   const snap = await db().collection("jobs").get();
   const all: Job[] = [];
   snap.forEach((doc) => all.push(doc.data() as Job));
@@ -333,7 +507,7 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
   // Dashboard briefing short-circuit — does not need history[] or Gemini.
   if (body?.mode === "dashboard_briefing") {
     try {
-      const briefing = await buildBriefing(body.username);
+      const briefing = await buildBriefing(body.username, body.contract);
       return res.json(briefing);
     } catch (err) {
       // eslint-disable-next-line no-console

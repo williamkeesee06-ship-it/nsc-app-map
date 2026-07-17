@@ -97,7 +97,7 @@ export default function DashboardPage({
           <Suspense fallback={<div className="dash-skel dash-skel--map" aria-hidden />}>
             <MapPreviewCard jobs={data.myJobs} onOpenMap={onOpenMap} />
           </Suspense>
-          <LuminaBriefingCard firstName={firstName} username={username} />
+          <LuminaBriefingCard firstName={firstName} username={username} contract={contract} />
           {isZiply ? (
             <GigWorkCard ziplyJobs={ziplyJobs} onOpenJob={onOpenJob} />
           ) : (

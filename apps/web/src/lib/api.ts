@@ -130,20 +130,21 @@ export const api = {
     ),
 
   // Dashboard Lumina briefing — reuses /api/lumina/chat with a dedicated mode.
-  getDashboardBriefing: (username: string) =>
+  getDashboardBriefing: (username: string, contract?: string) =>
     request<DashboardBriefing>("/api/lumina/chat", {
       method: "POST",
-      body: JSON.stringify({ mode: "dashboard_briefing", username, history: [] }),
+      body: JSON.stringify({ mode: "dashboard_briefing", username, contract, history: [] }),
     }),
   // One-shot question from the dashboard briefing card. Returns the model's
   // text reply (tool-calling turns are not expected for these short asks).
-  askLumina: (prompt: string, username: string | null) =>
+  askLumina: (prompt: string, username: string | null, contract?: string) =>
     request<{ text?: string; modelTurnAt: number }>("/api/lumina/chat", {
       method: "POST",
       body: JSON.stringify({
         history: [],
         newUserMessage: prompt,
-        username: username ?? undefined,
+        username,
+        contract,
       }),
     }),
   listSupervisors: () =>

@@ -569,7 +569,7 @@ function JobsMapInner({
               <CentralOfficesOverlay visible={showCOs} />
               <Suspense fallback={null}>
                 {contract === "Ziply" && (
-                  <DesignPrintMapOverlay active jobs={ziplyJobs} selectedJob={selected} />
+                  <DesignPrintMapOverlay active={ziplyPrintLayerVisible} jobs={ziplyJobs} selectedJob={selected} />
                 )}
               </Suspense>
               <DrawingOverlay />

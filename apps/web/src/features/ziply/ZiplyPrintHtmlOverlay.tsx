@@ -36,17 +36,20 @@ export default function ZiplyPrintHtmlOverlay({
     div.style.opacity = String(opacity);
     div.style.pointerEvents = "none"; // allow user to click through to map vectors
     div.style.transition = "opacity 0.2s ease";
+    div.style.mixBlendMode = "multiply";
+    div.style.backgroundColor = "transparent";
     divRef.current = div;
 
     // Render the print iframe or image
     const isPdf = url.toLowerCase().includes(".pdf");
     if (isPdf) {
       const iframe = document.createElement("iframe");
-      iframe.src = url;
+      iframe.src = url.includes("#") ? url : `${url}#toolbar=0&navpanes=0&scrollbar=0`;
       iframe.style.width = "100%";
       iframe.style.height = "100%";
       iframe.style.border = "none";
       iframe.style.pointerEvents = "none";
+      iframe.style.backgroundColor = "transparent";
       div.appendChild(iframe);
     } else {
       const img = document.createElement("img");

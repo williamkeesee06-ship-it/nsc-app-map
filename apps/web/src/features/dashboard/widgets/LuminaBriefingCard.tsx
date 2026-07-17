@@ -12,11 +12,13 @@ import NeonOrb from "../components/NeonOrb.js";
 export interface LuminaBriefingCardProps {
   firstName: string;
   username: string | null;
+  contract: string;
 }
 
 export default function LuminaBriefingCard({
   firstName,
   username,
+  contract,
 }: LuminaBriefingCardProps) {
   const [briefing, setBriefing] = useState<DashboardBriefing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,7 @@ export default function LuminaBriefingCard({
     let cancelled = false;
     setLoading(true);
     api
-      .getDashboardBriefing(username ?? "")
+      .getDashboardBriefing(username ?? "", contract)
       .then((b) => {
         if (!cancelled) setBriefing(b);
       })
@@ -42,7 +44,7 @@ export default function LuminaBriefingCard({
     return () => {
       cancelled = true;
     };
-  }, [username]);
+  }, [username, contract]);
 
   async function ask() {
     const prompt = question.trim();
@@ -50,7 +52,7 @@ export default function LuminaBriefingCard({
     setAsking(true);
     setAnswer(null);
     try {
-      const res = await api.askLumina(prompt, username);
+      const res = await api.askLumina(prompt, username, contract);
       setAnswer(res.text?.trim() || "Lumina didn't return a reply.");
       setQuestion("");
     } catch {
