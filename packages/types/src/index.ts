@@ -165,6 +165,10 @@ export interface DrawingStyle {
   ziplyStatus?: "planned" | "placed" | "completed" | "Complete" | "Pending" | string;
   ziplyCrewId?: string;
   ziplyTimestamp?: number;
+  ziplyFootage?: number;
+  ziplyPrintPage?: string;
+  ziplyCableType?: string;
+  ziplyInstallMethod?: string;
 }
 
 // Phase 9+: per-job MyMaps-style layers (elevated for personal desktop use).

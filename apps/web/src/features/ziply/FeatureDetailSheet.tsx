@@ -82,8 +82,6 @@ export default function FeatureDetailSheet({ feature, onClose, onStatusChange }:
     <div
       style={{
         ...sheet,
-        borderColor: `${sc}44`,
-        boxShadow: `0 24px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1), 0 0 30px ${sc}22`,
       }}
     >
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
@@ -92,8 +90,8 @@ export default function FeatureDetailSheet({ feature, onClose, onStatusChange }:
             width: 8,
             alignSelf: "stretch",
             borderRadius: 99,
-            background: `linear-gradient(180deg, ${sc}, #1E293B)`,
-            boxShadow: `0 0 15px ${sc}88`,
+            background: `linear-gradient(180deg, ${sc}, #E2E8F0)`,
+            boxShadow: `0 0 15px ${sc}44`,
             flexShrink: 0,
           }}
         />
@@ -113,7 +111,7 @@ export default function FeatureDetailSheet({ feature, onClose, onStatusChange }:
             style={{
               fontWeight: 800,
               fontSize: 16,
-              color: "#F8FAFC",
+              color: "#0F172A",
               marginTop: 4,
               lineHeight: 1.3,
             }}
@@ -128,20 +126,16 @@ export default function FeatureDetailSheet({ feature, onClose, onStatusChange }:
               fontWeight: 800,
               padding: "4px 12px",
               borderRadius: 999,
-              background: `${sc}22`,
+              background: `${sc}11`,
               color: sc,
-              border: `1px solid ${sc}`,
+              border: `1px solid ${sc}44`,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
-              boxShadow: `0 0 10px ${sc}44`,
             }}
           >
             {status.replace("_", " ")}
           </span>
         </div>
-        <button type="button" onClick={onClose} style={xBtn} aria-label="Close">
-          ✕
-        </button>
       </div>
 
       <div style={tabsRow}>
@@ -154,10 +148,10 @@ export default function FeatureDetailSheet({ feature, onClose, onStatusChange }:
               ...tabBtn,
               background:
                 tab === t
-                  ? `linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02))`
+                  ? `#F1F5F9`
                   : "transparent",
-              color: tab === t ? "#F8FAFC" : "#64748B",
-              borderColor: tab === t ? "#475569" : "transparent",
+              color: tab === t ? "#0F172A" : "#64748B",
+              borderColor: tab === t ? "#E2E8F0" : "transparent",
             }}
           >
             {t.toUpperCase()}
@@ -248,8 +242,8 @@ function ProgressTab({
               gap: 12,
               padding: "12px 14px",
               borderRadius: 12,
-              border: `1px solid ${isCurrent ? c : isPast ? "#334155" : "#1E293B"}`,
-              background: isCurrent ? `${c}15` : isPast ? "rgba(30,41,59,0.5)" : "transparent",
+              border: `1px solid ${isCurrent ? c : isPast ? "#E2E8F0" : "#F1F5F9"}`,
+              background: isCurrent ? `${c}11` : isPast ? "#F8FAFC" : "transparent",
               cursor: "pointer",
               transition: "all 0.2s",
               textAlign: "left",
@@ -260,15 +254,15 @@ function ProgressTab({
                 width: 20,
                 height: 20,
                 borderRadius: "50%",
-                border: `2px solid ${isPast ? c : "#475569"}`,
+                border: `2px solid ${isPast ? c : "#CBD5E1"}`,
                 background: isPast ? c : "transparent",
                 display: "grid",
                 placeItems: "center",
-                boxShadow: isCurrent ? `0 0 10px ${c}` : "none",
+                boxShadow: isCurrent ? `0 0 10px ${c}44` : "none",
               }}
             >
               {isPast && (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               )}
@@ -277,7 +271,7 @@ function ProgressTab({
               flex: 1,
               fontSize: 13,
               fontWeight: 700,
-              color: isCurrent ? "#FFFFFF" : isPast ? "#CBD5E1" : "#64748B",
+              color: isCurrent ? "#0F172A" : isPast ? "#475569" : "#94A3B8",
             }}>
               {stage.label}
             </div>
@@ -289,29 +283,18 @@ function ProgressTab({
 }
 
 const sheet: CSSProperties = {
-  position: "absolute",
-  top: 16,
-  left: 16,
-  bottom: 16,
-  width: 380,
-  zIndex: 9999,
-  background: "rgba(15, 23, 42, 0.85)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  border: "1px solid rgba(255, 255, 255, 0.12)",
-  borderRadius: 12,
-  padding: 20,
+  width: "100%",
+  padding: "20px 16px",
   fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif",
   display: "flex",
   flexDirection: "column",
-  boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
 };
 
 const tabsRow: CSSProperties = {
   display: "flex",
   gap: 6,
   marginTop: 20,
-  borderBottom: "1px solid #334155",
+  borderBottom: "1px solid #E2E8F0",
   paddingBottom: 10,
 };
 
@@ -332,9 +315,9 @@ const row: CSSProperties = {
   gridTemplateColumns: "100px 1fr",
   gap: 12,
   padding: "8px 12px",
-  background: "rgba(30,41,59,0.4)",
+  background: "#F8FAFC",
   borderRadius: 8,
-  border: "1px solid #1E293B",
+  border: "1px solid #E2E8F0",
   alignItems: "center",
 };
 
@@ -347,23 +330,13 @@ const rowK: CSSProperties = {
 
 const rowV: CSSProperties = {
   fontSize: 13,
-  color: "#F8FAFC",
+  color: "#334155",
   fontWeight: 500,
   wordBreak: "break-all",
 };
 
 const xBtn: CSSProperties = {
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  color: "#94A3B8",
-  width: 28,
-  height: 28,
-  borderRadius: "50%",
-  display: "grid",
-  placeItems: "center",
-  cursor: "pointer",
-  fontSize: 14,
-  transition: "all 0.2s",
+  display: "none",
 };
 
 const muted: CSSProperties = {
@@ -372,7 +345,7 @@ const muted: CSSProperties = {
   lineHeight: 1.5,
   padding: 16,
   textAlign: "center",
-  background: "rgba(30,41,59,0.3)",
+  background: "#F8FAFC",
   borderRadius: 12,
-  border: "1px dashed #334155",
+  border: "1px dashed #E2E8F0",
 };

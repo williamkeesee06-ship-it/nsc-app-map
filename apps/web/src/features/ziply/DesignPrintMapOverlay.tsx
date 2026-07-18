@@ -335,7 +335,6 @@ export default function DesignPrintMapOverlay({
   const [fc, setFc] = useState<FeatureCollection | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [zoom, setZoom] = useState(15);
-  const [selected, setSelected] = useState<PlatformFeature | null>(null);
   const [pulse, setPulse] = useState(0);
 
   const printJobs = useMemo(() => {
@@ -506,28 +505,8 @@ export default function DesignPrintMapOverlay({
         }
       }
 
-      // Cables
-      for (const c of mo.cables || []) {
-        if (c.path && c.path.length >= 2) {
-          newFeatures.push({
-            type: "Feature",
-            id: `cable-${j.jobId}-${c.label}`,
-            geometry: {
-              type: "LineString",
-              coordinates: c.path.map((p: any) => [p.lng, p.lat])
-            },
-            properties: {
-              layer: c.role || "distribution",
-              type: "line",
-              label: c.label,
-              status: c.status || "planned",
-              fiberCount: c.fiberCount,
-              lengthFt: c.lengthFt,
-              jobId: j.jobId
-            }
-          });
-        }
-      }
+      // Cables are intentionally NOT drawn from the backend mapObjects anymore.
+      // The user manually draws these using the Ziply markup tools.
     }
 
     if (newFeatures.length > 0) {
@@ -764,7 +743,7 @@ export default function DesignPrintMapOverlay({
         });
         geometry = { type: "LineString", coordinates: arr };
       }
-      setSelected({ type: "Feature", properties: props, geometry });
+      setSelectedFeature?.({ type: "Feature", properties: props, geometry });
     });
 
     const mouseover = data.addListener("mouseover", () => {
@@ -811,63 +790,9 @@ export default function DesignPrintMapOverlay({
     });
   }, [pulse]);
 
-  if (!active) return null;
-
-  return (
-    <>
-      {active &&
-        printJobs.map((j) => {
-          const filesList = listZiplyPrintFiles(j);
-          const url = filesList[0]?.downloadUrl;
-          const bounds = getZiplyPrintBounds(j);
-          if (!url || !bounds) return null;
-          return (
-            <ZiplyPrintHtmlOverlay
-              key={`print-html-overlay-${j.jobId}`}
-              url={url}
-              bounds={bounds}
-              opacity={0.5}
-              visible={active}
-            />
-          );
-        })}
-
-      {selected && (
-        <FeatureDetailSheet
-          feature={selected}
-          onClose={() => setSelected(null)}
-          onStatusChange={async (status) => {
-            const jobId = selected.properties.jobId as string | undefined;
-            const label = selected.properties.label as string | undefined;
-            const layer = selected.properties.layer as string | undefined;
-
-            let kind: "hub" | "terminal" | "cable" = "cable";
-            if (layer === "hub") kind = "hub";
-            else if (layer === "terminal") kind = "terminal";
-
-            if (jobId && label) {
-              try {
-                await api.updateZiplyObjectStatus(jobId, {
-                  kind,
-                  ref: label,
-                  status: status as any
-                });
-                window.dispatchEvent(new Event("nsc:jobs-reload"));
-              } catch (ex) {
-                console.error("Failed to update status", ex);
-              }
-            }
-
-            setSelected((prev) =>
-              prev
-                ? { ...prev, properties: { ...prev.properties, status } }
-                : prev
-            );
-          }}
-        />
-      )}
-    </>
-  );
+  // ZiplyPrintHtmlOverlay has been removed per user request.
+  // The dark box (blueprint overlay) is no longer rendered automatically.
+  return null;
 }
 
 const DARK_NEON_STYLES: google.maps.MapTypeStyle[] = [

@@ -641,14 +641,14 @@ a { color: var(--accent); }
   gap: 2px;
   padding: 5px 2px 4px;
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: linear-gradient(160deg, #1e293b 0%, #151c2a 55%, #0f1520 100%);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: linear-gradient(160deg, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%);
   cursor: pointer;
   transition: box-shadow 120ms ease, border-color 120ms ease, background 120ms ease, color 120ms ease;
   min-height: 48px;
   min-width: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  color: var(--rail-text-secondary);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 1);
+  color: #475569;
   font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 600;
@@ -656,9 +656,9 @@ a { color: var(--accent); }
   overflow: hidden;
 }
 .tool-tile:hover:not(:disabled) {
-  border-color: rgba(59, 158, 255, 0.45);
-  color: #fff;
-  background: linear-gradient(160deg, #243247 0%, #1a2436 55%, #121a28 100%);
+  border-color: rgba(58, 167, 255, 0.5);
+  color: #0f172a;
+  background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 55%, #e2e8f0 100%);
 }
 
 /* Blue neon glow behind the button */
@@ -683,11 +683,11 @@ a { color: var(--accent); }
 /* Active: strong neon blue glow + whole icon turns neon blue */
 .tool-tile--active {
   border-color: #3aa7ff !important;
-  background: linear-gradient(160deg, #1a2a44 0%, #162033 60%, #1f2f4a 100%) !important;
+  background: linear-gradient(160deg, #e0f2fe 0%, #bae6fd 60%, #7dd3fc 100%) !important;
 }
 
 .tool-tile--active::before {
-  box-shadow: 0 0 20px rgba(58, 167, 255, 0.85), 0 0 36px rgba(58, 167, 255, 0.45);
+  box-shadow: 0 0 15px rgba(58, 167, 255, 0.4), 0 0 25px rgba(58, 167, 255, 0.2);
 }
 
 /* Make the icon neon blue when active */
@@ -724,7 +724,7 @@ a { color: var(--accent); }
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--rail-text-muted);
+  color: #64748b;
   text-align: center;
   line-height: 1.15;
   overflow: hidden;
@@ -733,7 +733,7 @@ a { color: var(--accent); }
 }
 .tool-tile:hover:not(:disabled) .tool-tile__label,
 .tool-tile--active .tool-tile__label {
-  color: #fff;
+  color: #0f172a;
 }
 
 /* Legacy tool buttons (kept for fallback) */

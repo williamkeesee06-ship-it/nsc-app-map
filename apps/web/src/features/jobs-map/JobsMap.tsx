@@ -8,7 +8,7 @@ import { applyFilters } from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
 import { useFiltersContext } from "./filtersContext.js";
 import FilterRail from "./FilterRail.js";
-import OverwatchHUD from "./OverwatchHUD.js";
+import MapThemeToggleSwitch from "./MapThemeToggleSwitch.js";
 import MeasuringOverlay from "./MeasuringOverlay.js";
 import LeftRail from "./LeftRail.js";
 import CalendarTab from "./CalendarTab.js";
@@ -19,6 +19,7 @@ import Eight11Section from "./Eight11Section.js";
 import LayersPanel from "../workspace/LayersPanel.js";
 import type { Job } from "@nsc/types";
 import { normalizeDigShape } from "@nsc/types";
+import type { PlatformFeature } from "../ziply/FeatureDetailSheet.js";
 import DigTicketsTab from "../dig-tickets/DigTicketsTab.js";
 import { useSearchFocus } from "../search/searchContext.js";
 import { useActiveContract } from "../workspace/contractStore.js";
@@ -327,6 +328,7 @@ function JobsMapInner({
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
   const { setTarget: setDigTarget } = useDigPolygon();
   const [panelTheme, setPanelTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
+  const [selectedFeature, setSelectedFeature] = useState<PlatformFeature | null>(null);
   const [ziplyPrintLayerVisible, setZiplyPrintLayerVisible] = useState(true);
   const [ziply811OverlayVisible, setZiply811OverlayVisible] = useState(false);
   const ziplyJobs = useMemo(
@@ -520,6 +522,12 @@ function JobsMapInner({
         setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
         ziply811OverlayVisible={ziply811OverlayVisible}
         setZiply811OverlayVisible={setZiply811OverlayVisible}
+        selectedJob={selected}
+        setSelectedJob={setSelected}
+        selectedFeature={selectedFeature}
+        setSelectedFeature={setSelectedFeature}
+        panelTheme={panelTheme}
+        setPanelTheme={setPanelTheme}
       />
 
       <div className="jobs-map__main">
@@ -528,7 +536,7 @@ function JobsMapInner({
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
           {/* All floating map HUD lives here so it cannot sit under the app topbar */}
           <div className="map-chrome-top">
-            <OverwatchHUD />
+            <MapThemeToggleSwitch />
           </div>
           <div style={{ flex: 1, height: "100%", position: "relative", minWidth: 0 }}>
             <Map
@@ -569,7 +577,13 @@ function JobsMapInner({
               <CentralOfficesOverlay visible={showCOs} />
               <Suspense fallback={null}>
                 {contract === "Ziply" && (
-                  <DesignPrintMapOverlay active={ziplyPrintLayerVisible} jobs={ziplyJobs} selectedJob={selected} />
+                  <DesignPrintMapOverlay 
+                    active={ziplyPrintLayerVisible} 
+                    jobs={ziplyJobs} 
+                    selectedJob={selected}
+                    selectedFeature={selectedFeature}
+                    setSelectedFeature={setSelectedFeature}
+                  />
                 )}
               </Suspense>
               <DrawingOverlay />
@@ -682,37 +696,7 @@ function JobsMapInner({
         </div>
       </div>
 
-      {/* Right-side detail panel: opens when a job pin is clicked.
-          Contains the job card on top and that job's drawing layers below.
-          Top style toolbar (ModifiersPanel) is unaffected — it stays
-          pinned above the map area in .jobs-map__main. */}
-      {selected && (
-        <aside className={`job-right-panel theme-${panelTheme}`}>
-          <div className="job-right-panel__card">
-            <JobCard
-              job={selected}
-              onClose={() => {
-                setSelected(null);
-                // Force the permanent records layer to update immediately after finishing edits on a job.
-                // This guarantees the user's new markups appear on the main map right away.
-                window.dispatchEvent(new Event("nsc:markups-saved"));
-              }}
-              variant="panel"
-              theme={panelTheme}
-              onThemeChange={setPanelTheme}
-            />
-          </div>
-          <div className="job-right-panel__811">
-            <Eight11Section job={selected} />
-          </div>
-          {/* As-built layers panel is Lumen-only — Ziply uses print design layer. */}
-          {contract !== "Ziply" && (
-            <div className="job-right-panel__layers">
-              <LayersPanel />
-            </div>
-          )}
-        </aside>
-      )}
+      </div>
     </div>
   );
 }

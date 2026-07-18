@@ -190,7 +190,14 @@ function createReadOnlyOverlay(
       map,
     });
 
-    if (obj.tool === "placed_cable" && obj.style.ziplyStatus === "Complete") {
+    if (
+      (obj.tool === "placed_cable" ||
+        obj.tool === "ziply_feeder" ||
+        obj.tool === "ziply_distribution" ||
+        obj.tool === "ziply_drop" ||
+        obj.tool === "ziply_bore") &&
+      obj.style.ziplyStatus === "Complete"
+    ) {
       // Glow polyline
       polyline.setOptions({ strokeColor: "#00ffff" }); // cyan core
       const glow = new google.maps.Polyline({

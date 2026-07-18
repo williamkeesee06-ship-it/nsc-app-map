@@ -726,10 +726,7 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
             </div>
           )}
 
-          {/* Point size — telecom symbols only (fully resizable).
-             Kept the size slider; removed the ICON picker and the
-             TRANSFORM block (rotate buttons + scale slider) per
-             Billy 6/10: icons aren't useful, rotate/scale are clutter. */}
+          {/* Point size */}
           {isPoint && (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", width: 52, flexShrink: 0 }}>Size</span>
@@ -773,6 +770,113 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
             </div>
           )}
         </div>
+
+        {/* ── ZIPLY CONSTRUCTION DATA ──────────────────────────────────────── */}
+        {obj.tool.startsWith("ziply_") && (
+          <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 12, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#3aa7ff", letterSpacing: "0.08em", textTransform: "uppercase" }}>Ziply Construction Data</div>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Print Page Reference</label>
+              <input
+                type="text"
+                value={obj.style.ziplyPrintPage ?? ""}
+                onChange={(e) => patchStyle({ ziplyPrintPage: e.target.value })}
+                placeholder="e.g. Page 12, Sheet 4"
+                style={{
+                  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
+                  borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
+                }}
+              />
+            </div>
+
+            {isCableOrLine && (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Cable Type / Fiber Count</label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyCableType ?? ""}
+                    onChange={(e) => patchStyle({ ziplyCableType: e.target.value })}
+                    placeholder="e.g. 144F, 288F, Drop"
+                    style={{
+                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
+                      borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
+                    }}
+                  />
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Installation Method</label>
+                  <select
+                    value={obj.style.ziplyInstallMethod ?? ""}
+                    onChange={(e) => patchStyle({ ziplyInstallMethod: e.target.value })}
+                    style={{
+                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
+                      borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
+                    }}
+                  >
+                    <option value="">Default (From Tool)</option>
+                    <option value="Bore">Bore</option>
+                    <option value="Trench">Trench</option>
+                    <option value="Aerial">Aerial</option>
+                    <option value="Plow">Plow</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+                <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Construction Status</label>
+                <select
+                  value={obj.style.ziplyStatus ?? "Planned"}
+                  onChange={(e) => {
+                    const newStatus = e.target.value;
+                    patchStyle({ ziplyStatus: newStatus, ziplyTimestamp: newStatus === "Complete" ? Date.now() : undefined });
+                  }}
+                  style={{
+                    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
+                    borderRadius: 5, color: obj.style.ziplyStatus === "Complete" ? "#00ffff" : "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
+                  }}
+                >
+                  <option value="Planned">Planned</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Complete">Complete (Glow)</option>
+                </select>
+              </div>
+              {isCableOrLine && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+                  <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Footage</label>
+                  <input
+                    type="number"
+                    value={obj.style.ziplyFootage ?? ""}
+                    onChange={(e) => patchStyle({ ziplyFootage: Number(e.target.value) })}
+                    placeholder="ft"
+                    style={{
+                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
+                      borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Crew ID / Name</label>
+              <input
+                type="text"
+                value={obj.style.ziplyCrewId ?? ""}
+                onChange={(e) => patchStyle({ ziplyCrewId: e.target.value })}
+                placeholder="e.g. Splicing Crew B"
+                style={{
+                  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
+                  borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* ── Photos ─────────────────────────────────── */}
         <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 8 }}>

@@ -17,10 +17,14 @@ import CentralOfficesPill from "./CentralOfficesPill.js";
 import MapTypeFilterSection from "../map/MapTypeFilterSection.js";
 // CalendarTab / Dashboard / 811 are mounted full-screen by JobsMap, not in the rail.
 // Lumina is the floating orb + ChatPanel (not a rail tab).
-import { useActiveContract } from "../workspace/contractStore.js";
 import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 import ZiplyFilterPanel from "./ZiplyFilterPanel.js";
+import JobCard from "../jobs/JobCard.js";
+import Eight11Section from "./Eight11Section.js";
+import LayersPanel from "../workspace/LayersPanel.js";
+import FeatureDetailSheet, { type PlatformFeature } from "../ziply/FeatureDetailSheet.js";
+import { api } from "../../lib/api.js";
 
 // Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
 // the left while keeping plenty of room for tool tiles to the right.
@@ -44,6 +48,12 @@ interface Props {
   setZiplyPrintLayerVisible?: (v: boolean) => void;
   ziply811OverlayVisible?: boolean;
   setZiply811OverlayVisible?: (v: boolean) => void;
+  selectedJob?: Job | null;
+  setSelectedJob?: (j: Job | null) => void;
+  selectedFeature?: PlatformFeature | null;
+  setSelectedFeature?: (f: PlatformFeature | null) => void;
+  panelTheme?: "steel" | "cyberpunk" | "titanium" | "glass";
+  setPanelTheme?: (t: "steel" | "cyberpunk" | "titanium" | "glass") => void;
 }
 
 // Only tabs that are actually mounted in the rail or as full-screen overlays.
@@ -60,6 +70,12 @@ export default function LeftRail({
   setZiplyPrintLayerVisible = () => {},
   ziply811OverlayVisible = false,
   setZiply811OverlayVisible = () => {},
+  selectedJob,
+  setSelectedJob,
+  selectedFeature,
+  setSelectedFeature,
+  panelTheme,
+  setPanelTheme,
 }: Props) {
   const { contract } = useActiveContract();
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
@@ -255,7 +271,97 @@ export default function LeftRail({
       {!collapsed && (
         <>
           <div className="left-rail__scroll">
-              {/* Tab Content */}
+            {selectedJob || selectedFeature ? (
+              <div className="left-rail-details-pane" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ padding: '8px', borderBottom: '1px solid rgba(0,0,0,0.1)', background: '#F8FAFC', zIndex: 10 }}>
+                   <button 
+                     onClick={() => {
+                       setSelectedJob?.(null);
+                       setSelectedFeature?.(null);
+                     }}
+                     style={{
+                       background: 'rgba(0,0,0,0.05)',
+                       border: 'none',
+                       padding: '6px 12px',
+                       borderRadius: '6px',
+                       cursor: 'pointer',
+                       fontSize: '12px',
+                       fontWeight: 600,
+                       width: '100%',
+                       textAlign: 'left',
+                       color: '#334155',
+                       transition: 'background 0.2s',
+                     }}
+                     onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.08)'}
+                     onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
+                   >
+                     ← Back to {activeTab === 'filters' ? 'Map Filters' : 'Menu'}
+                   </button>
+                </div>
+                
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  {selectedJob && (
+                    <div className={`theme-${panelTheme || 'steel'}`}>
+                      <div className="job-right-panel__card">
+                        <JobCard
+                          job={selectedJob}
+                          onClose={() => {
+                            setSelectedJob?.(null);
+                            window.dispatchEvent(new Event("nsc:markups-saved"));
+                          }}
+                          variant="panel"
+                          theme={panelTheme || "steel"}
+                          onThemeChange={setPanelTheme || (() => {})}
+                        />
+                      </div>
+                      <div className="job-right-panel__811">
+                        <Eight11Section job={selectedJob} />
+                      </div>
+                      {contract !== "Ziply" && (
+                        <div className="job-right-panel__layers">
+                          <LayersPanel />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedFeature && (
+                    <FeatureDetailSheet
+                      feature={selectedFeature}
+                      onClose={() => setSelectedFeature?.(null)}
+                      onStatusChange={async (status) => {
+                        const jobId = selectedFeature.properties.jobId as string | undefined;
+                        const label = selectedFeature.properties.label as string | undefined;
+                        const layer = selectedFeature.properties.layer as string | undefined;
+
+                        let kind: "hub" | "terminal" | "cable" = "cable";
+                        if (layer === "hub") kind = "hub";
+                        else if (layer === "terminal") kind = "terminal";
+
+                        if (jobId && label) {
+                          try {
+                            await api.updateZiplyObjectStatus(jobId, {
+                              kind,
+                              ref: label,
+                              status: status as any
+                            });
+                            window.dispatchEvent(new Event("nsc:jobs-reload"));
+                          } catch (ex) {
+                            console.error("Failed to update status", ex);
+                          }
+                        }
+
+                        setSelectedFeature?.({
+                           ...selectedFeature,
+                           properties: { ...selectedFeature.properties, status }
+                        });
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Tab Content */
               <div className="left-rail-tab-content">
                  {activeTab === 'filters' && (
                    contract === 'Ziply' ? (
@@ -280,11 +386,12 @@ export default function LeftRail({
                    )
                  )}
                 {activeTab === 'tools' && <AnnotateTab />}
-                 {/* Calendar, Jobs (Ziply), and Dashboard (Lumen & Ziply) tabs have no rail content — 
-                     they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
-                     on entry so there's nothing visible here. */}
-               </div>
-            </div>
+                  {/* Calendar, Jobs (Ziply), and Dashboard (Lumen & Ziply) tabs have no rail content — 
+                      they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
+                      on entry so there's nothing visible here. */}
+                </div>
+            )}
+          </div>
 
           {/* Resize handle */}
           <div
@@ -654,22 +761,23 @@ function AnnotateTab() {
         <button className="undo-redo-btn" onClick={redo} disabled={!canRedo}>↷ REDO</button>
       </div>
 
-      {/* Conditionally render Ziply tools or Telecom tools */}
-      {contract === "Ziply" ? (
+      {/* Render Ziply tools if Ziply contract */}
+      {contract === "Ziply" && (
         <>
           <div className="telecom-divider">ZIPLY CONSTRUCTION</div>
           <div className="tool-grid" style={{ marginBottom: 12 }}>
             {ZIPLY_TOOL_DEFS.map(renderTile)}
           </div>
         </>
-      ) : (
-        <>
-          <div className="telecom-divider">TELECOM</div>
-          <div className="tool-grid" style={{ marginBottom: 12 }}>
-            {TELECOM_TOOL_DEFS.map(renderTile)}
-          </div>
-        </>
       )}
+
+      {/* Render standard TELECOM tools for all contracts */}
+      <>
+        <div className="telecom-divider">TELECOM</div>
+        <div className="tool-grid" style={{ marginBottom: 12 }}>
+          {TELECOM_TOOL_DEFS.map(renderTile)}
+        </div>
+      </>
 
       {hasSelection && (
         <button className="tool-btn tool-btn--danger" style={{ width: '100%', marginTop: 6 }} onClick={deleteSelected}>

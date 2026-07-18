@@ -878,7 +878,10 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           {layer?.mapObjects && (
             <button
               type="button"
-              onClick={() => setStudioOpen(true)}
+              onClick={() => {
+                const url = files[0]?.downloadUrl;
+                if (url) window.open(url, "_blank");
+              }}
               style={{
                 background: "linear-gradient(180deg, rgba(30, 94, 255,0.25), rgba(30, 94, 255,0.1))",
                 border: "1px solid rgba(30, 94, 255,0.55)",
@@ -892,7 +895,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
                 boxShadow: "0 0 12px rgba(30, 94, 255,0.2)",
               }}
             >
-              ✦ PRINT STUDIO
+              ✦ VIEW PRINT FULL SCREEN
             </button>
           )}
           {layer?.mapObjects && mapReady && (
