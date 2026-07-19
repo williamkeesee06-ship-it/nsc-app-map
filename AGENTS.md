@@ -28,3 +28,19 @@
 - `D:\1_NSC MAP APP`
 - `D:\Map_App`
 - C: Grok worktrees of this repo
+
+## Testing and Previews
+
+- The user does **not** do local previews.
+- Do not ask the user to "check their local preview" or test something locally.
+- The user only reviews changes once pushed to git (which triggers a Vercel rebuild).
+- **CRITICAL**: Before pushing to git, ALWAYS run a TypeScript compilation check (e.g. `npx tsc --noEmit` in the web app directory) to ensure there are no syntax or type errors that will silently fail the Vercel build. You must monitor and verify that your changes compile successfully before declaring a task complete and pushing.
+
+## Engineering Standards & Proactive Ideation
+
+- **Proactive Excellence:** Do not just build what is asked; anticipate what is *needed*. If a requested feature would benefit from micro-animations, better error handling, optimistic UI updates, or keyboard shortcuts, implement or suggest them proactively.
+- **Design Aesthetics:** Every UI element must feel premium, intuitive, and modern (adhering to the Light Mode/Cyan constraint). Never settle for a basic layout if a refined, interactive, and polished design is achievable.
+- **Refactoring for Scale:** When touching a file, if you notice tightly coupled code, duplicate logic, or missing types, take the initiative to clean it up (within reason) to ensure the codebase remains maintainable and scalable.
+- **Holistic Problem Solving:** When debugging or building, trace the data flow from end-to-end. Don't just patch a symptom; find and resolve the root cause. Always consider edge cases (e.g., what happens if the network is offline? What if the AI ingestion fails?).
+- **Continuous Self-Correction:** Before submitting a plan or pushing code, critically review your own work. Ask yourself: 'Is this the absolute best way to solve this?', 'Does this meet the highest engineering standards?', and 'Have I tested this thoroughly via TypeScript and logic checks?'
+- **Over-Communication of Value:** When summarizing your work, explain *why* the design decisions you made are superior and how they improve the app's overall quality and user experience.
