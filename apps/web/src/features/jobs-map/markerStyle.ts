@@ -96,10 +96,14 @@ export function isJobCompleted(job: {
 }
 
 // Resolve the marker color for a job, honoring the Completed override.
-export function colorKeyForJob(job: {
-  jobStatus?: string | null;
-  secondaryJobStatus?: string | null;
-}): MarkerColorKey {
+export function colorKeyForJob(
+  job: {
+    jobStatus?: string | null;
+    secondaryJobStatus?: string | null;
+  },
+  contract?: string
+): MarkerColorKey {
+  if (contract === "Ziply") return "blue";
   if (isJobCompleted(job)) return "completed_green";
   return colorKeyForSecondaryStatus(job.secondaryJobStatus);
 }

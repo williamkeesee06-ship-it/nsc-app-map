@@ -1066,7 +1066,7 @@ function JobMarkers({
       });
     } else {
       jobs.forEach((job) => {
-        const colorKey = colorKeyForJob(job);
+        const colorKey = colorKeyForJob(job, contract);
         const color = MARKER_COLORS[colorKey];
         const printStatus =
           contract === "Ziply" ? getZiplyPrintDocStatus(job) : null;
@@ -1099,7 +1099,8 @@ function JobMarkers({
         created.set(job.jobId, m);
 
         // WO label marker — positioned slightly above the pin
-        if (job.workOrder) {
+        const woText = contract === "Ziply" ? (job.ziplyPrintLayer?.hubId || job.workOrder) : job.workOrder;
+        if (woText) {
           const pinColor = color.core;
           const printDot =
             printStatus === "ready"
@@ -1109,19 +1110,20 @@ function JobMarkers({
                 : printStatus === "failed"
                   ? "#f87171"
                   : null;
-          const woText = job.workOrder;
-          const pillW = printDot ? 96 : 80;
+          
+          const textW = Math.max(80, woText.length * 8 + 18);
+          const pillW = printDot ? textW + 16 : textW;
           // Build a tiny SVG label pill (Ziply: color dot = print readiness)
           const labelSvg = printDot
             ? `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="22">
     <rect x="0" y="0" width="${pillW}" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
     <circle cx="12" cy="11" r="4" fill="${printDot}"/>
-    <text x="${pillW / 2 + 4}" y="15" text-anchor="middle" font-size="10" font-weight="700"
+    <text x="${(pillW + 12) / 2}" y="15" text-anchor="middle" font-size="10" font-weight="700"
       fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${woText}</text>
   </svg>`
-            : `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="22">
-    <rect x="0" y="0" width="80" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
-    <text x="40" y="15" text-anchor="middle" font-size="10" font-weight="700"
+            : `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="22">
+    <rect x="0" y="0" width="${pillW}" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
+    <text x="${pillW / 2}" y="15" text-anchor="middle" font-size="10" font-weight="700"
       fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${woText}</text>
   </svg>`;
           const labelUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(labelSvg)}`;
