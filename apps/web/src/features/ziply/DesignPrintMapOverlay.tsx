@@ -49,7 +49,7 @@ const LAYER_META: Record<LayerKey, LayerMeta> = {
     color: "#EF4444", // Red
     soft: "#FCA5A5",
     defaultOn: true,
-    minZoom: 0,
+    minZoom: 13,
     lineWeight: 0,
   },
   feeder: {

@@ -597,13 +597,11 @@ function JobsMapInner({
             >
               <MapHandle mapRef={mapRef} />
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
-              {contract !== "Ziply" && (
-                <JobMarkers
-                  jobs={mapped}
-                  onSelect={handleSelect}
-                  allJobs={allJobs}
-                />
-              )}
+              <JobMarkers
+                jobs={mapped}
+                onSelect={handleSelect}
+                allJobs={allJobs}
+              />
               {contract !== "Ziply" && (
                 <AllJobsMarkupsOverlay
                   onMarkupClick={(jobId) => {
