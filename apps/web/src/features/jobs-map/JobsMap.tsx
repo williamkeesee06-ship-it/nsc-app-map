@@ -552,14 +552,21 @@ function JobsMapInner({
 
       <div className="jobs-map__main">
         <ModifiersPanel />
-        <input 
-          type="file" 
-          accept="application/pdf" 
-          ref={fileInputRef} 
-          style={{ display: "none" }} 
-          onChange={handleGlobalFileSelect} 
-        />
-        <JobsShownPill onClick={() => fileInputRef.current?.click()} />
+        <label className="jobs-shown-pill" title="Upload Prints & Permits" style={{ cursor: "pointer", background: "rgba(15, 23, 42, 0.8)", border: "1px solid #3aa7ff", position: "absolute", bottom: "22px", left: "50%", transform: "translateX(-50%)", zIndex: 25, display: "flex", alignItems: "center", padding: "6px 14px", borderRadius: "99px", gap: "8px" }}>
+          <input 
+            type="file" 
+            accept="application/pdf" 
+            style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden", clip: "rect(0,0,0,0)" }} 
+            onChange={handleGlobalFileSelect} 
+          />
+          <span className="jsp-dot" aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: "#3aa7ff", boxShadow: "0 0 8px #3aa7ff" }} />
+          <span className="jsp-label" style={{ color: "#e0f2fe", fontWeight: 700, fontSize: 11, letterSpacing: 1 }}>UPLOAD PRINTS & PERMITS</span>
+          <svg className="jsp-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3aa7ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        </label>
         {showUploadModal && (
           <GlobalPrintUploadModal 
             jobs={allJobs} 
@@ -581,7 +588,7 @@ function JobsMapInner({
             <Map
               defaultCenter={DEFAULT_CENTER}
               defaultZoom={DEFAULT_ZOOM}
-              styles={contract === "Ziply" ? [] : stylesFor(theme)}
+              styles={stylesFor(theme)}
               gestureHandling="greedy"
               disableDefaultUI={false}
               streetViewControl={true}
