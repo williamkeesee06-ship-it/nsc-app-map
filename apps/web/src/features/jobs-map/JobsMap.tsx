@@ -473,6 +473,24 @@ function JobsMapInner({
   const [ticketsFullscreen, setTicketsFullscreen] = useState(false);
   const [ziplyJobsFullscreen, setZiplyJobsFullscreen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [matchedJob, setMatchedJob] = useState<Job | null>(null);
+
+  const handleGlobalFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPendingFile(file);
+    
+    // Auto-match from filename
+    const lowerName = file.name.toLowerCase();
+    const match = allJobs.find(j => j.workOrder && lowerName.includes(j.workOrder.toLowerCase()));
+    setMatchedJob(match || null);
+    setShowUploadModal(true);
+    
+    // Reset input
+    e.target.value = "";
+  };
 
   useEffect(() => {
     function onActiveTab(e: Event) {
@@ -534,8 +552,26 @@ function JobsMapInner({
 
       <div className="jobs-map__main">
         <ModifiersPanel />
-        <JobsShownPill onClick={() => setShowUploadModal(true)} />
-        {showUploadModal && <GlobalPrintUploadModal jobs={allJobs} onClose={() => setShowUploadModal(false)} />}
+        <input 
+          type="file" 
+          accept="application/pdf" 
+          ref={fileInputRef} 
+          style={{ display: "none" }} 
+          onChange={handleGlobalFileSelect} 
+        />
+        <JobsShownPill onClick={() => fileInputRef.current?.click()} />
+        {showUploadModal && (
+          <GlobalPrintUploadModal 
+            jobs={allJobs} 
+            onClose={() => {
+              setShowUploadModal(false);
+              setPendingFile(null);
+              setMatchedJob(null);
+            }} 
+            preselectedFile={pendingFile}
+            preselectedJob={matchedJob}
+          />
+        )}
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
           {/* All floating map HUD lives here so it cannot sit under the app topbar */}
           <div className="map-chrome-top">

@@ -1,18 +1,20 @@
 import React, { useState, useMemo } from "react";
-import { X, UploadCloud, Search, AlertCircle, Loader2 } from "lucide-react";
+import { X, UploadCloud, Search, AlertCircle, Loader2, CheckCircle } from "lucide-react";
 import type { Job } from "@nsc/types";
 import { ingestZiplyPrintForJob, getZiplyPrintAnchor } from "../ziply/ziplyUtils.js";
 
 interface Props {
   jobs: Job[];
   onClose: () => void;
+  preselectedFile?: File | null;
+  preselectedJob?: Job | null;
 }
 
-export default function GlobalPrintUploadModal({ jobs, onClose }: Props) {
+export default function GlobalPrintUploadModal({ jobs, onClose, preselectedFile, preselectedJob }: Props) {
   const [search, setSearch] = useState("");
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(preselectedJob || null);
   
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(preselectedFile || null);
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState(0);
   const [err, setErr] = useState<string | null>(null);
@@ -169,6 +171,13 @@ export default function GlobalPrintUploadModal({ jobs, onClose }: Props) {
             <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{err}</span>
+            </div>
+          )}
+          
+          {preselectedJob && preselectedFile && !busy && !err && (
+            <div className="p-3 bg-cyan-50 border border-cyan-200 text-cyan-800 rounded-lg text-sm font-semibold flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-cyan-500" />
+              AI auto-matched this file to Work Order {preselectedJob.workOrder}. Ready to ingest!
             </div>
           )}
 
