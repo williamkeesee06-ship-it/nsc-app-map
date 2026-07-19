@@ -503,7 +503,7 @@ export async function ingestZiplyPrintForJob(
   jobId: string,
   file: File,
   onProgress?: (percent: number) => void
-): Promise<void> {
+): Promise<string> {
   const uploaded = await uploadZiplyPrint(jobId, file, onProgress);
   await api.ziplyIngest(jobId, [
     {
@@ -516,6 +516,7 @@ export async function ingestZiplyPrintForJob(
     },
   ]);
   window.dispatchEvent(new Event("nsc:jobs-reload"));
+  return uploaded.downloadUrl;
 }
 
 export type ZiplyPermitTypeKey =

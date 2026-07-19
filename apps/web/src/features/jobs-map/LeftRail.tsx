@@ -681,7 +681,9 @@ const DIG_TOOLS: { id: DigTool; label: string; iconSvg: string }[] = [
   },
 ];
 
-function AnnotateTab() {
+import EngineeringChecklistTray from "../ziply/EngineeringChecklistTray.js";
+
+function AnnotateTab({ selectedJob }: { selectedJob: Job | null }) {
   const { contract } = useActiveContract();
   const { state, setTool, deleteSelected, undo, redo, canUndo, canRedo } = useDrawing();
   const { activeTool } = state;
@@ -764,6 +766,7 @@ function AnnotateTab() {
       {/* Render Ziply tools if Ziply contract */}
       {contract === "Ziply" && (
         <>
+          <EngineeringChecklistTray job={selectedJob} />
           <div className="telecom-divider">ZIPLY CONSTRUCTION</div>
           <div className="tool-grid" style={{ marginBottom: 12 }}>
             {ZIPLY_TOOL_DEFS.map(renderTile)}

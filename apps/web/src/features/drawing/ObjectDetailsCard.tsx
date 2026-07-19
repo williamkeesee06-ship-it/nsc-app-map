@@ -14,6 +14,8 @@ import { railSvgForTool } from "./icons/telecomIcons.js";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
+import { api } from "../../lib/api.js";
+import { findMatchingTerminal, findMatchingCable } from "../ziply/SpatialMatcher.js";
 // IconPicker / IconKey imports removed — Billy 6/10: no per-object icon swap.
 // Icons are still bound to each object's style at draw time; we just don't
 // expose a way to change them after the fact.
@@ -365,6 +367,33 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     // rotateSelected removed — Billy 6/10: rotate buttons aren't useful.
   } = useDrawing();
   const isSelectTool = drawState.activeTool === "select";
+
+  const { data: job } = api.jobs.get.useQuery(drawState.targetJobId || "");
+
+  const handleAutoFill = () => {
+    if (!job || !job.ziplyPrintLayer?.mapObjects) return;
+    const mapObjects = job.ziplyPrintLayer.mapObjects;
+
+    if (isPointTool(obj.tool) && "position" in obj) {
+        const match = findMatchingTerminal({ lat: obj.position.lat, lng: obj.position.lng }, mapObjects);
+        if (match) {
+          patchObjectStyle(obj.id, { userLabel: match.name });
+        } else {
+          window.alert("No matching AI terminal found within radius.");
+        }
+    } else if (isLine(obj.tool) && "vertices" in obj) {
+        const match = findMatchingCable(obj.vertices, mapObjects);
+        if (match) {
+          patchObjectStyle(obj.id, {
+            ziplyCableType: match.cableType ?? obj.style.ziplyCableType,
+            ziplyInstallMethod: match.buildType === "bore" ? "Bore" : (match.buildType === "aerial" ? "Aerial" : obj.style.ziplyInstallMethod),
+            ziplyFootage: Math.round(match.lengthFeet || 0) || obj.style.ziplyFootage,
+          });
+        } else {
+          window.alert("No matching AI cable path found nearby.");
+        }
+    }
+  };
 
   const [label, setLabel] = useState(obj.style.userLabel ?? "");
   const [description, setDescription] = useState(obj.style.description ?? "");
@@ -774,7 +803,26 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
         {/* ── ZIPLY CONSTRUCTION DATA ──────────────────────────────────────── */}
         {obj.tool.startsWith("ziply_") && (
           <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 12, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "#3aa7ff", letterSpacing: "0.08em", textTransform: "uppercase" }}>Ziply Construction Data</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#3aa7ff", letterSpacing: "0.08em", textTransform: "uppercase" }}>Ziply Construction Data</div>
+              <button
+                type="button"
+                onClick={handleAutoFill}
+                style={{
+                  background: "rgba(58, 167, 255, 0.15)",
+                  border: "1px solid rgba(58, 167, 255, 0.4)",
+                  borderRadius: 4,
+                  color: "#3aa7ff",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  padding: "4px 8px",
+                  cursor: "pointer",
+                  boxShadow: "0 0 8px rgba(58, 167, 255, 0.2)"
+                }}
+              >
+                ✨ Auto-Fill from Print
+              </button>
+            </div>
             
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Print Page Reference</label>

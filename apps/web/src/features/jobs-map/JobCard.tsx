@@ -762,6 +762,8 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
     }
   };
 
+  const map = useMap();
+
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -770,7 +772,12 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
     setPct(0);
     setErr(null);
     try {
-      await ingestZiplyPrintForJob(job.jobId, file, (p) => setPct(Math.round(p)));
+      const url = await ingestZiplyPrintForJob(job.jobId, file, (p) => setPct(Math.round(p)));
+      window.open(url, "_blank");
+      if (job.geocode && map) {
+        map.panTo({ lat: job.geocode.lat, lng: job.geocode.lng });
+        map.setZoom(19);
+      }
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Upload failed");
     } finally {

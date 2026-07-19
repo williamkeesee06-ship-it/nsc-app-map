@@ -532,7 +532,7 @@ function JobsMapInner({
 
       <div className="jobs-map__main">
         <ModifiersPanel />
-        <JobsShownPill shown={mapped.length} total={allJobs.length} />
+        <JobsShownPill onClick={() => window.alert("Upload Prints & Permits clicked")} />
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
           {/* All floating map HUD lives here so it cannot sit under the app topbar */}
           <div className="map-chrome-top">
