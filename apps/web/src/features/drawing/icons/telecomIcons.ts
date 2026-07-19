@@ -114,8 +114,24 @@ function anchorSvg(color: string): string {
 // Ziply specific point icons
 function ziplyHubSvg(color: string): string {
   return wrap(
-    `<circle cx="16" cy="16" r="10" fill="#f8fafc" stroke="${color}" stroke-width="2"/>
-    <polygon points="13,10 22,16 13,22" fill="${color}"/>`,
+    `<rect x="12" y="21" width="8" height="4" fill="${color}"/>
+    <rect x="13.5" y="17" width="5" height="4" fill="${color}"/>
+    <line x1="16" y1="17" x2="16" y2="10" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="16" cy="9.5" r="2" fill="${color}"/>
+    
+    <path d="M 16 17 L 16 14 L 12 14 L 12 12" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="12" cy="11.5" r="2" fill="${color}"/>
+    
+    <path d="M 16 17 L 16 14 L 20 14 L 20 12" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="20" cy="11.5" r="2" fill="${color}"/>
+    
+    <path d="M 16 19 L 9 19 L 9 16" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="9" cy="15.5" r="2" fill="${color}"/>
+    
+    <path d="M 16 19 L 23 19 L 23 16" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="23" cy="15.5" r="2" fill="${color}"/>
+    
+    <path d="M 12 25 A 11 11 0 1 1 20 25" fill="none" stroke="${color}" stroke-width="1.8"/>`,
     color
   );
 }
@@ -145,6 +161,22 @@ function ziplyHandholeSvg(color: string): string {
   );
 }
 
+function flowerPotSvg(color: string): string {
+  return wrap(
+    `<circle cx="16" cy="7" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="16" cy="25" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="7" cy="16" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="25" cy="16" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="10" cy="10" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="22" cy="10" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="10" cy="22" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="22" cy="22" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="16" cy="16" r="7.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <text x="16" y="19" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="8.5" font-weight="900" fill="${color}">FP</text>`,
+    color
+  );
+}
+
 // Returns raw SVG string for use in rail tiles (not data-URI)
 export function railSvgForTool(tool: string, color?: string): string {
   const c = color ?? DEFAULT_ICON_COLOR;
@@ -153,6 +185,7 @@ export function railSvgForTool(tool: string, color?: string): string {
   if (tool === "ziply_address") return ziplyAddressSvg(c);
   if (tool === "ziply_handhole") return ziplyHandholeSvg(c);
   if (tool === "ziply_pole") return poleSvg(c);
+  if (tool === "ziply_flower_pot" || tool.startsWith("flower_pot")) return flowerPotSvg(c);
 
   if (tool.startsWith("mh")) return mhSvg(c);
   if (tool.startsWith("hh")) return hhSvg(c);
@@ -180,6 +213,7 @@ export function iconForTool(
   else if (tool === "ziply_address") svg = ziplyAddressSvg(color);
   else if (tool === "ziply_handhole") svg = ziplyHandholeSvg(color);
   else if (tool === "ziply_pole") svg = poleSvg(color);
+  else if (tool === "ziply_flower_pot" || tool.startsWith("flower_pot")) svg = flowerPotSvg(color);
 
   else if (tool.startsWith("mh")) svg = mhSvg(color);
   else if (tool.startsWith("hh")) svg = hhSvg(color);

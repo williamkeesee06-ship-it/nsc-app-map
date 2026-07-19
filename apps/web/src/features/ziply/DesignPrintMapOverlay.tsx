@@ -18,6 +18,7 @@ import type { Job } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { getZiplyPrintBounds, listZiplyPrintFiles } from "./ziplyUtils.js";
 import ZiplyPrintHtmlOverlay from "./ZiplyPrintHtmlOverlay.js";
+import { useDrawing } from "../drawing/drawingContext.js";
 
 export type LayerKey =
   | "feeder"
@@ -207,16 +208,26 @@ function makeMarkerIcon(
   const s = 64;
   let body = "";
   if (kind === "hub") {
-    // Legend: HUB/SPLITTER is Option 2: Server Rack Tower badge with glowing outline + neon green active indicator lights
+    // Custom Ziply fiber fan-out logo matching user upload
     body = `
-      <circle cx="32" cy="32" r="21" fill="url(#steel)" stroke="${color}" stroke-width="2.8" filter="url(#neon-glow)"/>
-      <rect x="22" y="20" width="20" height="24" fill="url(#carbon)" stroke="${color}" stroke-width="2" rx="3"/>
-      <line x1="26" y1="26" x2="38" y2="26" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/>
-      <line x1="26" y1="32" x2="38" y2="32" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/>
-      <line x1="26" y1="38" x2="38" y2="38" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/>
-      <circle cx="35" cy="26" r="1.6" fill="#39FF14" filter="url(#neon-glow)"/>
-      <circle cx="35" cy="32" r="1.6" fill="#39FF14" filter="url(#neon-glow)"/>
-      <circle cx="35" cy="38" r="1.6" fill="#39FF14" filter="url(#neon-glow)"/>
+      <rect x="24" y="42" width="16" height="8" fill="${color}"/>
+      <rect x="27" y="34" width="10" height="8" fill="${color}"/>
+      <line x1="32" y1="34" x2="32" y2="20" stroke="${color}" stroke-width="3.6"/>
+      <circle cx="32" cy="19" r="4" fill="${color}"/>
+      
+      <path d="M 32 34 L 32 28 L 24 28 L 24 24" fill="none" stroke="${color}" stroke-width="3.6" stroke-linejoin="round"/>
+      <circle cx="24" cy="23" r="4" fill="${color}"/>
+      
+      <path d="M 32 34 L 32 28 L 40 28 L 40 24" fill="none" stroke="${color}" stroke-width="3.6" stroke-linejoin="round"/>
+      <circle cx="40" cy="23" r="4" fill="${color}"/>
+      
+      <path d="M 32 38 L 18 38 L 18 32" fill="none" stroke="${color}" stroke-width="3.6" stroke-linejoin="round"/>
+      <circle cx="18" cy="31" r="4" fill="${color}"/>
+      
+      <path d="M 32 38 L 46 38 L 46 32" fill="none" stroke="${color}" stroke-width="3.6" stroke-linejoin="round"/>
+      <circle cx="46" cy="31" r="4" fill="${color}"/>
+      
+      <path d="M 24 50 A 22 22 0 1 1 40 50" fill="none" stroke="${color}" stroke-width="3.6"/>
     `;
   } else if (kind === "terminal") {
     // Legend: Option 5: Splitter Box Shield showing glowing fiber line branches
@@ -332,6 +343,7 @@ export default function DesignPrintMapOverlay({
   setSelectedFeature
 }: Props) {
   const map = useMap();
+  const { state: drawState } = useDrawing();
   const glowRef = useRef<google.maps.Data | null>(null);
   const dataRef = useRef<google.maps.Data | null>(null);
   const pulseRef = useRef<google.maps.Marker | null>(null);
@@ -467,50 +479,147 @@ export default function DesignPrintMapOverlay({
   useEffect(() => {
     if (!active || !jobs || jobs.length === 0) return;
 
+    // Collect all manually mapped labels, stripping 'A-' prefix case-insensitively
+    const activeDrawingLabels = new Set<string>();
+    if (drawState?.objects) {
+      for (const obj of drawState.objects) {
+        let lbl = (obj.style.userLabel || "").trim().toUpperCase();
+        if (lbl.startsWith("A-")) {
+          lbl = lbl.slice(2);
+        }
+        if (lbl) {
+          activeDrawingLabels.add(lbl);
+        }
+      }
+    }
+
     const newFeatures: any[] = [];
 
     for (const j of jobs) {
       const mo = j.ziplyPrintLayer?.mapObjects;
       if (!mo) continue;
 
-      // Hub
+      // Hub + Pole on same location
       if (mo.hub && (mo.hub.lat != null || mo.hub.lng != null)) {
-        newFeatures.push({
-          type: "Feature",
-          id: `hub-${j.jobId}`,
-          geometry: { type: "Point", coordinates: [mo.hub.lng ?? 0, mo.hub.lat ?? 0] },
-          properties: {
-            layer: "hub",
-            type: "point",
-            label: j.ziplyPrintLayer?.hubId || "FDH",
-            status: mo.hub.status || "planned",
-            jobId: j.jobId
+        const hubAny = mo.hub as any;
+        const hubIdClean = (j.ziplyPrintLayer?.hubId || "").trim().toUpperCase();
+        const hubTitle = [
+          j.ziplyPrintLayer?.hubId,
+          hubAny.intersection,
+          hubAny.address,
+        ].filter(Boolean).join(" — ") || "Hub/FDH";
+
+        // Hub marker
+        const showHub = !hubIdClean || !activeDrawingLabels.has(hubIdClean);
+        if (showHub) {
+          newFeatures.push({
+            type: "Feature",
+            id: `hub-${j.jobId}`,
+            geometry: { type: "Point", coordinates: [mo.hub.lng ?? 0, mo.hub.lat ?? 0] },
+            properties: {
+              layer: "hub",
+              type: "point",
+              label: j.ziplyPrintLayer?.hubId || "FDH",
+              title: hubTitle,
+              intersection: hubAny.intersection ?? null,
+              address: hubAny.address ?? null,
+              status: mo.hub.status || "planned",
+              jobId: j.jobId
+            }
+          });
+        }
+
+        // Pole marker (rendered at same coords, slightly offset label)
+        if (hubAny.poleId) {
+          let poleIdClean = String(hubAny.poleId).trim().toUpperCase();
+          if (poleIdClean.startsWith("A-")) {
+            poleIdClean = poleIdClean.slice(2);
           }
-        });
+          const showPole = !poleIdClean || !activeDrawingLabels.has(poleIdClean);
+          if (showPole) {
+            newFeatures.push({
+              type: "Feature",
+              id: `pole-${j.jobId}`,
+              geometry: { type: "Point", coordinates: [mo.hub.lng ?? 0, mo.hub.lat ?? 0] },
+              properties: {
+                layer: "pole",
+                type: "point",
+                label: hubAny.poleId,
+                title: `Pole ${hubAny.poleId}${hubAny.poleStreet ? ` @ ${hubAny.poleStreet}` : ""}`,
+                poleId: hubAny.poleId,
+                poleStreet: hubAny.poleStreet ?? null,
+                status: "planned",
+                jobId: j.jobId
+              }
+            });
+          }
+        }
       }
 
       // Terminals
       for (const t of mo.terminals || []) {
         if (t.lat != null && t.lng != null) {
+          let termLabelClean = (t.label || "").trim().toUpperCase();
+          if (termLabelClean.startsWith("A-")) {
+            termLabelClean = termLabelClean.slice(2);
+          }
+          const showTerm = !termLabelClean || !activeDrawingLabels.has(termLabelClean);
+          if (showTerm) {
+            newFeatures.push({
+              type: "Feature",
+              id: `term-${j.jobId}-${t.label}`,
+              geometry: { type: "Point", coordinates: [t.lng, t.lat] },
+              properties: {
+                layer: "terminal",
+                type: "point",
+                label: t.label,
+                status: t.status || "planned",
+                portCount: t.portCount,
+                addressesServed: t.addressesServed,
+                jobId: j.jobId
+              }
+            });
+          }
+        }
+      }
+
+      // Render Cables & Bores/Trenches from printLayer mapObjects
+      for (const c of mo.cables || []) {
+        if (c.path && c.path.length >= 2) {
+          const coordinates = c.path.map((pt: any) => [pt.lng, pt.lat]);
+          
+          let layer: LayerKey = "distribution";
+          const roleStr = (c.role as string) || "";
+          const labelLower = (c.label || "").toLowerCase();
+          
+          if (c.buildType === "bore" || c.buildType === "trench" || roleStr === "duct") {
+            layer = "bore";
+          } else if (c.role === "feeder" || labelLower.includes("feeder") || labelLower.includes("f2") || labelLower.includes("f1")) {
+            layer = "feeder";
+          } else if (c.role === "lateral" || roleStr === "distribution") {
+            layer = "distribution";
+          } else if (roleStr === "drop") {
+            layer = "drop";
+          }
+
           newFeatures.push({
             type: "Feature",
-            id: `term-${j.jobId}-${t.label}`,
-            geometry: { type: "Point", coordinates: [t.lng, t.lat] },
+            id: `cable-${j.jobId}-${c.label}`,
+            geometry: { type: "LineString", coordinates },
             properties: {
-              layer: "terminal",
-              type: "point",
-              label: t.label,
-              status: t.status || "planned",
-              portCount: t.portCount,
-              addressesServed: t.addressesServed,
+              layer,
+              type: "line",
+              label: c.label,
+              buildType: c.buildType || null,
+              role: c.role || null,
+              fiberCount: c.fiberCount || null,
+              lengthFt: c.lengthFt || null,
+              status: c.status || "planned",
               jobId: j.jobId
             }
           });
         }
       }
-
-      // Cables are intentionally NOT drawn from the backend mapObjects anymore.
-      // The user manually draws these using the Ziply markup tools.
     }
 
     if (newFeatures.length > 0) {
@@ -521,7 +630,7 @@ export default function DesignPrintMapOverlay({
     } else {
       setFc(null);
     }
-  }, [active, jobs]);
+  }, [active, jobs, drawState?.objects]);
 
   // Fit bounds to selected job ONLY when selectedJob changes
   useEffect(() => {

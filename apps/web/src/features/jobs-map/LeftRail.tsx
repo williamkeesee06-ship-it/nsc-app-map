@@ -537,6 +537,11 @@ const TELECOM_TOOL_DEFS: ToolDef[] = [
     iconSvg: (active) => railSvgForTool("ped", blackOrActive(active)),
   },
   {
+    tool: "flower_pot_new",
+    label: "FLOWER POT",
+    iconSvg: (active) => railSvgForTool("flower_pot", blackOrActive(active)),
+  },
+  {
     tool: "pole_new",
     label: "POLE",
     iconSvg: (active) => railSvgForTool("pole", blackOrActive(active)),
@@ -612,6 +617,11 @@ const ZIPLY_TOOL_DEFS: ToolDef[] = [
     tool: "ziply_handhole",
     label: "HANDHOLE",
     iconSvg: (active) => railSvgForTool("ziply_handhole", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_flower_pot",
+    label: "FLOWER POT",
+    iconSvg: (active) => railSvgForTool("ziply_flower_pot", blackOrActive(active)),
   },
 ];
 

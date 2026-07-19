@@ -759,9 +759,20 @@ export async function processZiplyIngest(jobId: string, body: ZiplyIngestRequest
       return coords;
     };
 
-    // Resolve a usable map anchor. Prints with hub:{lat:null,lng:null} never
-    // appear on the client — fall through hubAddress → job geocode → job address.
-    let hubCoords = await geocodeOne(parsed.hubAddress ?? null);
+    // Resolve a usable map anchor using priority:
+    // 1. Plan view intersection (most accurate — exactly where the hub pole is)
+    // 2. hubAddress string (AI-extracted from plan view)
+    // 3. Existing job geocode
+    // 4. Job address field
+    const si = (parsed as any).hubStreetIntersection;
+    const intersectionAddr = si?.street1 && si?.street2
+      ? `${si.street1} & ${si.street2}, ${parsed.projectCity || existing.city || ""}, WA`
+      : si?.street1
+        ? `${si.street1}, ${parsed.projectCity || existing.city || ""}, WA`
+        : null;
+
+    let hubCoords = intersectionAddr ? await geocodeOne(intersectionAddr) : null;
+    if (!hubCoords) hubCoords = await geocodeOne(parsed.hubAddress ?? null);
     if (!hubCoords && existing.geocode?.status === "OK" && existing.geocode.lat && existing.geocode.lng) {
       hubCoords = { lat: existing.geocode.lat, lng: existing.geocode.lng };
     }
@@ -888,6 +899,12 @@ export async function processZiplyIngest(jobId: string, body: ZiplyIngestRequest
             lat: hubCoords?.lat ?? null,
             lng: hubCoords?.lng ?? null,
             status: "planned",
+            poleId: parsed.hubPoleId ?? null,
+            poleStreet: parsed.hubPoleStreet ?? parsed.hubStreetIntersection?.street1 ?? null,
+            intersection: parsed.hubStreetIntersection
+              ? [parsed.hubStreetIntersection.street1, parsed.hubStreetIntersection.street2].filter(Boolean).join(" & ")
+              : null,
+            address: parsed.hubAddress ?? null,
           },
           mainlineStreet,
           backbonePath: null,
@@ -1189,11 +1206,44 @@ async function mapPool<T, R>(
   return results;
 }
 
-/**
- * High-detail geometry pass: geocode every terminal address + route streets,
- * then write multi-point cable paths onto mapObjects so the map is not sticks.
- */
-async function enhanceZiplyPrintDetail(job: Job): Promise<{
+function projectAlongBackbone(
+  start: { lat: number; lng: number },
+  lengthFt: number,
+  backbone: Array<{ lat: number; lng: number }>
+): Array<{ lat: number; lng: number }> {
+  if (backbone.length < 2) {
+    // Fallback: project North
+    const latOffset = lengthFt / 364000;
+    return [start, { lat: start.lat + latOffset, lng: start.lng }];
+  }
+  // Find closest point on backbone
+  let closestIdx = 0;
+  let minD = Infinity;
+  for (let i = 0; i < backbone.length; i++) {
+    const d = distM(start, backbone[i]!);
+    if (d < minD) {
+      minD = d;
+      closestIdx = i;
+    }
+  }
+  // Use direction between closest point and next (or prev) backbone point
+  const nextIdx = closestIdx < backbone.length - 1 ? closestIdx + 1 : closestIdx - 1;
+  const pt1 = backbone[closestIdx]!;
+  const pt2 = backbone[nextIdx]!;
+  const dy = pt2.lat - pt1.lat;
+  const dx = pt2.lng - pt1.lng;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) {
+    const latOffset = lengthFt / 364000;
+    return [start, { lat: start.lat + latOffset, lng: start.lng }];
+  }
+  const ratio = (lengthFt / 3.28084) / 111320; // feet to meters to degrees approx
+  const endLat = start.lat + (dy / len) * ratio;
+  const endLng = start.lng + (dx / len) * (ratio / Math.cos((start.lat * Math.PI) / 180));
+  return [start, { lat: endLat, lng: endLng }];
+}
+
+export async function enhanceZiplyPrintDetail(job: Job): Promise<{
   jobId: string;
   workOrder?: string | null;
   enhanced: boolean;
@@ -1541,6 +1591,26 @@ async function enhanceZiplyPrintDetail(job: Job): Promise<{
     if (role === "mainline" || role === "feeder") {
       path = backbonePath;
       cablesPathed++;
+    } else if (c.role === "duct" || c.buildType === "bore" || c.buildType === "trench") {
+      // Bores/trenches/ducts — snap starting point to nearest terminal or hub on the same page,
+      // and project path along the backbone street direction for the given lengthFt.
+      let refPos: { lat: number; lng: number } | null = null;
+      if (isValidLatLng(hubCoords.lat, hubCoords.lng) && (c.sheetPage === 6 || c.sheetPage === "6" || !c.sheetPage)) {
+        refPos = hubCoords;
+      } else {
+        const pageTerms = terminals.filter(
+          (t) => String(t.sheetPage) === String(c.sheetPage) && isValidLatLng(t.lat, t.lng)
+        );
+        if (pageTerms.length > 0) {
+          refPos = { lat: pageTerms[0]!.lat as number, lng: pageTerms[0]!.lng as number };
+        } else if (isValidLatLng(hubCoords.lat, hubCoords.lng)) {
+          refPos = hubCoords;
+        }
+      }
+      if (refPos && c.lengthFt && backbonePath.length >= 2) {
+        path = projectAlongBackbone(refPos, c.lengthFt, backbonePath);
+        cablesPathed++;
+      }
     } else {
       const synth =
         (term && lateralByLabel.get(term.label)) ??

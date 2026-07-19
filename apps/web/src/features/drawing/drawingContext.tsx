@@ -176,6 +176,16 @@ function defaultStyleForTool(tool: DrawingTool): DrawingStyle {
       pointSize: 1.0,
     };
   }
+  if (tool === "ziply_flower_pot") {
+    return {
+      strokeColor: "#10B981", // green outline for flower pot
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
 
   // Phase 4: cable colors are hardcoded in DrawingOverlay, but we still set
   // them here so the modifier strip can show the right color swatch.

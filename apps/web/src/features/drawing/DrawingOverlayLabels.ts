@@ -25,6 +25,8 @@ export const ZOOM_REF = 17;
 /** Hide all atag labels when zoomed out below this level. */
 export const MIN_LABEL_ZOOM = 16;
 
+import { getActiveContract } from "../workspace/contractStore.js";
+
 // ── Label text resolution ────────────────────────────────────────────────────
 
 /** Pick the best label text for any object — used at zoom ≥ MIN_LABEL_ZOOM.
@@ -34,10 +36,19 @@ export function labelTextForObj(obj: DrawingObject): string | null {
   if (obj.style.hidden) return null;
   // Text/callout tools store the user-typed string in `obj.text` — prefer that
   // so the label shown matches what the user typed when placing the callout.
-  if ("text" in obj && obj.text && obj.text.trim()) return obj.text.trim();
-  if (obj.style.userLabel && obj.style.userLabel.trim()) return obj.style.userLabel.trim();
-  if (obj.style.description && obj.style.description.trim()) return obj.style.description.trim();
-  return null;
+  let text = "";
+  if ("text" in obj && obj.text && obj.text.trim()) text = obj.text.trim();
+  else if (obj.style.userLabel && obj.style.userLabel.trim()) text = obj.style.userLabel.trim();
+  else if (obj.style.description && obj.style.description.trim()) text = obj.style.description.trim();
+  
+  if (text) {
+    const contract = getActiveContract();
+    const isPoleOrEquipment = obj.tool.includes("pole") || obj.tool.includes("hub") || obj.tool.includes("terminal");
+    if (contract === "Ziply" && isPoleOrEquipment && /^a-/i.test(text)) {
+      text = text.slice(2);
+    }
+  }
+  return text || null;
 }
 
 // ── SVG label helpers ────────────────────────────────────────────────────────

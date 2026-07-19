@@ -98,7 +98,10 @@ export type DrawingTool =
   | "ziply_bore"
   | "ziply_address"
   | "ziply_pole"
-  | "ziply_handhole";
+  | "ziply_handhole"
+  | "ziply_flower_pot"
+  | "flower_pot_new"
+  | "flower_pot_removed";
 
 export interface DrawingStyle {
   strokeColor: string;
@@ -120,6 +123,8 @@ export interface DrawingStyle {
   locked?: boolean;
   userLabel?: string;
   description?: string;
+  ziplyPortCount?: number;
+  ziplyAddressesServed?: string;
   photos?: Array<{ id: string; dataUrl: string; name?: string }>;
   layerId?: string;
   

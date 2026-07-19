@@ -233,10 +233,11 @@ export class DrawingEngine {
       "cabinet_new", "cabinet_removed",
       "anchor_new", "anchor_removed",
       "splice",
+      "flower_pot_new", "flower_pot_removed",
       // Text-bearing markups also use the popup to capture the user's typed text/notes
       "text", "callout",
       // Ziply point tools
-      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole"
+      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole", "ziply_flower_pot"
     ].includes(tool);
   }
 
@@ -263,8 +264,9 @@ export class DrawingEngine {
       "cabinet_new", "cabinet_removed",
       "anchor_new", "anchor_removed",
       "splice",
+      "flower_pot_new", "flower_pot_removed",
       // Ziply point tools
-      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole"
+      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole", "ziply_flower_pot"
     ].includes(tool);
   }
 

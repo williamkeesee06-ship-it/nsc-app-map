@@ -48,8 +48,14 @@ export interface ZiplyParsedPrint {
     pa: "Pending" | "Approved" | "Active" | "Closed" | null;
     tcp: "Pending" | "Approved" | "Active" | "Closed" | null;
   } | null;
-  /** Street address of the hub/FDH, used to georeference the print (spec §1). */
+  /** PHYSICAL location: street intersection where the hub/FDH is installed on the plan view. */
   hubAddress?: string | null;
+  /** The pole ID the hub is mounted on (e.g. "PSE 226988-169290"). */
+  hubPoleId?: string | null;
+  /** The street the hub pole sits on (e.g. "132nd Ave NE"). */
+  hubPoleStreet?: string | null;
+  /** Nearest intersection streets (from plan view) used for geocoding. */
+  hubStreetIntersection?: { street1: string | null; street2: string | null } | null;
   /** City / community from title block (e.g. Arlington, Lake Stevens). */
   projectCity?: string | null;
   /** Primary ROW street the mainline follows (e.g. Metron Rd). */
@@ -304,9 +310,27 @@ Analyze ALL attached FTTH construction print pages (Booker Engineering / Ziply s
 Include cover, sheet index, PLAN VIEW sheets, details, and legends — not only the cover.
 
 CRITICAL FOR MAP PLACEMENT (read plan sheets carefully):
-- Hub/FDH address from title block (e.g. "18154 METRON RD, ARLINGTON, WA 98223") → hubAddress
-- projectCity (e.g. Arlington, Lake Stevens)
-- mainlineStreet: the road the thick multi-fiber line follows (e.g. "Metron Rd")
+
+=== HUB PHYSICAL LOCATION — THIS IS THE MOST IMPORTANT FIELD ===
+The hub/FDH/splitter cabinet is a physical piece of equipment bolted to a pole or sitting
+in a vault. Its location is shown on the PLAN VIEW sheets as a symbol (rectangle, cabinet,
+"P-1" label, "FDH", "S21xx" etc.) at a specific intersection or pole.
+
+- hubAddress: The EXACT STREET INTERSECTION or pole address where the hub cabinet is
+  physically located on the plan view sheet. Examples:
+    • "132nd Ave NE & NE 144th Pl, Woodinville, WA"
+    • "18154 Metron Rd & Cedar Dr, Arlington, WA"
+    • "Pole PSE 226988-169290 at 132nd Ave NE"
+  DO NOT use the customer/service address from the title block (that is where the fiber
+  goes, not where the hub sits). Look at the plan view: find the hub/FDH/cabinet/splitter
+  symbol, read the nearby street labels, and report THAT intersection.
+  If only a pole number is labeled, include the street it sits on.
+
+- hubStreetIntersection: The two street names that form the nearest intersection to the
+  hub on the plan view (e.g. "132nd Ave NE" and "NE 144th Pl"). Always populate this.
+- projectCity (e.g. Arlington, Lake Stevens, Woodinville)
+- mainlineStreet: the road the thick multi-fiber feeder line follows on the plan view
+
 - On plan views: house numbers printed on parcels (18052, 18118, 18151, 18330…) are REQUIRED.
   Put them in terminals[].houseNumbers AND expand to full addresses when street is known:
   addressesServed: ["18052 Metron Rd"] (or cross-street if labeled)
@@ -331,7 +355,7 @@ FIELDS:
 7. Strand / conduit
 8. Special notes (existing feeder, school, etc.)
 9. Permits table statuses
-10. hubAddress, projectCity, mainlineStreet
+10. hubAddress (PHYSICAL HUB LOCATION from plan view — see above), hubStreetIntersection, projectCity, mainlineStreet
 11. mapObjects — EVERY MST, splice, and cable segment from plan sheets:
     cables: { label, fiberCount, lengthFt, buildType, role, toTerminal, routeStreets,
               sheetPage, sequenceOrder, side, stationFt }
@@ -353,7 +377,8 @@ Schema:
   "strandType": "string or null",
   "conduitSize": "string or null",
   "specialNotes": "string or null",
-  "hubAddress": "string or null",
+  "hubAddress": "PHYSICAL intersection/pole location of hub from plan view — NOT the customer title block address",
+  "hubStreetIntersection": { "street1": "132nd Ave NE", "street2": "NE 144th Pl" },
   "projectCity": "string or null",
   "mainlineStreet": "string or null",
   "permits": {

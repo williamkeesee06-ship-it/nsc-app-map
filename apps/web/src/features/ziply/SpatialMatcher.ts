@@ -32,14 +32,27 @@ function getLineMidpoint(path: { lat: number; lng: number }[]) {
 
 export function findMatchingTerminal(
   drawnPoint: { lat: number; lng: number },
-  mapObjects: any
+  mapObjects: any,
+  typedLabel?: string
 ): any | null {
   if (!mapObjects || !mapObjects.terminals) return null;
 
-  let closest: ZiplyTerminalData | null = null;
+  // 1. Match by label name first (case-insensitive) if provided
+  if (typedLabel) {
+    const cleanTyped = typedLabel.trim().toUpperCase();
+    const nameMatch = mapObjects.terminals.find(
+      (t: any) =>
+        (t.label || "").trim().toUpperCase() === cleanTyped ||
+        (t.name || "").trim().toUpperCase() === cleanTyped
+    );
+    if (nameMatch) return nameMatch;
+  }
+
+  // 2. Fallback to spatial distance within 150ft
+  let closest: any | null = null;
   let minDistance = 150; // max search radius 150ft
 
-  mapObjects.terminals.forEach((t) => {
+  mapObjects.terminals.forEach((t: any) => {
     if (!t.geocode) return;
     const dist = getDistanceInFeet(drawnPoint.lat, drawnPoint.lng, t.geocode.lat, t.geocode.lng);
     if (dist < minDistance) {

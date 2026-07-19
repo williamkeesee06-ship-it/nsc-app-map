@@ -45,8 +45,8 @@ function promptForTool(tool: string): IconPrompt {
   if (tool === "ziply_address") {
     return { placeholder: "Customer Address (e.g. 18402 McElroy Rd)", prefix: null };
   }
-  if (tool === "ped_new" || tool === "ped_removed") {
-    return { placeholder: "PED # / label (e.g. PED-1)", prefix: null };
+  if (tool === "ped_new" || tool === "ped_removed" || tool === "ziply_flower_pot" || tool.startsWith("flower_pot")) {
+    return { placeholder: "Flower Pot / PED # / label (e.g. FP-1)", prefix: null };
   }
   if (tool === "cabinet_new" || tool === "cabinet_removed") {
     return { placeholder: "Cabinet # / label (e.g. CAB-7)", prefix: null };
@@ -76,6 +76,8 @@ function applyPrefix(label: string, prefix: string | null): string {
 const POPUP_W = 280;
 const POPUP_H = 148; // approx height to help with viewport clamping
 
+import { useActiveContract } from "../workspace/contractStore.js";
+
 export default function ObjectDetailsPopup({
   screenPos,
   tool,
@@ -84,12 +86,20 @@ export default function ObjectDetailsPopup({
   onSave,
   onCancel,
 }: ObjectDetailsPopupProps) {
+  const { contract } = useActiveContract();
   const [label, setLabel] = useState(initialLabel);
   const [description, setDescription] = useState(initialDescription);
   const titleRef = useRef<HTMLInputElement>(null);
   const prompt = promptForTool(tool);
 
-  const finalize = () => onSave(applyPrefix(label, prompt.prefix), description.trim());
+  const prefix = contract === "Ziply" ? null : prompt.prefix;
+  const finalize = () => {
+    let finalLabel = applyPrefix(label, prefix);
+    if (contract === "Ziply" && /^a-/i.test(finalLabel)) {
+      finalLabel = finalLabel.slice(2);
+    }
+    onSave(finalLabel, description.trim());
+  };
 
   // Autofocus title on mount
   useEffect(() => {

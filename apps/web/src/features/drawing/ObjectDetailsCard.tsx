@@ -16,6 +16,8 @@ import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import { api } from "../../lib/api.js";
 import { findMatchingTerminal, findMatchingCable } from "../ziply/SpatialMatcher.js";
+import { useActiveContract } from "../workspace/contractStore.js";
+import { useJobsContext } from "../jobs-map/jobsContext.js";
 // IconPicker / IconKey imports removed — Billy 6/10: no per-object icon swap.
 // Icons are still bound to each object's style at draw time; we just don't
 // expose a way to change them after the fact.
@@ -73,6 +75,9 @@ const POINT_TOOLS = new Set([
   "ziply_address",
   "ziply_pole",
   "ziply_handhole",
+  "ziply_flower_pot",
+  "flower_pot_new",
+  "flower_pot_removed",
 ]);
 
 function isPointTool(tool: string): boolean {
@@ -368,19 +373,30 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
   } = useDrawing();
   const isSelectTool = drawState.activeTool === "select";
 
-  // @ts-ignore
-  const { data: job } = api.jobs.get.useQuery(drawState.targetJobId || "", { enabled: !!drawState.targetJobId });
+  const { jobs } = useJobsContext();
+  const job = jobs.find((j) => j.jobId === drawState.targetJobId);
 
   const handleAutoFill = () => {
     if (!job || !job.ziplyPrintLayer?.mapObjects) return;
     const mapObjects = job.ziplyPrintLayer.mapObjects;
 
     if (isPointTool(obj.tool) && "position" in obj) {
-        const match = findMatchingTerminal({ lat: obj.position.lat, lng: obj.position.lng }, mapObjects);
+        const match = findMatchingTerminal(
+          { lat: obj.position.lat, lng: obj.position.lng },
+          mapObjects,
+          label || obj.style.userLabel
+        );
         if (match) {
-          patchObjectStyle(obj.id, { userLabel: match.name });
+          patchObjectStyle(obj.id, {
+            userLabel: match.label || match.name || label,
+            ziplyPrintPage: match.pageRef ?? obj.style.ziplyPrintPage,
+            ziplyPortCount: match.portCount ?? obj.style.ziplyPortCount,
+            ziplyAddressesServed: Array.isArray(match.addressesServed)
+              ? match.addressesServed.join(", ")
+              : (match.addressesServed ?? obj.style.ziplyAddressesServed),
+          });
         } else {
-          window.alert("No matching AI terminal found within radius.");
+          window.alert("No matching AI terminal found by name/label or spatial radius.");
         }
     } else if (isLine(obj.tool) && "vertices" in obj) {
         const match = findMatchingCable(obj.vertices, mapObjects);
@@ -396,15 +412,25 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     }
   };
 
-  const [label, setLabel] = useState(obj.style.userLabel ?? "");
+  const { contract } = useActiveContract();
+
+  const cleanLabel = (lbl: string) => {
+    const isPoleOrEquipment = obj.tool.includes("pole") || obj.tool.includes("hub") || obj.tool.includes("terminal");
+    if (contract === "Ziply" && isPoleOrEquipment && /^a-/i.test(lbl)) {
+      return lbl.slice(2);
+    }
+    return lbl;
+  };
+
+  const [label, setLabel] = useState(cleanLabel(obj.style.userLabel ?? ""));
   const [description, setDescription] = useState(obj.style.description ?? "");
   const labelRef = useRef<HTMLInputElement>(null);
 
   // Sync local state when object changes externally (e.g. geometry drag)
   useEffect(() => {
-    setLabel(obj.style.userLabel ?? "");
+    setLabel(cleanLabel(obj.style.userLabel ?? ""));
     setDescription(obj.style.description ?? "");
-  }, [obj.id, obj.style.userLabel, obj.style.description]);
+  }, [obj.id, obj.style.userLabel, obj.style.description, contract]);
 
   // Commit label change to context (debounced 300ms)
   const labelDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -413,13 +439,16 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     if (labelDebounce.current) clearTimeout(labelDebounce.current);
     labelDebounce.current = setTimeout(() => {
       let finalLabel = v.trim();
-      // Phase 9: Pole labels auto-prefix with "A-" when missing
+      // Phase 9: Pole labels auto-prefix with "A-" when missing (except on Ziply contract)
       if (
         finalLabel &&
+        contract !== "Ziply" &&
         (obj.tool === "pole_new" || obj.tool === "pole_removed") &&
         !/^a-/i.test(finalLabel)
       ) {
         finalLabel = `A-${finalLabel}`;
+      } else if (contract === "Ziply" && /^a-/i.test(finalLabel)) {
+        finalLabel = finalLabel.slice(2);
       }
       patchObjectStyle(obj.id, { userLabel: finalLabel || undefined });
     }, 300);
@@ -552,6 +581,9 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     ziply_address: "Ziply Service Address",
     ziply_pole: "Ziply Pole",
     ziply_handhole: "Ziply Handhole",
+    ziply_flower_pot: "Ziply Flower Pot",
+    flower_pot_new: "Flower Pot (New)",
+    flower_pot_removed: "Flower Pot (Removed)",
     ziply_feeder: "Ziply Feeder Cable",
     ziply_distribution: "Ziply Distribution Cable",
     ziply_drop: "Ziply Drop Cable",
@@ -838,6 +870,37 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
                 }}
               />
             </div>
+
+            {(obj.tool === "ziply_terminal" || obj.tool.includes("terminal")) && (
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+                  <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Ports</label>
+                  <input
+                    type="number"
+                    value={obj.style.ziplyPortCount ?? ""}
+                    onChange={(e) => patchStyle({ ziplyPortCount: Number(e.target.value) })}
+                    placeholder="e.g. 4, 8"
+                    style={{
+                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
+                      borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
+                    }}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 2 }}>
+                  <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Addresses Served</label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyAddressesServed ?? ""}
+                    onChange={(e) => patchStyle({ ziplyAddressesServed: e.target.value })}
+                    placeholder="e.g. 12918, 12917"
+                    style={{
+                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
+                      borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
             {isCableOrLine && (
               <>

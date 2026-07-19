@@ -49,6 +49,9 @@ const LABEL_REQUIRED_TOOLS = new Set<string>([
   "ziply_distribution",
   "ziply_drop",
   "ziply_bore",
+  "ziply_flower_pot",
+  "flower_pot_new",
+  "flower_pot_removed",
 ]);
 
 // ── Cable line rendering ──────────────────────────────────────────────────────
@@ -507,14 +510,16 @@ export default function DrawingOverlay() {
     engine.getSnapTargets = () => {
       const out: Array<{ id: string; lat: number; lng: number }> = [];
       for (const o of objectsForSnapRef.current) {
+        const toolStr = o.tool as string;
         if (
-          o.tool !== "pole_new" && o.tool !== "pole_removed" &&
-          o.tool !== "mh_new" && o.tool !== "mh_removed" &&
-          o.tool !== "hh_new" && o.tool !== "hh_removed" &&
-          o.tool !== "ped_new" && o.tool !== "ped_removed" &&
-          o.tool !== "ziply_hub" && o.tool !== "ziply_terminal" &&
-          o.tool !== "ziply_address" && o.tool !== "ziply_pole" &&
-          o.tool !== "ziply_handhole"
+          toolStr !== "pole_new" && toolStr !== "pole_removed" &&
+          toolStr !== "mh_new" && toolStr !== "mh_removed" &&
+          toolStr !== "hh_new" && toolStr !== "hh_removed" &&
+          toolStr !== "ped_new" && toolStr !== "ped_removed" &&
+          toolStr !== "ziply_hub" && toolStr !== "ziply_terminal" &&
+          toolStr !== "ziply_address" && toolStr !== "ziply_pole" &&
+          toolStr !== "ziply_handhole" && toolStr !== "ziply_flower_pot" &&
+          toolStr !== "flower_pot_new" && toolStr !== "flower_pot_removed"
         ) continue;
         if (!("position" in o)) continue;
         out.push({ id: o.id, lat: o.position.lat, lng: o.position.lng });
