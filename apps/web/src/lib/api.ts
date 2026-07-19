@@ -224,7 +224,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
   /** Re-geocode hub/terminals + run CAD geometry enhance (no AI re-parse). */
-  repairZiplyPrint: (jobId: string) =>
+  repairZiplyPrint: (jobId: string, address?: string) =>
     request<{
       ok: boolean;
       jobId: string;
@@ -241,7 +241,7 @@ export const api = {
       dropsPlaced?: number;
     }>(`/api/jobs/${encodeURIComponent(jobId)}/ziply-repair-print`, {
       method: "POST",
-      body: JSON.stringify({}),
+      body: JSON.stringify({ address }),
     }),
   /**
    * High-detail CAD pass: geocode terminals + route streets, write multi-point

@@ -978,7 +978,7 @@ type RepairResult = {
  * Fill missing hub/terminal lat/lng for an already-ingested Ziply print so it
  * shows on the map without re-running Gemini.
  */
-async function repairZiplyPrintLocation(job: Job): Promise<RepairResult> {
+async function repairZiplyPrintLocation(job: Job, targetAddress?: string): Promise<RepairResult> {
   const jobId = job.jobId;
   const mo = job.ziplyPrintLayer?.mapObjects;
   if (!mo) {
@@ -1016,13 +1016,24 @@ async function repairZiplyPrintLocation(job: Job): Promise<RepairResult> {
     return null;
   };
 
-  // Prefer existing good coords, then geocode candidates.
+  // Prefer target override, then existing good coords, then geocode candidates.
   let hubCoords: { lat: number; lng: number } | null = null;
-  let repairSource = hubAlready ? "hub_existing" : geoAlready ? "job_geocode" : "";
-  if (hubAlready) {
+  let repairSource = "";
+  
+  if (targetAddress?.trim()) {
+    const coords = await geocodeOne(targetAddress);
+    if (coords) {
+      hubCoords = coords;
+      repairSource = "manual_override";
+    }
+  }
+
+  if (!hubCoords && hubAlready) {
     hubCoords = { lat: mo.hub!.lat as number, lng: mo.hub!.lng as number };
-  } else if (geoAlready) {
+    repairSource = "hub_existing";
+  } else if (!hubCoords && geoAlready) {
     hubCoords = { lat: job.geocode!.lat, lng: job.geocode!.lng };
+    repairSource = "job_geocode";
   }
 
   if (!hubCoords) {
@@ -1775,7 +1786,8 @@ router.post("/jobs/:jobId/ziply-repair-print", async (req, res, next) => {
       });
       return;
     }
-    const repaired = await repairZiplyPrintLocation(job);
+    const targetAddress = typeof req.body?.address === "string" ? req.body.address : undefined;
+    const repaired = await repairZiplyPrintLocation(job, targetAddress);
     if (!repaired.repaired) {
       res.json({
         ok: false,

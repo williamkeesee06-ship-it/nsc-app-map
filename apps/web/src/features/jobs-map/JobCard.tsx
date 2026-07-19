@@ -709,10 +709,19 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
     setErr(null);
     setEnhanceMsg(null);
     try {
-      const r = await api.repairZiplyPrint(job.jobId);
+      const addressOverride = window.prompt(
+        "Enter the correct address or intersection for this print (e.g. 132nd Ave NE & NE 144th Pl, Woodinville, WA):",
+        job.address && job.city ? `${job.address}, ${job.city}, WA` : ""
+      );
+      if (addressOverride === null) {
+        setRepairBusy(false);
+        return; // user cancelled
+      }
+      
+      const r = await api.repairZiplyPrint(job.jobId, addressOverride || undefined);
       if (r.reason === "geocode_failed" || (r.enhanced === false && r.reason === "geocode_failed")) {
         setErr(
-          "Could not place print on map. Set job City to Arlington (or correct city) and Address if known, then try again."
+          "Could not place print on map. Set job City to Arlington (or correct city) and Address if known, or enter a valid intersection, then try again."
         );
       } else if (r.enhanced === false && r.reason && r.reason !== "ok") {
         setErr(`Repair issue: ${r.reason}`);
@@ -864,7 +873,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           {err && <span style={{ fontSize: 9, color: "#f87171" }}>{err}</span>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-          {layer?.mapObjects && !mapReady && (
+          {layer?.mapObjects && (
             <button
               type="button"
               disabled={repairBusy || busy || enhanceBusy}

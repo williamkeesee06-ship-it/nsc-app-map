@@ -235,6 +235,8 @@ export class DrawingEngine {
       "splice",
       // Text-bearing markups also use the popup to capture the user's typed text/notes
       "text", "callout",
+      // Ziply point tools
+      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole"
     ].includes(tool);
   }
 
@@ -246,7 +248,10 @@ export class DrawingEngine {
   }
 
   private isPolylineTool(tool: DrawingTool): boolean {
-    return ["placed_cable", "removed_cable", "line", "arrow"].includes(tool);
+    return [
+      "placed_cable", "removed_cable", "line", "arrow",
+      "ziply_feeder", "ziply_distribution", "ziply_drop", "ziply_bore"
+    ].includes(tool);
   }
 
   private isPointTool(tool: DrawingTool): boolean {
@@ -258,6 +263,8 @@ export class DrawingEngine {
       "cabinet_new", "cabinet_removed",
       "anchor_new", "anchor_removed",
       "splice",
+      // Ziply point tools
+      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole"
     ].includes(tool);
   }
 
