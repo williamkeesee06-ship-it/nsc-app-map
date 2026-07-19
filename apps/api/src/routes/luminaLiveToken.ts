@@ -67,7 +67,7 @@ router.post("/lumina/live-token", async (req: Request, res: Response) => {
   // Default to 2.5 native-audio. Allow LUMINA_LIVE_MODEL env override
   // so we can hot-swap without redeploying code if a specific id misbehaves.
   const MODEL = process.env.LUMINA_LIVE_MODEL?.trim() ||
-    "gemini-2.5-flash-native-audio-preview-12-2025";
+    "gemini-2.0-flash-live-001";
   const VOICE = "Aoede"; // composed, warm — fits Lumina
 
   // Phase 5c — inject saved memories into the Live mode system prompt so

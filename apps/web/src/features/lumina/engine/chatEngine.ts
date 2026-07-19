@@ -129,6 +129,7 @@ export interface ChatEngineDeps {
   priorMessages: ChatMessage[];
   newUserMessage: string;
   username: string;
+  drawingState?: any;
   /** Tool dispatch context (map bridge, action queue). */
   toolCtx: LuminaToolContext;
   /** Called when the engine has the final text reply ready. */
@@ -170,6 +171,21 @@ export async function runUserTurn(deps: ChatEngineDeps): Promise<void> {
           // we never pass newUserMessage as a separate field anymore.
           history: [...baseHistory, ...live],
           username,
+          drawingContext: deps.drawingState ? {
+            activeTool: deps.drawingState.activeTool,
+            selectedIds: Array.from(deps.drawingState.selectedIds || []),
+            objectsCount: deps.drawingState.objects?.length || 0,
+            dirty: deps.drawingState.dirty,
+            targetWorkOrder: deps.drawingState.targetWorkOrder,
+            selectedObjects: (deps.drawingState.objects || []).filter((o: any) => 
+              deps.drawingState.selectedIds?.has(o.id)
+            ).map((o: any) => ({
+              id: o.id,
+              tool: o.tool,
+              properties: o.properties,
+              geometry: o.geometry
+            }))
+          } : null
         }),
       });
       if (!res.ok) {

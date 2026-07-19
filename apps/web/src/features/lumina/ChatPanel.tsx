@@ -25,6 +25,7 @@ import { api } from "../../lib/api.js";
 import type { AsBuiltDocument, AsbuiltDoc, DrawingObject } from "@nsc/types";
 import type { PendingAction } from "./tools/types.js";
 import MemoryPanel from "./MemoryPanel.js";
+import { useDrawing } from "../drawing/drawingContext.js";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -66,6 +67,7 @@ export default function ChatPanel() {
     setTabOpen,
   } = useLumina();
   const { username, isManager } = useAuth();
+  const drawing = useDrawing();
   const [applyingId, setApplyingId] = useState<string | null>(null);
 
   const [pos, setPos] = useState(() => ({
@@ -351,6 +353,10 @@ export default function ChatPanel() {
 
     // Allocate a placeholder Lumina message id so traces attach in order.
     const replyId = crypto.randomUUID();
+    
+    // Get the drawing state
+    const drawingState = drawing.state;
+
     appendMessage({
       id: replyId,
       role: "lumina",
@@ -367,6 +373,7 @@ export default function ChatPanel() {
       priorMessages: prior,
       newUserMessage: text,
       username: username || "Billy",
+      drawingState,
       toolCtx: {
         username: username || "Billy",
         isManager,

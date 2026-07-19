@@ -90,6 +90,19 @@ interface ChatRequestBody {
    *  bullets from live Firestore data instead of a Gemini turn. */
   mode?: string;
   contract?: string;
+  drawingContext?: {
+    activeTool: string | null;
+    selectedIds: string[];
+    objectsCount: number;
+    dirty: boolean;
+    targetWorkOrder: string | null;
+    selectedObjects: Array<{
+      id: string;
+      tool: string;
+      properties?: Record<string, any>;
+      geometry?: any;
+    }>;
+  } | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -533,6 +546,13 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       body.username ? `${body.username}` : "Billy Keesee"
     ) + timeContext;
 
+    // Phase 9.8 — Inject active drawing context from the map
+    const drawingContextStr = body.drawingContext
+      ? `\n\n=====================================================================\n  ACTIVE MAP DRAWING CONTEXT (Lumina is "watching" Billy draw)\n=====================================================================\n${JSON.stringify(body.drawingContext, null, 2)}\n`
+      : "";
+
+    const sysWithDrawing = baseSys + drawingContextStr;
+
     // Phase 5c — inject any durable memories Lumina has saved for this user.
     // We sort pinned-first, recently-updated next in loadMemoriesForPrompt.
     // Failure to load memories is non-fatal: chat must still work if the
@@ -547,8 +567,8 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       }
     }
     const sys = memories.length === 0
-      ? baseSys
-      : `${baseSys}\n\n${formatMemoryBlock(memories)}`;
+      ? sysWithDrawing
+      : `${sysWithDrawing}\n\n${formatMemoryBlock(memories)}`;
 
     const tools: Tool[] = [
       { functionDeclarations: normalizeToolDeclarations(LUMINA_FUNCTION_DECLARATIONS) },
