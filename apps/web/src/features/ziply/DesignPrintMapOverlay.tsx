@@ -319,6 +319,8 @@ interface Props {
   geojsonUrl?: string;
   jobs?: Job[];
   selectedJob?: Job | null;
+  selectedFeature?: PlatformFeature | null;
+  setSelectedFeature?: (f: PlatformFeature | null) => void;
 }
 
 export default function DesignPrintMapOverlay({
@@ -326,6 +328,8 @@ export default function DesignPrintMapOverlay({
   geojsonUrl = "/experiments/lake-stevens/h2043/platform.geojson",
   jobs = [],
   selectedJob,
+  selectedFeature,
+  setSelectedFeature
 }: Props) {
   const map = useMap();
   const glowRef = useRef<google.maps.Data | null>(null);

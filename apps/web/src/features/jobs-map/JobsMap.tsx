@@ -695,8 +695,6 @@ function JobsMapInner({
               : `${mapped.length} on map · ${unmapped} unmapped · ${allJobs.length} total`}
         </div>
       </div>
-
-      </div>
     </div>
   );
 }

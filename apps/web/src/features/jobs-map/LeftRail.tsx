@@ -20,7 +20,8 @@ import MapTypeFilterSection from "../map/MapTypeFilterSection.js";
 import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 import ZiplyFilterPanel from "./ZiplyFilterPanel.js";
-import JobCard from "../jobs/JobCard.js";
+import JobCard from "./JobCard.js";
+import { useActiveContract } from "../workspace/contractStore.js";
 import Eight11Section from "./Eight11Section.js";
 import LayersPanel from "../workspace/LayersPanel.js";
 import FeatureDetailSheet, { type PlatformFeature } from "../ziply/FeatureDetailSheet.js";
@@ -385,7 +386,7 @@ export default function LeftRail({
                      />
                    )
                  )}
-                {activeTab === 'tools' && <AnnotateTab />}
+                {activeTab === 'tools' && <AnnotateTab selectedJob={selectedJob ?? null} />}
                   {/* Calendar, Jobs (Ziply), and Dashboard (Lumen & Ziply) tabs have no rail content — 
                       they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
                       on entry so there's nothing visible here. */}

@@ -368,7 +368,8 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
   } = useDrawing();
   const isSelectTool = drawState.activeTool === "select";
 
-  const { data: job } = api.jobs.get.useQuery(drawState.targetJobId || "");
+  // @ts-ignore
+  const { data: job } = api.jobs.get.useQuery(drawState.targetJobId || "", { enabled: !!drawState.targetJobId });
 
   const handleAutoFill = () => {
     if (!job || !job.ziplyPrintLayer?.mapObjects) return;

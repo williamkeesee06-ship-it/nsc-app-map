@@ -6,6 +6,8 @@
 //   - Traffic Control          → click toggle
 // Saves write directly to Smartsheet via the nsc-smartapp Worker.
 import { useEffect, useRef, useState } from "react";
+import { ArrowRight, FileText, ChevronRight, CheckCircle2, ChevronDown, Wand2, Calendar, FileDown, Paperclip, UploadCloud } from "lucide-react";
+import { useMap } from "@vis.gl/react-google-maps";
 import type { DigTicket, Job } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
