@@ -36,7 +36,7 @@ import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
 import { setShowCOs, useShowCOs } from "./centralOfficesStore.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import JobsShownPill from "./JobsShownPill.js";
-import GlobalPrintUploadModal from "./GlobalPrintUploadModal.js";
+import GlobalPrintUploadWidget from "./GlobalPrintUploadWidget.js";
 // MapTypeToggle moved to LeftRail Filters tab (MapTypeFilterSection). MapTypeApplier still listens to the same broadcast.
 import MapTypeApplier from "../map/MapTypeApplier.js";
 import type { MapTheme } from "../map/themeContext.js";
@@ -472,21 +472,13 @@ function JobsMapInner({
   const [dashboardFullscreen, setDashboardFullscreen] = useState(true);
   const [ticketsFullscreen, setTicketsFullscreen] = useState(false);
   const [ziplyJobsFullscreen, setZiplyJobsFullscreen] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [matchedJob, setMatchedJob] = useState<Job | null>(null);
 
   const handleGlobalFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setPendingFile(file);
-    
-    // Auto-match from filename
-    const lowerName = file.name.toLowerCase();
-    const match = allJobs.find(j => j.workOrder && lowerName.includes(j.workOrder.toLowerCase()));
-    setMatchedJob(match || null);
-    setShowUploadModal(true);
     
     // Reset input
     e.target.value = "";
@@ -567,16 +559,16 @@ function JobsMapInner({
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
         </label>
-        {showUploadModal && (
-          <GlobalPrintUploadModal 
-            jobs={allJobs} 
-            onClose={() => {
-              setShowUploadModal(false);
+        {pendingFile && (
+          <GlobalPrintUploadWidget
+            file={pendingFile}
+            allJobs={allJobs}
+            onClose={() => setPendingFile(null)}
+            onSuccess={(job) => {
               setPendingFile(null);
-              setMatchedJob(null);
-            }} 
-            preselectedFile={pendingFile}
-            preselectedJob={matchedJob}
+              // Open job in map
+              void handleSelect(job);
+            }}
           />
         )}
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
