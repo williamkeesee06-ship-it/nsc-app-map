@@ -1,5 +1,6 @@
 // Fail-loud env loader. Throws at boot if a required var is missing.
 // Why: prior production crashes came from lazy env access at first request.
+// Force redeploy to load rotated keys.
 
 import { z } from "zod";
 
