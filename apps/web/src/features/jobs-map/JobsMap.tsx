@@ -36,6 +36,7 @@ import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
 import { setShowCOs, useShowCOs } from "./centralOfficesStore.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import JobsShownPill from "./JobsShownPill.js";
+import GlobalPrintUploadModal from "./GlobalPrintUploadModal.js";
 // MapTypeToggle moved to LeftRail Filters tab (MapTypeFilterSection). MapTypeApplier still listens to the same broadcast.
 import MapTypeApplier from "../map/MapTypeApplier.js";
 import type { MapTheme } from "../map/themeContext.js";
@@ -471,6 +472,7 @@ function JobsMapInner({
   const [dashboardFullscreen, setDashboardFullscreen] = useState(true);
   const [ticketsFullscreen, setTicketsFullscreen] = useState(false);
   const [ziplyJobsFullscreen, setZiplyJobsFullscreen] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   useEffect(() => {
     function onActiveTab(e: Event) {
@@ -532,7 +534,8 @@ function JobsMapInner({
 
       <div className="jobs-map__main">
         <ModifiersPanel />
-        <JobsShownPill onClick={() => window.alert("Upload Prints & Permits clicked")} />
+        <JobsShownPill onClick={() => setShowUploadModal(true)} />
+        {showUploadModal && <GlobalPrintUploadModal jobs={allJobs} onClose={() => setShowUploadModal(false)} />}
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
           {/* All floating map HUD lives here so it cannot sit under the app topbar */}
           <div className="map-chrome-top">
