@@ -783,8 +783,8 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
     setPct(0);
     setErr(null);
     try {
-      const url = await ingestZiplyPrintForJob(job.jobId, file, (p) => setPct(Math.round(p)));
-      window.open(url, "_blank");
+      await ingestZiplyPrintForJob(job.jobId, file, (p) => setPct(Math.round(p)));
+      setStudioOpen(true);
       if (job.geocode && map) {
         map.panTo({ lat: job.geocode.lat, lng: job.geocode.lng });
         map.setZoom(19);

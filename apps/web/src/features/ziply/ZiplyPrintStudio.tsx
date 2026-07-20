@@ -812,9 +812,9 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                   inset: 0,
                   width: "100%",
                   height: "100%",
-                  zIndex: markupTool !== "none" ? 10 : 1,
-                  pointerEvents: markupTool !== "none" ? "auto" : "none",
-                  cursor: markupTool !== "none" ? "crosshair" : "default",
+                  zIndex: markupTool !== "none" || alignStep > 0 ? 10 : 1,
+                  pointerEvents: markupTool !== "none" || alignStep > 0 ? "auto" : "none",
+                  cursor: alignStep > 0 ? "crosshair" : markupTool !== "none" ? "crosshair" : "default",
                 }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
