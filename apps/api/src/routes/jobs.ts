@@ -2296,8 +2296,8 @@ router.post("/jobs/:jobId/ziply-print/affine-align", async (req, res, next) => {
     const matrix = compute2PointAffineMatrix(cp1, cp2);
 
     const job = doc.data() as Job;
-    const layer = job.ziplyPrintLayer ?? {};
-    const mapObjects = layer.mapObjects ?? {};
+    const layer = (job.ziplyPrintLayer ?? {}) as Record<string, unknown>;
+    const mapObjects = (layer.mapObjects ?? {}) as Record<string, unknown>;
 
     // Transform hub position if available in PDF coords
     let transformedHub = mapObjects.hub;
