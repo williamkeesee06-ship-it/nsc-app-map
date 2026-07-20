@@ -46,6 +46,7 @@ import LuminaOrb from "../lumina/Orb.js";
 import LuminaChatPanel from "../lumina/ChatPanel.js";
 import LuminaMapBridge from "../lumina/MapBridge.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
+import InMap2PointAlignToolbar from "../ziply/InMap2PointAlignToolbar.js";
 const DesignPrintMapOverlay = lazy(
   () => import("../ziply/DesignPrintMapOverlay.js")
 );
@@ -472,8 +473,20 @@ function JobsMapInner({
   const [dashboardFullscreen, setDashboardFullscreen] = useState(true);
   const [ticketsFullscreen, setTicketsFullscreen] = useState(false);
   const [ziplyJobsFullscreen, setZiplyJobsFullscreen] = useState(false);
+  const [inMapAlignJob, setInMapAlignJob] = useState<Job | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    function onStartInMapAlign(e: Event) {
+      const detail = (e as CustomEvent<{ job: Job }>).detail;
+      if (detail?.job) {
+        setInMapAlignJob(detail.job);
+      }
+    }
+    window.addEventListener("nsc:start-inmap-align", onStartInMapAlign);
+    return () => window.removeEventListener("nsc:start-inmap-align", onStartInMapAlign);
+  }, []);
 
   const handleGlobalFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -631,6 +644,13 @@ function JobsMapInner({
               {/* Lumina map bridge — registers an imperative handle the
                   navigation tools call into. Renders nothing. */}
               <LuminaMapBridge />
+              {inMapAlignJob && (
+                <InMap2PointAlignToolbar
+                  job={inMapAlignJob}
+                  onComplete={() => setInMapAlignJob(null)}
+                  onCancel={() => setInMapAlignJob(null)}
+                />
+              )}
             </Map>
           </div>
           <div

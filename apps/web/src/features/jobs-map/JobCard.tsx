@@ -884,10 +884,14 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <button
             type="button"
-            onClick={() => setStudioOpen(true)}
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent("nsc:start-inmap-align", { detail: { job } })
+              );
+            }}
             style={{
-              background: "linear-gradient(180deg, #2563eb, #1d4ed8)",
-              border: "1px solid #1e40af",
+              background: "linear-gradient(180deg, #0284c7, #0369a1)",
+              border: "1px solid #075985",
               color: "#ffffff",
               fontSize: 11,
               fontWeight: 800,
@@ -895,14 +899,14 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
               borderRadius: 6,
               cursor: "pointer",
               textAlign: "center",
-              boxShadow: "0 2px 4px rgba(37,99,235,0.3)",
+              boxShadow: "0 2px 6px rgba(2,132,199,0.35)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 6,
             }}
           >
-            ✦ OPEN PRINT STUDIO (2-POINT ALIGN)
+            🎯 2-POINT ALIGN ON MAP
           </button>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
