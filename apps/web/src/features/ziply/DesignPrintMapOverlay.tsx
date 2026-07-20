@@ -89,7 +89,7 @@ const LAYER_META: Record<LayerKey, LayerMeta> = {
     color: "#A855F7", // Purple
     soft: "#D8B4FE",
     defaultOn: true,
-    minZoom: 13,
+    minZoom: 10,
     lineWeight: 0,
   },
   service_point: {
@@ -97,7 +97,7 @@ const LAYER_META: Record<LayerKey, LayerMeta> = {
     color: "#3B82F6", // Blue
     soft: "#93C5FD",
     defaultOn: true,
-    minZoom: 14,
+    minZoom: 10,
     lineWeight: 0,
   },
   pole: {
@@ -105,7 +105,7 @@ const LAYER_META: Record<LayerKey, LayerMeta> = {
     color: "#B45309", // Amber Brown
     soft: "#F59E0B",
     defaultOn: true,
-    minZoom: 14,
+    minZoom: 10,
     lineWeight: 0,
   },
   handhole: {
@@ -113,7 +113,7 @@ const LAYER_META: Record<LayerKey, LayerMeta> = {
     color: "#64748B", // Slate
     soft: "#94A3B8",
     defaultOn: true,
-    minZoom: 14,
+    minZoom: 10,
     lineWeight: 0,
   },
   pedestal: {
@@ -121,7 +121,7 @@ const LAYER_META: Record<LayerKey, LayerMeta> = {
     color: "#059669", // Emerald Green
     soft: "#34D399",
     defaultOn: true,
-    minZoom: 14,
+    minZoom: 10,
     lineWeight: 0,
   },
   manhole: {
@@ -129,7 +129,7 @@ const LAYER_META: Record<LayerKey, LayerMeta> = {
     color: "#4B5563", // Slate Grey
     soft: "#9CA3AF",
     defaultOn: true,
-    minZoom: 14,
+    minZoom: 10,
     lineWeight: 0,
   },
 };

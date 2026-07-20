@@ -160,7 +160,8 @@ function legacyDocRef(jobId: string) {
 // (no owner)     → defaults to legacy behaviour: legacy `current` docs only.
 router.get("/asbuilt", async (req, res, next) => {
   try {
-    const owner = typeof req.query.owner === "string" ? req.query.owner : "";
+    const ownerQuery = typeof req.query.owner === "string" ? req.query.owner.trim() : "";
+    const owner = ownerQuery || LEGACY_OWNER_NAME;
     const wantAll = owner === "*";
     const ownerSlug = owner && !wantAll ? slugifyOwner(owner) : "";
     const snap = await db().collectionGroup("asbuilt").get();
@@ -177,12 +178,10 @@ router.get("/asbuilt", async (req, res, next) => {
       if (id === "current") {
         // Legacy global doc — counts as Billy Keesee.
         ownerName = ownerName ?? LEGACY_OWNER_NAME;
-        if (wantAll) include = true;
-        else if (!ownerSlug) include = true; // back-compat: no owner filter
-        else if (ownerSlug === LEGACY_OWNER) include = true;
+        if (wantAll || !ownerSlug || ownerSlug === LEGACY_OWNER) include = true;
       } else {
         if (wantAll) include = true;
-        else if (ownerSlug && id === ownerSlug) include = true;
+        else if (ownerSlug && (id === ownerSlug || ownerSlug === LEGACY_OWNER)) include = true;
       }
       if (!include) return;
 
@@ -203,31 +202,21 @@ router.get("/asbuilt", async (req, res, next) => {
 router.get("/asbuilt/:jobId", async (req, res, next) => {
   try {
     const { jobId } = req.params;
-    const owner = typeof req.query.owner === "string" ? req.query.owner : "";
-    // If no owner specified, fall back to legacy `current` (pre-scoping behaviour).
-    if (!owner) {
-      const snap = await legacyDocRef(jobId).get();
-      if (!snap.exists) {
-        res.json(emptyAsbuilt(jobId));
-        return;
-      }
-      res.json(snap.data() as AsbuiltDoc);
-      return;
-    }
-    // Per-owner read.
-    const snap = await docRef(jobId, owner).get();
+    const ownerQuery = typeof req.query.owner === "string" ? req.query.owner.trim() : "";
+    const owner = ownerQuery || LEGACY_OWNER_NAME;
+    const ownerSlug = slugifyOwner(owner);
+
+    // Try target owner doc first
+    const snap = await docRef(jobId, ownerSlug).get();
     if (snap.exists) {
       res.json(snap.data() as AsbuiltDoc);
       return;
     }
-    // Billy fallback: if Billy has no per-owner doc yet but the legacy doc
-    // exists, return that — it predates per-supervisor scoping and belongs to him.
-    if (slugifyOwner(owner) === LEGACY_OWNER) {
-      const legacy = await legacyDocRef(jobId).get();
-      if (legacy.exists) {
-        res.json(legacy.data() as AsbuiltDoc);
-        return;
-      }
+    // Fall back to legacy `current` doc
+    const legacy = await legacyDocRef(jobId).get();
+    if (legacy.exists) {
+      res.json(legacy.data() as AsbuiltDoc);
+      return;
     }
     res.json(emptyAsbuilt(jobId));
   } catch (err) {
