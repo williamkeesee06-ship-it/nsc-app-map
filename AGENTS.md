@@ -44,3 +44,14 @@
 - **Holistic Problem Solving:** When debugging or building, trace the data flow from end-to-end. Don't just patch a symptom; find and resolve the root cause. Always consider edge cases (e.g., what happens if the network is offline? What if the AI ingestion fails?).
 - **Continuous Self-Correction:** Before submitting a plan or pushing code, critically review your own work. Ask yourself: 'Is this the absolute best way to solve this?', 'Does this meet the highest engineering standards?', and 'Have I tested this thoroughly via TypeScript and logic checks?'
 - **Over-Communication of Value:** When summarizing your work, explain *why* the design decisions you made are superior and how they improve the app's overall quality and user experience.
+
+## Master Telecom Plant & Georeferencing Rules (Billy Approved)
+
+- **Poles (`ziply_pole` / `pole_new`):** Render as black circle with an X through it (`strokeColor: "#000000"`). Map label shows print designation (`P1`, `P2`, `P3`). Detail popup card shows full PSE Pole ID (`226988-169290`), guy wire notes (`OH GUY`), and grid coordinates.
+- **Splice Terminals (`ziply_terminal`):** Purple badge displaying `T1`, `T2`, `T4` on map. Detail popup card shows port count (6-port, 12-port), tail footage (`500'`), overlash/conduit notes, and served house addresses.
+- **Fiber Cable Spans (`placed_cable`, `ziply_feeder`, `ziply_distribution`):**
+  - **Multi-Stage Illumination:** Stage 0 (Planned = dim/dashed) ➔ Stage 1 (Conduit Placed = solid conduit color) ➔ Stage 2 (Fiber Placed = bright inner neon glow `#39FF14` / `#06B6D4`).
+  - **Footage Callout Labels:** Linear footage callouts (e.g. `275'`) MUST be rendered and visible on EVERY cable line segment on the map.
+  - **Detail Popup Card:** Shows strand type (`10MStrand`), conduit size (`1-2" DUCT`), install method (`Bore`/`Trench`/`Aerial`), and fiber count (`144F`).
+- **Handholes, Vaults & Pedestals:** Slate rectangle badge for Handholes (`HH-NEW 17X30`), Green square for Pedestals (`EX PED`). Status illuminates from dim outline (Planned) ➔ bright solid fill (Placed/Set).
+- **PDF Georeferencing Engine:** 2-Point Web Mercator ($EPSG:3857$) rigid matrix transformation ($S, \theta, T$). Zero LLM spatial coordinate guessing.
