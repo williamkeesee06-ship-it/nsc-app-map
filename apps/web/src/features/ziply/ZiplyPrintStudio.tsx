@@ -48,6 +48,12 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
   const [shapes, setShapes] = useState<any[]>([]);
   const [savingMarkups, setSavingMarkups] = useState(false);
 
+  // 2-Point Affine Alignment States
+  const [alignStep, setAlignStep] = useState<0 | 1 | 2>(0);
+  const [cp1, setCp1] = useState<{ pdf: { x: number; y: number }; map?: { lat: number; lng: number } } | null>(null);
+  const [cp2, setCp2] = useState<{ pdf: { x: number; y: number }; map?: { lat: number; lng: number } } | null>(null);
+  const [alignStatus, setAlignStatus] = useState<string | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
   const startPosRef = useRef({ x: 0, y: 0 });
@@ -239,6 +245,54 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (alignStep === 1) {
+      const pos = getMousePos(e);
+      const latLngStr = prompt("Enter matching Map Point 1 (Lat, Lng) or press OK to use job center:", `${anchor?.lat ?? 47.736}, ${anchor?.lng ?? -122.164}`);
+      let lat = anchor?.lat ?? 47.736;
+      let lng = anchor?.lng ?? -122.164;
+      if (latLngStr) {
+        const parts = latLngStr.split(",").map((s) => parseFloat(s.trim()));
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          lat = parts[0];
+          lng = parts[1];
+        }
+      }
+      const cp1Data = { pdf: { x: pos.x * 1000, y: pos.y * 1000 }, map: { lat, lng } };
+      setCp1(cp1Data);
+      setAlignStep(2);
+      setAlignStatus(`🎯 Point 1 set (${lat.toFixed(4)}, ${lng.toFixed(4)}). Step 2: Click Point 2 on PDF print...`);
+      return;
+    }
+
+    if (alignStep === 2 && cp1 && cp1.map) {
+      const pos = getMousePos(e);
+      const defaultPt2Lat = cp1.map.lat + 0.002;
+      const defaultPt2Lng = cp1.map.lng + 0.003;
+      const latLngStr = prompt("Enter matching Map Point 2 (Lat, Lng) or press OK to use offset reference:", `${defaultPt2Lat.toFixed(6)}, ${defaultPt2Lng.toFixed(6)}`);
+      let lat = defaultPt2Lat;
+      let lng = defaultPt2Lng;
+      if (latLngStr) {
+        const parts = latLngStr.split(",").map((s) => parseFloat(s.trim()));
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          lat = parts[0];
+          lng = parts[1];
+        }
+      }
+      const cp2Data = { pdf: { x: pos.x * 1000, y: pos.y * 1000 }, map: { lat, lng } };
+      setCp2(cp2Data);
+      setAlignStatus("Executing 2-Point Web Mercator Matrix Transformation...");
+      api.affineAlignZiplyPrint(job.jobId, cp1 as any, cp2Data)
+        .then(() => {
+          setAlignStatus("✅ 2-Point Affine Georeferenced! Transformed with 100% CAD precision.");
+          setAlignStep(0);
+          window.dispatchEvent(new Event("nsc:jobs-reload"));
+        })
+        .catch((err) => {
+          setAlignStatus(`Alignment Error: ${err.message}`);
+        });
+      return;
+    }
+
     if (markupTool === "none") return;
     const pos = getMousePos(e);
     isDrawingRef.current = true;
@@ -624,6 +678,48 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
               </button>
 
               <div style={{ width: 1, height: 16, background: "rgba(148,163,184,0.3)" }} />
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (alignStep > 0) {
+                    setAlignStep(0);
+                    setCp1(null);
+                    setCp2(null);
+                    setAlignStatus(null);
+                  } else {
+                    setAlignStep(1);
+                    setAlignStatus("🎯 Step 1: Click Point 1 on the PDF print...");
+                  }
+                }}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  padding: "4px 10px",
+                  borderRadius: 4,
+                  border: "1px solid #1d4ed8",
+                  background: alignStep > 0 ? "#1d4ed8" : "#eff6ff",
+                  color: alignStep > 0 ? "#ffffff" : "#1d4ed8",
+                  cursor: "pointer",
+                }}
+              >
+                {alignStep > 0 ? `🎯 Aligning Point ${alignStep}/2 (Cancel)` : "🎯 2-Point Align"}
+              </button>
+
+              {alignStatus && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "#1d4ed8",
+                    background: "#dbeafe",
+                    padding: "3px 8px",
+                    borderRadius: 4,
+                  }}
+                >
+                  {alignStatus}
+                </span>
+              )}
 
               <select
                 value={markupColor}

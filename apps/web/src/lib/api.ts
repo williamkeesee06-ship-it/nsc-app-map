@@ -262,6 +262,23 @@ export const api = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+  /**
+   * 2-Point Web Mercator Affine Georeferencing alignment.
+   */
+  affineAlignZiplyPrint: (
+    jobId: string,
+    cp1: { pdf: { x: number; y: number }; map: { lat: number; lng: number } },
+    cp2: { pdf: { x: number; y: number }; map: { lat: number; lng: number } }
+  ) =>
+    request<{
+      ok: boolean;
+      jobId: string;
+      matrix: { scale: number; rotationRad: number; tx: number; ty: number };
+      transformedTerminals: number;
+    }>(`/api/jobs/${encodeURIComponent(jobId)}/ziply-print/affine-align`, {
+      method: "POST",
+      body: JSON.stringify({ cp1, cp2 }),
+    }),
   /** Batch rebuild plant CAD for print-ready Ziply jobs (stale/synthetic by default). */
   enhanceAllZiplyPrints: (body?: { limit?: number; onlyStale?: boolean }) =>
     request<{
