@@ -598,14 +598,12 @@ function JobsMapInner({
                 onSelect={handleSelect}
                 allJobs={allJobs}
               />
-              {contract !== "Ziply" && (
-                <AllJobsMarkupsOverlay
-                  onMarkupClick={(jobId) => {
-                    const j = allJobs.find((x) => x.jobId === jobId);
-                    if (j) void handleSelect(j);
-                  }}
-                />
-              )}
+              <AllJobsMarkupsOverlay
+                onMarkupClick={(jobId) => {
+                  const j = allJobs.find((x) => x.jobId === jobId);
+                  if (j) void handleSelect(j);
+                }}
+              />
               <CentralOfficesOverlay visible={showCOs} />
               <Suspense fallback={null}>
                 {contract === "Ziply" && (
