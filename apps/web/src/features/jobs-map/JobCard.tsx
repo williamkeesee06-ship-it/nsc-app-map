@@ -808,28 +808,40 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
       <div
         style={{
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          marginBottom: 8,
-          background: "rgba(0,0,0,0.2)",
-          padding: 8,
-          borderRadius: 4,
-          border: "1px solid rgba(30, 94, 255,0.2)",
+          flexDirection: "column",
+          gap: 10,
+          marginBottom: 12,
+          background: "#ffffff",
+          padding: 12,
+          borderRadius: 8,
+          border: "1px solid #cbd5e1",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: ziplyPrintStatusColor(status) }}>
-            ● {ziplyPrintStatusLabel(status)}
-          </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: ziplyPrintStatusColor(status) }}>
+              ● {ziplyPrintStatusLabel(status)}
+            </span>
+            {files[0]?.downloadUrl && (
+              <a
+                href={files[0].downloadUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: 10, color: "#64748b", textDecoration: "underline" }}
+              >
+                Raw PDF ↗
+              </a>
+            )}
+          </div>
           {status === "ready" && (
-            <span style={{ fontSize: 9, color: "#9ca3af" }}>
+            <span style={{ fontSize: 10, color: "#475569", lineHeight: 1.4 }}>
               {layer?.hubId ? `Hub ${layer.hubId}` : "Hub —"}
               {terminalCount != null ? ` · ${terminalCount} terminals` : ""}
               {cableCount != null ? ` · ${cableCount} cables` : ""}
               {dropCount != null && dropCount > 0 ? ` · ${dropCount} drops` : ""}
               {mapReady
-                ? ` · map @ ${anchor!.lat.toFixed(4)}, ${anchor!.lng.toFixed(4)}`
+                ? ` · Map @ ${anchor!.lat.toFixed(4)}, ${anchor!.lng.toFixed(4)}`
                 : " · NOT ON MAP (no lat/lng)"}
               {enhancedAt
                 ? ` · CAD enhanced ${new Date(enhancedAt).toLocaleDateString()}`
@@ -854,89 +866,89 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
             </span>
           )}
           {status === "ready" && !mapReady && (
-            <span style={{ fontSize: 9, color: "#fbbf24" }}>
-              Print data is saved but has no location. Use Repair location (no re-upload needed).
-            </span>
-          )}
-          {status === "ready" && mapReady && !enhancedAt && (
-            <span style={{ fontSize: 9, color: "#38bdf8" }}>
-              Run ENHANCE CAD for multi-point cable paths + geocoded drops (lot-level detail).
+            <span style={{ fontSize: 10, color: "#d97706", fontWeight: 600 }}>
+              Print data saved but missing location. Use Repair location below.
             </span>
           )}
           {status === "failed" && job.ziplyIngest?.errorMessage && (
-            <span style={{ fontSize: 9, color: "#f87171" }}>{job.ziplyIngest.errorMessage}</span>
+            <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 600 }}>{job.ziplyIngest.errorMessage}</span>
           )}
           {busy && (
-            <span style={{ fontSize: 9, color: "#38bdf8" }}>Uploading / starting ingest… {pct}%</span>
+            <span style={{ fontSize: 10, color: "#0284c7", fontWeight: 600 }}>Uploading / starting ingest… {pct}%</span>
           )}
-          {enhanceMsg && <span style={{ fontSize: 9, color: "#1d4ed8" }}>{enhanceMsg}</span>}
-          {err && <span style={{ fontSize: 9, color: "#f87171" }}>{err}</span>}
+          {enhanceMsg && <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>{enhanceMsg}</span>}
+          {err && <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 600 }}>{err}</span>}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-          {layer?.mapObjects && (
-            <button
-              type="button"
-              disabled={repairBusy || busy || enhanceBusy}
-              onClick={() => void repairLocation()}
-              style={{
-                background: "rgba(251,191,36,0.2)",
-                border: "1px solid rgba(251,191,36,0.55)",
-                color: "#fbbf24",
-                fontSize: 9,
-                fontWeight: 700,
-                padding: "6px 10px",
-                borderRadius: 4,
-                cursor: repairBusy ? "wait" : "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {repairBusy ? "REPAIRING…" : "REPAIR LOCATION"}
-            </button>
-          )}
-          {layer?.mapObjects && (
-            <button
-              type="button"
-              onClick={() => {
-                const url = files[0]?.downloadUrl;
-                if (url) window.open(url, "_blank");
-              }}
-              style={{
-                background: "linear-gradient(180deg, rgba(30, 94, 255,0.25), rgba(30, 94, 255,0.1))",
-                border: "1px solid rgba(30, 94, 255,0.55)",
-                color: "#1d4ed8",
-                fontSize: 9,
-                fontWeight: 800,
-                padding: "6px 10px",
-                borderRadius: 4,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                boxShadow: "0 0 12px rgba(30, 94, 255,0.2)",
-              }}
-            >
-              ✦ VIEW PRINT FULL SCREEN
-            </button>
-          )}
-          {layer?.mapObjects && mapReady && (
-            <button
-              type="button"
-              disabled={enhanceBusy || busy || repairBusy}
-              onClick={() => void enhanceCad()}
-              title="Rebuild arterial mainline + parcel laterals + drops (master plant CAD)"
-              style={{
-                background: enhancedAt ? "rgba(8,145,178,0.18)" : "rgba(56,189,248,0.22)",
-                border: "1px solid rgba(56,189,248,0.55)",
-                color: "#38bdf8",
-                fontSize: 9,
-                fontWeight: 700,
-                padding: "6px 10px",
-                borderRadius: 4,
-                cursor: enhanceBusy ? "wait" : "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {enhanceBusy ? "REBUILDING…" : enhancedAt ? "REBUILD PLANT CAD" : "BUILD PLANT CAD"}
-            </button>
-          )}
+
+        {/* Action Button Grid */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <button
+            type="button"
+            onClick={() => setStudioOpen(true)}
+            style={{
+              background: "linear-gradient(180deg, #2563eb, #1d4ed8)",
+              border: "1px solid #1e40af",
+              color: "#ffffff",
+              fontSize: 11,
+              fontWeight: 800,
+              padding: "8px 12px",
+              borderRadius: 6,
+              cursor: "pointer",
+              textAlign: "center",
+              boxShadow: "0 2px 4px rgba(37,99,235,0.3)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}
+          >
+            ✦ OPEN PRINT STUDIO (2-POINT ALIGN)
+          </button>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            {layer?.mapObjects && mapReady && (
+              <button
+                type="button"
+                disabled={enhanceBusy || busy || repairBusy}
+                onClick={() => void enhanceCad()}
+                title="Rebuild arterial mainline + parcel laterals + drops"
+                style={{
+                  background: "#f0f9ff",
+                  border: "1px solid #0284c7",
+                  color: "#0369a1",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  padding: "6px 8px",
+                  borderRadius: 4,
+                  cursor: enhanceBusy ? "wait" : "pointer",
+                  textAlign: "center",
+                }}
+              >
+                {enhanceBusy ? "REBUILDING…" : enhancedAt ? "REBUILD CAD" : "BUILD CAD"}
+              </button>
+            )}
+            {layer?.mapObjects && (
+              <button
+                type="button"
+                disabled={repairBusy || busy || enhanceBusy}
+                onClick={() => void repairLocation()}
+                style={{
+                  background: "#fffbeb",
+                  border: "1px solid #d97706",
+                  color: "#b45309",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  padding: "6px 8px",
+                  borderRadius: 4,
+                  cursor: repairBusy ? "wait" : "pointer",
+                  textAlign: "center",
+                }}
+              >
+                {repairBusy ? "REPAIRING…" : "REPAIR LOCATION"}
+              </button>
+            )}
+          </div>
+        </div>
           <label
             style={{
               background: busy ? "rgba(255,255,255,0.06)" : "rgba(30, 94, 255,0.15)",
@@ -962,7 +974,6 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
             />
           </label>
         </div>
-      </div>
       {busy && (
         <div style={{ marginTop: 8, background: "rgba(30, 94, 255, 0.05)", borderRadius: 6, padding: 8, border: "1px solid rgba(30, 94, 255, 0.25)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
