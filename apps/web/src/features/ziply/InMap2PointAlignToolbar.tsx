@@ -219,16 +219,30 @@ export default function InMap2PointAlignToolbar({ job, onComplete, onCancel }: P
           }}
         >
           {activeFile?.downloadUrl ? (
-            <img
-              src={activeFile.downloadUrl}
-              alt="PDF Print"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                pointerEvents: "none",
-              }}
-            />
+            activeFile.contentType?.includes("pdf") || activeFile.name?.toLowerCase().endsWith(".pdf") ? (
+              <object
+                data={`${activeFile.downloadUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                type="application/pdf"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  border: 0,
+                  pointerEvents: "none",
+                }}
+              >
+                <embed
+                  src={`${activeFile.downloadUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                  type="application/pdf"
+                  style={{ width: "100%", height: "100%", pointerEvents: "none" }}
+                />
+              </object>
+            ) : (
+              <img
+                src={activeFile.downloadUrl}
+                alt="PDF Print"
+                style={{ width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none" }}
+              />
+            )
           ) : (
             <div style={{ padding: 16, fontSize: 11, color: "#64748b" }}>
               No PDF print uploaded on this job.
