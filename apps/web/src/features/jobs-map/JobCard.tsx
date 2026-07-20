@@ -818,7 +818,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           border: "1px solid rgba(30, 94, 255,0.2)",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: ziplyPrintStatusColor(status) }}>
             ● {ziplyPrintStatusLabel(status)}
           </span>

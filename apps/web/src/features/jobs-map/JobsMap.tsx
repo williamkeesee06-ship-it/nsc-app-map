@@ -1028,13 +1028,14 @@ function JobMarkers({
         const pct = totalEstimated > 0 ? Math.round((totalCompleted / totalEstimated) * 100) : 45; 
         const color = pct >= 80 ? "#1d4ed8" : pct >= 50 ? "#ffb300" : "#ff7043";
 
+        const safeCityName = escapeHtml(cityName);
         // Draw a large glowing radar circle SVG
         const clusterSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
           <circle cx="40" cy="40" r="30" fill="${color}" fill-opacity="0.15" stroke="${color}" stroke-width="2"/>
           <circle cx="40" cy="40" r="38" fill="none" stroke="${color}" stroke-width="1.5" stroke-dasharray="4 2" stroke-opacity="0.6"/>
           <circle cx="40" cy="40" r="10" fill="${color}" fill-opacity="0.8"/>
           <text x="40" y="44" text-anchor="middle" font-size="10" font-weight="900" fill="white" font-family="sans-serif">${count}</text>
-          <text x="40" y="76" text-anchor="middle" font-size="9" font-weight="700" fill="${color}" font-family="sans-serif" letter-spacing="0.05em" text-transform="uppercase">${cityName}</text>
+          <text x="40" y="76" text-anchor="middle" font-size="9" font-weight="700" fill="${color}" font-family="sans-serif" letter-spacing="0.05em" text-transform="uppercase">${safeCityName}</text>
         </svg>`;
         const clusterUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(clusterSvg)}`;
 
@@ -1103,6 +1104,7 @@ function JobMarkers({
                   ? "#f87171"
                   : null;
           
+          const safeWoText = escapeHtml(woText);
           const textW = Math.max(80, woText.length * 8 + 18);
           const pillW = printDot ? textW + 16 : textW;
           // Build a tiny SVG label pill (Ziply: color dot = print readiness)
@@ -1111,12 +1113,12 @@ function JobMarkers({
     <rect x="0" y="0" width="${pillW}" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
     <circle cx="12" cy="11" r="4" fill="${printDot}"/>
     <text x="${(pillW + 12) / 2}" y="15" text-anchor="middle" font-size="10" font-weight="700"
-      fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${woText}</text>
+      fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${safeWoText}</text>
   </svg>`
             : `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="22">
     <rect x="0" y="0" width="${pillW}" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
     <text x="${pillW / 2}" y="15" text-anchor="middle" font-size="10" font-weight="700"
-      fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${woText}</text>
+      fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${safeWoText}</text>
   </svg>`;
           const labelUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(labelSvg)}`;
           const lm = new google.maps.Marker({
@@ -1125,7 +1127,7 @@ function JobMarkers({
             icon: {
               url: labelUrl,
               scaledSize: new google.maps.Size(pillW, 22),
-              anchor: new google.maps.Point(pillW / 2, 48), // above pin tip
+              anchor: new google.maps.Point(pillW / 2, 58), // above pin tip
             },
             clickable: false,
             zIndex: 1,
