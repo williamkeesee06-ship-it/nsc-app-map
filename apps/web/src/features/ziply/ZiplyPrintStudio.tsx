@@ -479,15 +479,12 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
         position: "fixed",
         inset: 0,
         zIndex: 10000,
-        background: "rgba(241, 245, 249, 0.75)",
+        background: "rgba(15, 23, 42, 0.6)",
         backdropFilter: "blur(8px)",
         display: "flex",
         alignItems: "stretch",
         justifyContent: "center",
         padding: 16,
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
@@ -495,7 +492,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
           flex: 1,
           maxWidth: 1400,
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1.15fr) minmax(320px, 0.85fr)",
+          gridTemplateColumns: "1fr",
           gap: 0,
           borderRadius: 16,
           overflow: "hidden",
@@ -506,13 +503,12 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
           minHeight: "min(92vh, 900px)",
         }}
       >
-        {/* LEFT — print document */}
+        {/* Full Width Print Document */}
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             minWidth: 0,
-            borderRight: "1px solid rgba(148,163,184,0.15)",
             background: "#f4f6f8",
           }}
         >
@@ -577,6 +573,23 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                 </button>
               </>
             )}
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                background: "#f1f5f9",
+                border: "1px solid #cbd5e1",
+                color: "#334155",
+                borderRadius: 6,
+                padding: "6px 12px",
+                fontWeight: 800,
+                cursor: "pointer",
+                fontSize: 12,
+                marginLeft: 8,
+              }}
+            >
+              Close ✕
+            </button>
           </div>
 
           {/* Sub-bar: Markup Toolbar */}
@@ -902,437 +915,12 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
             </div>
           )}
         </div>
-
-        {/* RIGHT — plant twin controls */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 0,
-            background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
-            color: "#1e293b",
-            borderLeft: "1px solid #cbd5e1",
-          }}
-        >
-          <div
-            style={{
-              padding: "12px 14px",
-              borderBottom: "1px solid #cbd5e1",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              background: "#ffffff",
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: "0.1em",
-                  color: "#0284c7",
-                  textTransform: "uppercase",
-                }}
-              >
-                Digital twin plant
-              </div>
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-                {inventory.mainline
-                  ? `Mainline · ${inventory.mainline}`
-                  : "Mainline street from print"}
-                {inventory.backbonePts > 0
-                  ? ` · ${inventory.backbonePts} spine pts`
-                  : ""}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                background: "#f1f5f9",
-                border: "1px solid #cbd5e1",
-                color: "#334155",
-                borderRadius: 6,
-                padding: "6px 10px",
-                fontWeight: 700,
-                cursor: "pointer",
-                fontSize: 11,
-              }}
-            >
-              Close ✕
-            </button>
-          </div>
-
-          {/* Progress */}
-          <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(148,163,184,0.1)" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: 10,
-                color: "#5b6776",
-                marginBottom: 4,
-                fontFamily: "monospace",
-              }}
-            >
-              <span>Plant complete (status{inventory.footageNote ? " + footage" : ""})</span>
-              <span style={{ color: "#1d4ed8", fontWeight: 800 }}>{inventory.pct}%</span>
-            </div>
-            {inventory.footageNote && (
-              <div style={{ fontSize: 9, color: "#64748b", marginBottom: 4, fontFamily: "monospace" }}>
-                {inventory.footageNote}
-              </div>
-            )}
-            {mapSel && (
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "#fbbf24",
-                  marginBottom: 6,
-                  fontWeight: 700,
-                }}
-              >
-                Map selected: {mapSel.kind} · {mapSel.ref}
-              </div>
-            )}
-            <div
-              style={{
-                height: 8,
-                borderRadius: 99,
-                background: "rgba(255,255,255,0.06)",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  width: `${Math.max(3, inventory.pct)}%`,
-                  height: "100%",
-                  borderRadius: 99,
-                  background: "linear-gradient(90deg,#0ea5e9,#1d4ed8)",
-                  boxShadow: "0 0 12px rgba(30, 94, 255,0.5)",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3,1fr)",
-                gap: 6,
-                marginTop: 10,
-              }}
-            >
-              <MiniStat n={inventory.cables.length} l="Cables" c="#38bdf8" />
-              <MiniStat n={inventory.terminals.length} l="Terminals" c="#a78bfa" />
-              <MiniStat n={inventory.drops.length} l="Drops" c="#fbbf24" />
-            </div>
-          </div>
-
-          <div style={{ flex: 1, overflow: "auto", padding: "10px 12px" }}>
-            <SectionTitle>Hub / FDH</SectionTitle>
-            <Row
-              title={job.ziplyPrintLayer?.hubId || "Hub"}
-              sub={job.address || "No address"}
-              status={(mo?.hub?.status as ZiplyObjectStatus) || "planned"}
-              selected={mapSel?.kind === "hub"}
-              onSelect={() =>
-                selectObject(
-                  "hub",
-                  "hub",
-                  job.ziplyPrintLayer?.hubId || "Hub",
-                  anchor?.lat,
-                  anchor?.lng
-                )
-              }
-              onPan={
-                anchor
-                  ? () => panTo(anchor.lat, anchor.lng)
-                  : undefined
-              }
-              onStatus={(st) => void setObjectStatus("hub", "hub", st)}
-            />
-
-            <SectionTitle>Mainline & laterals</SectionTitle>
-            {inventory.cables.length === 0 && (
-              <p style={{ fontSize: 11, color: "#64748b" }}>
-                No cables yet — rebuild plant after print ingest.
-              </p>
-            )}
-            {inventory.cables.map((c) => (
-              <Row
-                key={c.label}
-                title={c.label}
-                sub={[
-                  c.role || "lateral",
-                  c.buildType,
-                  c.lengthFt != null ? `${c.lengthFt}'` : null,
-                  c.path?.length ? `${c.path.length} pts` : "no path",
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-                status={(c.status as ZiplyObjectStatus) || "planned"}
-                selected={
-                  mapSel?.kind === "cable" &&
-                  (mapSel.ref === c.label || mapSel.ref === c.toTerminal)
-                }
-                onSelect={() => {
-                  const p = c.path?.[Math.floor((c.path?.length ?? 1) / 2)];
-                  selectObject("cable", c.label, c.label, p?.lat, p?.lng);
-                }}
-                onPan={
-                  c.path && c.path[0]
-                    ? () => panTo(c.path![0]!.lat, c.path![0]!.lng)
-                    : undefined
-                }
-                onEditPath={
-                  c.path && c.path.length >= 2
-                    ? () => {
-                        emitZiplyPathEditRequest({
-                          jobId: job.jobId,
-                          cableLabel: c.label,
-                        });
-                        setMsg("Path edit mode on map — drag handles, then Save.");
-                      }
-                    : undefined
-                }
-                onStatus={(st) => void setObjectStatus("cable", c.label, st)}
-                glow={c.role === "mainline"}
-              />
-            ))}
-
-            <SectionTitle>Terminals / MSTs</SectionTitle>
-            {inventory.terminals.map((t) => (
-              <Row
-                key={t.label}
-                title={t.label}
-                sub={[
-                  t.type,
-                  t.footageLabel || (t.footageFt != null ? `${t.footageFt}'` : null),
-                  (t.addressesServed || []).slice(0, 2).join(", ") ||
-                    (t.houseNumbers || []).join(", ") ||
-                    "no address",
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-                status={(t.status as ZiplyObjectStatus) || "planned"}
-                selected={mapSel?.kind === "terminal" && mapSel.ref === t.label}
-                onSelect={() =>
-                  selectObject("terminal", t.label, t.label, t.lat, t.lng)
-                }
-                onPan={
-                  typeof t.lat === "number" && typeof t.lng === "number"
-                    ? () => panTo(t.lat!, t.lng!)
-                    : undefined
-                }
-                onStatus={(st) => void setObjectStatus("terminal", t.label, st)}
-              />
-            ))}
-          </div>
-
-          <div
-            style={{
-              padding: 12,
-              borderTop: "1px solid rgba(148,163,184,0.12)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void rebuildPlant()}
-              style={{
-                background: busy
-                  ? "rgba(255,255,255,0.08)"
-                  : "linear-gradient(180deg,#1d4ed8,#1e5eff)",
-                color: busy ? "#94a3b8" : "#04120a",
-                border: "none",
-                borderRadius: 8,
-                padding: "10px 12px",
-                fontWeight: 800,
-                fontSize: 12,
-                cursor: busy ? "wait" : "pointer",
-                letterSpacing: "0.04em",
-                boxShadow: busy ? "none" : "0 0 20px rgba(30, 94, 255,0.35)",
-              }}
-            >
-              {busy ? "REBUILDING PLANT…" : "⚡ REBUILD PLANT CAD (MASTER)"}
-            </button>
-            {msg && (
-              <div style={{ fontSize: 10, color: "#1d4ed8", lineHeight: 1.4 }}>{msg}</div>
-            )}
-            <p style={{ margin: 0, fontSize: 9, color: "#64748b", lineHeight: 1.4 }}>
-              Rebuild geocodes house numbers, lays arterial mainline, laterals to parcels,
-              multi-point plant paths. Use map click to set Live / Done.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 9,
-        fontWeight: 800,
-        letterSpacing: "0.14em",
-        textTransform: "uppercase",
-        color: "#64748b",
-        margin: "12px 0 6px",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
 
-function MiniStat({ n, l, c }: { n: number; l: string; c: string }) {
-  return (
-    <div
-      style={{
-        background: "#ffffff",
-        borderRadius: 8,
-        padding: "8px 6px",
-        textAlign: "center",
-        border: "1px solid #cbd5e1",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-      }}
-    >
-      <div style={{ fontSize: 16, fontWeight: 800, color: c, fontFamily: "monospace" }}>{n}</div>
-      <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", letterSpacing: "0.05em" }}>
-        {l}
-      </div>
-    </div>
-  );
-}
-
-function Row({
-  title,
-  sub,
-  status,
-  selected,
-  onSelect,
-  onPan,
-  onEditPath,
-  onStatus,
-  glow,
-}: {
-  title: string;
-  sub: string;
-  status: ZiplyObjectStatus;
-  selected?: boolean;
-  onSelect?: () => void;
-  onPan?: () => void;
-  onEditPath?: () => void;
-  onStatus: (st: ZiplyObjectStatus) => void;
-  glow?: boolean;
-}) {
-  return (
-    <div
-      onClick={onSelect}
-      style={{
-        background: selected
-          ? "#fef3c7"
-          : glow
-            ? "#f0f9ff"
-            : "#ffffff",
-        border: `1px solid ${
-          selected
-            ? "#f59e0b"
-            : glow
-              ? "#0284c7"
-              : "#cbd5e1"
-        }`,
-        borderRadius: 8,
-        padding: "8px 10px 8px",
-        marginBottom: 6,
-        cursor: onSelect ? "pointer" : "default",
-        boxShadow: selected ? "0 2px 8px rgba(245,158,11,0.2)" : "0 1px 3px rgba(0,0,0,0.04)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: STATUS_COLOR[status],
-              textShadow:
-                status !== "planned" ? `0 0 8px ${STATUS_COLOR[status]}66` : "none",
-            }}
-          >
-            {title}
-          </div>
-          <div
-            style={{
-              fontSize: 9,
-              color: "#5b6776",
-              marginTop: 2,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-            title={sub}
-          >
-            {sub}
-          </div>
-        </div>
-        {onPan && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onPan();
-            }}
-            style={smallBtn}
-          >
-            Map
-          </button>
-        )}
-        {onEditPath && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditPath();
-            }}
-            style={{ ...smallBtn, color: "#fbbf24", borderColor: "rgba(251,191,36,0.5)" }}
-          >
-            Edit
-          </button>
-        )}
-      </div>
-      <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-        {(["planned", "in_progress", "complete"] as ZiplyObjectStatus[]).map((st) => (
-          <button
-            key={st}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStatus(st);
-            }}
-            style={{
-              flex: 1,
-              fontSize: 8,
-              fontWeight: 800,
-              padding: "4px 2px",
-              borderRadius: 4,
-              border: `1px solid ${STATUS_COLOR[st]}`,
-              background: status === st ? STATUS_COLOR[st] : "transparent",
-              color: status === st ? "#04120a" : STATUS_COLOR[st],
-              cursor: "pointer",
-            }}
-          >
-            {st === "planned" ? "Plan" : st === "in_progress" ? "Live" : "Done"}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 const navBtnStyle: React.CSSProperties = {
   background: "linear-gradient(180deg, #ffffff 0%, #e4e9f0 100%)",
