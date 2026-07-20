@@ -40,61 +40,19 @@ function ContractSelector() {
   const { contract, setActiveContract } = useActiveContract();
   return (
     <div
-      style={{
-        display: "flex",
-        gap: 2,
-        marginRight: 12,
-        alignItems: "center",
-        flexShrink: 0,
-        background: "rgba(0,0,0,0.5)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        padding: "2px",
-        clipPath: "polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)",
-      }}
+      className="contract-selector"
       role="group"
       aria-label="Active contract workspace"
     >
       <button
-        style={{
-          background: contract === "Lumen"
-            ? "linear-gradient(135deg, #0052cc 0%, #0077ff 100%)"
-            : "transparent",
-          color: contract === "Lumen" ? "#fff" : "rgba(255,255,255,0.3)",
-          border: "none",
-          padding: "6px 16px",
-          fontSize: 10,
-          fontWeight: 800,
-          cursor: "pointer",
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          boxShadow: contract === "Lumen" ? "0 0 16px rgba(0,119,255,0.6), inset 0 1px 0 rgba(255,255,255,0.15)" : "none",
-          transition: "all 0.15s ease",
-          clipPath: "polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%)",
-          fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
-        }}
+        className={`contract-btn ${contract === "Lumen" ? "lumen-active" : "lumen-inactive"}`}
         onClick={() => setActiveContract("Lumen")}
         title="Switch to Lumen contract jobs"
       >
         LUMEN
       </button>
       <button
-        style={{
-          background: contract === "Ziply"
-            ? "linear-gradient(135deg, #00843d 0%, #00d45a 100%)"
-            : "transparent",
-          color: contract === "Ziply" ? "#fff" : "rgba(255,255,255,0.3)",
-          border: "none",
-          padding: "6px 16px",
-          fontSize: 10,
-          fontWeight: 800,
-          cursor: "pointer",
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          boxShadow: contract === "Ziply" ? "0 0 18px rgba(0,212,90,0.65), inset 0 1px 0 rgba(255,255,255,0.15)" : "none",
-          transition: "all 0.15s ease",
-          clipPath: "polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%)",
-          fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
-        }}
+        className={`contract-btn ${contract === "Ziply" ? "ziply-active" : "ziply-inactive"}`}
         onClick={() => setActiveContract("Ziply")}
         title="Switch to Ziply contract jobs"
       >
@@ -178,66 +136,20 @@ function UserChip() {
   if (!username) return null;
   return (
     <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        marginLeft: 8,
-        flexShrink: 0,
-        background: "rgba(0,0,0,0.45)",
-        border: "1px solid rgba(0,212,255,0.2)",
-        boxShadow: "0 0 10px rgba(0,212,255,0.1)",
-        padding: "5px 12px 5px 8px",
-        clipPath: "polygon(8px 0%, 100% 0%, calc(100% - 0px) 100%, 0% 100%)",
-        fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
-      }}
+      className="user-chip"
       title={`Logged in as: ${username}`}
     >
-      {/* Avatar circle */}
-      <div style={{
-        width: 22,
-        height: 22,
-        borderRadius: "50%",
-        background: "linear-gradient(135deg, #00d4ff, #0077ff)",
-        boxShadow: "0 0 8px rgba(0,212,255,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 9,
-        fontWeight: 900,
-        color: "#fff",
-        flexShrink: 0,
-        letterSpacing: 0,
-      }}>
+      <div className="user-avatar">
         {username.slice(0, 2).toUpperCase()}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        <span style={{
-          color: "#e2e8f0",
-          fontWeight: 700,
-          fontSize: 9,
-          letterSpacing: "0.08em",
-          maxWidth: 80,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}>
+      <div className="user-info">
+        <span className="user-name">
           {username.toUpperCase()}
         </span>
         <button
           type="button"
+          className="logout-btn"
           onClick={logout}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: "rgba(0,212,255,0.5)",
-            fontFamily: "inherit",
-            fontSize: 8,
-            cursor: "pointer",
-            padding: 0,
-            letterSpacing: "0.06em",
-            textAlign: "left",
-          }}
         >
           LOG OUT
         </button>

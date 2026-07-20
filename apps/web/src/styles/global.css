@@ -8,9 +8,9 @@
 :root {
   /* UI body = Inter (readable). Headlines/labels can use Space Grotesk.
      Mono data = JetBrains Mono. Never use display-only faces for body copy. */
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-display: "Space Grotesk", var(--font-sans);
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
 
   /* Left rail / command panels — always high-contrast dark */
   --rail-bg: #0c1017;

@@ -793,6 +793,21 @@ function AnnotateTab({ selectedJob }: { selectedJob: Job | null }) {
         </div>
       </>
 
+      <div className="telecom-divider">SELECTION</div>
+      <div className="tool-grid" style={{ marginBottom: 12 }}>
+        {selectionTools.map(renderTile)}
+      </div>
+
+      <div className="telecom-divider">DRAWING</div>
+      <div className="tool-grid" style={{ marginBottom: 12 }}>
+        {drawingTools.map(renderTile)}
+      </div>
+
+      <div className="telecom-divider">MARKUP</div>
+      <div className="tool-grid" style={{ marginBottom: 12 }}>
+        {markupTools.map(renderTile)}
+      </div>
+
       {hasSelection && (
         <button className="tool-btn tool-btn--danger" style={{ width: '100%', marginTop: 6 }} onClick={deleteSelected}>
           Delete ({state.selectedIds.size})

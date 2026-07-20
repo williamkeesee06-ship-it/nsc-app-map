@@ -35,8 +35,8 @@
   /* ── Panel geometry ────────────────────────────────────── */
   --panel-radius:         10px;
   --panel-elevation:
-    0 6px 20px rgba(0,0,0,0.28),
-    0 2px 6px  rgba(0,0,0,0.18);
+    0 6px 20px rgba(21, 32, 44, 0.28),
+    0 2px 6px  rgba(21, 32, 44, 0.18);
 
   /* ── Bridge tokens (legacy var names already referenced
         throughout global.css). We re-point them at the
@@ -149,9 +149,14 @@
    Neon Blue Hover Glows & Active State Pulses (#2)
    ============================================================ */
 
+/* Global Typography & Tabular Nums */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Job Card Hover Glow */
 .job-card {
-  transition: border-color 0.22s ease-in-out, box-shadow 0.22s ease-in-out, transform 0.22s ease-in-out;
+  transition: border-color 0.4s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.4s cubic-bezier(0.32, 0.72, 0, 1), transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
 .job-card:hover {
   border-color: var(--accent-blue) !important;
@@ -161,7 +166,7 @@
 
 /* Search Bar Focus Glow */
 .search-form {
-  transition: border-color 0.22s ease-in-out, box-shadow 0.22s ease-in-out;
+  transition: border-color 0.4s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
 .search-form:focus-within,
 .search-form--neon:focus-within {
@@ -173,12 +178,123 @@
 button, 
 .btn-primary, 
 .drawing-tool-btn,
-.rail-tab-btn {
-  transition: box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
+.rail-tab-btn,
+.tool-tile {
+  transition: box-shadow 0.4s cubic-bezier(0.32, 0.72, 0, 1), border-color 0.4s cubic-bezier(0.32, 0.72, 0, 1), transform 0.2s cubic-bezier(0.32, 0.72, 0, 1), background 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
 button:hover,
 .btn-primary:hover {
   box-shadow: 0 0 8px rgba(30, 167, 255, 0.6) !important;
+}
+button:active,
+.btn-primary:active,
+.drawing-tool-btn:active,
+.rail-tab-btn:active,
+.tool-tile:active {
+  transform: scale(0.98);
+}
+
+/* ── App Topbar Components ── */
+.contract-selector {
+  display: flex;
+  gap: 2px;
+  margin-right: 12px;
+  align-items: center;
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 2px;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+}
+.contract-btn {
+  border: none;
+  padding: 6px 16px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: box-shadow 0.4s cubic-bezier(0.32, 0.72, 0, 1), transform 0.2s cubic-bezier(0.32, 0.72, 0, 1), background 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  font-family: var(--font-mono, ui-monospace, 'SF Mono', Consolas, monospace);
+}
+.contract-btn.lumen-active {
+  background: linear-gradient(135deg, #0052cc 0%, #0077ff 100%);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(0,119,255,0.6), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.contract-btn.lumen-inactive {
+  background: transparent;
+  color: rgba(255,255,255,0.3);
+  box-shadow: none;
+}
+.contract-btn.ziply-active {
+  background: linear-gradient(135deg, #00843d 0%, #00d45a 100%);
+  color: #fff;
+  box-shadow: 0 0 18px rgba(0,212,90,0.65), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.contract-btn.ziply-inactive {
+  background: transparent;
+  color: rgba(255,255,255,0.3);
+  box-shadow: none;
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(0,212,255,0.2);
+  box-shadow: 0 0 10px rgba(0,212,255,0.1);
+  padding: 5px 12px 5px 8px;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 0px) 100%, 0% 100%);
+  font-family: var(--font-mono, ui-monospace, 'SF Mono', Consolas, monospace);
+}
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #00d4ff, #0077ff);
+  box-shadow: 0 0 8px rgba(0,212,255,0.5), inset 0 1px 1px rgba(255,255,255,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+  color: #fff;
+  flex-shrink: 0;
+}
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.user-name {
+  color: #e2e8f0;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.logout-btn {
+  background: transparent;
+  border: none;
+  color: rgba(0,212,255,0.5);
+  font-family: inherit;
+  font-size: 8px;
+  cursor: pointer;
+  padding: 0;
+  letter-spacing: 0.06em;
+  text-align: left;
+}
+.logout-btn:hover {
+  color: rgba(0,212,255,0.9);
+  box-shadow: none !important;
 }
 
 /* Pulsing logo glow in topbar */

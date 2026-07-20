@@ -694,7 +694,7 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     const zoomListener = map.addListener("zoom_changed", () => renderAll());
     return () => {
       clearInterval(t);
-      zoomListener.remove();
+      google.maps.event.removeListener(zoomListener);
       clearAll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
