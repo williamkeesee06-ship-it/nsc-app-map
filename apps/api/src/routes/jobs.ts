@@ -35,6 +35,7 @@ import {
   ZiplyPrintParseError,
 } from "../services/ziplyParser.js";
 import type { DigShape, Job, PolygonData, ZiplyObjectStatus, ZiplySectionKind } from "@nsc/types";
+import type { ControlPoint } from "../services/ziplyAffine.js";
 
 type ZiplyPermitFile = NonNullable<
   NonNullable<Job["ziplyPrintLayer"]>["permitFiles"]
@@ -2268,6 +2269,80 @@ router.post("/jobs/:jobId/ziply-print-markups", async (req, res, next) => {
     });
     invalidateJobsCache();
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-print/affine-align — 2-Point Web Mercator Affine Georeferencing
+router.post("/jobs/:jobId/ziply-print/affine-align", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { cp1, cp2 } = req.body as { cp1: ControlPoint; cp2: ControlPoint };
+
+    if (!cp1?.pdf || !cp1?.map || !cp2?.pdf || !cp2?.map) {
+      res.status(400).json({ error: "Two valid control points (cp1, cp2) with pdf and map coordinates are required." });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const { compute2PointAffineMatrix, transformPdfToLatLng } = await import("../services/ziplyAffine.js");
+    const matrix = compute2PointAffineMatrix(cp1, cp2);
+
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer ?? {};
+    const mapObjects = layer.mapObjects ?? {};
+
+    // Transform hub position if available in PDF coords
+    let transformedHub = mapObjects.hub;
+    if (mapObjects.hub) {
+      const h = mapObjects.hub as { lat?: number; lng?: number; pdfX?: number; pdfY?: number };
+      if (typeof h.pdfX === "number" && typeof h.pdfY === "number") {
+        const coords = transformPdfToLatLng(h.pdfX, h.pdfY, matrix);
+        transformedHub = { ...h, lat: coords.lat, lng: coords.lng };
+      }
+    }
+
+    // Transform terminals
+    const rawTerminals = (mapObjects.terminals ?? []) as Array<Record<string, unknown>>;
+    const transformedTerminals = rawTerminals.map((t) => {
+      if (typeof t.pdfX === "number" && typeof t.pdfY === "number") {
+        const coords = transformPdfToLatLng(t.pdfX as number, t.pdfY as number, matrix);
+        return { ...t, lat: coords.lat, lng: coords.lng };
+      }
+      return t;
+    });
+
+    const updatedLayer = {
+      ...layer,
+      affineMatrix: matrix,
+      controlPoints: [cp1, cp2],
+      mapObjects: {
+        ...mapObjects,
+        hub: transformedHub,
+        terminals: transformedTerminals,
+      },
+      georeferencedAt: Date.now(),
+    };
+
+    await ref.update({
+      ziplyPrintLayer: updatedLayer,
+      lastSyncedAt: Date.now(),
+    });
+
+    invalidateJobsCache();
+    res.json({
+      ok: true,
+      jobId,
+      matrix,
+      transformedTerminals: transformedTerminals.length,
+    });
   } catch (err) {
     next(err);
   }
