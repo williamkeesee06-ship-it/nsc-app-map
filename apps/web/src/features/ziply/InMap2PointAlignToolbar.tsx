@@ -213,42 +213,49 @@ export default function InMap2PointAlignToolbar({ job, onComplete, onCancel }: P
         </div>
 
         <div
-          ref={pdfBoxRef}
-          onClick={handlePdfClick}
           style={{
             flex: 1,
-            position: "relative",
-            cursor: step === 1 || step === 3 ? "crosshair" : "default",
-            overflow: "hidden",
+            overflow: "auto",
             background: "#f8fafc",
+            position: "relative"
           }}
         >
-          {activeFile?.downloadUrl ? (
-            activeFile.contentType?.includes("pdf") || activeFile.name?.toLowerCase().endsWith(".pdf") ? (
-              <object
-                data={`${activeFile.downloadUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                type="application/pdf"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  border: 0,
-                  pointerEvents: "none",
-                }}
-              >
-                <embed
-                  src={`${activeFile.downloadUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+          <div
+            ref={pdfBoxRef}
+            onClick={handlePdfClick}
+            style={{
+              width: `${zoom}%`,
+              height: `${zoom}%`,
+              position: "relative",
+              cursor: step === 1 || step === 3 ? "crosshair" : "default",
+            }}
+          >
+            {activeFile?.downloadUrl ? (
+              activeFile.contentType?.includes("pdf") || activeFile.name?.toLowerCase().endsWith(".pdf") ? (
+                <object
+                  data={`${activeFile.downloadUrl}#toolbar=0&navpanes=0&scrollbar=0`}
                   type="application/pdf"
-                  style={{ width: "100%", height: "100%", pointerEvents: "none" }}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    border: 0,
+                    pointerEvents: "none",
+                  }}
+                >
+                  <embed
+                    src={`${activeFile.downloadUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                    type="application/pdf"
+                    style={{ width: "100%", height: "100%", pointerEvents: "none" }}
+                  />
+                </object>
+              ) : (
+                <img
+                  src={activeFile.downloadUrl}
+                  alt="PDF Print"
+                  style={{ width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none" }}
                 />
-              </object>
+              )
             ) : (
-              <img
-                src={activeFile.downloadUrl}
-                alt="PDF Print"
-                style={{ width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none" }}
-              />
-            )
-          ) : (
             <div style={{ padding: 16, fontSize: 11, color: "#64748b" }}>
               No PDF print uploaded on this job.
             </div>
@@ -289,6 +296,7 @@ export default function InMap2PointAlignToolbar({ job, onComplete, onCancel }: P
               title="PDF Point 2"
             />
           )}
+        </div>
         </div>
       </div>
     </>
