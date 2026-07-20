@@ -104,73 +104,11 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
-    const onMapSel = (e: Event) => {
-      const d = (e as CustomEvent<ZiplyPlantSelection | null>).detail;
-      if (d && d.jobId === job.jobId) {
-        setMapSel(d);
-        // Resolve callout from plant objects
-        const mo2 = job.ziplyPrintLayer?.mapObjects;
-        if (d.kind === "cable") {
-          const c = mo2?.cables?.find((x) => x.label === d.ref || x.toTerminal === d.ref);
-          if (c) {
-            setCallout(
-              [
-                c.label,
-                c.role,
-                c.fiberCount,
-                c.buildType,
-                c.lengthFt != null ? `${c.lengthFt}'` : null,
-                c.sheetPage != null ? `Sheet p${c.sheetPage}` : null,
-                c.side ? `side ${c.side}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")
-            );
-            if (c.sheetPage != null) setSheetHint(c.sheetPage);
-          }
-        } else if (d.kind === "terminal") {
-          const t = mo2?.terminals?.find((x) => x.label === d.ref);
-          if (t) {
-            setCallout(
-              [
-                t.label,
-                t.type,
-                t.footageLabel || (t.footageFt != null ? `${t.footageFt}'` : null),
-                (t.addressesServed || []).slice(0, 2).join(", "),
-                t.sheetPage != null ? `Sheet p${t.sheetPage}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")
-            );
-            if (t.sheetPage != null) setSheetHint(t.sheetPage);
-          }
-        } else {
-          setCallout(d.label || "Hub / FDH");
-        }
-      } else if (!d) {
-        setMapSel(null);
-        setCallout(null);
-      }
-    };
-    const onPage = (e: Event) => {
-      const d = (e as CustomEvent<{ jobId: string; sheetPage: number; label?: string }>).detail;
-      if (d?.jobId === job.jobId && d.sheetPage != null) {
-        setSheetHint(d.sheetPage);
-        // Multi-file: jump file index if names include page; else keep PDF and show hint
-        if (files.length > 1 && d.sheetPage - 1 < files.length) {
-          setFileIdx(Math.max(0, Math.min(files.length - 1, d.sheetPage - 1)));
-        }
-      }
-    };
     window.addEventListener("keydown", onKey);
-    window.addEventListener("nsc:ziply-plant-select", onMapSel as EventListener);
-    window.addEventListener("nsc:ziply-print-page", onPage as EventListener);
     return () => {
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("nsc:ziply-plant-select", onMapSel as EventListener);
-      window.removeEventListener("nsc:ziply-print-page", onPage as EventListener);
     };
-  }, [onClose, job.jobId, job.ziplyPrintLayer, files.length]);
+  }, [onClose]);
 
   // Canvas drawing / markup logic
   const redrawCanvas = () => {
@@ -247,37 +185,19 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (alignStep === 1) {
       const pos = getMousePos(e);
-      const latLngStr = prompt("Enter matching Map Point 1 (Lat, Lng) or press OK to use job center:", `${anchor?.lat ?? 47.736}, ${anchor?.lng ?? -122.164}`);
-      let lat = anchor?.lat ?? 47.736;
-      let lng = anchor?.lng ?? -122.164;
-      if (latLngStr) {
-        const parts = latLngStr.split(",").map((s) => parseFloat(s.trim()));
-        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-          lat = parts[0];
-          lng = parts[1];
-        }
-      }
+      const lat = anchor?.lat ?? job.geocode?.lat ?? 47.736;
+      const lng = anchor?.lng ?? job.geocode?.lng ?? -122.164;
       const cp1Data = { pdf: { x: pos.x * 1000, y: pos.y * 1000 }, map: { lat, lng } };
       setCp1(cp1Data);
       setAlignStep(2);
-      setAlignStatus(`🎯 Point 1 set (${lat.toFixed(4)}, ${lng.toFixed(4)}). Step 2: Click Point 2 on PDF print...`);
+      setAlignStatus(`🎯 Point 1 set (${lat.toFixed(4)}, ${lng.toFixed(4)}). Click Point 2 on PDF print...`);
       return;
     }
 
     if (alignStep === 2 && cp1 && cp1.map) {
       const pos = getMousePos(e);
-      const defaultPt2Lat = cp1.map.lat + 0.002;
-      const defaultPt2Lng = cp1.map.lng + 0.003;
-      const latLngStr = prompt("Enter matching Map Point 2 (Lat, Lng) or press OK to use offset reference:", `${defaultPt2Lat.toFixed(6)}, ${defaultPt2Lng.toFixed(6)}`);
-      let lat = defaultPt2Lat;
-      let lng = defaultPt2Lng;
-      if (latLngStr) {
-        const parts = latLngStr.split(",").map((s) => parseFloat(s.trim()));
-        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-          lat = parts[0];
-          lng = parts[1];
-        }
-      }
+      const lat = cp1.map.lat + 0.002;
+      const lng = cp1.map.lng + 0.003;
       const cp2Data = { pdf: { x: pos.x * 1000, y: pos.y * 1000 }, map: { lat, lng } };
       setCp2(cp2Data);
       setAlignStatus("Executing 2-Point Web Mercator Matrix Transformation...");
