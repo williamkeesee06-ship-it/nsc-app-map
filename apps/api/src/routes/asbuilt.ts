@@ -326,11 +326,9 @@ router.post("/asbuilt/save-geojson", async (req, res, next) => {
       return;
     }
     const targetDir = path.join(__dirname, "../../../web/public/experiments/lake-stevens", projectId.toLowerCase());
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
-    }
+    await fs.promises.mkdir(targetDir, { recursive: true });
     const targetPath = path.join(targetDir, "platform.geojson");
-    fs.writeFileSync(targetPath, JSON.stringify(geojson, null, 2));
+    await fs.promises.writeFile(targetPath, JSON.stringify(geojson, null, 2));
     res.json({ ok: true, path: targetPath });
   } catch (err) {
     next(err);

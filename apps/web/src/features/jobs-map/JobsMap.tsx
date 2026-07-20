@@ -589,7 +589,7 @@ function JobsMapInner({
               // overlays that the print CAD layer uses. Lumen keeps mapId for 3D tilt.
               {...(contract === "Ziply"
                 ? {}
-                : { mapId: "DEMO_MAP_ID", tilt: 45, heading: 0 })}
+                : { mapId: (import.meta as any).env?.VITE_GOOGLE_MAPS_ID || "DEMO_MAP_ID", tilt: 45, heading: 0 })}
             >
               <MapHandle mapRef={mapRef} />
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />

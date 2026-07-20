@@ -270,6 +270,8 @@ export interface AsBuiltDocument {
   layers?: JobLayer[];
   updatedAt: number;
   updatedBy?: string;
+  schemaVersion?: number;
+  ownerName?: string;
 }
 
 // ---- Phase 2: Smartsheet-backed job records ----

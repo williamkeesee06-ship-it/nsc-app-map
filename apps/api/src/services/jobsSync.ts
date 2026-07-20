@@ -264,6 +264,9 @@ export async function runJobsSyncForSupervisors(
     let geocodeFailed = 0;
 
     // Process sequentially to keep geocode calls bounded
+    let batch = firestore.batch();
+    let batchCount = 0;
+
     for (const job of filteredJobs) {
       currentJobIds.add(job.jobId);
 
@@ -297,13 +300,18 @@ export async function runJobsSyncForSupervisors(
         else geocodeFailed++;
       }
 
-      await firestore
-        .collection("jobs")
-        .doc(job.jobId)
-        .set(stripUndefined(job as unknown as Record<string, unknown>), {
-          merge: true,
-        });
+      const docRef = firestore.collection("jobs").doc(job.jobId);
+      batch.set(docRef, stripUndefined(job as unknown as Record<string, unknown>), {
+        merge: true,
+      });
       upserted++;
+      batchCount++;
+
+      if (batchCount >= 400) {
+        await batch.commit();
+        batch = firestore.batch();
+        batchCount = 0;
+      }
     }
 
     // Flag jobs that were previously on-tracker but are no longer in the sheet.
@@ -314,12 +322,24 @@ export async function runJobsSyncForSupervisors(
       const priorSup = (prior.constructionSupervisor ?? "").trim().toLowerCase();
       if (!allowSet.has(priorSup)) continue;
       if (!currentJobIds.has(jobId) && prior.inTracker !== false) {
-        await firestore.collection("jobs").doc(jobId).update({
+        const docRef = firestore.collection("jobs").doc(jobId);
+        batch.update(docRef, {
           inTracker: false,
           lastSyncedAt: Date.now(),
         });
         flaggedOffTracker++;
+        batchCount++;
+
+        if (batchCount >= 400) {
+          await batch.commit();
+          batch = firestore.batch();
+          batchCount = 0;
+        }
       }
+    }
+
+    if (batchCount > 0) {
+      await batch.commit();
     }
 
     const finished: SyncRun = {

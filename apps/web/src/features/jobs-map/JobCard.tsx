@@ -37,7 +37,7 @@ interface Props {
   onThemeChange?: (theme: "steel" | "cyberpunk" | "titanium" | "glass") => void;
 }
 
-const SS_WORKER = "https://nsc-smartapp.williamkeesee06.workers.dev";
+const SS_WORKER = (import.meta as any).env?.VITE_SMARTSHEET_WORKER_URL || "https://nsc-smartapp.williamkeesee06.workers.dev";
 
 // Cache the dropdown options between mounts so we don't refetch every click.
 type Schema = { secondaryStatusOptions: string[]; foremanOptions: string[] };
@@ -56,10 +56,10 @@ function loadSchema(): Promise<Schema> {
       _schemaCache = c;
       return c;
     })
-    .catch(() => {
-      const c: Schema = { secondaryStatusOptions: [], foremanOptions: [] };
-      _schemaCache = c;
-      return c;
+    .catch((err) => {
+      console.warn("[JobCard] Failed to fetch Smartsheet schema options, will retry on next interaction:", err);
+      _schemaPromise = null;
+      return { secondaryStatusOptions: [], foremanOptions: [] };
     });
   return _schemaPromise;
 }

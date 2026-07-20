@@ -154,6 +154,7 @@ router.get("/jobs/search", async (req, res, next) => {
               cachedAt: Date.now(),
               status: "OK",
             };
+            await db().collection("jobs").doc(h.jobId).update({ geocode: h.geocode }).catch(() => {});
           }
         } catch {
           // Best-effort — silent failure leaves geocode null.
@@ -956,16 +957,20 @@ export async function processZiplyIngest(jobId: string, body: ZiplyIngestRequest
     const errorCode = err instanceof ZiplyPrintParseError ? err.code : undefined;
     const message = err instanceof Error ? err.message : "Unknown Ziply ingest error";
     console.error(`[ziply-ingest] Background ingest failed for job ${jobId}:`, err);
-    await ref.update({
-      "ziplyIngest.status": "failed",
-      "ziplyIngest.updatedAt": now,
-      "ziplyIngest.failedAt": now,
-      "ziplyIngest.errorMessage": message,
-      "ziplyIngest.errorCode": errorCode ?? null,
-      "ziplyIngest.statusCode": statusCode ?? null,
-      lastSyncedAt: now,
-    });
-    invalidateJobsCache();
+    try {
+      await ref.update({
+        "ziplyIngest.status": "failed",
+        "ziplyIngest.updatedAt": now,
+        "ziplyIngest.failedAt": now,
+        "ziplyIngest.errorMessage": message,
+        "ziplyIngest.errorCode": errorCode ?? null,
+        "ziplyIngest.statusCode": statusCode ?? null,
+        lastSyncedAt: now,
+      });
+      invalidateJobsCache();
+    } catch (updateErr) {
+      console.error(`[ziply-ingest] Failed to write error status for job ${jobId}:`, updateErr);
+    }
   }
 }
 

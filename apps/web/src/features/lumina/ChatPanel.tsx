@@ -140,7 +140,7 @@ export default function ChatPanel() {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [dragging, resizing, size]);
+  }, [dragging, resizing]);
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
