@@ -13,22 +13,9 @@ interface MapThemeCtx {
 const Ctx = createContext<MapThemeCtx | null>(null);
 
 export function MapThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<MapTheme>(() => {
-    return (localStorage.getItem("nsc.map.theme") as MapTheme) ?? "light";
-  });
-
-  const setTheme = useCallback((t: MapTheme) => {
-    setThemeState(t);
-    localStorage.setItem("nsc.map.theme", t);
-  }, []);
-
-  const toggle = useCallback(() => {
-    setThemeState((prev) => {
-      const next = prev === "dark" ? "light" : "dark";
-      localStorage.setItem("nsc.map.theme", next);
-      return next;
-    });
-  }, []);
+  const theme = "light";
+  const setTheme = useCallback(() => {}, []);
+  const toggle = useCallback(() => {}, []);
 
   const value = useMemo<MapThemeCtx>(() => ({
     theme,

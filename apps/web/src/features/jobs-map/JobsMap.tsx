@@ -572,10 +572,6 @@ function JobsMapInner({
           />
         )}
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
-          {/* All floating map HUD lives here so it cannot sit under the app topbar */}
-          <div className="map-chrome-top">
-            <MapThemeToggleSwitch />
-          </div>
           <div style={{ flex: 1, height: "100%", position: "relative", minWidth: 0 }}>
             <Map
               defaultCenter={DEFAULT_CENTER}

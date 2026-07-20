@@ -1591,11 +1591,11 @@ export async function enhanceZiplyPrintDetail(job: Job): Promise<{
     if (role === "mainline" || role === "feeder") {
       path = backbonePath;
       cablesPathed++;
-    } else if (c.role === "duct" || c.buildType === "bore" || c.buildType === "trench") {
+    } else if ((c.role as string) === "duct" || c.buildType === "bore" || c.buildType === "trench") {
       // Bores/trenches/ducts — snap starting point to nearest terminal or hub on the same page,
       // and project path along the backbone street direction for the given lengthFt.
       let refPos: { lat: number; lng: number } | null = null;
-      if (isValidLatLng(hubCoords.lat, hubCoords.lng) && (c.sheetPage === 6 || c.sheetPage === "6" || !c.sheetPage)) {
+      if (isValidLatLng(hubCoords.lat, hubCoords.lng) && (c.sheetPage === 6 || String(c.sheetPage) === "6" || !c.sheetPage)) {
         refPos = hubCoords;
       } else {
         const pageTerms = terminals.filter(

@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import type { Job } from "@nsc/types";
 import type { Filters } from "./FilterRail.js";
+import MapTypeFilterSection from "../map/MapTypeFilterSection.js";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { useSearchFocus } from "../search/searchContext.js";
@@ -339,6 +340,10 @@ export default function ZiplyFilterPanel({
         gap: 14,
       }}
     >
+      <div className="glass-panel" style={{ padding: 4, borderRadius: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <MapTypeFilterSection />
+      </div>
+
       <div>
         <h3
           style={{

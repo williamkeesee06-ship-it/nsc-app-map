@@ -457,6 +457,10 @@ export interface Job {
         lat?: number | null;
         lng?: number | null;
         status?: ZiplyObjectStatus;
+        poleId?: string | number | null;
+        poleStreet?: string | null;
+        intersection?: string | null;
+        address?: string | null;
       } | null;
       /**
        * Primary ROW / arterial from the plan (e.g. "Metron Rd") — plant backbone.
