@@ -745,8 +745,8 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                   inset: 0,
                   width: "100%",
                   height: "100%",
-                  zIndex: markupTool !== "none" || alignStep > 0 ? 10 : 1,
-                  pointerEvents: markupTool !== "none" || alignStep > 0 ? "auto" : "none",
+                  zIndex: 10,
+                  pointerEvents: "auto",
                   cursor: alignStep > 0 ? "crosshair" : markupTool !== "none" ? "crosshair" : "default",
                 }}
                 onMouseDown={handleMouseDown}
@@ -755,39 +755,44 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
               />
             )}
             {active?.downloadUrl ? (
-              active.contentType?.includes("pdf") ||
-              active.name?.toLowerCase().endsWith(".pdf") ||
-              active.downloadUrl.includes(".pdf") ? (
-                <iframe
-                  title={active.name || "print"}
-                  src={active.downloadUrl}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    border: 0,
-                    background: "#ffffff",
-                    pointerEvents: markupTool !== "none" || alignStep > 0 ? "none" : "auto",
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    overflow: "auto",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: 12,
-                  }}
-                >
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  overflow: "hidden",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "#ffffff",
+                }}
+              >
+                {active.contentType?.includes("pdf") ||
+                active.name?.toLowerCase().endsWith(".pdf") ||
+                active.downloadUrl.includes(".pdf") ? (
+                  <object
+                    data={`${active.downloadUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                    type="application/pdf"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      border: 0,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <embed
+                      src={`${active.downloadUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                      type="application/pdf"
+                      style={{ width: "100%", height: "100%", pointerEvents: "none" }}
+                    />
+                  </object>
+                ) : (
                   <img
                     src={active.downloadUrl}
                     alt={active.name || "print"}
-                    style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                    style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", pointerEvents: "none" }}
                   />
-                </div>
-              )
+                )}
+              </div>
             ) : (
               <div
                 style={{
