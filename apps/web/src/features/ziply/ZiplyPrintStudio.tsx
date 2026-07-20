@@ -828,7 +828,13 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                 <iframe
                   title={active.name || "print"}
                   src={active.downloadUrl}
-                  style={{ width: "100%", height: "100%", border: 0, background: "#ffffff" }}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    border: 0,
+                    background: "#ffffff",
+                    pointerEvents: markupTool !== "none" || alignStep > 0 ? "none" : "auto",
+                  }}
                 />
               ) : (
                 <div
@@ -903,17 +909,19 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
             display: "flex",
             flexDirection: "column",
             minWidth: 0,
-            background: "linear-gradient(180deg,#0c121c 0%,#080c12 100%)",
-            color: "#15202c",
+            background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+            color: "#1e293b",
+            borderLeft: "1px solid #cbd5e1",
           }}
         >
           <div
             style={{
               padding: "12px 14px",
-              borderBottom: "1px solid rgba(148,163,184,0.12)",
+              borderBottom: "1px solid #cbd5e1",
               display: "flex",
               alignItems: "center",
               gap: 8,
+              background: "#ffffff",
             }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -922,13 +930,13 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
                   fontSize: 11,
                   fontWeight: 800,
                   letterSpacing: "0.1em",
-                  color: "#0ea5e9",
+                  color: "#0284c7",
                   textTransform: "uppercase",
                 }}
               >
                 Digital twin plant
               </div>
-              <div style={{ fontSize: 11, color: "#5b6776", marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
                 {inventory.mainline
                   ? `Mainline · ${inventory.mainline}`
                   : "Mainline street from print"}
@@ -941,9 +949,9 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
               type="button"
               onClick={onClose}
               style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "#15202c",
+                background: "#f1f5f9",
+                border: "1px solid #cbd5e1",
+                color: "#334155",
                 borderRadius: 6,
                 padding: "6px 10px",
                 fontWeight: 700,
@@ -1185,15 +1193,16 @@ function MiniStat({ n, l, c }: { n: number; l: string; c: string }) {
   return (
     <div
       style={{
-        background: "rgba(255,255,255,0.04)",
+        background: "#ffffff",
         borderRadius: 8,
-        padding: "6px 4px",
+        padding: "8px 6px",
         textAlign: "center",
-        border: "1px solid rgba(255,255,255,0.06)",
+        border: "1px solid #cbd5e1",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
       }}
     >
-      <div style={{ fontSize: 15, fontWeight: 800, color: c, fontFamily: "monospace" }}>{n}</div>
-      <div style={{ fontSize: 8, fontWeight: 700, color: "#64748b", letterSpacing: "0.08em" }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: c, fontFamily: "monospace" }}>{n}</div>
+      <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", letterSpacing: "0.05em" }}>
         {l}
       </div>
     </div>
@@ -1226,22 +1235,22 @@ function Row({
       onClick={onSelect}
       style={{
         background: selected
-          ? "rgba(251,191,36,0.12)"
+          ? "#fef3c7"
           : glow
-            ? "rgba(14,165,233,0.08)"
-            : "rgba(255,255,255,0.03)",
+            ? "#f0f9ff"
+            : "#ffffff",
         border: `1px solid ${
           selected
-            ? "rgba(251,191,36,0.65)"
+            ? "#f59e0b"
             : glow
-              ? "rgba(56,189,248,0.35)"
-              : "rgba(255,255,255,0.06)"
+              ? "#0284c7"
+              : "#cbd5e1"
         }`,
         borderRadius: 8,
-        padding: "8px 8px 6px",
+        padding: "8px 10px 8px",
         marginBottom: 6,
         cursor: onSelect ? "pointer" : "default",
-        boxShadow: selected ? "0 0 14px rgba(251,191,36,0.25)" : "none",
+        boxShadow: selected ? "0 2px 8px rgba(245,158,11,0.2)" : "0 1px 3px rgba(0,0,0,0.04)",
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
