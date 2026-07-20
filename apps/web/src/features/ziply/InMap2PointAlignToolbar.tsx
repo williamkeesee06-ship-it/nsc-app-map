@@ -188,7 +188,12 @@ export default function InMap2PointAlignToolbar({ job, onComplete, onCancel }: P
           boxShadow: "0 12px 36px rgba(0,0,0,0.4)",
           display: "flex",
           flexDirection: "column",
-          overflow: "hidden",
+          overflow: "auto",
+          resize: "both",
+          minWidth: 300,
+          minHeight: 200,
+          maxWidth: "80vw",
+          maxHeight: "80vh",
         }}
       >
         <div

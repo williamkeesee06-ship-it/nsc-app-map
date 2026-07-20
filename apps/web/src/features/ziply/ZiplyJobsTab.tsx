@@ -166,40 +166,7 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
           <option value="none">No print ({counts.none})</option>
           <option value="failed">Failed ({counts.failed})</option>
         </select>
-        <button
-          type="button"
-          disabled={fleetBusy}
-          className="ss-action-btn"
-          title="Rebuild plant CAD for stale/synthetic prints (batch)"
-          onClick={() => {
-            setFleetBusy(true);
-            setFleetMsg(null);
-            void api
-              .enhanceAllZiplyPrints({ limit: 20, onlyStale: true })
-              .then((r) => {
-                setFleetMsg(
-                  `Batch CAD: ${r.enhanced} enhanced · ${r.failed} failed · ${r.attempted} attempted`
-                );
-                window.dispatchEvent(new Event("nsc:jobs-reload"));
-              })
-              .catch((e) =>
-                setFleetMsg(e instanceof Error ? e.message : "Batch enhance failed")
-              )
-              .finally(() => setFleetBusy(false));
-          }}
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            padding: "6px 10px",
-            borderRadius: 6,
-            border: "1px solid rgba(56,189,248,0.5)",
-            background: "rgba(56,189,248,0.12)",
-            color: "#38bdf8",
-            cursor: fleetBusy ? "wait" : "pointer",
-          }}
-        >
-          {fleetBusy ? "Rebuilding CAD…" : "Batch rebuild CAD"}
-        </button>
+
         <button
           type="button"
           disabled={fleetBusy}

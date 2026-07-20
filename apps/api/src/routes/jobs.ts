@@ -1,3 +1,4 @@
+import { distM, GOLD_PLANT_SEEDS, expandHouseAddresses } from "../services/ziplyPlantUtils.js";
 // Jobs read/write endpoints. Frontend consumes these to render the Jobs Map + cards.
 import { Router } from "express";
 import { waitUntil } from "@vercel/functions";
@@ -9,11 +10,7 @@ import {
   cityCenterFallback,
 } from "../lib/geocode.js";
 import { routeAlongRoads } from "../lib/directions.js";
-import {
-  expandHouseAddresses,
-  GOLD_PLANT_SEEDS,
-  distM,
-} from "../services/ziplyPlantEngine.js";
+
 import {
   registerPlant,
   orderControls,
@@ -1901,29 +1898,6 @@ router.post("/jobs/:jobId/ziply-repair-print", async (req, res, next) => {
       lng: repaired.lng,
       terminalsFixed: repaired.terminalsFixed,
     });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST /api/jobs/:jobId/ziply-enhance-print — rebuild detailed cable paths + geocodes
-router.post("/jobs/:jobId/ziply-enhance-print", async (req, res, next) => {
-  try {
-    const { jobId } = req.params;
-    const ref = db().collection("jobs").doc(jobId);
-    const doc = await ref.get();
-    if (!doc.exists) {
-      res.status(404).json({ error: "Job not found" });
-      return;
-    }
-    const job = doc.data() as Job;
-    if (!job.ziplyPrintLayer?.mapObjects) {
-      res.status(400).json({ error: "No print layer — ingest a print first" });
-      return;
-    }
-    const result = await enhanceZiplyPrintDetail(job);
-    invalidateJobsCache();
-    res.json({ ok: true, ...result });
   } catch (err) {
     next(err);
   }

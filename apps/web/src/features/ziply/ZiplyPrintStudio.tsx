@@ -358,25 +358,7 @@ export default function ZiplyPrintStudio({ job, onClose }: Props) {
     if (lat != null && lng != null) panTo(lat, lng);
   };
 
-  const rebuildPlant = async () => {
-    setBusy(true);
-    setMsg(null);
-    try {
-      const r = await api.enhanceZiplyPrint(job.jobId);
-      if (!r.enhanced) {
-        setMsg(`Rebuild failed: ${r.reason}`);
-      } else {
-        setMsg(
-          `Plant rebuilt — ${r.cablesPathed} paths · ${r.terminalsGeocoded} terminals · ${r.dropsPlaced} drops`
-        );
-        window.dispatchEvent(new Event("nsc:jobs-reload"));
-      }
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Rebuild failed");
-    } finally {
-      setBusy(false);
-    }
-  };
+  
 
   const setObjectStatus = async (
     kind: "hub" | "terminal" | "cable",

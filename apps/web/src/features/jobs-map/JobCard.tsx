@@ -689,7 +689,7 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
   const [pct, setPct] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [repairBusy, setRepairBusy] = useState(false);
-  const [enhanceBusy, setEnhanceBusy] = useState(false);
+  
   const [enhanceMsg, setEnhanceMsg] = useState<string | null>(null);
   const [studioOpen, setStudioOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -745,31 +745,6 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
       setErr(ex instanceof Error ? ex.message : "Repair failed");
     } finally {
       setRepairBusy(false);
-    }
-  };
-
-  const enhanceCad = async () => {
-    setEnhanceBusy(true);
-    setErr(null);
-    setEnhanceMsg(null);
-    try {
-      const r = await api.enhanceZiplyPrint(job.jobId);
-      if (!r.enhanced) {
-        setErr(
-          r.reason === "geocode_failed"
-            ? "Could not geocode for CAD enhance — check address/city."
-            : r.reason || "Enhance failed"
-        );
-      } else {
-        setEnhanceMsg(
-          `CAD detail: ${r.cablesPathed} cable paths · ${r.terminalsGeocoded} terminals · ${r.dropsPlaced} drops · ${r.waypointsGeocoded} street waypoints`
-        );
-      }
-      window.dispatchEvent(new Event("nsc:jobs-reload"));
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Enhance failed");
-    } finally {
-      setEnhanceBusy(false);
     }
   };
 
@@ -910,31 +885,11 @@ function ZiplyPrintDocsSection({ job }: { job: Job }) {
           </button>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            {layer?.mapObjects && mapReady && (
-              <button
-                type="button"
-                disabled={enhanceBusy || busy || repairBusy}
-                onClick={() => void enhanceCad()}
-                title="Rebuild arterial mainline + parcel laterals + drops"
-                style={{
-                  background: "#f0f9ff",
-                  border: "1px solid #0284c7",
-                  color: "#0369a1",
-                  fontSize: 9,
-                  fontWeight: 700,
-                  padding: "6px 8px",
-                  borderRadius: 4,
-                  cursor: enhanceBusy ? "wait" : "pointer",
-                  textAlign: "center",
-                }}
-              >
-                {enhanceBusy ? "REBUILDING…" : enhancedAt ? "REBUILD CAD" : "BUILD CAD"}
-              </button>
-            )}
+
             {layer?.mapObjects && (
               <button
                 type="button"
-                disabled={repairBusy || busy || enhanceBusy}
+                disabled={repairBusy || busy}
                 onClick={() => void repairLocation()}
                 style={{
                   background: "#fffbeb",

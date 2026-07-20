@@ -244,25 +244,6 @@ export const api = {
       body: JSON.stringify({ address }),
     }),
   /**
-   * High-detail CAD pass: geocode terminals + route streets, write multi-point
-   * cable paths and drop sites onto the print layer.
-   */
-  enhanceZiplyPrint: (jobId: string) =>
-    request<{
-      ok: boolean;
-      jobId: string;
-      workOrder?: string | null;
-      enhanced: boolean;
-      reason: string;
-      terminalsGeocoded: number;
-      cablesPathed: number;
-      waypointsGeocoded: number;
-      dropsPlaced: number;
-    }>(`/api/jobs/${encodeURIComponent(jobId)}/ziply-enhance-print`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    }),
-  /**
    * 2-Point Web Mercator Affine Georeferencing alignment.
    */
   affineAlignZiplyPrint: (
@@ -278,18 +259,6 @@ export const api = {
     }>(`/api/jobs/${encodeURIComponent(jobId)}/ziply-print/affine-align`, {
       method: "POST",
       body: JSON.stringify({ cp1, cp2 }),
-    }),
-  /** Batch rebuild plant CAD for print-ready Ziply jobs (stale/synthetic by default). */
-  enhanceAllZiplyPrints: (body?: { limit?: number; onlyStale?: boolean }) =>
-    request<{
-      ok: boolean;
-      attempted: number;
-      enhanced: number;
-      failed: number;
-      results: Array<Record<string, unknown>>;
-    }>("/api/jobs/ziply-enhance-prints", {
-      method: "POST",
-      body: JSON.stringify(body ?? { onlyStale: true, limit: 25 }),
     }),
   /** Fleet CAD fidelity QA report. */
   ziplyFidelityReport: () =>
