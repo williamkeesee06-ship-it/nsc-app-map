@@ -1014,7 +1014,7 @@ function JobMarkers({
     const created = new globalThis.Map<string, google.maps.Marker>();
     const labelMarkers: google.maps.Marker[] = [];
     const currentZoom = map.getZoom() ?? 0;
-    const showClusters = currentZoom < 10;
+    const showClusters = false; // Disabled per user request
     const labelsVisible = currentZoom >= WO_LABEL_MIN_ZOOM && !showClusters;
 
     if (showClusters) {
@@ -1127,18 +1127,33 @@ function JobMarkers({
           const safeWoText = escapeHtml(woText);
           const textW = Math.max(80, woText.length * 8 + 18);
           const pillW = printDot ? textW + 16 : textW;
-          // Build a tiny SVG label pill (Ziply: color dot = print readiness)
+          
+          // Luxurious Light Mode & High-Tech Map Engineer Aesthetic
+          // Add 16px padding for glow filter
+          const paddedW = pillW + 16;
+          const paddedH = 22 + 16;
+          
           const labelSvg = printDot
-            ? `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="22">
-    <rect x="0" y="0" width="${pillW}" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
-    <circle cx="12" cy="11" r="4" fill="${printDot}"/>
-    <text x="${(pillW + 12) / 2}" y="15" text-anchor="middle" font-size="10" font-weight="700"
-      fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${safeWoText}</text>
+            ? `<svg xmlns="http://www.w3.org/2000/svg" width="${paddedW}" height="${paddedH}">
+    <defs>
+      <filter id="glow-${pillW}" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>
+      </filter>
+    </defs>
+    <rect x="8" y="8" width="${pillW}" height="22" rx="11" fill="rgba(255, 255, 255, 0.96)" stroke="${pinColor}" stroke-width="1.5" filter="url(#glow-${pillW})"/>
+    <circle cx="20" cy="19" r="4" fill="${printDot}"/>
+    <text x="${(pillW + 20) / 2}" y="22.5" text-anchor="middle" font-size="10.5" font-weight="700" letter-spacing="0.4"
+      fill="#0f172a" font-family="Inter, Roboto, system-ui, sans-serif">${safeWoText}</text>
   </svg>`
-            : `<svg xmlns="http://www.w3.org/2000/svg" width="${pillW}" height="22">
-    <rect x="0" y="0" width="${pillW}" height="22" rx="11" fill="white" stroke="#C8D0DA" stroke-width="1.5"/>
-    <text x="${pillW / 2}" y="15" text-anchor="middle" font-size="10" font-weight="700"
-      fill="${pinColor}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">${safeWoText}</text>
+            : `<svg xmlns="http://www.w3.org/2000/svg" width="${paddedW}" height="${paddedH}">
+    <defs>
+      <filter id="glow-${pillW}" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>
+      </filter>
+    </defs>
+    <rect x="8" y="8" width="${pillW}" height="22" rx="11" fill="rgba(255, 255, 255, 0.96)" stroke="${pinColor}" stroke-width="1.5" filter="url(#glow-${pillW})"/>
+    <text x="${pillW / 2 + 8}" y="22.5" text-anchor="middle" font-size="10.5" font-weight="700" letter-spacing="0.4"
+      fill="#0f172a" font-family="Inter, Roboto, system-ui, sans-serif">${safeWoText}</text>
   </svg>`;
           const labelUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(labelSvg)}`;
           const lm = new google.maps.Marker({
@@ -1146,8 +1161,10 @@ function JobMarkers({
             map: labelsVisible ? map : null,
             icon: {
               url: labelUrl,
-              scaledSize: new google.maps.Size(pillW, 22),
-              anchor: new google.maps.Point(pillW / 2, 58), // above pin tip
+              scaledSize: new google.maps.Size(paddedW, paddedH),
+              // Original anchor was pillW/2, 58 (above pin tip). 
+              // We shifted SVG content by 8px X and 8px Y, so add 8 to X and Y.
+              anchor: new google.maps.Point(pillW / 2 + 8, 58 + 8), 
             },
             clickable: false,
             zIndex: 1,

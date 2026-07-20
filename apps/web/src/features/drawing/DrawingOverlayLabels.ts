@@ -61,32 +61,40 @@ function escSvg(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-const LABEL_CHAR_W = 7;
-const LABEL_PAD = 10;
-const LABEL_H = 18;
+const LABEL_CHAR_W = 8.5;
+const LABEL_PAD = 14;
+const LABEL_H = 26;
 
 export function labelWidth(text: string): number {
-  return Math.max(36, text.length * LABEL_CHAR_W + LABEL_PAD * 2);
+  return Math.max(48, text.length * LABEL_CHAR_W + LABEL_PAD * 2);
 }
 
-/** Default neutral border used for ATAG/MH/text labels. Callout labels override
+/** Default metallic slate border used for ATAG/MH/text labels. Callout labels override
  *  this with the leader-line color so changing the callout color also recolors
- *  the text-box border (Billy 6/10). */
-export const DEFAULT_LABEL_BORDER = "#C8D0DA";
+ *  the text-box border. */
+export const DEFAULT_LABEL_BORDER = "#94a3b8"; // sleek metallic slate
 
 export function makeLabelSvg(text: string, borderColor: string = DEFAULT_LABEL_BORDER): string {
   const w = labelWidth(text);
   const h = LABEL_H;
-  // Callout color matching: the text-box outline mirrors the leader line so
-  // recoloring the callout in the markup panel updates the whole annotation.
-  // Use a slightly thicker stroke when a custom color is supplied so the
-  // colored border reads at a glance against the white fill.
+  
+  // Luxurious Light Mode & High-Tech Map Engineer Aesthetic
+  // Deep cyan/neon accents on white pill, soft glowing shadow.
+  // We use SVG filters to give it a polished, premium UI feel.
   const isCustom = borderColor !== DEFAULT_LABEL_BORDER;
-  const strokeW = isCustom ? 1.5 : 1;
+  const strokeW = isCustom ? 2 : 1.5;
+  const activeBorderColor = isCustom ? borderColor : "#cbd5e1";
+
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
-    `<rect x="0.75" y="0.75" width="${w - 1.5}" height="${h - 1.5}" rx="4" ry="4" fill="white" stroke="${escSvg(borderColor)}" stroke-width="${strokeW}"/>` +
-    `<text x="${w / 2}" y="${h / 2 + 4}" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="10" font-weight="bold" fill="#1A2332">${escSvg(text)}</text>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w + 16}" height="${h + 16}">` +
+    `<defs>` +
+    `  <filter id="glow-${w}" x="-20%" y="-20%" width="140%" height="140%">` +
+    `    <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>` +
+    `  </filter>` +
+    `</defs>` +
+    // We shift X and Y by 8 to make room for the drop shadow blur
+    `<rect x="8" y="8" width="${w}" height="${h}" rx="13" ry="13" fill="rgba(255, 255, 255, 0.96)" stroke="${escSvg(activeBorderColor)}" stroke-width="${strokeW}" filter="url(#glow-${w})"/>` +
+    `<text x="${w / 2 + 8}" y="${h / 2 + 12}" text-anchor="middle" font-family="Inter, Roboto, system-ui, sans-serif" font-size="11.5" font-weight="700" letter-spacing="0.4" fill="#0f172a">${escSvg(text)}</text>` +
     `</svg>`
   );
 }
@@ -295,9 +303,11 @@ export function makeLabelMarkerAt(
     map,
     icon: {
       url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
-      anchor: new google.maps.Point(0, h / 2),
-      size: new google.maps.Size(w, h),
-      scaledSize: new google.maps.Size(w, h),
+      // We added 16px of padding to the SVG for the glow effect.
+      // So the anchor X (left edge) shifts from 0 to 8, and Y shifts from h/2 to h/2 + 8.
+      anchor: new google.maps.Point(8, h / 2 + 8),
+      size: new google.maps.Size(w + 16, h + 16),
+      scaledSize: new google.maps.Size(w + 16, h + 16),
     },
     // Labels are clickable when a handler is supplied so single-click on a
     // label opens the same editor as clicking the markup itself.
