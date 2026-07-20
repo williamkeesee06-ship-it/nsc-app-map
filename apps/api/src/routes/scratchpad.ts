@@ -29,6 +29,7 @@ router.get("/scratchpad/:owner", async (req, res, next) => {
       res.status(400).json({ error: "owner required" });
       return;
     }
+    res.setHeader("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
     const snap = await docRef(ownerName).get();
     if (!snap.exists) {
       res.json({ objects: [], updatedAt: 0, ownerName });

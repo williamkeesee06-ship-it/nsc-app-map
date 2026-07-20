@@ -193,6 +193,16 @@ router.get("/asbuilt", async (req, res, next) => {
         owner: ownerName,
       });
     });
+
+    const etag = `W/"asbuilt-${docs.length}"`;
+    res.setHeader("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+    res.setHeader("ETag", etag);
+
+    if (req.headers["if-none-match"] === etag) {
+      res.status(304).end();
+      return;
+    }
+
     res.json({ docs, count: docs.length });
   } catch (err) {
     next(err);
@@ -205,6 +215,8 @@ router.get("/asbuilt/:jobId", async (req, res, next) => {
     const ownerQuery = typeof req.query.owner === "string" ? req.query.owner.trim() : "";
     const owner = ownerQuery || LEGACY_OWNER_NAME;
     const ownerSlug = slugifyOwner(owner);
+
+    res.setHeader("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
 
     // Try target owner doc first
     const snap = await docRef(jobId, ownerSlug).get();

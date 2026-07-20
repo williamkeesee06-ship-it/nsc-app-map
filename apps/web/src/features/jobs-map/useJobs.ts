@@ -64,7 +64,7 @@ export function useJobs(): JobsState & { reload: () => void } {
 
     const t = window.setTimeout(() => {
       setNonce((n) => n + 1);
-    }, 5000);
+    }, 30000);
     return () => window.clearTimeout(t);
   }, [s, nonce]);
 

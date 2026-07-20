@@ -286,6 +286,15 @@ router.get("/jobs", async (req, res, next) => {
           ? all.filter((j) => !j.inTracker)
           : all;
 
+    const etag = `W/"jobs-${jobsCache?.ts ?? now}-${jobs.length}"`;
+    res.setHeader("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+    res.setHeader("ETag", etag);
+
+    if (req.headers["if-none-match"] === etag) {
+      res.status(304).end();
+      return;
+    }
+
     res.json({
       jobs,
       count: jobs.length,
