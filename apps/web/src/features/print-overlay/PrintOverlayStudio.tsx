@@ -100,8 +100,11 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
   useEffect(() => {
     if (map && job.geocode && !didInitialFlyRef.current) {
       didInitialFlyRef.current = true;
-      map.panTo({ lat: job.geocode.lat, lng: job.geocode.lng });
-      map.setZoom(18);
+      window.dispatchEvent(
+        new CustomEvent("nsc:pan-to", {
+          detail: { lat: job.geocode.lat, lng: job.geocode.lng, zoom: 18 },
+        })
+      );
     }
   }, [map, job.geocode]);
 

@@ -15,7 +15,7 @@ import type {
 } from "@nsc/types";
 import { app, waitForIdToken, getIdToken } from "./firebase.js";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // NEVER call protected /api without a Bearer token (solo lock).
   // Wait for Firebase session restore / post-login user before fetching.
   let token = await waitForIdToken(8000);

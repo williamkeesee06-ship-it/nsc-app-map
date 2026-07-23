@@ -36,14 +36,12 @@ export default function WebGLOrb({
           100% { stroke-dashoffset: 200; }
         }
         @keyframes lx-lightning-flash-1-${uid} {
-          0%, 85%, 91%, 95%, 100% { opacity: 0; }
-          87%, 93% { opacity: 0.9; }
-          89% { opacity: 0.3; }
+          0%, 80%, 100% { opacity: 0; }
+          90% { opacity: 0.5; }
         }
         @keyframes lx-lightning-flash-2-${uid} {
-          0%, 80%, 86%, 92%, 100% { opacity: 0; }
-          82%, 89% { opacity: 0.85; }
-          84% { opacity: 0.25; }
+          0%, 75%, 100% { opacity: 0; }
+          87% { opacity: 0.4; }
         }
         @keyframes lx-plasma-pulse-${uid} {
           0%, 100% { transform: scale(0.97); filter: drop-shadow(0 0 8px ${rimColor}); }

@@ -28,6 +28,8 @@ export interface LuminaLiveToolCall {
   args: Record<string, unknown>;
 }
 
+import { request } from "../../../lib/api.js";
+
 export interface LuminaLiveToolResult {
   ok: boolean;
   message?: string;
@@ -117,16 +119,10 @@ export class LuminaLiveSession {
       const username = this.cb.getUsername?.() || "";
       // NOTE: path is /api/lumina/live-token (with slash). The dash variant
       // was the old monorepo path and does NOT exist on this server.
-      const res = await fetch("/api/lumina/live-token", {
+      token = await request<TokenResponse>("/api/lumina/live-token", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
       });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Token fetch ${res.status}: ${err.slice(0, 200)}`);
-      }
-      token = (await res.json()) as TokenResponse;
     } catch (err) {
       this.fail(`Token error: ${(err as Error).message}`);
       throw err;

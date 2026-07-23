@@ -21,6 +21,7 @@ import type {
 } from "../store/luminaStore.js";
 import { dispatchTool } from "../tools/index.js";
 import type { LuminaToolContext } from "../tools/types.js";
+import { request } from "../../../lib/api.js";
 
 const MAX_ROUNDS = 6;
 
@@ -161,9 +162,8 @@ export async function runUserTurn(deps: ChatEngineDeps): Promise<void> {
     deps.setOrbState("thinking");
     let body: ChatResponseBody;
     try {
-      const res = await fetch("/api/lumina/chat", {
+      body = await request<ChatResponseBody>("/api/lumina/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         signal: deps.signal,
         body: JSON.stringify({
           // Send the full prefix on every round so the API can run
@@ -188,11 +188,6 @@ export async function runUserTurn(deps: ChatEngineDeps): Promise<void> {
           } : null
         }),
       });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`/api/lumina/chat ${res.status}: ${errText.slice(0, 240)}`);
-      }
-      body = (await res.json()) as ChatResponseBody;
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("[lumina/engine] chat request failed", err);

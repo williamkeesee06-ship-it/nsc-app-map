@@ -27,6 +27,8 @@
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 
+import { request } from "../../../lib/api.js";
+
 interface SendWatchPingInput {
   message: string;
   title?: string;
@@ -59,23 +61,18 @@ async function run(
   if (input.url) payload.url = input.url;
   if (input.urlTitle) payload.urlTitle = input.urlTitle;
 
-  const res = await fetch("/api/lumina/push", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = (await res.json()) as { error?: string };
-      detail = j.error ?? "";
-    } catch { /* ignore */ }
+  let body: { ok: boolean; requestId: string };
+  try {
+    body = await request<{ ok: boolean; requestId: string }>("/api/lumina/push", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
     return {
       ok: false,
-      message: `Pushover ping failed (${res.status}).${detail ? " " + detail : ""}`,
+      message: `Pushover ping failed. ${(err as Error).message}`,
     };
   }
-  const body = (await res.json()) as { ok: boolean; requestId: string };
   return {
     ok: true,
     message: `Watch pinged: "${input.title ?? "Lumina"}" — ${message.slice(0, 80)}${message.length > 80 ? "…" : ""}`,

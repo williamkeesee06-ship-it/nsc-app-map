@@ -293,16 +293,13 @@ function JobsMapInner({
         mapRef.current.fitBounds(bounds);
         return;
       }
-      const center = detail.center ?? (detail.lat != null && detail.lng != null
-        ? { lat: detail.lat, lng: detail.lng }
-        : null);
-      if (center && typeof center.lat === "number" && typeof center.lng === "number") {
-        mapRef.current.panTo(center);
-        mapRef.current.setZoom(
-          typeof detail.zoom === "number" ? detail.zoom : 17
-        );
-      }
-    };
+        const center = detail.center ?? (detail.lat != null && detail.lng != null
+          ? { lat: detail.lat, lng: detail.lng }
+          : null);
+        if (center && typeof center.lat === "number" && typeof center.lng === "number") {
+          focusMapOnLatLng(mapRef.current, center.lat, center.lng, detail.zoom ?? 17);
+        }
+      };
     window.addEventListener("nsc:pan-to", handlePan);
     return () => window.removeEventListener("nsc:pan-to", handlePan);
   }, [mapRef]);
@@ -1129,10 +1126,10 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function focusMapOnLatLng(map: google.maps.Map, lat: number, lng: number) {
+function focusMapOnLatLng(map: google.maps.Map, lat: number, lng: number, overrideZoom?: number) {
   map.panTo({ lat, lng });
   
-  const targetZoom = FOCUS_ZOOM;
+  const targetZoom = overrideZoom ?? FOCUS_ZOOM;
   const currentZoom = map.getZoom() ?? 12;
   if (currentZoom === targetZoom) return;
 

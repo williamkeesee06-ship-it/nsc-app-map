@@ -200,17 +200,24 @@ export function suggestCropRect(
   const x1 = clamp01((content.maxX + padX) / rasterWidth);
   const y1 = clamp01((content.maxY + padY) / rasterHeight);
 
-  const rect: CropRect = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+  if (x1 - x0 <= 0 || y1 - y0 <= 0) return null;
+
+  let rect: CropRect = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+  rect = clampCropRect(rect);
   // If the suggestion covers essentially the whole page, there is nothing to
-  // trim — return null so we don't present a no-op crop.
+  // trim - return null so we don't present a no-op crop.
   if (rect.width >= 0.995 && rect.height >= 0.995) return null;
   return rect;
 }
 
 /** Clamp a (possibly user-dragged) crop rect into the unit square with a min size. */
 export function clampCropRect(rect: CropRect, minSize = 0.02): CropRect {
-  const x = clamp01(rect.x);
-  const y = clamp01(rect.y);
+  let x = clamp01(rect.x);
+  let y = clamp01(rect.y);
+  // Push the anchor back if the minimum size would breach the right/bottom boundary
+  if (x + minSize > 1) x = Math.max(0, 1 - minSize);
+  if (y + minSize > 1) y = Math.max(0, 1 - minSize);
+  
   const maxW = 1 - x;
   const maxH = 1 - y;
   const width = Math.min(maxW, Math.max(minSize, rect.width));

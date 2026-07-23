@@ -7,6 +7,7 @@
  */
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
+import { request } from "../../../lib/api.js";
 
 interface AddTaskInput {
   text: string;
@@ -39,29 +40,21 @@ async function run(
   if (input.parentId) payload.parentId = input.parentId;
   if (input.jobRef?.id && input.jobRef?.label) payload.jobRef = input.jobRef;
 
-  const res = await fetch("/api/tasks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = (await res.json()) as { error?: string };
-      detail = j.error ?? "";
-    } catch { /* ignore */ }
-    return {
-      ok: false,
-      message: `addTask failed (${res.status}).${detail ? " " + detail : ""}`,
-    };
+  let j: any;
+  try {
+    j = await request("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    return { ok: false, message: `Failed to create task. ${(err as Error).message}` };
   }
 
-  const body = (await res.json()) as { task: { id: string; text: string } };
+  const t = j.task || j;
   return {
     ok: true,
-    message: `Task added: "${body.task.text.slice(0, 80)}${body.task.text.length > 80 ? "…" : ""}"`,
-    data: { taskId: body.task.id, text: body.task.text },
+    message: `Task added: "${t.text.slice(0, 80)}${t.text.length > 80 ? "…" : ""}"`,
+    data: { taskId: String(t.id), text: t.text },
   };
 }
 

@@ -3845,3 +3845,9 @@ input:focus, textarea:focus, select:focus {
   justify-content: center !important;
 }
 .search-form__submit--icon svg { display: block; }
+
+/* Disable Vercel Toolbar strobing / hide it if it's glitching out */
+.vercel-live-feedback, cgw-writer-modal, #vercel-live-feedback {
+  display: none !important;
+  animation: none !important;
+}

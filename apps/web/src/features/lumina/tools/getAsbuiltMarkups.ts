@@ -12,6 +12,8 @@
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 
+import { api } from "../../../lib/api.js";
+
 interface GetAsbuiltMarkupsInput {
   jobId: string;
 }
@@ -38,33 +40,29 @@ async function run(
   if (!input.jobId) {
     return { ok: false, message: "getAsbuiltMarkups requires jobId." };
   }
-  const res = await fetch(`/api/asbuilt/${encodeURIComponent(input.jobId)}`);
-  if (res.status === 404) {
-    return {
-      ok: true,
-      message: `No asbuilt document for ${input.jobId} yet.`,
-      data: {
-        jobId: input.jobId,
-        schemaVersion: null,
-        pointCount: 0,
-        lineCount: 0,
-        pointsByType: {},
-        linesByCategory: {},
-        sampleLabels: [],
-        updatedAt: null,
-      },
-    };
+  
+  let doc: any;
+  try {
+    doc = await api.getAsbuilt(input.jobId);
+  } catch (err: any) {
+    if (err.message.includes("404")) {
+      return {
+        ok: true,
+        message: `No asbuilt document for ${input.jobId} yet.`,
+        data: {
+          jobId: input.jobId,
+          schemaVersion: null,
+          pointCount: 0,
+          lineCount: 0,
+          pointsByType: {},
+          linesByCategory: {},
+          sampleLabels: [],
+          updatedAt: null,
+        },
+      };
+    }
+    return { ok: false, message: `Asbuilt fetch failed. ${err.message}` };
   }
-  if (!res.ok) {
-    return { ok: false, message: `Asbuilt fetch failed (${res.status}).` };
-  }
-  const doc = (await res.json()) as {
-    jobId: string;
-    schemaVersion?: number;
-    points?: Array<{ type: string; label?: string }>;
-    lines?: Array<{ category: string; label?: string }>;
-    updatedAt?: number;
-  };
   const points = doc.points ?? [];
   const lines = doc.lines ?? [];
   const pointsByType: Record<string, number> = {};

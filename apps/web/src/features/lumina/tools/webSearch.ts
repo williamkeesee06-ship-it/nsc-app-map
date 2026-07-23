@@ -17,6 +17,8 @@
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 
+import { request } from "../../../lib/api.js";
+
 interface WebSearchInput {
   query: string;
   /** Optional cap on snippets returned. Default 5, max 10. */
@@ -42,13 +44,14 @@ async function run(
     return { ok: false, message: "webSearch requires a non-empty query." };
   }
   const limit = Math.min(Math.max(input.limit ?? 5, 1), 10);
-  const res = await fetch(
-    `/api/lumina/web-search?q=${encodeURIComponent(input.query)}&limit=${limit}`
-  );
-  if (!res.ok) {
-    return { ok: false, message: `Web search failed (${res.status}).` };
+  let body: WebSearchData;
+  try {
+    body = await request<WebSearchData>(
+      `/api/lumina/web-search?q=${encodeURIComponent(input.query)}&limit=${limit}`
+    );
+  } catch (err) {
+    return { ok: false, message: `Web search failed. ${(err as Error).message}` };
   }
-  const body = (await res.json()) as WebSearchData;
   return {
     ok: true,
     message: `Found ${body.results.length} result${body.results.length === 1 ? "" : "s"} for "${input.query}".`,

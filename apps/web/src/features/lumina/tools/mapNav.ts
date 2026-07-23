@@ -13,7 +13,7 @@
  *   - dropPin accepts EITHER an address OR raw lat/lng.
  */
 
-import { api } from "../../../lib/api.js";
+import { api, request } from "../../../lib/api.js";
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -32,14 +32,12 @@ const flyToAddressTool: LuminaTool<FlyToAddressInput, { lat: number; lng: number
   async run(input, ctx) {
     if (!ctx.map) return { ok: false, message: "Map not ready." };
     if (!input.address) return { ok: false, message: "flyToAddress requires address." };
-    const res = await fetch(`/api/lumina/geocode?q=${encodeURIComponent(input.address)}`);
-    if (!res.ok) return { ok: false, message: `Geocode failed (${res.status}).` };
-    const j = (await res.json()) as {
-      status: string;
-      lat: number;
-      lng: number;
-      formattedAddress: string;
-    };
+    let j: any;
+    try {
+      j = await request(`/api/lumina/geocode?q=${encodeURIComponent(input.address)}`);
+    } catch (err) {
+      return { ok: false, message: `Geocode failed. ${(err as Error).message}` };
+    }
     if (j.status !== "OK") return { ok: false, message: `No result for "${input.address}".` };
     ctx.map.flyTo({ lat: j.lat, lng: j.lng, label: input.label ?? j.formattedAddress });
     return {
@@ -293,12 +291,14 @@ const dropPinTool: LuminaTool<DropPinInput, { pinId: string; lat: number; lng: n
     let lat = input.lat;
     let lng = input.lng;
     if ((lat == null || lng == null) && input.address) {
-      const res = await fetch(`/api/lumina/geocode?q=${encodeURIComponent(input.address)}`);
-      if (!res.ok) return { ok: false, message: `Geocode failed (${res.status}).` };
-      const j = (await res.json()) as { status: string; lat: number; lng: number };
-      if (j.status !== "OK") return { ok: false, message: `No result for "${input.address}".` };
-      lat = j.lat;
-      lng = j.lng;
+      try {
+        const j = await request<{ status: string; lat: number; lng: number }>(`/api/lumina/geocode?q=${encodeURIComponent(input.address)}`);
+        if (j.status !== "OK") return { ok: false, message: `No result for "${input.address}".` };
+        lat = j.lat;
+        lng = j.lng;
+      } catch (err) {
+        return { ok: false, message: `Geocode failed. ${(err as Error).message}` };
+      }
     }
     if (lat == null || lng == null)
       return { ok: false, message: "dropPin requires address or lat/lng." };

@@ -19,6 +19,7 @@
  */
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
+import { request } from "../../../lib/api.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // listSmartsheetRows
@@ -59,19 +60,15 @@ async function runListRows(
   if (input.fields && input.fields.length > 0) {
     params.set("fields", input.fields.join(","));
   }
-  const res = await fetch(`/api/lumina/smartsheet/rows?${params.toString()}`);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = (await res.json()) as { error?: string };
-      detail = j.error ?? "";
-    } catch { /* ignore */ }
+  let body: ListRowsData;
+  try {
+    body = await request<ListRowsData>(`/api/lumina/smartsheet/rows?${params.toString()}`);
+  } catch (err) {
     return {
       ok: false,
-      message: `Smartsheet unavailable (${res.status}).${detail ? " " + detail : ""}`,
+      message: `Smartsheet unavailable. ${(err as Error).message}`,
     };
   }
-  const body = (await res.json()) as ListRowsData;
   return {
     ok: true,
     message:
@@ -114,19 +111,15 @@ async function runGetRow(
   if (typeof input.rowId !== "number" || input.rowId <= 0) {
     return { ok: false, message: "getSmartsheetRow requires a numeric rowId from listSmartsheetRows." };
   }
-  const res = await fetch(`/api/lumina/smartsheet/rows/${input.rowId}`);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = (await res.json()) as { error?: string };
-      detail = j.error ?? "";
-    } catch { /* ignore */ }
+  let body: GetRowData;
+  try {
+    body = await request<GetRowData>(`/api/lumina/smartsheet/rows/${input.rowId}`);
+  } catch (err) {
     return {
       ok: false,
-      message: `Smartsheet row ${input.rowId} unavailable (${res.status}).${detail ? " " + detail : ""}`,
+      message: `Smartsheet row ${input.rowId} unavailable. ${(err as Error).message}`,
     };
   }
-  const body = (await res.json()) as GetRowData;
   return {
     ok: true,
     message: `Full Smartsheet row #${body.rowNumber} (${Object.keys(body.fields).length} columns).`,
@@ -164,19 +157,15 @@ async function runSearchByJob(
 ): Promise<LuminaToolResult<SearchByJobData>> {
   const wo = (input.workOrder ?? "").trim();
   if (!wo) return { ok: false, message: "searchSmartsheetByJob requires a workOrder." };
-  const res = await fetch(`/api/lumina/smartsheet/by-job/${encodeURIComponent(wo)}`);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = (await res.json()) as { error?: string };
-      detail = j.error ?? "";
-    } catch { /* ignore */ }
+  let body: SearchByJobData;
+  try {
+    body = await request<SearchByJobData>(`/api/lumina/smartsheet/by-job/${encodeURIComponent(wo)}`);
+  } catch (err) {
     return {
       ok: false,
-      message: `Smartsheet lookup failed (${res.status}).${detail ? " " + detail : ""}`,
+      message: `Smartsheet lookup failed. ${(err as Error).message}`,
     };
   }
-  const body = (await res.json()) as SearchByJobData;
   return {
     ok: true,
     message:
