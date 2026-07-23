@@ -149,25 +149,42 @@ export default function ZiplyAlignmentStudio({ job, onClose }: Props) {
     offsetStart.current = { ...activePage.centerOffset };
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragging || !activePage || activePage.locked) return;
-    const dx = e.clientX - dragStart.current.x;
-    const dy = e.clientY - dragStart.current.y;
-    updateActivePage({
-      centerOffset: {
+  useEffect(() => {
+    if (!dragging) return;
+
+    const onWindowMouseMove = (e: MouseEvent) => {
+      if (!activePage || activePage.locked) return;
+      const dx = e.clientX - dragStart.current.x;
+      const dy = e.clientY - dragStart.current.y;
+      const nextOffset = {
         x: offsetStart.current.x + dx,
         y: offsetStart.current.y + dy,
-      },
-    });
-  };
+      };
+      setPages((prev) =>
+        prev.map((p, idx) => (idx === activePageIndex ? { ...p, centerOffset: nextOffset } : p))
+      );
+    };
 
-  const handleMouseUp = () => {
-    setDragging(false);
-  };
+    const onWindowMouseUp = () => {
+      setDragging(false);
+    };
 
-  // Broadcast layout state when alignment changes
+    window.addEventListener("mousemove", onWindowMouseMove);
+    window.addEventListener("mouseup", onWindowMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onWindowMouseMove);
+      window.removeEventListener("mouseup", onWindowMouseUp);
+    };
+  }, [dragging, activePage, activePageIndex]);
+
+  // Broadcast layout state when alignment changes (deduplicated key prevents broadcast floods)
+  const lastBroadcastRef = useRef("");
   useEffect(() => {
     if (!activePage) return;
+    const key = `${job.jobId}:${activePage.croppedUrl}:${activePage.scale}:${activePage.rotation}:${activePage.opacity}:${activePage.centerOffset.x}:${activePage.centerOffset.y}:${activePage.locked}`;
+    if (lastBroadcastRef.current === key) return;
+    lastBroadcastRef.current = key;
+
     window.dispatchEvent(
       new CustomEvent("nsc:ziply-align-preview", {
         detail: {
@@ -189,13 +206,11 @@ export default function ZiplyAlignmentStudio({ job, onClose }: Props) {
         position: "fixed",
         inset: 0,
         zIndex: 2000,
-        background: "rgba(10, 15, 26, 0.75)",
-        backdropFilter: "blur(12px)",
+        background: "rgba(10, 15, 26, 0.94)",
         display: "flex",
         flexDirection: "column",
         color: "#f1f5f9",
       }}
-      onMouseUp={handleMouseUp}
     >
       {/* Top Header */}
       <header
@@ -242,7 +257,6 @@ export default function ZiplyAlignmentStudio({ job, onClose }: Props) {
             userSelect: "none",
           }}
           onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
         >
           {loading ? (
             <div style={{ textAlign: "center" }}>

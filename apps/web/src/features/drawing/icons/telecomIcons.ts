@@ -43,38 +43,32 @@ function hhSvg(color: string): string {
   );
 }
 
-// PED — square outline with X inside (cross rotated 45°)
+// PED — square outline with X inside
 function pedSvg(color: string): string {
   return wrap(
     `<rect x="6" y="6" width="20" height="20" rx="2"/>
-    <g transform="rotate(45 16 16)">
-      <line x1="16" y1="8" x2="16" y2="24"/>
-      <line x1="8" y1="16" x2="24" y2="16"/>
-    </g>`,
+    <line x1="10.3" y1="10.3" x2="21.7" y2="21.7"/>
+    <line x1="10.3" y1="21.7" x2="21.7" y2="10.3"/>`,
     color
   );
 }
 
-// POLE — circle outline with X inside (cross rotated 45°)
+// POLE — circle outline with X inside
 function poleSvg(color: string): string {
   return wrap(
     `<circle cx="16" cy="16" r="12"/>
-    <g transform="rotate(45 16 16)">
-      <line x1="16" y1="4" x2="16" y2="28"/>
-      <line x1="4" y1="16" x2="28" y2="16"/>
-    </g>`,
+    <line x1="7.5" y1="7.5" x2="24.5" y2="24.5"/>
+    <line x1="7.5" y1="24.5" x2="24.5" y2="7.5"/>`,
     color
   );
 }
 
-// CABINET — rectangle outline with X inside (cross rotated 45°)
+// CABINET — rectangle outline with X inside
 function cabinetSvg(color: string): string {
   return wrap(
     `<rect x="3" y="8" width="26" height="16" rx="2"/>
-    <g transform="rotate(45 16 16)">
-      <line x1="16" y1="10" x2="16" y2="22"/>
-      <line x1="5" y1="16" x2="27" y2="16"/>
-    </g>`,
+    <line x1="8.3" y1="11.3" x2="23.7" y2="20.7"/>
+    <line x1="8.3" y1="20.7" x2="23.7" y2="11.3"/>`,
     color
   );
 }

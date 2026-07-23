@@ -158,7 +158,7 @@ function defaultStyleForTool(tool: DrawingTool): DrawingStyle {
   }
   if (tool === "ziply_pole") {
     return {
-      strokeColor: "#B45309",
+      strokeColor: "#000000",
       strokeWidth: 2,
       strokeStyle: "solid",
       fill: { kind: "none" },

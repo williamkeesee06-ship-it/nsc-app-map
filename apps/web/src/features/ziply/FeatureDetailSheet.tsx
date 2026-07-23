@@ -39,7 +39,7 @@ const LAYER_ACCENT: Record<string, string> = {
   bore: "#64748B",
   terminal: "#A855F7",
   service_point: "#0EA5E9",
-  pole: "#94A3B8",
+  pole: "#000000",
   handhole: "#334155",
 };
 

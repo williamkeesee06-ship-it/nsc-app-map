@@ -18,7 +18,7 @@ const LAYER_META = {
   bore: { label: "Bore / trench", color: "#10B981" },
   terminal: { label: "Splice terminals", color: "#A855F7" },
   service_point: { label: "Service addresses", color: "#3B82F6" },
-  pole: { label: "Poles", color: "#B45309" },
+  pole: { label: "Poles", color: "#000000" },
   handhole: { label: "Handholes", color: "#64748B" },
 };
 
