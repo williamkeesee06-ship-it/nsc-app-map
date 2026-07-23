@@ -833,159 +833,427 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
           )}
         </div>
 
-        {/* ── ZIPLY CONSTRUCTION DATA ──────────────────────────────────────── */}
-        {obj.tool.startsWith("ziply_") && (
-          <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 12, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* ── ZIPLY INDUSTRIAL LIVE PLANT CARD ──────────────────────────────────────── */}
+        {(obj.tool.startsWith("ziply_") || obj.tool === "placed_cable" || obj.tool === "removed_cable") && (
+          <div
+            style={{
+              borderTop: "1.5px solid rgba(0, 119, 255, 0.35)",
+              paddingTop: 12,
+              marginTop: 4,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              background: "linear-gradient(180deg, rgba(0, 82, 204, 0.08) 0%, rgba(13, 21, 32, 0.4) 100%)",
+              borderRadius: 8,
+              padding: 10,
+              border: "1px solid rgba(0, 119, 255, 0.25)",
+              boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 4px 12px rgba(0,0,0,0.3)",
+            }}
+          >
+            {/* Header & AI Badge */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: "#3aa7ff", letterSpacing: "0.08em", textTransform: "uppercase" }}>Ziply Construction Data</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span
+                  style={{
+                    background: "linear-gradient(135deg, #0052cc 0%, #0077ff 100%)",
+                    color: "#fff",
+                    fontSize: 9,
+                    fontWeight: 900,
+                    padding: "3px 7px",
+                    borderRadius: 4,
+                    letterSpacing: "0.08em",
+                    boxShadow: "0 0 10px rgba(0,119,255,0.5)",
+                    fontFamily: "var(--font-mono, monospace)",
+                  }}
+                >
+                  LIVE PLANT CARD
+                </span>
+                {obj.style.ziplyAiSuggested && (
+                  <span
+                    style={{
+                      background: "rgba(168, 85, 247, 0.2)",
+                      border: "1px solid rgba(168, 85, 247, 0.5)",
+                      color: "#c084fc",
+                      fontSize: 8,
+                      fontWeight: 800,
+                      padding: "2px 6px",
+                      borderRadius: 3,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    ✨ AI Suggested
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={handleAutoFill}
                 style={{
-                  background: "rgba(58, 167, 255, 0.15)",
-                  border: "1px solid rgba(58, 167, 255, 0.4)",
+                  background: "rgba(0, 119, 255, 0.15)",
+                  border: "1px solid rgba(0, 119, 255, 0.4)",
                   borderRadius: 4,
-                  color: "#3aa7ff",
+                  color: "#38bdf8",
                   fontSize: 9,
                   fontWeight: 700,
                   padding: "4px 8px",
                   cursor: "pointer",
-                  boxShadow: "0 0 8px rgba(58, 167, 255, 0.2)"
+                  boxShadow: "0 0 8px rgba(0, 119, 255, 0.2)",
+                  transition: "all 0.2s ease",
                 }}
               >
-                ✨ Auto-Fill from Print
+                ⚡ Match AI Print
               </button>
             </div>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Print Page Reference</label>
-              <input
-                type="text"
-                value={obj.style.ziplyPrintPage ?? ""}
-                onChange={(e) => patchStyle({ ziplyPrintPage: e.target.value })}
-                placeholder="e.g. Page 12, Sheet 4"
-                style={{
-                  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
-                  borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
-                }}
-              />
-            </div>
 
-            {(obj.tool === "ziply_terminal" || obj.tool.includes("terminal")) && (
-              <div style={{ display: "flex", gap: 8 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-                  <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Ports</label>
-                  <input
-                    type="number"
-                    value={obj.style.ziplyPortCount ?? ""}
-                    onChange={(e) => patchStyle({ ziplyPortCount: Number(e.target.value) })}
-                    placeholder="e.g. 4, 8"
+            {/* ── STATUS TOGGLE & FLOW ANIMATION BUTTON ── */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {/* Instant Status Switch */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                  Status (Auto-Glow)
+                </label>
+                <div style={{ display: "flex", background: "rgba(0,0,0,0.5)", borderRadius: 5, padding: 2, border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <button
+                    type="button"
+                    onClick={() => patchStyle({ ziplyStatus: "planned" })}
                     style={{
-                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
-                      borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
-                    }}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 2 }}>
-                  <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Addresses Served</label>
-                  <input
-                    type="text"
-                    value={obj.style.ziplyAddressesServed ?? ""}
-                    onChange={(e) => patchStyle({ ziplyAddressesServed: e.target.value })}
-                    placeholder="e.g. 12918, 12917"
-                    style={{
-                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
-                      borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {isCableOrLine && (
-              <>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Cable Type / Fiber Count</label>
-                  <input
-                    type="text"
-                    value={obj.style.ziplyCableType ?? ""}
-                    onChange={(e) => patchStyle({ ziplyCableType: e.target.value })}
-                    placeholder="e.g. 144F, 288F, Drop"
-                    style={{
-                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
-                      borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
-                    }}
-                  />
-                </div>
-                
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Installation Method</label>
-                  <select
-                    value={obj.style.ziplyInstallMethod ?? ""}
-                    onChange={(e) => patchStyle({ ziplyInstallMethod: e.target.value })}
-                    style={{
-                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
-                      borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
+                      flex: 1,
+                      padding: "4px 0",
+                      fontSize: 9,
+                      fontWeight: 800,
+                      borderRadius: 3,
+                      border: "none",
+                      cursor: "pointer",
+                      background: (obj.style.ziplyStatus ?? "planned") === "planned" ? "#334155" : "transparent",
+                      color: (obj.style.ziplyStatus ?? "planned") === "planned" ? "#cbd5e1" : "#64748b",
+                      transition: "all 0.2s ease",
                     }}
                   >
-                    <option value="">Default (From Tool)</option>
-                    <option value="Bore">Bore</option>
-                    <option value="Trench">Trench</option>
-                    <option value="Aerial">Aerial</option>
-                    <option value="Plow">Plow</option>
-                  </select>
+                    PLANNED
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => patchStyle({ ziplyStatus: "placed", ziplyTimestamp: Date.now() })}
+                    style={{
+                      flex: 1,
+                      padding: "4px 0",
+                      fontSize: 9,
+                      fontWeight: 900,
+                      borderRadius: 3,
+                      border: "none",
+                      cursor: "pointer",
+                      background: obj.style.ziplyStatus === "placed" || obj.style.ziplyStatus === "Complete" ? "linear-gradient(135deg, #059669 0%, #10b981 100%)" : "transparent",
+                      color: obj.style.ziplyStatus === "placed" || obj.style.ziplyStatus === "Complete" ? "#fff" : "#64748b",
+                      boxShadow: obj.style.ziplyStatus === "placed" || obj.style.ziplyStatus === "Complete" ? "0 0 12px rgba(16,185,129,0.6)" : "none",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    ⚡ PLACED
+                  </button>
+                </div>
+              </div>
+
+              {/* Independent Flow Pulse Button (for cables & terminals) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
+                <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                  Flow Beam
+                </label>
+                <button
+                  type="button"
+                  onClick={() => patchStyle({ animateFlow: !obj.style.animateFlow })}
+                  style={{
+                    padding: "5px 10px",
+                    fontSize: 9,
+                    fontWeight: 800,
+                    borderRadius: 4,
+                    border: obj.style.animateFlow ? "1px solid #38bdf8" : "1px solid rgba(255,255,255,0.12)",
+                    background: obj.style.animateFlow ? "rgba(56, 189, 248, 0.2)" : "rgba(0,0,0,0.4)",
+                    color: obj.style.animateFlow ? "#38bdf8" : "#64748b",
+                    boxShadow: obj.style.animateFlow ? "0 0 10px rgba(56,189,248,0.4)" : "none",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  title="Toggle slow light-beam animation down the cable path"
+                >
+                  {obj.style.animateFlow ? "🌊 BEAMS ON" : "OFF"}
+                </button>
+              </div>
+            </div>
+
+            {/* ── TERMINAL SPECIFIC CARD LAYOUT ── */}
+            {(obj.tool === "ziply_terminal" || obj.tool.includes("terminal")) && (
+              <>
+                {/* Port Count Selection Pills */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Port Count
+                  </label>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {[6, 8, 12, 16].map((ports) => {
+                      const active = obj.style.ziplyPortCount === ports;
+                      return (
+                        <button
+                          key={ports}
+                          type="button"
+                          onClick={() => patchStyle({ ziplyPortCount: ports })}
+                          style={{
+                            flex: 1,
+                            padding: "4px 0",
+                            fontSize: 10,
+                            fontWeight: 800,
+                            borderRadius: 4,
+                            border: active ? "1px solid #0077ff" : "1px solid rgba(255,255,255,0.12)",
+                            background: active ? "rgba(0, 119, 255, 0.25)" : "rgba(0,0,0,0.4)",
+                            color: active ? "#60a5fa" : "#94a3b8",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          {ports}P
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Tail Length & Lashed Footage */}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                    <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                      MST Tail (ft)
+                    </label>
+                    <input
+                      type="number"
+                      value={obj.style.ziplyTailLengthFt ?? ""}
+                      onChange={(e) => patchStyle({ ziplyTailLengthFt: Number(e.target.value) || undefined })}
+                      placeholder="e.g. 1000"
+                      style={{
+                        background: "rgba(0,0,0,0.4)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 4,
+                        color: "#f8fafc",
+                        fontSize: 11,
+                        padding: "5px 8px",
+                        outline: "none",
+                        fontFamily: "var(--font-mono, monospace)",
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                    <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                      Lashed / Conduit (ft)
+                    </label>
+                    <input
+                      type="number"
+                      value={obj.style.ziplyLashedOrConduitFt ?? ""}
+                      onChange={(e) => patchStyle({ ziplyLashedOrConduitFt: Number(e.target.value) || undefined })}
+                      placeholder="e.g. 578"
+                      style={{
+                        background: "rgba(0,0,0,0.4)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 4,
+                        color: "#f8fafc",
+                        fontSize: 11,
+                        padding: "5px 8px",
+                        outline: "none",
+                        fontFamily: "var(--font-mono, monospace)",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Served House Addresses Pills ([✓ 14201] [✓ 14205] [+ Add]) */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Served House Addresses
+                  </label>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+                    {(obj.style.ziplyServedAddressesList ?? (obj.style.ziplyAddressesServed ? obj.style.ziplyAddressesServed.split(",").map(s => s.trim()).filter(Boolean) : [])).map((addr, idx) => (
+                      <span
+                        key={idx}
+                        onClick={() => {
+                          const current = (obj.style.ziplyServedAddressesList ?? (obj.style.ziplyAddressesServed ? obj.style.ziplyAddressesServed.split(",").map(s => s.trim()).filter(Boolean) : []));
+                          const updated = current.filter((_, i) => i !== idx);
+                          patchStyle({ ziplyServedAddressesList: updated, ziplyAddressesServed: updated.join(", ") });
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          background: "rgba(16, 185, 129, 0.15)",
+                          border: "1px solid rgba(16, 185, 129, 0.4)",
+                          color: "#34d399",
+                          fontSize: 9,
+                          fontWeight: 800,
+                          padding: "3px 7px",
+                          borderRadius: 999,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                        title="Click to uncheck/remove address"
+                      >
+                        ✓ {addr} <span style={{ opacity: 0.6, fontSize: 8 }}>✕</span>
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = window.prompt("Enter house address number:");
+                        if (val && val.trim()) {
+                          const current = (obj.style.ziplyServedAddressesList ?? (obj.style.ziplyAddressesServed ? obj.style.ziplyAddressesServed.split(",").map(s => s.trim()).filter(Boolean) : []));
+                          const updated = [...current, val.trim()];
+                          patchStyle({ ziplyServedAddressesList: updated, ziplyAddressesServed: updated.join(", ") });
+                        }
+                      }}
+                      style={{
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px dashed rgba(255,255,255,0.2)",
+                        color: "#94a3b8",
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        cursor: "pointer",
+                      }}
+                    >
+                      + Add Address
+                    </button>
+                  </div>
                 </div>
               </>
             )}
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-                <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Construction Status</label>
-                <select
-                  value={obj.style.ziplyStatus ?? "Planned"}
-                  onChange={(e) => {
-                    const newStatus = e.target.value;
-                    patchStyle({ ziplyStatus: newStatus, ziplyTimestamp: newStatus === "Complete" ? Date.now() : undefined });
-                  }}
-                  style={{
-                    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
-                    borderRadius: 5, color: obj.style.ziplyStatus === "Complete" ? "#00ffff" : "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
-                  }}
-                >
-                  <option value="Planned">Planned</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Complete">Complete (Glow)</option>
-                </select>
-              </div>
-              {isCableOrLine && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-                  <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Footage</label>
-                  <input
-                    type="number"
-                    value={obj.style.ziplyFootage ?? ""}
-                    onChange={(e) => patchStyle({ ziplyFootage: Number(e.target.value) })}
-                    placeholder="ft"
-                    style={{
-                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
-                      borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
-                    }}
-                  />
+            {/* ── CABLE SPECIFIC CARD LAYOUT ── */}
+            {isCableOrLine && (
+              <>
+                {/* Fiber Count (Required) & Footage */}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                    <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                      Fiber Count *
+                    </label>
+                    <input
+                      type="number"
+                      value={obj.style.ziplyFiberCount ?? (parseInt(obj.style.ziplyCableType || "0", 10) || "")}
+                      onChange={(e) => {
+                        const count = Number(e.target.value);
+                        patchStyle({ ziplyFiberCount: count || undefined, ziplyCableType: count ? `${count}F` : undefined });
+                      }}
+                      placeholder="e.g. 144"
+                      style={{
+                        background: "rgba(0,0,0,0.4)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 4,
+                        color: "#f8fafc",
+                        fontSize: 11,
+                        padding: "5px 8px",
+                        outline: "none",
+                        fontFamily: "var(--font-mono, monospace)",
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                    <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                      Footage (ft)
+                    </label>
+                    <input
+                      type="number"
+                      value={obj.style.ziplyFootage ?? ""}
+                      onChange={(e) => patchStyle({ ziplyFootage: Number(e.target.value) || undefined })}
+                      placeholder="e.g. 275"
+                      style={{
+                        background: "rgba(0,0,0,0.4)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 4,
+                        color: "#f8fafc",
+                        fontSize: 11,
+                        padding: "5px 8px",
+                        outline: "none",
+                        fontFamily: "var(--font-mono, monospace)",
+                      }}
+                    />
+                  </div>
                 </div>
-              )}
-            </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", color: "#6a7580", textTransform: "uppercase" }}>Crew ID / Name</label>
-              <input
-                type="text"
-                value={obj.style.ziplyCrewId ?? ""}
-                onChange={(e) => patchStyle({ ziplyCrewId: e.target.value })}
-                placeholder="e.g. Splicing Crew B"
-                style={{
-                  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,208,218,0.18)",
-                  borderRadius: 5, color: "#f4f8ff", fontSize: 11, padding: "4px 8px", outline: "none"
-                }}
-              />
+                {/* Installation Method */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Install Method
+                  </label>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {(["bore", "trench", "aerial", "overlash"] as const).map((method) => {
+                      const active = (obj.style.ziplyInstallMethod || "").toLowerCase() === method;
+                      return (
+                        <button
+                          key={method}
+                          type="button"
+                          onClick={() => patchStyle({ ziplyInstallMethod: method })}
+                          style={{
+                            flex: 1,
+                            padding: "4px 0",
+                            fontSize: 9,
+                            fontWeight: 800,
+                            borderRadius: 4,
+                            border: active ? "1px solid #38bdf8" : "1px solid rgba(255,255,255,0.12)",
+                            background: active ? "rgba(56, 189, 248, 0.2)" : "rgba(0,0,0,0.4)",
+                            color: active ? "#38bdf8" : "#94a3b8",
+                            cursor: "pointer",
+                            textTransform: "capitalize",
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          {method}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Crew & Page Ref */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                  Print Sheet
+                </label>
+                <input
+                  type="text"
+                  value={obj.style.ziplyPrintPage ?? ""}
+                  onChange={(e) => patchStyle({ ziplyPrintPage: e.target.value })}
+                  placeholder="e.g. Sheet 4"
+                  style={{
+                    background: "rgba(0,0,0,0.4)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 4,
+                    color: "#f8fafc",
+                    fontSize: 10,
+                    padding: "4px 6px",
+                    outline: "none",
+                  }}
+                />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                  Crew ID
+                </label>
+                <input
+                  type="text"
+                  value={obj.style.ziplyCrewId ?? ""}
+                  onChange={(e) => patchStyle({ ziplyCrewId: e.target.value })}
+                  placeholder="e.g. Crew A"
+                  style={{
+                    background: "rgba(0,0,0,0.4)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 4,
+                    color: "#f8fafc",
+                    fontSize: 10,
+                    padding: "4px 6px",
+                    outline: "none",
+                  }}
+                />
+              </div>
             </div>
           </div>
         )}

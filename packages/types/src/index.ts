@@ -174,6 +174,11 @@ export interface DrawingStyle {
   ziplyPrintPage?: string;
   ziplyCableType?: string;
   ziplyInstallMethod?: string;
+  ziplyTailLengthFt?: number;
+  ziplyLashedOrConduitFt?: number;
+  ziplyServedAddressesList?: string[];
+  ziplyFiberCount?: number;
+  ziplyAiSuggested?: boolean;
 }
 
 // Phase 9+: per-job MyMaps-style layers (elevated for personal desktop use).
@@ -308,6 +313,27 @@ export interface ZiplySectionScope {
   terminalRange?: string | null;
 }
 
+export interface ZiplyPrintSheetOverlay {
+  id: string;
+  sheetIndex: number;
+  sheetName: string;
+  pdfUrl: string;
+  cropBox?: { x: number; y: number; width: number; height: number };
+  transform?: {
+    center: LatLng;
+    scale: number;
+    rotationDeg: number;
+    bounds?: { sw: LatLng; ne: LatLng };
+  };
+  geoAnchors?: {
+    pt1: { pdf: { x: number; y: number }; map: LatLng };
+    pt2: { pdf: { x: number; y: number }; map: LatLng };
+  };
+  opacity: number;
+  locked: boolean;
+  visible: boolean;
+}
+
 // One document per job at jobs/{jobId}. Identity is the Smartsheet "Work Order".
 export interface Job {
   jobId: string; // sanitized version of Work Order (used as Firestore doc id)
@@ -412,6 +438,7 @@ export interface Job {
       pa?: "Pending" | "Approved" | "Active" | "Closed" | null;
       tcp?: "Pending" | "Approved" | "Active" | "Closed" | null;
     } | null;
+    sheets?: ZiplyPrintSheetOverlay[] | null;
     /**
      * Legacy: base64 data URLs or download URLs keyed by permit type.
      * Prefer `permitFiles` (Storage + AI parse) for new uploads.

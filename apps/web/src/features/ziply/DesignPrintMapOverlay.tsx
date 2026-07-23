@@ -198,6 +198,8 @@ function guessLayerByNameAndDesc(name: string, desc: string, fallback: string): 
   return fallback;
 }
 
+const iconCache = new Map<string, google.maps.Icon>();
+
 /** Stainless / carbon marker with soft blue halo (light theme) */
 function makeMarkerIcon(
   kind: "hub" | "terminal" | "service" | "pole" | "handhole" | "pedestal" | "manhole",
@@ -205,6 +207,9 @@ function makeMarkerIcon(
   soft: string,
   size: number
 ): google.maps.Icon {
+  const cacheKey = `${kind}_${color}_${soft}_${size}`;
+  const cached = iconCache.get(cacheKey);
+  if (cached) return cached;
   const s = 64;
   let body = "";
   if (kind === "hub") {
@@ -318,11 +323,13 @@ function makeMarkerIcon(
 </svg>`;
 
   const url = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-  return {
+  const icon: google.maps.Icon = {
     url,
     scaledSize: new google.maps.Size(size, size),
     anchor: new google.maps.Point(size / 2, size / 2),
   };
+  iconCache.set(cacheKey, icon);
+  return icon;
 }
 
 interface Props {
@@ -347,11 +354,9 @@ export default function DesignPrintMapOverlay({
   const glowRef = useRef<google.maps.Data | null>(null);
   const dataRef = useRef<google.maps.Data | null>(null);
   const pulseRef = useRef<google.maps.Marker | null>(null);
-  const dashTimer = useRef<number | null>(null);
   const [fc, setFc] = useState<FeatureCollection | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [zoom, setZoom] = useState(15);
-  const [pulse, setPulse] = useState(0);
 
   const printJobs = useMemo(() => {
     return jobs.filter((j) => {
@@ -470,11 +475,7 @@ export default function DesignPrintMapOverlay({
     }
   };
 
-  useEffect(() => {
-    if (!active) return;
-    const id = window.setInterval(() => setPulse((p) => (p + 1) % 100), 90);
-    return () => clearInterval(id);
-  }, [active]);
+
 
   useEffect(() => {
     if (!active || !jobs || jobs.length === 0) return;
@@ -697,10 +698,6 @@ export default function DesignPrintMapOverlay({
       glowRef.current = null;
       dataRef.current = null;
       pulseRef.current = null;
-      if (dashTimer.current) {
-        window.clearInterval(dashTimer.current);
-        dashTimer.current = null;
-      }
       return;
     }
 
@@ -804,39 +801,6 @@ export default function DesignPrintMapOverlay({
     glow.setStyle((f) => styleFn(f, "glow"));
     data.setStyle((f) => styleFn(f, "core"));
 
-    let offset = 0;
-    dashTimer.current = window.setInterval(() => {
-      offset = (offset + 2) % 52;
-      data.setStyle((f) => {
-        const st = styleFn(f, "core") as google.maps.Data.StyleOptions;
-        const layer = String(f.getProperty("layer") || "");
-        if (layer === "feeder" && st.icons?.[0]) {
-          st.icons = [{ ...st.icons[0], offset: `${offset}px` }];
-        }
-        return st;
-      });
-    }, 95);
-
-    const hubFeat = fc.features.find((f) => f.properties?.layer === "hub");
-    if (hubFeat?.geometry?.type === "Point") {
-      const [lng, lat] = hubFeat.geometry.coordinates as [number, number];
-      pulseRef.current = new google.maps.Marker({
-        map,
-        position: { lat, lng },
-        clickable: false,
-        zIndex: 50,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 18,
-          fillColor: "#1D4ED8",
-          fillOpacity: 0.1,
-          strokeColor: "#3B82F6",
-          strokeOpacity: 0.55,
-          strokeWeight: 2,
-        },
-      });
-    }
-
     const clickL = data.addListener("click", (e: google.maps.Data.MouseEvent) => {
       const f = e.feature;
       if (!f) return;
@@ -873,10 +837,6 @@ export default function DesignPrintMapOverlay({
       google.maps.event.removeListener(clickL);
       google.maps.event.removeListener(mouseover);
       google.maps.event.removeListener(mouseout);
-      if (dashTimer.current) {
-        window.clearInterval(dashTimer.current);
-        dashTimer.current = null;
-      }
       glow.setMap(null);
       data.setMap(null);
       pulseRef.current?.setMap(null);
@@ -886,26 +846,25 @@ export default function DesignPrintMapOverlay({
     };
   }, [map, active, fc, layers, zoom]);
 
-  useEffect(() => {
-    const m = pulseRef.current;
-    if (!m) return;
-    const t = pulse / 100;
-    const scale = 15 + Math.sin(t * Math.PI * 2) * 5;
-    const opacity = 0.3 + Math.sin(t * Math.PI * 2) * 0.2;
-    m.setIcon({
-      path: google.maps.SymbolPath.CIRCLE,
-      scale,
-      fillColor: "#1D4ED8",
-      fillOpacity: Math.max(0.06, opacity * 0.28),
-      strokeColor: "#60A5FA",
-      strokeOpacity: Math.max(0.3, opacity),
-      strokeWeight: 2.2,
-    });
-  }, [pulse]);
-
-  // ZiplyPrintHtmlOverlay has been removed per user request.
-  // The dark box (blueprint overlay) is no longer rendered automatically.
-  return null;
+  return (
+    <>
+      {printJobs.map((j) => {
+        const filesList = listZiplyPrintFiles(j);
+        const activeFile = filesList[0];
+        const bounds = getZiplyPrintBounds(j);
+        if (!activeFile?.downloadUrl || !bounds) return null;
+        return (
+          <ZiplyPrintHtmlOverlay
+            key={j.jobId}
+            url={activeFile.downloadUrl}
+            bounds={bounds}
+            opacity={0.55}
+            visible={active}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 const DARK_NEON_STYLES: google.maps.MapTypeStyle[] = [

@@ -182,7 +182,14 @@ export function bucketColorKey(b: StatusBucket): MarkerColorKey {
 // Build a neon "map pin" SVG — Phase 4: smaller (40×55 → 26×36 rendered).
 // Design retained: outline-only neon pin with inner rings.
 // Size: 40×55 viewBox, rendered at ~26px wide (roughly 60% of old 40px).
+const pinCache = new Map<string, string>();
+
 export function neonPinDataUrl(color: MarkerColor, opacity = 1): string {
+  const roundedOpacity = Math.round(opacity * 100) / 100;
+  const cacheKey = `${color.key}_${roundedOpacity}`;
+  const cached = pinCache.get(cacheKey);
+  if (cached) return cached;
+
   const { core, glow } = color;
   const id = color.key;
   const svg = `
@@ -196,7 +203,7 @@ export function neonPinDataUrl(color: MarkerColor, opacity = 1): string {
       </feMerge>
     </filter>
   </defs>
-  <g opacity="${opacity}" filter="url(#g-${id})">
+  <g opacity="${roundedOpacity}" filter="url(#g-${id})">
     <!-- Soft outer halo -->
     <path d="M20 4 C10 4,4 11,4 19 C4 28,15 38,20 46 C25 38,36 28,36 19 C36 11,30 4,20 4 Z"
           fill="none" stroke="${glow}" stroke-opacity="0.55" stroke-width="5" stroke-linejoin="round"/>
@@ -212,5 +219,7 @@ export function neonPinDataUrl(color: MarkerColor, opacity = 1): string {
              fill="none" stroke="${core}" stroke-opacity="0.7" stroke-width="1.2"/>
   </g>
 </svg>`.trim();
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  pinCache.set(cacheKey, url);
+  return url;
 }

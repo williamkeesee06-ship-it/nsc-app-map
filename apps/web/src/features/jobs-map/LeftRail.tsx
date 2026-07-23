@@ -20,6 +20,7 @@ import MapTypeFilterSection from "../map/MapTypeFilterSection.js";
 import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 import ZiplyFilterPanel from "./ZiplyFilterPanel.js";
+import { ZiplyPlantInventoryTab } from "../ziply/ZiplyPlantInventoryTab.js";
 import JobCard from "./JobCard.js";
 import { useActiveContract } from "../workspace/contractStore.js";
 import Eight11Section from "./Eight11Section.js";
@@ -33,6 +34,9 @@ const DEFAULT_WIDTH = 180;
 const MIN_WIDTH = 150;
 const MAX_WIDTH = 380;
 const LS_KEY = "nsc.leftRailWidth";
+
+// Only tabs that are actually mounted in the rail or as full-screen overlays.
+type TabId = "dashboard" | "jobs" | "filters" | "tools" | "calendar" | "811-tickets" | "plant";
 
 interface Props {
   jobs: Job[];
@@ -57,8 +61,7 @@ interface Props {
   setPanelTheme?: (t: "steel" | "cyberpunk" | "titanium" | "glass") => void;
 }
 
-// Only tabs that are actually mounted in the rail or as full-screen overlays.
-type TabId = "dashboard" | "jobs" | "filters" | "tools" | "calendar" | "811-tickets";
+
 
 export default function LeftRail({
   jobs,
@@ -220,13 +223,14 @@ export default function LeftRail({
   }, []);
 
   // Always 2 columns — tiles shrink to fit
-
-  const tabs: { id: TabId; label: string; iconSvg?: string }[] = contract === "Ziply"
+  const tabs: Array<{ id: TabId; label: string; iconSvg?: string }> = contract === 'Ziply'
     ? [
         { id: 'dashboard', label: 'DASHBOARD' },
         { id: 'jobs', label: 'JOBS' },
+        { id: 'plant', label: 'PLANT' },
         { id: 'filters', label: 'MAP' },
         { id: 'tools', label: 'TOOLS' },
+        { id: 'calendar', label: 'CALENDAR' },
         { id: '811-tickets', label: '811 TICKETS' },
       ]
     : [
@@ -364,6 +368,7 @@ export default function LeftRail({
             ) : (
               /* Tab Content */
               <div className="left-rail-tab-content">
+                 {activeTab === 'plant' && <ZiplyPlantInventoryTab />}
                  {activeTab === 'filters' && (
                    contract === 'Ziply' ? (
                      <ZiplyFilterPanel

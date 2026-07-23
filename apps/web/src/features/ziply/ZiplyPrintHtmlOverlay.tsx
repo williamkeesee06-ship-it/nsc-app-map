@@ -32,12 +32,15 @@ export default function ZiplyPrintHtmlOverlay({
 
     const div = document.createElement("div");
     div.style.position = "absolute";
+    div.style.top = "0px";
+    div.style.left = "0px";
     div.style.border = "none";
     div.style.opacity = String(opacity);
     div.style.pointerEvents = "none"; // allow user to click through to map vectors
     div.style.transition = "opacity 0.2s ease";
     div.style.mixBlendMode = "multiply";
     div.style.backgroundColor = "transparent";
+    div.style.willChange = "transform";
     divRef.current = div;
 
     // Render the print iframe or image
@@ -83,10 +86,13 @@ export default function ZiplyPrintHtmlOverlay({
       );
 
       if (sw && ne) {
-        div.style.left = Math.min(sw.x, ne.x) + "px";
-        div.style.top = Math.min(sw.y, ne.y) + "px";
-        div.style.width = Math.abs(ne.x - sw.x) + "px";
-        div.style.height = Math.abs(sw.y - ne.y) + "px";
+        const left = Math.min(sw.x, ne.x);
+        const top = Math.min(sw.y, ne.y);
+        const width = Math.abs(ne.x - sw.x);
+        const height = Math.abs(sw.y - ne.y);
+        div.style.transform = `translate3d(${left}px, ${top}px, 0px)`;
+        div.style.width = `${width}px`;
+        div.style.height = `${height}px`;
       }
     };
 
