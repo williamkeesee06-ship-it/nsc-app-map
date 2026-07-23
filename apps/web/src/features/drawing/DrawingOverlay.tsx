@@ -361,10 +361,8 @@ const BASE_SIZE = 24; // 24px at reference zoom 17 (down from 32 — less bloat)
 // Smoother scaling with a tight 40px cap so pole icons don't dominate the map
 // at high zoom. Min raised to 8px so they're still tappable at low zoom.
 function computeSymbolPx(zoom: number, pointSize: number): number {
-  // Half-octave scaling (×1.41 per zoom step) instead of doubling, so the
-  // jump from zoom 17→18 is +40% rather than +100%. Feels proportional.
   const raw = BASE_SIZE * Math.pow(1.41, zoom - ZOOM_REF) * pointSize;
-  return Math.round(Math.max(8, Math.min(40, raw)));
+  return Math.round(Math.max(22, Math.min(48, raw)));
 }
 
 

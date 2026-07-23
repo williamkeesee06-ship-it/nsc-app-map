@@ -14,8 +14,8 @@ function svgUri(svg: string): string {
 }
 
 function wrap(inner: string, color: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="100%" height="100%">
-  <g stroke="${color}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <g stroke="${color}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
     ${inner}
   </g>
 </svg>`;
@@ -53,12 +53,12 @@ function pedSvg(color: string): string {
   );
 }
 
-// POLE — circle outline with cross inside (+)
-function poleSvg(color: string): string {
+// POLE — circle outline with bold cross inside (+), white backing fill for max visibility
+function poleSvg(color: string = "#000000"): string {
   return wrap(
-    `<circle cx="16" cy="16" r="12"/>
-    <line x1="16" y1="4" x2="16" y2="28"/>
-    <line x1="4" y1="16" x2="28" y2="16"/>`,
+    `<circle cx="16" cy="16" r="11" fill="#ffffff" fill-opacity="0.75"/>
+    <line x1="16" y1="5" x2="16" y2="27"/>
+    <line x1="5" y1="16" x2="27" y2="16"/>`,
     color
   );
 }
@@ -199,9 +199,10 @@ export function iconForTool(
   overrideColor?: string,
   pointSize = 1.0
 ): { url: string; size: google.maps.Size; anchor: google.maps.Point } {
-  const color = overrideColor ?? DEFAULT_ICON_COLOR;
-  const px = Math.round(ICON_SIZE * pointSize);
   const t = (tool || "").toLowerCase();
+  const isPole = t.includes("pole");
+  const color = isPole ? "#000000" : (overrideColor ?? DEFAULT_ICON_COLOR);
+  const px = Math.max(24, Math.round(ICON_SIZE * pointSize));
 
   let svg: string;
   if (t === "ziply_hub" || t.includes("hub")) svg = ziplyHubSvg(color);
