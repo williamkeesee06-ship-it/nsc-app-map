@@ -18,10 +18,27 @@ service firebase.storage {
         && request.resource.contentType.matches('application/pdf|image/(jpeg|jpg|png|webp|gif|heic|heif)');
     }
 
+    // Print Overlay Studio writes an original source PDF and generated page
+    // preview PNGs under jobs/{jobId}/print-overlay/... The app uploads the
+    // source (100 MB cap, mirrored here) and re-uploadable page previews, so
+    // both create and update are permitted; deletes stay disabled (overlay
+    // edits are non-destructive metadata, never a Storage delete).
+    function isSupportedPrintOverlay() {
+      return request.resource != null
+        && request.resource.size < 100 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/png');
+    }
+
     match /ziply-prints/{jobId}/{fileName} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isSupportedZiplyPrint();
       allow update, delete: if false;
+    }
+
+    match /jobs/{jobId}/print-overlay/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isSupportedPrintOverlay();
+      allow delete: if false;
     }
 
     match /{allPaths=**} {
