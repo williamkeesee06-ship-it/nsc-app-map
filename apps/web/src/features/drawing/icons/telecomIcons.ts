@@ -57,8 +57,8 @@ function pedSvg(color: string): string {
 function poleSvg(color: string = "#000000"): string {
   return wrap(
     `<circle cx="16" cy="16" r="11" fill="#ffffff" fill-opacity="0.85"/>
-    <line x1="8.2" y1="8.2" x2="23.8" y2="23.8"/>
-    <line x1="8.2" y1="23.8" x2="23.8" y2="8.2"/>`,
+    <line x1="10" y1="10" x2="22" y2="22"/>
+    <line x1="10" y1="22" x2="22" y2="10"/>`,
     color
   );
 }
