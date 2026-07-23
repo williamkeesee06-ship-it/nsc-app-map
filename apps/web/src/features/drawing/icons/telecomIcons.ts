@@ -58,9 +58,7 @@ function poleSvg(color: string = "#000000"): string {
   return wrap(
     `<circle cx="16" cy="16" r="11" fill="#ffffff" fill-opacity="0.85"/>
     <line x1="8.2" y1="8.2" x2="23.8" y2="23.8"/>
-    <line x1="8.2" y1="23.8" x2="23.8" y2="8.2"/>
-    <line x1="16" y1="5" x2="16" y2="27"/>
-    <line x1="5" y1="16" x2="27" y2="16"/>`,
+    <line x1="8.2" y1="23.8" x2="23.8" y2="8.2"/>`,
     color
   );
 }
@@ -200,7 +198,7 @@ export function iconForTool(
   tool: string,
   overrideColor?: string,
   pointSize = 1.0
-): { url: string; size: google.maps.Size; anchor: google.maps.Point } {
+): { url: string; size: google.maps.Size; scaledSize?: google.maps.Size; anchor: google.maps.Point } {
   const t = (tool || "").toLowerCase();
   const isPole = t.includes("pole");
   const color = isPole ? "#000000" : (overrideColor ?? DEFAULT_ICON_COLOR);
@@ -226,6 +224,7 @@ export function iconForTool(
   return {
     url: svgUri(svg),
     size: new google.maps.Size(px, px),
+    scaledSize: new google.maps.Size(px, px),
     anchor: new google.maps.Point(px / 2, px / 2),
   };
 }
