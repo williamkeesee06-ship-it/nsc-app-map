@@ -846,25 +846,7 @@ export default function DesignPrintMapOverlay({
     };
   }, [map, active, fc, layers, zoom]);
 
-  return (
-    <>
-      {printJobs.map((j) => {
-        const filesList = listZiplyPrintFiles(j);
-        const activeFile = filesList[0];
-        const bounds = getZiplyPrintBounds(j);
-        if (!activeFile?.downloadUrl || !bounds) return null;
-        return (
-          <ZiplyPrintHtmlOverlay
-            key={j.jobId}
-            url={activeFile.downloadUrl}
-            bounds={bounds}
-            opacity={0.55}
-            visible={active}
-          />
-        );
-      })}
-    </>
-  );
+  return null;
 }
 
 const DARK_NEON_STYLES: google.maps.MapTypeStyle[] = [

@@ -47,10 +47,6 @@ import LuminaChatPanel from "../lumina/ChatPanel.js";
 import LuminaMapBridge from "../lumina/MapBridge.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 import InMap2PointAlignToolbar from "../ziply/InMap2PointAlignToolbar.js";
-import { ZiplyPrintTray } from "../ziply/ZiplyPrintTray.js";
-import { PrintCropperModal } from "../ziply/PrintCropperModal.js";
-import { ZiplyPrintStudioOverlay } from "../ziply/ZiplyPrintStudioOverlay.js";
-import type { ZiplyPrintSheetOverlay } from "@nsc/types";
 const DesignPrintMapOverlay = lazy(
   () => import("../ziply/DesignPrintMapOverlay.js")
 );
@@ -337,8 +333,6 @@ function JobsMapInner({
   const [selectedFeature, setSelectedFeature] = useState<PlatformFeature | null>(null);
   const [ziplyPrintLayerVisible, setZiplyPrintLayerVisible] = useState(true);
   const [ziply811OverlayVisible, setZiply811OverlayVisible] = useState(false);
-  const [croppingSheet, setCroppingSheet] = useState<{ name: string; downloadUrl: string; sheetIndex: number } | null>(null);
-  const [activeStudioSheet, setActiveStudioSheet] = useState<ZiplyPrintSheetOverlay | null>(null);
   const ziplyJobs = useMemo(
     () => allJobs.filter((j) => j.customerProject === "Ziply"),
     [allJobs]
@@ -658,54 +652,7 @@ function JobsMapInner({
                 />
               )}
 
-              {/* ── Ziply Interactive Print Studio & Tracing Overlay ── */}
-              {contract === "Ziply" && selected && activeStudioSheet && (
-                <ZiplyPrintStudioOverlay
-                  job={selected}
-                  activeSheet={activeStudioSheet}
-                  bounds={selected.geocode ? {
-                    sw: { lat: selected.geocode.lat - 0.002, lng: selected.geocode.lng - 0.003 },
-                    ne: { lat: selected.geocode.lat + 0.002, lng: selected.geocode.lng + 0.003 }
-                  } : null}
-                  onSaveTransform={(sheetId, updates) => {
-                    setActiveStudioSheet((prev: ZiplyPrintSheetOverlay | null) => prev ? { ...prev, ...updates } : null);
-                  }}
-                  onCloseStudio={() => setActiveStudioSheet(null)}
-                />
-              )}
             </Map>
-
-            {/* ── Ziply Print Bottom Thumbnail Tray ── */}
-            {contract === "Ziply" && selected && (
-              <ZiplyPrintTray
-                job={selected}
-                activeSheetId={activeStudioSheet?.sheetName}
-                onSelectSheet={(sheet) => setCroppingSheet(sheet)}
-              />
-            )}
-
-            {/* ── Title Block Auto-Cropper Modal ── */}
-            {croppingSheet && (
-              <PrintCropperModal
-                sheetName={croppingSheet.name}
-                url={croppingSheet.downloadUrl}
-                onCancel={() => setCroppingSheet(null)}
-                onConfirmCrop={(cropBox) => {
-                  const newSheet: ZiplyPrintSheetOverlay = {
-                    id: `sheet-${croppingSheet.sheetIndex}-${Date.now()}`,
-                    sheetIndex: croppingSheet.sheetIndex,
-                    sheetName: croppingSheet.name,
-                    pdfUrl: croppingSheet.downloadUrl,
-                    cropBox,
-                    opacity: 0.6,
-                    locked: false,
-                    visible: true,
-                  };
-                  setActiveStudioSheet(newSheet);
-                  setCroppingSheet(null);
-                }}
-              />
-            )}
           </div>
           <div
             ref={panoRef}
