@@ -1,18 +1,10 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { Job } from "@nsc/types";
-import { Map as MapIcon, Paperclip, Grid, Search } from "lucide-react";
+import { Map as MapIcon, Grid, Search } from "lucide-react";
 import "./ziplyJobsTab.css";
-import { api } from "../../lib/api.js";
 import {
-  formatBytes,
-  getCadFidelity,
-  getZiplyPrintDocStatus,
-  ingestZiplyPrintForJob,
   isNorthMetroJob,
-  listZiplyPrintFiles,
-  ziplyPrintStatusColor,
-  ziplyPrintStatusLabel,
-  type ZiplyPrintDocStatus,
+  ziplyStatusGroupForJob,
 } from "./ziplyUtils.js";
 
 interface Props {
@@ -22,7 +14,6 @@ interface Props {
   onClose?: () => void;
 }
 
-type PrintFilter = "all" | ZiplyPrintDocStatus;
 type RegionFilter = "all" | "north_metro";
 
 export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: Props) {
@@ -35,15 +26,7 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
     selected?.jobId || null
   );
   const [query, setQuery] = useState("");
-  const [printFilter, setPrintFilter] = useState<PrintFilter>("all");
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
-  const [uploadPct, setUploadPct] = useState(0);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [fleetBusy, setFleetBusy] = useState(false);
-  const [fleetMsg, setFleetMsg] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadTargetRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (selected) setSelectedJobId(selected.jobId);
@@ -54,9 +37,6 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
     return ziplyJobs
       .filter((j) => {
         if (regionFilter === "north_metro" && !isNorthMetroJob(j)) return false;
-        if (printFilter !== "all" && getZiplyPrintDocStatus(j) !== printFilter) {
-          return false;
-        }
         if (!q) return true;
         const hay = [
           j.workOrder,
@@ -73,52 +53,15 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
         return hay.includes(q);
       })
       .sort((a, b) => (a.workOrder || "").localeCompare(b.workOrder || ""));
-  }, [ziplyJobs, query, printFilter, regionFilter]);
+  }, [ziplyJobs, query, regionFilter]);
 
-  const counts = useMemo(() => {
-    const c = { ready: 0, processing: 0, failed: 0, none: 0, north: 0 };
-    for (const j of ziplyJobs) {
-      c[getZiplyPrintDocStatus(j)]++;
-      if (isNorthMetroJob(j)) c.north++;
-    }
-    return c;
-  }, [ziplyJobs]);
-
-  const startUpload = (jobId: string) => {
-    uploadTargetRef.current = jobId;
-    setUploadError(null);
-    fileInputRef.current?.click();
-  };
-
-  const onFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const jobId = uploadTargetRef.current;
-    e.target.value = "";
-    if (!file || !jobId) return;
-    setUploadingId(jobId);
-    setUploadPct(0);
-    setUploadError(null);
-    try {
-      await ingestZiplyPrintForJob(jobId, file, (p) => setUploadPct(Math.round(p)));
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploadingId(null);
-      setUploadPct(0);
-      uploadTargetRef.current = null;
-    }
-  };
+  const northCount = useMemo(
+    () => ziplyJobs.filter(isNorthMetroJob).length,
+    [ziplyJobs]
+  );
 
   return (
     <div className="ziply-jobs-tab-fullscreen">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="application/pdf,image/*"
-        style={{ display: "none" }}
-        onChange={(ev) => void onFileChosen(ev)}
-      />
-
       <div className="ss-header">
         <h2>
           <Grid size={20} color="#1e5eff" />
@@ -126,8 +69,7 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
         </h2>
         <div className="ss-header-meta">
           <span>
-            {filtered.length} shown · {ziplyJobs.length} total · {counts.ready}{" "}
-            prints on map · {counts.north} North Metro
+            {filtered.length} shown · {ziplyJobs.length} total · {northCount} North Metro
           </span>
           {onClose && (
             <button className="close-btn" onClick={onClose} title="Close tracker">
@@ -155,58 +97,6 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
           <option value="all">All regions</option>
           <option value="north_metro">North Metro only</option>
         </select>
-        <select
-          value={printFilter}
-          onChange={(e) => setPrintFilter(e.target.value as PrintFilter)}
-          title="Print document"
-        >
-          <option value="all">All print states</option>
-          <option value="ready">Print on map ({counts.ready})</option>
-          <option value="processing">Ingesting ({counts.processing})</option>
-          <option value="none">No print ({counts.none})</option>
-          <option value="failed">Failed ({counts.failed})</option>
-        </select>
-
-        <button
-          type="button"
-          disabled={fleetBusy}
-          title="Fleet CAD fidelity QA report"
-          onClick={() => {
-            setFleetBusy(true);
-            setFleetMsg(null);
-            void api
-              .ziplyFidelityReport()
-              .then((r) => {
-                const g = r.byGrade;
-                setFleetMsg(
-                  `Fidelity: ${r.totalPrintJobs} prints · A${g.A ?? 0} B${g.B ?? 0} C${g.C ?? 0} D${g.D ?? 0} F${g.F ?? 0}` +
-                    (r.avgResidualM != null
-                      ? ` · avg ±${Math.round(r.avgResidualM)}m`
-                      : "")
-                );
-              })
-              .catch((e) =>
-                setFleetMsg(e instanceof Error ? e.message : "Fidelity report failed")
-              )
-              .finally(() => setFleetBusy(false));
-          }}
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            padding: "6px 10px",
-            borderRadius: 6,
-            border: "1px solid rgba(30, 94, 255,0.45)",
-            background: "rgba(30, 94, 255,0.1)",
-            color: "#1d4ed8",
-            cursor: fleetBusy ? "wait" : "pointer",
-          }}
-        >
-          Fidelity report
-        </button>
-        {uploadError && <span className="ss-upload-error">{uploadError}</span>}
-        {fleetMsg && (
-          <span style={{ fontSize: 11, color: "#67e8f9", maxWidth: 420 }}>{fleetMsg}</span>
-        )}
       </div>
 
       <div className="ss-table-container">
@@ -219,28 +109,23 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
               <th style={{ width: 110 }}>City</th>
               <th style={{ width: 90 }}>Region</th>
               <th style={{ width: 120 }}>Job Status</th>
-              <th style={{ width: 130 }}>Print document</th>
-              <th style={{ width: 90 }}>CAD grade</th>
-              <th style={{ width: 160 }}>Uploaded files</th>
+              <th style={{ width: 120 }}>Progress</th>
               <th style={{ width: 100 }}>SAP SO</th>
-              <th style={{ width: 160 }}>Actions</th>
+              <th style={{ width: 100 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={11} style={{ textAlign: "center", padding: 24, color: "#64748b" }}>
+                <td colSpan={9} style={{ textAlign: "center", padding: 24, color: "#64748b" }}>
                   No Ziply jobs match these filters.
                 </td>
               </tr>
             ) : (
               filtered.map((job, index) => {
                 const isSelected = job.jobId === selectedJobId;
-                const pst = getZiplyPrintDocStatus(job);
-                const files = listZiplyPrintFiles(job);
                 const north = isNorthMetroJob(job);
-                const busy = uploadingId === job.jobId;
-                const cad = getCadFidelity(job);
+                const progress = ziplyStatusGroupForJob(job);
 
                 return (
                   <tr
@@ -263,51 +148,13 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
                     </td>
                     <td>{job.jobStatus || "—"}</td>
                     <td>
-                      <span
-                        className="ss-print-status"
-                        style={{ color: ziplyPrintStatusColor(pst) }}
-                      >
-                        ● {ziplyPrintStatusLabel(pst)}
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: progress === "complete" ? "#1d4ed8" : progress === "in_progress" ? "#06b6d4" : "#64748b",
+                      }}>
+                        {progress === "complete" ? "Complete" : progress === "in_progress" ? "In Progress" : "Not Started"}
                       </span>
-                      {busy && (
-                        <div className="ss-upload-progress">Uploading {uploadPct}%</div>
-                      )}
-                    </td>
-                    <td>
-                      {pst === "ready" ? (
-                        <span style={{ fontWeight: 800, color: cad.color, fontSize: 11 }}>
-                          {cad.label}
-                        </span>
-                      ) : (
-                        <span className="ss-muted">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {files.length === 0 ? (
-                        <span className="ss-muted">None</span>
-                      ) : (
-                        <div className="ss-file-list">
-                          {files.map((f, i) =>
-                            f.downloadUrl ? (
-                              <a
-                                key={i}
-                                href={f.downloadUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(ev) => ev.stopPropagation()}
-                                title={f.name}
-                              >
-                                {f.name}
-                                {f.size != null ? ` (${formatBytes(f.size)})` : ""}
-                              </a>
-                            ) : (
-                              <span key={i} title={f.name}>
-                                {f.name}
-                              </span>
-                            )
-                          )}
-                        </div>
-                      )}
                     </td>
                     <td>{job.sapSalesOrder || "—"}</td>
                     <td>
@@ -322,19 +169,6 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
                           }}
                         >
                           <MapIcon size={12} /> Map
-                        </button>
-                        <button
-                          type="button"
-                          className="ss-btn-attach"
-                          disabled={busy}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startUpload(job.jobId);
-                          }}
-                          title="Upload engineering print PDF/image for this job"
-                        >
-                          <Paperclip size={12} />
-                          {busy ? `${uploadPct}%` : "Print"}
                         </button>
                       </div>
                     </td>

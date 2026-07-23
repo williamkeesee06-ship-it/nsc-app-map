@@ -36,7 +36,7 @@ import CentralOfficesOverlay from "./CentralOfficesOverlay.js";
 import { setShowCOs, useShowCOs } from "./centralOfficesStore.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import JobsShownPill from "./JobsShownPill.js";
-import GlobalPrintUploadWidget from "./GlobalPrintUploadWidget.js";
+
 // MapTypeToggle moved to LeftRail Filters tab (MapTypeFilterSection). MapTypeApplier still listens to the same broadcast.
 import MapTypeApplier from "../map/MapTypeApplier.js";
 import type { MapTheme } from "../map/themeContext.js";
@@ -46,19 +46,10 @@ import LuminaOrb from "../lumina/Orb.js";
 import LuminaChatPanel from "../lumina/ChatPanel.js";
 import LuminaMapBridge from "../lumina/MapBridge.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
-import InMap2PointAlignToolbar from "../ziply/InMap2PointAlignToolbar.js";
-const DesignPrintMapOverlay = lazy(
-  () => import("../ziply/DesignPrintMapOverlay.js")
-);
 import {
   isNorthMetroJob,
   isZiplyJob,
-  jobMatchesZiplyPrintFilter,
   ziplyStatusGroupForJob,
-  getZiplyPrintDocStatus,
-  isZiplyPrintMapReady,
-  getZiplyPrintAnchor,
-  hasZiplyPrintLayer,
   pickZiplyFocusJob,
   isLakeStevensJob,
 } from "../ziply/ziplyUtils.js";
@@ -127,7 +118,6 @@ export default function JobsMap() {
       setFilters({
         ...filters,
         ziplyNorthMetroOnly: true,
-        ziplyPrintFilter: filters.ziplyPrintFilter ?? "all",
         buckets: new Set(),
       });
     }
@@ -135,7 +125,6 @@ export default function JobsMap() {
   }, [contract]);
   const mapRef = useRef<google.maps.Map | null>(null);
   const ziplyFocusDoneRef = useRef(false);
-  const ziplyRepairDoneRef = useRef(false);
 
   // Mirror the locally-tracked `selected` job into the global search context
   // so the topbar job-info boxes (rendered outside this component) can read it.
@@ -177,9 +166,6 @@ export default function JobsMap() {
     if (filters.ziplyNorthMetroOnly) {
       list = list.filter((j) => isNorthMetroJob(j));
     }
-    if (filters.ziplyPrintFilter && filters.ziplyPrintFilter !== "all") {
-      list = list.filter((j) => jobMatchesZiplyPrintFilter(j, filters.ziplyPrintFilter));
-    }
     const groups = filters.ziplyStatusGroups;
     if (groups && groups.size > 0) {
       list = list.filter((j) => groups.has(ziplyStatusGroupForJob(j)));
@@ -191,58 +177,7 @@ export default function JobsMap() {
   ), [filtered]);
   const unmapped = filtered.length - mapped.length;
 
-  // ── Ziply print overlay job set — intentionally NOT derived from `mapped`.
-  // `mapped` passes through the status-bucket FilterRail filters, whose
-  // default excludes the "completed" bucket. A job's print-ingest status
-  // (ziplyIngest/ziplyPrintLayer) is unrelated to its Smartsheet workflow
-  // status: a completed print on an otherwise "Completed" job must still be
-  // visible on the map with zero clicks, so this list is filtered ONLY on
-  // Ziply print-readiness, from `allJobs` (pre status-bucket filtering).
-  // See ZiplyPrintOverlay.tsx for the per-job/per-object render logic that
-  // consumes this list unconditionally on mount.
-  // Must be plottable on the map (mapObjects + valid lat/lng anchor).
-  // "Ingest complete" alone is not enough — many jobs store hub:{lat:null}.
-  const ziplyPrintReadyJobs = useMemo(() => {
-    return allJobs.filter((j) => isZiplyPrintMapReady(j));
-  }, [allJobs]);
-  // Jobs that claim ingest complete/mapObjects but cannot be placed (debug).
-  const ziplyPrintOrphanCount = useMemo(() => {
-    return allJobs.filter((j) => {
-      if (!isZiplyJob(j)) return false;
-      return hasZiplyPrintLayer(j) && !isZiplyPrintMapReady(j);
-    }).length;
-  }, [allJobs]);
 
-  // Ziply: one-shot repair missing print coords.
-  useEffect(() => {
-    if (contract !== "Ziply") {
-      ziplyFocusDoneRef.current = false;
-      ziplyRepairDoneRef.current = false;
-      return;
-    }
-    if (allJobs.length === 0) return;
-
-    let cancelled = false;
-
-    (async () => {
-      // Auto-repair orphan prints once per Ziply session (e.g. Lake Stevens ingest with null hub)
-      if (!ziplyRepairDoneRef.current && ziplyPrintOrphanCount > 0) {
-        ziplyRepairDoneRef.current = true;
-        try {
-          await api.repairAllZiplyPrints();
-          if (!cancelled) {
-            window.dispatchEvent(new Event("nsc:jobs-reload"));
-          }
-        } catch (e) {
-          console.warn("[ziply] auto print-location repair failed:", e);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [contract, allJobs, ziplyPrintOrphanCount]);
 
   const onResync = useCallback(async () => {
     try {
@@ -261,8 +196,6 @@ export default function JobsMap() {
           allJobs={allJobs}
           mapped={mapped}
           filtered={filtered}
-          ziplyPrintReadyJobs={ziplyPrintReadyJobs}
-          ziplyPrintOrphanCount={ziplyPrintOrphanCount}
           unmapped={unmapped}
           jobsState={jobsState}
           filters={filters}
@@ -289,8 +222,6 @@ function JobsMapInner({
   allJobs,
   mapped,
   filtered,
-  ziplyPrintReadyJobs,
-  ziplyPrintOrphanCount,
   unmapped,
   jobsState,
   filters,
@@ -309,8 +240,6 @@ function JobsMapInner({
   allJobs: Job[];
   mapped: Job[];
   filtered: Job[];
-  ziplyPrintReadyJobs: Job[];
-  ziplyPrintOrphanCount: number;
   unmapped: number;
   jobsState: ReturnType<typeof useJobs>;
   filters: Filters;
@@ -413,17 +342,10 @@ function JobsMapInner({
       // the autosave debounce. loadObjects([]) also clears the dirty flag.
       loadObjects([], []);
       setSelected(job);
-      // Ziply: fly to print design anchor (or job geocode) so the CAD layer is in view.
+      // Ziply: fly to job geocode so the CAD layer is in view.
       if (contract === "Ziply") {
-        const printAnchor = getZiplyPrintAnchor(job);
         const g = job.geocode;
-        if (printAnchor) {
-          window.dispatchEvent(
-            new CustomEvent("nsc:pan-to", {
-              detail: { lat: printAnchor.lat, lng: printAnchor.lng, zoom: 16 },
-            })
-          );
-        } else if (g?.status === "OK" && g.lat && g.lng) {
+        if (g?.status === "OK" && g.lat && g.lng) {
           window.dispatchEvent(
             new CustomEvent("nsc:pan-to", {
               detail: { lat: g.lat, lng: g.lng, zoom: 15 },
@@ -473,29 +395,7 @@ function JobsMapInner({
   const [dashboardFullscreen, setDashboardFullscreen] = useState(true);
   const [ticketsFullscreen, setTicketsFullscreen] = useState(false);
   const [ziplyJobsFullscreen, setZiplyJobsFullscreen] = useState(false);
-  const [inMapAlignJob, setInMapAlignJob] = useState<Job | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
-  useEffect(() => {
-    function onStartInMapAlign(e: Event) {
-      const detail = (e as CustomEvent<{ job: Job }>).detail;
-      if (detail?.job) {
-        setInMapAlignJob(detail.job);
-      }
-    }
-    window.addEventListener("nsc:start-inmap-align", onStartInMapAlign);
-    return () => window.removeEventListener("nsc:start-inmap-align", onStartInMapAlign);
-  }, []);
-
-  const handleGlobalFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPendingFile(file);
-    
-    // Reset input
-    e.target.value = "";
-  };
 
   useEffect(() => {
     function onActiveTab(e: Event) {
@@ -557,33 +457,6 @@ function JobsMapInner({
 
       <div className="jobs-map__main">
         <ModifiersPanel />
-        <label className="jobs-shown-pill" title="Upload Prints & Permits" style={{ cursor: "pointer", background: "rgba(15, 23, 42, 0.8)", border: "1px solid #3aa7ff", position: "absolute", bottom: "22px", left: "50%", transform: "translateX(-50%)", zIndex: 25, display: "flex", alignItems: "center", padding: "6px 14px", borderRadius: "99px", gap: "8px" }}>
-          <input 
-            type="file" 
-            accept="application/pdf" 
-            style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden", clip: "rect(0,0,0,0)" }} 
-            onChange={handleGlobalFileSelect} 
-          />
-          <span className="jsp-dot" aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: "#3aa7ff", boxShadow: "0 0 8px #3aa7ff" }} />
-          <span className="jsp-label" style={{ color: "#e0f2fe", fontWeight: 700, fontSize: 11, letterSpacing: 1 }}>UPLOAD PRINTS & PERMITS</span>
-          <svg className="jsp-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3aa7ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>
-        </label>
-        {pendingFile && (
-          <GlobalPrintUploadWidget
-            file={pendingFile}
-            allJobs={allJobs}
-            onClose={() => setPendingFile(null)}
-            onSuccess={(job) => {
-              setPendingFile(null);
-              // Open job in map
-              void handleSelect(job);
-            }}
-          />
-        )}
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
           <div style={{ flex: 1, height: "100%", position: "relative", minWidth: 0 }}>
             <Map
@@ -618,17 +491,7 @@ function JobsMapInner({
                 }}
               />
               <CentralOfficesOverlay visible={showCOs} />
-              <Suspense fallback={null}>
-                {contract === "Ziply" && (
-                  <DesignPrintMapOverlay 
-                    active={ziplyPrintLayerVisible} 
-                    jobs={ziplyJobs} 
-                    selectedJob={selected}
-                    selectedFeature={selectedFeature}
-                    setSelectedFeature={setSelectedFeature}
-                  />
-                )}
-              </Suspense>
+
               <DrawingOverlay />
               <SavedDigShapeOverlay />
               {filters.showDigPolygons !== false && (
@@ -644,13 +507,6 @@ function JobsMapInner({
               {/* Lumina map bridge — registers an imperative handle the
                   navigation tools call into. Renders nothing. */}
               <LuminaMapBridge />
-              {inMapAlignJob && (
-                <InMap2PointAlignToolbar
-                  job={inMapAlignJob}
-                  onComplete={() => setInMapAlignJob(null)}
-                  onCancel={() => setInMapAlignJob(null)}
-                />
-              )}
 
             </Map>
           </div>
@@ -1082,24 +938,12 @@ function JobMarkers({
       jobs.forEach((job) => {
         const colorKey = colorKeyForJob(job, contract);
         const color = MARKER_COLORS[colorKey];
-        const printStatus =
-          contract === "Ziply" ? getZiplyPrintDocStatus(job) : null;
-        const printTag =
-          printStatus === "ready"
-            ? " · PRINT"
-            : printStatus === "processing"
-              ? " · INGEST…"
-              : printStatus === "failed"
-                ? " · PRINT FAIL"
-                : printStatus === "none"
-                  ? " · NO PRINT"
-                  : "";
 
         // Pin marker
         const m = new google.maps.Marker({
           position: { lat: job.geocode!.lat, lng: job.geocode!.lng },
           map,
-          title: `${job.workOrder} · ${job.secondaryJobStatus ?? job.jobStatus ?? ""}${printTag}`,
+          title: `${job.workOrder} · ${job.secondaryJobStatus ?? job.jobStatus ?? ""}`,
           icon: {
             url: neonPinDataUrl(color, (job.inTracker ? 1 : 0.55) * (isJobCompleted(job) ? 0.6 : 1)),
             scaledSize: new google.maps.Size(26, 36),
@@ -1116,38 +960,17 @@ function JobMarkers({
         const woText = contract === "Ziply" ? (job.ziplyPrintLayer?.hubId || job.workOrder) : job.workOrder;
         if (woText) {
           const pinColor = color.core;
-          const printDot =
-            printStatus === "ready"
-              ? "#1d4ed8"
-              : printStatus === "processing"
-                ? "#38bdf8"
-                : printStatus === "failed"
-                  ? "#f87171"
-                  : null;
           
           const safeWoText = escapeHtml(woText);
           const textW = Math.max(80, woText.length * 8 + 18);
-          const pillW = printDot ? textW + 16 : textW;
+          const pillW = textW;
           
           // Luxurious Light Mode & High-Tech Map Engineer Aesthetic
           // Add 16px padding for glow filter
           const paddedW = pillW + 16;
           const paddedH = 22 + 16;
           
-          const labelSvg = printDot
-            ? `<svg xmlns="http://www.w3.org/2000/svg" width="${paddedW}" height="${paddedH}">
-    <defs>
-      <filter id="glow-${pillW}" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.12"/>
-      </filter>
-    </defs>
-    <rect x="8" y="8" width="${pillW}" height="22" rx="11" fill="rgba(255, 255, 255, 0.98)" stroke="${pinColor}" stroke-width="1.5" filter="url(#glow-${pillW})"/>
-    <rect x="9.5" y="9.5" width="${pillW - 3}" height="19" rx="9.5" fill="none" stroke="rgba(255, 255, 255, 0.9)" stroke-width="1"/>
-    <circle cx="20" cy="19" r="4" fill="${printDot}"/>
-    <text x="${(pillW + 20) / 2}" y="22.5" text-anchor="middle" font-size="10.5" font-weight="700" letter-spacing="0.4"
-      fill="#0f172a" font-family="Inter, Roboto, system-ui, sans-serif">${safeWoText}</text>
-  </svg>`
-            : `<svg xmlns="http://www.w3.org/2000/svg" width="${paddedW}" height="${paddedH}">
+          const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${paddedW}" height="${paddedH}">
     <defs>
       <filter id="glow-${pillW}" x="-20%" y="-20%" width="140%" height="140%">
         <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.12"/>

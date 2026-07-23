@@ -1,33 +1,19 @@
 // Compact job card with INLINE EDITING (Billy 5/21).
-//   - Secondary Job Status pill → click to cycle through dropdown
-//   - NSC Project Notes        → click to edit text
-//   - Crew / Foreman           → click to open dropdown
-//   - Schedule Date            → click to open date picker
-//   - Traffic Control          → click toggle
+//   - Secondary Job Status pill â†’ click to cycle through dropdown
+//   - NSC Project Notes        â†’ click to edit text
+//   - Crew / Foreman           â†’ click to open dropdown
+//   - Schedule Date            â†’ click to open date picker
+//   - Traffic Control          â†’ click toggle
 // Saves write directly to Smartsheet via the nsc-smartapp Worker.
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, FileText, ChevronRight, CheckCircle2, ChevronDown, Wand2, Calendar, FileDown, Paperclip, UploadCloud } from "lucide-react";
+import { ArrowRight, FileText, ChevronRight, CheckCircle2, ChevronDown, Wand2, Calendar, FileDown } from "lucide-react";
 import { useMap } from "@vis.gl/react-google-maps";
 import type { DigTicket, Job } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
-import {
-  formatBytes,
-  getCadFidelity,
-  getZiplyPrintAnchor,
-  getZiplyPrintDocStatus,
-  ingestZiplyPermitForJob,
-  ingestZiplyPrintForJob,
-  isZiplyPrintMapReady,
-  listZiplyPrintFiles,
-  ZIPLY_PERMIT_TYPES,
-  ziplyPrintStatusColor,
-  ziplyPrintStatusLabel,
-  type ZiplyPermitTypeKey,
-} from "../ziply/ziplyUtils.js";
-import ZiplyPrintStudio from "../ziply/ZiplyPrintStudio.js";
+
 
 interface Props {
   job: Job;
@@ -96,7 +82,7 @@ export default function JobCard({
   const activeTheme = onThemeChange ? theme : localTheme;
   const setActiveTheme = onThemeChange ? onThemeChange : setLocalTheme;
   const wo = job.workOrder;
-  const status = job.jobStatus ?? "—";
+  const status = job.jobStatus ?? "â€”";
 
   // Local edit state (optimistic display until save resolves)
   const [secondary, setSecondary] = useState<string>(job.secondaryJobStatus ?? "");
@@ -157,10 +143,10 @@ export default function JobCard({
     }
   }
 
-  // Minimized pill — always rendered in popup variant
+  // Minimized pill â€” always rendered in popup variant
   if (minimized && variant === "popup") {
     return (
-      <div className="job-card-pill" title={`${wo} · ${status}`}>
+      <div className="job-card-pill" title={`${wo} Â· ${status}`}>
         <span className="job-card-pill__wo">{wo}</span>
         <button
           className="job-card-pill__restore icon-btn"
@@ -168,7 +154,7 @@ export default function JobCard({
           aria-label="Restore job card"
           title="Restore"
         >
-          ⌃
+          âŒƒ
         </button>
         {onClose && (
           <button
@@ -177,7 +163,7 @@ export default function JobCard({
             aria-label="Close"
             title="Close"
           >
-            ×
+            Ã—
           </button>
         )}
       </div>
@@ -192,7 +178,7 @@ export default function JobCard({
       <header className="job-card__head">
         <div className="job-card__head-left">
           <span className="job-card__wo">{wo}</span>
-          {/* Secondary status pill — now a dropdown (Billy 5/21) */}
+          {/* Secondary status pill â€” now a dropdown (Billy 5/21) */}
           <SecondaryStatusEditablePill
             status={secondary}
             options={secondaryOptions}
@@ -243,12 +229,12 @@ export default function JobCard({
               aria-label="Minimize job card"
               title="Minimize"
             >
-              −
+              âˆ’
             </button>
           )}
           {onClose && (
             <button className="icon-btn" onClick={onClose} aria-label="Close">
-              ×
+              Ã—
             </button>
           )}
         </div>
@@ -307,7 +293,7 @@ export default function JobCard({
 
       <Row label="Completed" value={fmtDate(job.actualCompletionDate)} />
 
-      {/* Notes — always shown so user can add even when empty */}
+      {/* Notes â€” always shown so user can add even when empty */}
       <div className="job-card__notes">
         <div className="job-card__notes-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           NSC Project Notes
@@ -320,690 +306,14 @@ export default function JobCard({
         <EditableNotes value={notes} onCommit={(v) => { setNotes(v); commit("notes", v); }} />
       </div>
 
-      {/* Ziply engineering print + permits (Ziply only — Lumen markups untouched) */}
-      {job.customerProject === "Ziply" && (
-        <ZiplyPrintDocsSection job={job} />
-      )}
-
-      {job.customerProject === "Ziply" && <ZiplyPermitsSection job={job} />}
 
     </div>
   );
 }
 
-// -----------------------------------------------------------------------------
-// Ziply permits: upload PDF/image → Storage → AI extract → status board
-// -----------------------------------------------------------------------------
-function ZiplyPermitsSection({ job }: { job: Job }) {
-  const [permitType, setPermitType] = useState<ZiplyPermitTypeKey>("cityRow");
-  const [busy, setBusy] = useState(false);
-  const [pct, setPct] = useState(0);
-  const [err, setErr] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const layer = job.ziplyPrintLayer;
-  const permitFiles = layer?.permitFiles ?? [];
-  const board = layer?.permits;
-
-  const statusColor = (s: string) => {
-    if (s === "Approved" || s === "Active") return "#1d4ed8";
-    if (s === "Closed") return "#6b7280";
-    if (s === "processing" || s === "Pending") return "#ffb300";
-    if (s === "failed") return "#f87171";
-    return "#94a3b8";
-  };
-
-  const typeLabel = (id: string) =>
-    ZIPLY_PERMIT_TYPES.find((t) => t.id === id)?.label ?? id;
-
-  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setBusy(true);
-    setPct(0);
-    setErr(null);
-    setMsg(null);
-    try {
-      await ingestZiplyPermitForJob(job.jobId, file, permitType, (p) =>
-        setPct(Math.round(p))
-      );
-      setMsg(
-        `Uploaded ${file.name} — AI is reading the permit (number, dates, conditions). Refresh in a few seconds.`
-      );
-      // Poll once after short delay so processing → complete shows without full manual reload
-      window.setTimeout(() => {
-        window.dispatchEvent(new Event("nsc:jobs-reload"));
-      }, 4000);
-      window.setTimeout(() => {
-        window.dispatchEvent(new Event("nsc:jobs-reload"));
-      }, 12000);
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Permit upload failed");
-    } finally {
-      setBusy(false);
-      setPct(0);
-    }
-  };
-
-  return (
-    <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
-      <h4
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          color: "#1d4ed8",
-          margin: "0 0 8px 0",
-        }}
-      >
-        📋 PERMITS (upload + AI read)
-      </h4>
-      <p style={{ margin: "0 0 10px 0", fontSize: 9, color: "#94a3b8", lineHeight: 1.4 }}>
-        Upload City ROW, WSDOT, County, Railroad, franchise, or TCP PDFs for this job. The app stores
-        the file and extracts permit number, dates, work hours, streets, and conditions.
-      </p>
-
-      {/* Status board */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-        {ZIPLY_PERMIT_TYPES.filter((t) => t.id !== "other").map((t) => {
-          const statusVal =
-            board?.[t.id as keyof NonNullable<typeof board>] || "Pending";
-          const latest = [...permitFiles]
-            .filter((f) => f.permitType === t.id)
-            .sort((a, b) => b.uploadedAt - a.uploadedAt)[0];
-          const docUrl =
-            latest?.downloadUrl || layer?.uploadedPermitDocs?.[t.id] || null;
-          return (
-            <div
-              key={t.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 8,
-                background: "rgba(0,0,0,0.2)",
-                padding: "6px 8px",
-                borderRadius: 4,
-                border: "1px solid rgba(255,255,255,0.05)",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                <span style={{ fontSize: 10, fontWeight: 700 }}>{t.label}</span>
-                <span style={{ fontSize: 9, color: statusColor(String(statusVal)), fontWeight: 700 }}>
-                  ● {statusVal}
-                  {latest?.parsed?.permitNumber
-                    ? ` · #${latest.parsed.permitNumber}`
-                    : ""}
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                {docUrl ? (
-                  <a
-                    href={docUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      background: "rgba(33,150,243,0.2)",
-                      border: "1px solid #2196F3",
-                      color: "#2196F3",
-                      fontSize: 9,
-                      fontWeight: 700,
-                      padding: "3px 8px",
-                      borderRadius: 3,
-                      textDecoration: "none",
-                    }}
-                  >
-                    VIEW
-                  </a>
-                ) : (
-                  <span style={{ fontSize: 9, color: "#6b7280" }}>No file</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Upload controls */}
-      <div
-        style={{
-          background: "rgba(30, 94, 255,0.06)",
-          border: "1px solid rgba(30, 94, 255,0.25)",
-          borderRadius: 6,
-          padding: 10,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}
-      >
-        <span style={{ fontSize: 10, fontWeight: 700, color: "#e2e8f0" }}>
-          Upload permit for this job
-        </span>
-        <label style={{ fontSize: 9, color: "#94a3b8" }}>
-          Permit type
-          <select
-            value={permitType}
-            onChange={(e) => setPermitType(e.target.value as ZiplyPermitTypeKey)}
-            disabled={busy}
-            style={{
-              display: "block",
-              width: "100%",
-              marginTop: 4,
-              padding: "6px 8px",
-              fontSize: 11,
-              borderRadius: 4,
-              border: "1px solid rgba(255,255,255,0.15)",
-              background: "rgba(0,0,0,0.35)",
-              color: "#fff",
-            }}
-          >
-            {ZIPLY_PERMIT_TYPES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label
-          style={{
-            background: busy ? "rgba(255,255,255,0.06)" : "rgba(30, 94, 255,0.18)",
-            border: "1px solid rgba(30, 94, 255,0.5)",
-            color: "#1d4ed8",
-            fontSize: 10,
-            fontWeight: 800,
-            padding: "8px 12px",
-            borderRadius: 4,
-            cursor: busy ? "wait" : "pointer",
-            textAlign: "center",
-          }}
-        >
-          {busy ? `UPLOADING ${pct}%…` : "CHOOSE PDF / IMAGE & UPLOAD"}
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,image/*"
-            disabled={busy}
-            onChange={(ev) => void onUpload(ev)}
-            style={{ display: "none" }}
-          />
-        </label>
-        {msg && <span style={{ fontSize: 9, color: "#38bdf8" }}>{msg}</span>}
-        {err && <span style={{ fontSize: 9, color: "#f87171" }}>{err}</span>}
-      </div>
-
-      {/* Ingested files with AI summary */}
-      {permitFiles.length > 0 && (
-        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-          <span
-            style={{
-              fontSize: 9,
-              fontWeight: 700,
-              color: "#9ca3af",
-              letterSpacing: "0.04em",
-            }}
-          >
-            INGESTED PERMITS ({permitFiles.length})
-          </span>
-          {[...permitFiles]
-            .sort((a, b) => b.uploadedAt - a.uploadedAt)
-            .map((f) => {
-              const p = f.parsed;
-              return (
-                <div
-                  key={f.id}
-                  style={{
-                    background: "rgba(0,0,0,0.25)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 6,
-                    padding: 8,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      marginBottom: 4,
-                    }}
-                  >
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#e2e8f0" }}>
-                      {typeLabel(f.permitType)} · {f.name}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        color: statusColor(f.ingestStatus),
-                      }}
-                    >
-                      {f.ingestStatus === "processing"
-                        ? "READING…"
-                        : f.ingestStatus === "complete"
-                          ? "PARSED"
-                          : "FAILED"}
-                    </span>
-                  </div>
-                  {f.ingestStatus === "failed" && f.errorMessage && (
-                    <p style={{ margin: 0, fontSize: 9, color: "#f87171" }}>{f.errorMessage}</p>
-                  )}
-                  {f.ingestStatus === "processing" && (
-                    <p style={{ margin: 0, fontSize: 9, color: "#fbbf24" }}>
-                      Gemini is extracting fields — wait a few seconds and the card will refresh.
-                    </p>
-                  )}
-                  {p && (
-                    <div style={{ fontSize: 9, color: "#cbd5e1", lineHeight: 1.45 }}>
-                      {p.permitNumber && (
-                        <div>
-                          <strong>Permit #:</strong> {p.permitNumber}
-                        </div>
-                      )}
-                      {p.issuingAgency && (
-                        <div>
-                          <strong>Agency:</strong> {p.issuingAgency}
-                        </div>
-                      )}
-                      {(p.issueDate || p.expirationDate) && (
-                        <div>
-                          <strong>Dates:</strong>{" "}
-                          {[p.issueDate && `issued ${p.issueDate}`, p.expirationDate && `exp ${p.expirationDate}`]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </div>
-                      )}
-                      {(p.workStartDate || p.workEndDate || p.workHours) && (
-                        <div>
-                          <strong>Work window:</strong>{" "}
-                          {[p.workStartDate, p.workEndDate, p.workHours].filter(Boolean).join(" · ")}
-                        </div>
-                      )}
-                      {p.workLocation && (
-                        <div>
-                          <strong>Location:</strong> {p.workLocation}
-                        </div>
-                      )}
-                      {p.streets && p.streets.length > 0 && (
-                        <div>
-                          <strong>Streets:</strong> {p.streets.join(", ")}
-                        </div>
-                      )}
-                      {p.excavationMethods && p.excavationMethods.length > 0 && (
-                        <div>
-                          <strong>Methods:</strong> {p.excavationMethods.join(", ")}
-                        </div>
-                      )}
-                      {p.trafficControlRequired != null && (
-                        <div>
-                          <strong>TCP required:</strong> {p.trafficControlRequired ? "Yes" : "No"}
-                        </div>
-                      )}
-                      {p.conditions && p.conditions.length > 0 && (
-                        <div>
-                          <strong>Conditions:</strong> {p.conditions.slice(0, 4).join(" · ")}
-                          {p.conditions.length > 4 ? ` (+${p.conditions.length - 4} more)` : ""}
-                        </div>
-                      )}
-                      {p.restrictions && p.restrictions.length > 0 && (
-                        <div>
-                          <strong>Restrictions:</strong> {p.restrictions.slice(0, 3).join(" · ")}
-                        </div>
-                      )}
-                      {p.summary && (
-                        <div style={{ marginTop: 4, color: "#94a3b8", fontStyle: "italic" }}>
-                          {p.summary}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {f.downloadUrl && (
-                    <a
-                      href={f.downloadUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        display: "inline-block",
-                        marginTop: 6,
-                        fontSize: 9,
-                        color: "#38bdf8",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Open file ↗
-                    </a>
-                  )}
-                </div>
-              );
-            })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // -----------------------------------------------------------------------------
-// Ziply engineering print inventory + upload (not Lumen markups).
-// -----------------------------------------------------------------------------
-function ZiplyPrintDocsSection({ job }: { job: Job }) {
-  const [busy, setBusy] = useState(false);
-  const [pct, setPct] = useState(0);
-  const [err, setErr] = useState<string | null>(null);
-  const [repairBusy, setRepairBusy] = useState(false);
-  
-  const [enhanceMsg, setEnhanceMsg] = useState<string | null>(null);
-  const [studioOpen, setStudioOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const status = getZiplyPrintDocStatus(job);
-  const files = listZiplyPrintFiles(job);
-  const layer = job.ziplyPrintLayer;
-  const terminalCount = layer?.mapObjects?.terminals?.length ?? layer?.terminalCount ?? null;
-  const cableCount = layer?.mapObjects?.cables?.length ?? null;
-  const dropCount = layer?.mapObjects?.dropSites?.length ?? null;
-  const mapReady = isZiplyPrintMapReady(job);
-  const anchor = getZiplyPrintAnchor(job);
-  const enhancedAt = layer?.printGeometryEnhancedAt ?? null;
-  const fidelity = getCadFidelity(job);
-
-  const repairLocation = async () => {
-    setRepairBusy(true);
-    setErr(null);
-    setEnhanceMsg(null);
-    try {
-      const addressOverride = window.prompt(
-        "Enter the correct address or intersection for this print (e.g. 132nd Ave NE & NE 144th Pl, Woodinville, WA):",
-        job.address && job.city ? `${job.address}, ${job.city}, WA` : ""
-      );
-      if (addressOverride === null) {
-        setRepairBusy(false);
-        return; // user cancelled
-      }
-      
-      const r = await api.repairZiplyPrint(job.jobId, addressOverride || undefined);
-      if (r.reason === "geocode_failed" || (r.enhanced === false && r.reason === "geocode_failed")) {
-        setErr(
-          "Could not place print on map. Set job City to Arlington (or correct city) and Address if known, or enter a valid intersection, then try again."
-        );
-      } else if (r.enhanced === false && r.reason && r.reason !== "ok") {
-        setErr(`Repair issue: ${r.reason}`);
-      } else {
-        const placed =
-          r.lat != null && r.lng != null
-            ? ` @ ${r.lat.toFixed(4)}, ${r.lng.toFixed(4)}`
-            : "";
-        setEnhanceMsg(
-          `Location fixed${placed}` +
-            (r.cablesPathed != null
-              ? ` · CAD: ${r.cablesPathed} paths · ${r.dropsPlaced ?? 0} drops`
-              : "") +
-            (typeof r.reason === "string" && r.reason.includes("city_fallback")
-              ? " (city-center pin — zoom/adjust if needed)"
-              : "")
-        );
-      }
-      window.dispatchEvent(new Event("nsc:jobs-reload"));
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Repair failed");
-    } finally {
-      setRepairBusy(false);
-    }
-  };
-
-  const map = useMap();
-
-  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setBusy(true);
-    setPct(0);
-    setErr(null);
-    try {
-      await ingestZiplyPrintForJob(job.jobId, file, (p) => setPct(Math.round(p)));
-      setStudioOpen(true);
-      if (job.geocode && map) {
-        map.panTo({ lat: job.geocode.lat, lng: job.geocode.lng });
-        map.setZoom(19);
-      }
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Upload failed");
-    } finally {
-      setBusy(false);
-      setPct(0);
-    }
-  };
-
-  return (
-    <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
-      {studioOpen && (
-        <ZiplyPrintStudio job={job} onClose={() => setStudioOpen(false)} />
-      )}
-      <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", margin: "0 0 8px 0" }}>
-        🗺️ ENGINEERING PRINT
-      </h4>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-          marginBottom: 12,
-          background: "#ffffff",
-          padding: 12,
-          borderRadius: 8,
-          border: "1px solid #cbd5e1",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: ziplyPrintStatusColor(status) }}>
-              ● {ziplyPrintStatusLabel(status)}
-            </span>
-            {files[0]?.downloadUrl && (
-              <a
-                href={files[0].downloadUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontSize: 10, color: "#64748b", textDecoration: "underline" }}
-              >
-                Raw PDF ↗
-              </a>
-            )}
-          </div>
-          {status === "ready" && (
-            <span style={{ fontSize: 10, color: "#475569", lineHeight: 1.4 }}>
-              {layer?.hubId ? `Hub ${layer.hubId}` : "Hub —"}
-              {terminalCount != null ? ` · ${terminalCount} terminals` : ""}
-              {cableCount != null ? ` · ${cableCount} cables` : ""}
-              {dropCount != null && dropCount > 0 ? ` · ${dropCount} drops` : ""}
-              {mapReady
-                ? ` · Map @ ${anchor!.lat.toFixed(4)}, ${anchor!.lng.toFixed(4)}`
-                : " · NOT ON MAP (no lat/lng)"}
-              {enhancedAt
-                ? ` · CAD enhanced ${new Date(enhancedAt).toLocaleDateString()}`
-                : mapReady
-                  ? " · CAD not enhanced yet"
-                  : ""}
-            </span>
-          )}
-          {status === "ready" && mapReady && (
-            <span
-              title={`CAD fidelity ${fidelity.grade} · ${fidelity.source ?? "—"}`}
-              style={{
-                fontSize: 10,
-                fontWeight: 800,
-                color: fidelity.color,
-                letterSpacing: "0.04em",
-                marginTop: 2,
-              }}
-            >
-              CAD {fidelity.label}
-              {fidelity.source ? ` · ${fidelity.source.replace(/_/g, " ")}` : ""}
-            </span>
-          )}
-          {status === "ready" && !mapReady && (
-            <span style={{ fontSize: 10, color: "#d97706", fontWeight: 600 }}>
-              Print data saved but missing location. Use Repair location below.
-            </span>
-          )}
-          {status === "failed" && job.ziplyIngest?.errorMessage && (
-            <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 600 }}>{job.ziplyIngest.errorMessage}</span>
-          )}
-          {busy && (
-            <span style={{ fontSize: 10, color: "#0284c7", fontWeight: 600 }}>Uploading / starting ingest… {pct}%</span>
-          )}
-          {enhanceMsg && <span style={{ fontSize: 10, color: "#1d4ed8", fontWeight: 600 }}>{enhanceMsg}</span>}
-          {err && <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 600 }}>{err}</span>}
-        </div>
-
-        {/* Action Button Grid */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
-          <button
-            type="button"
-            onClick={() => {
-              window.dispatchEvent(
-                new CustomEvent("nsc:start-inmap-align", { detail: { job } })
-              );
-            }}
-            style={{
-              background: "linear-gradient(180deg, #0284c7, #0369a1)",
-              border: "1px solid #075985",
-              color: "#ffffff",
-              fontSize: 11,
-              fontWeight: 800,
-              padding: "8px 12px",
-              borderRadius: 6,
-              cursor: "pointer",
-              textAlign: "center",
-              boxShadow: "0 2px 6px rgba(2,132,199,0.35)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-            }}
-          >
-            🎯 2-POINT ALIGN ON MAP
-          </button>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-
-            {layer?.mapObjects && (
-              <button
-                type="button"
-                disabled={repairBusy || busy}
-                onClick={() => void repairLocation()}
-                style={{
-                  background: "#fffbeb",
-                  border: "1px solid #d97706",
-                  color: "#b45309",
-                  fontSize: 9,
-                  fontWeight: 700,
-                  padding: "6px 8px",
-                  borderRadius: 4,
-                  cursor: repairBusy ? "wait" : "pointer",
-                  textAlign: "center",
-                }}
-              >
-                {repairBusy ? "REPAIRING…" : "REPAIR LOCATION"}
-              </button>
-            )}
-          </div>
-        </div>
-          <label
-            style={{
-              background: busy ? "rgba(255,255,255,0.06)" : "rgba(30, 94, 255,0.15)",
-              border: "1px solid rgba(30, 94, 255,0.45)",
-              color: "#1d4ed8",
-              fontSize: 9,
-              fontWeight: 700,
-              padding: "6px 10px",
-              borderRadius: 4,
-              cursor: busy ? "wait" : "pointer",
-              whiteSpace: "nowrap",
-              textAlign: "center",
-            }}
-          >
-            {busy ? `${pct}%` : "UPLOAD PRINT"}
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf,image/*"
-              disabled={busy}
-              onChange={(ev) => void onPick(ev)}
-              style={{ display: "none" }}
-            />
-          </label>
-        </div>
-      {busy && (
-        <div style={{ marginTop: 8, background: "rgba(30, 94, 255, 0.05)", borderRadius: 6, padding: 8, border: "1px solid rgba(30, 94, 255, 0.25)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-            <span style={{ fontSize: 9, fontWeight: 800, color: "#38bdf8", letterSpacing: "0.08em" }}>
-              AI INGESTION IN PROGRESS
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 900, color: "#34d399" }}>
-              {pct}%
-            </span>
-          </div>
-          <div style={{ width: "100%", height: 6, background: "rgba(255, 255, 255, 0.05)", borderRadius: 999, overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <div
-              style={{
-                width: `${pct}%`,
-                height: "100%",
-                background: "linear-gradient(90deg, #1d4ed8, #3b82f6, #34d399)",
-                boxShadow: "0 0 8px #3b82f6, 0 0 15px #34d399",
-                borderRadius: 999,
-                transition: "width 0.2s ease-out",
-              }}
-            />
-          </div>
-        </div>
-      )}
-      {files.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em" }}>
-            FILES FOR THIS JOB
-          </span>
-          {files.map((f, i) => (
-            <div
-              key={i}
-              style={{
-                fontSize: 10,
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 8,
-                padding: "4px 6px",
-                background: "rgba(255,255,255,0.03)",
-                borderRadius: 3,
-              }}
-            >
-              {f.downloadUrl ? (
-                <a
-                  href={f.downloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: "#38bdf8", overflow: "hidden", textOverflow: "ellipsis" }}
-                >
-                  {f.name}
-                </a>
-              ) : (
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</span>
-              )}
-              <span style={{ color: "#6b7280", flexShrink: 0 }}>{formatBytes(f.size)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {files.length === 0 && status === "none" && (
-        <p style={{ margin: 0, fontSize: 9, color: "#6b7280", lineHeight: 1.4 }}>
-          No engineering print uploaded for this work order yet. Upload a PDF/image to build the
-          design layer on the map.
-        </p>
-      )}
-    </div>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// 811 expiration pill — surfaces a filed/active dig ticket that is expiring
+// 811 expiration pill â€” surfaces a filed/active dig ticket that is expiring
 // within 7 days. Clicking it jumps to the 811 tab, selects the ticket, and
 // opens the ITIC modal (same nsc:lumina:openDigTicket contract the Lumina
 // startDigTicket tool uses; sessionStorage flag survives the tab switch).
@@ -1073,7 +383,7 @@ function Eight11ExpiryPill({ job }: { job: Job }) {
       type="button"
       className="status-pill"
       onClick={openTicket}
-      title={`Dig ticket ${ticket.ticketNumber || ""} — open on the 811 tab`}
+      title={`Dig ticket ${ticket.ticketNumber || ""} â€” open on the 811 tab`}
       style={{
         marginLeft: 6,
         background: bg,
@@ -1146,7 +456,7 @@ function SecondaryStatusEditablePill({
           }}
         />
         {display}
-        <span style={{ opacity: 0.7, fontSize: 8 }}>▾</span>
+        <span style={{ opacity: 0.7, fontSize: 8 }}>â–¾</span>
       </button>
       <SaveIndicator saving={saving} saved={saved} error={error} inline />
       {open && (
@@ -1177,7 +487,7 @@ function SecondaryStatusEditablePill({
           >
             {options.length === 0 && (
               <div style={{ padding: 8, fontSize: 10, color: "#93d4ff" }}>
-                Loading options…
+                Loading optionsâ€¦
               </div>
             )}
             {options.map((opt) => {
@@ -1236,7 +546,7 @@ function SecondaryStatusEditablePill({
 }
 
 // -----------------------------------------------------------------------------
-// Generic editable row — click value to enter edit mode.
+// Generic editable row â€” click value to enter edit mode.
 // -----------------------------------------------------------------------------
 function EditableRow({
   label,
@@ -1310,7 +620,7 @@ function EditableRow({
                 maxWidth: 200,
               }}
             >
-              <option value="">— none —</option>
+              <option value="">â€” none â€”</option>
               {(options || []).map((o) => (
                 <option key={o} value={o}>
                   {o}
@@ -1364,7 +674,7 @@ function EditableRow({
             letterSpacing: value ? undefined : "0.06em",
           }}
         >
-          {value || "TAP TO SET ▾"}
+          {value || "TAP TO SET â–¾"}
           <SaveIndicator saving={saving} saved={saved} error={error} inline />
         </span>
       )}
@@ -1373,7 +683,7 @@ function EditableRow({
 }
 
 // -----------------------------------------------------------------------------
-// EditableNotes — textarea that commits on blur.
+// EditableNotes â€” textarea that commits on blur.
 // -----------------------------------------------------------------------------
 function EditableNotes({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
@@ -1393,7 +703,7 @@ function EditableNotes({ value, onCommit }: { value: string; onCommit: (v: strin
           color: value ? undefined : "var(--text-muted)",
         }}
       >
-        {value || <em>Click to add notes…</em>}
+        {value || <em>Click to add notesâ€¦</em>}
       </div>
     );
   }
@@ -1438,7 +748,7 @@ function SaveIndicator({
 }) {
   if (!saving && !saved && !error) return null;
   const color = error ? "#ef4444" : saved ? "#16a34a" : "#f59e0b";
-  const text = error ? "ERR" : saved ? "✓" : "…";
+  const text = error ? "ERR" : saved ? "âœ“" : "â€¦";
   return (
     <span
       style={{
@@ -1449,7 +759,7 @@ function SaveIndicator({
         color,
         marginLeft: inline ? 4 : 0,
       }}
-      title={error ? "Save failed" : saved ? "Saved" : "Saving…"}
+      title={error ? "Save failed" : saved ? "Saved" : "Savingâ€¦"}
     >
       {text}
     </span>

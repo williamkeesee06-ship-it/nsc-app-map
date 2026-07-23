@@ -1,7 +1,7 @@
 // Ziply-only helpers. Do not use these to change Lumen markup behavior.
 import type { Job } from "@nsc/types";
 import { api } from "../../lib/api.js";
-import { uploadZiplyPrint } from "../../lib/ziplyPrintStorage.js";
+
 
 /** WA North Metro / North Puget Sound cities commonly on Ziply FTTH trackers. */
 export const NORTH_METRO_CITIES = [
@@ -24,9 +24,6 @@ export const NORTH_METRO_CITIES = [
   "woodinville",
 ] as const;
 
-export type ZiplyPrintDocStatus = "none" | "processing" | "ready" | "failed";
-
-export type ZiplyPrintFilter = "all" | "has_print" | "no_print" | "processing" | "failed";
 
 /** Client-side CAD fidelity grade (mirrors server ziplyFidelity). */
 export type CadFidelityGrade = "A" | "B" | "C" | "D" | "F" | "N/A";
@@ -54,7 +51,7 @@ export function getCadFidelity(job: Job): {
   const geoRatio = terms.length > 0 ? geoN / terms.length : 0;
   const pathRatio = cables.length > 0 ? pathN / cables.length : 0;
 
-  if (!isZiplyPrintMapReady(job)) {
+  if (geoN === 0 && pathN === 0) {
     return { grade: "F", label: "Off map", color: "#f87171", source, residualM };
   }
   if (!enhanced) {
@@ -129,177 +126,22 @@ export function isLakeStevensJob(job: Job): boolean {
   );
 }
 
-/** Whether the job has a map-ready print design layer. */
-export function hasZiplyPrintLayer(job: Job): boolean {
-  return job.ziplyPrintLayer?.mapObjects != null;
-}
 
-function isValidLatLng(lat: unknown, lng: unknown): boolean {
-  return (
-    typeof lat === "number" &&
-    typeof lng === "number" &&
-    Number.isFinite(lat) &&
-    Number.isFinite(lng) &&
-    !(lat === 0 && lng === 0) &&
-    Math.abs(lat) <= 90 &&
-    Math.abs(lng) <= 180
-  );
-}
 
-/**
- * Best map anchor for a Ziply print layer (hub coords → job geocode → first
- * terminal with coords). Returns null if nothing is plottable — the #1 reason
- * an "ingested" print never appears on the map.
- */
-export function getZiplyPrintAnchor(
-  job: Job
-): { lat: number; lng: number; source: "hub" | "geocode" | "terminal" } | null {
-  const mo = job.ziplyPrintLayer?.mapObjects;
-  if (!mo) return null;
 
-  const hub = mo.hub;
-  if (hub && isValidLatLng(hub.lat, hub.lng)) {
-    return { lat: hub.lat as number, lng: hub.lng as number, source: "hub" };
-  }
 
-  if (job.geocode?.status === "OK" && isValidLatLng(job.geocode.lat, job.geocode.lng)) {
-    return { lat: job.geocode.lat, lng: job.geocode.lng, source: "geocode" };
-  }
-
-  const terms = mo.terminals ?? [];
-  for (const t of terms) {
-    if (isValidLatLng(t.lat, t.lng)) {
-      return { lat: t.lat as number, lng: t.lng as number, source: "terminal" };
-    }
-  }
-
-  return null;
-}
-
-/** Bounding box that encompasses the hub and all geocoded terminals */
-export function getZiplyPrintBounds(
-  job: Job
-): { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } } | null {
-  const mo = job.ziplyPrintLayer?.mapObjects;
-  if (!mo) return null;
-
-  const coords: { lat: number; lng: number }[] = [];
-  const hub = mo.hub;
-  if (hub && isValidLatLng(hub.lat, hub.lng)) {
-    coords.push({ lat: hub.lat as number, lng: hub.lng as number });
-  }
-
-  const terms = mo.terminals ?? [];
-  for (const t of terms) {
-    if (isValidLatLng(t.lat, t.lng)) {
-      coords.push({ lat: t.lat as number, lng: t.lng as number });
-    }
-  }
-
-  if (coords.length === 0) {
-    if (job.geocode?.status === "OK" && isValidLatLng(job.geocode.lat, job.geocode.lng)) {
-      coords.push({ lat: job.geocode.lat, lng: job.geocode.lng });
-    }
-  }
-
-  if (coords.length === 0) return null;
-
-  let minLat = Infinity, maxLat = -Infinity;
-  let minLng = Infinity, maxLng = -Infinity;
-  for (const c of coords) {
-    if (c.lat < minLat) minLat = c.lat;
-    if (c.lat > maxLat) maxLat = c.lat;
-    if (c.lng < minLng) minLng = c.lng;
-    if (c.lng > maxLng) maxLng = c.lng;
-  }
-
-  // Pad the bounds slightly so the print matches context nicely (~150 meters padding)
-  const padLat = 0.0015;
-  const padLng = 0.0015;
-  return {
-    sw: { lat: minLat - padLat, lng: minLng - padLng },
-    ne: { lat: maxLat + padLat, lng: maxLng + padLng },
-  };
-}
-
-/** True when print data exists AND we can place it on the map. */
-export function isZiplyPrintMapReady(job: Job): boolean {
-  if (!isZiplyJob(job)) return false;
-  if (!hasZiplyPrintLayer(job) && job.ziplyIngest?.status !== "complete") return false;
-  if (!job.ziplyPrintLayer?.mapObjects) return false;
-  return getZiplyPrintAnchor(job) != null;
-}
-
-/** Prefer Lake Stevens / print-ready jobs for default focus. */
+/** Prefer Lake Stevens jobs for default focus. */
 export function pickZiplyFocusJob(jobs: Job[]): Job | null {
   const ziply = jobs.filter(isZiplyJob);
   if (ziply.length === 0) return null;
-  const lakePrint = ziply.find((j) => isLakeStevensJob(j) && isZiplyPrintMapReady(j));
-  if (lakePrint) return lakePrint;
   const lake = ziply.find((j) => isLakeStevensJob(j));
   if (lake) return lake;
-  const anyPrint = ziply.find((j) => isZiplyPrintMapReady(j));
-  if (anyPrint) return anyPrint;
-  const anyLayer = ziply.find((j) => hasZiplyPrintLayer(j));
-  if (anyLayer) return anyLayer;
   return ziply[0] ?? null;
 }
 
-export function getZiplyPrintDocStatus(job: Job): ZiplyPrintDocStatus {
-  // Map-ready plant wins over a stale "failed" ingest flag (common after repair).
-  if (hasZiplyPrintLayer(job) && getZiplyPrintAnchor(job) != null) return "ready";
-  if (hasZiplyPrintLayer(job) || job.ziplyIngest?.status === "complete") return "ready";
-  const ingest = job.ziplyIngest?.status;
-  if (ingest === "processing") return "processing";
-  if (ingest === "failed") return "failed";
-  if ((job.ziplyIngest?.storageFiles?.length ?? 0) > 0) return "processing";
-  return "none";
-}
 
-export function ziplyPrintStatusLabel(status: ZiplyPrintDocStatus): string {
-  switch (status) {
-    case "ready":
-      return "Print on map";
-    case "processing":
-      return "Ingesting…";
-    case "failed":
-      return "Ingest failed";
-    default:
-      return "No print";
-  }
-}
 
-export function ziplyPrintStatusColor(status: ZiplyPrintDocStatus): string {
-  switch (status) {
-    case "ready":
-      return "#1d4ed8";
-    case "processing":
-      return "#38bdf8";
-    case "failed":
-      return "#f87171";
-    default:
-      return "#94a3b8";
-  }
-}
 
-export function listZiplyPrintFiles(job: Job): Array<{
-  name: string;
-  size?: number;
-  downloadUrl?: string;
-  storagePath?: string;
-  contentType?: string;
-}> {
-  const files = job.ziplyIngest?.storageFiles ?? [];
-  return files
-    .filter((f) => f && (f.name || f.storagePath || f.downloadUrl))
-    .map((f) => ({
-      name: f?.name || f?.storagePath?.split("/").pop() || "print",
-      size: f?.size,
-      downloadUrl: f?.downloadUrl,
-      storagePath: f?.storagePath,
-      contentType: f?.contentType,
-    }));
-}
 
 export function formatBytes(n?: number): string {
   if (n == null || !Number.isFinite(n) || n < 0) return "";
@@ -498,26 +340,7 @@ export function emitZiplyPathEditRequest(detail: {
   }
 }
 
-/** Upload print to Storage, kick off AI ingest, refresh jobs list. */
-export async function ingestZiplyPrintForJob(
-  jobId: string,
-  file: File,
-  onProgress?: (percent: number) => void
-): Promise<string> {
-  const uploaded = await uploadZiplyPrint(jobId, file, onProgress);
-  await api.ziplyIngest(jobId, [
-    {
-      storagePath: uploaded.storagePath,
-      downloadUrl: uploaded.downloadUrl,
-      contentType: uploaded.contentType,
-      name: uploaded.name,
-      size: uploaded.size,
-      storageBucket: uploaded.storageBucket,
-    },
-  ]);
-  window.dispatchEvent(new Event("nsc:jobs-reload"));
-  return uploaded.downloadUrl;
-}
+
 
 export type ZiplyPermitTypeKey =
   | "cityRow"
@@ -538,29 +361,7 @@ export const ZIPLY_PERMIT_TYPES: { id: ZiplyPermitTypeKey; label: string }[] = [
   { id: "other", label: "Other / Construction Site Plan" },
 ];
 
-/** Upload permit PDF/image to Storage, kick off AI extract, refresh jobs. */
-export async function ingestZiplyPermitForJob(
-  jobId: string,
-  file: File,
-  permitType: ZiplyPermitTypeKey,
-  onProgress?: (percent: number) => void
-): Promise<void> {
-  const uploaded = await uploadZiplyPrint(jobId, file, onProgress, { kind: "permit" });
-  await api.ziplyPermitIngest(jobId, {
-    permitType,
-    storageFiles: [
-      {
-        storagePath: uploaded.storagePath,
-        downloadUrl: uploaded.downloadUrl,
-        contentType: uploaded.contentType,
-        name: uploaded.name,
-        size: uploaded.size,
-        storageBucket: uploaded.storageBucket,
-      },
-    ],
-  });
-  window.dispatchEvent(new Event("nsc:jobs-reload"));
-}
+
 
 /** Ziply simple status groups for MAP filter checkboxes. */
 export type ZiplyStatusGroup = "not_started" | "in_progress" | "complete";
@@ -586,12 +387,4 @@ export function ziplyStatusGroupForJob(job: Job): ZiplyStatusGroup {
   return "not_started";
 }
 
-export function jobMatchesZiplyPrintFilter(job: Job, filter: ZiplyPrintFilter | undefined): boolean {
-  if (!filter || filter === "all") return true;
-  const st = getZiplyPrintDocStatus(job);
-  if (filter === "has_print") return st === "ready";
-  if (filter === "no_print") return st === "none";
-  if (filter === "processing") return st === "processing";
-  if (filter === "failed") return st === "failed";
-  return true;
-}
+
