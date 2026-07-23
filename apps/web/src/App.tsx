@@ -161,7 +161,7 @@ function UserChip() {
 function MissingKeyOverlay() {
   return (
     <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+      position: "fixed", inset: 0, background: "rgba(29,78,216,0.12)",
       display: "grid", placeItems: "center", zIndex: 1000, padding: 24,
     }}>
       <div style={{ maxWidth: 480, textAlign: "center", lineHeight: 1.5, background: "var(--surface)", borderRadius: 12, padding: 32, border: "1.5px solid var(--border)" }}>

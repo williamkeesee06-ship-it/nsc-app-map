@@ -203,8 +203,8 @@ button:active,
   margin-right: 12px;
   align-items: center;
   flex-shrink: 0;
-  background: rgba(0,0,0,0.5);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(29,78,216,0.2);
   padding: 2px;
   clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
 }
@@ -227,17 +227,17 @@ button:active,
 }
 .contract-btn.lumen-inactive {
   background: transparent;
-  color: rgba(255,255,255,0.3);
+  color: rgba(15,23,42,0.4);
   box-shadow: none;
 }
 .contract-btn.ziply-active {
-  background: linear-gradient(135deg, #00843d 0%, #00d45a 100%);
+  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
   color: #fff;
-  box-shadow: 0 0 18px rgba(0,212,90,0.65), inset 0 1px 0 rgba(255,255,255,0.15);
+  box-shadow: 0 0 18px rgba(29,78,216,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
 }
 .contract-btn.ziply-inactive {
   background: transparent;
-  color: rgba(255,255,255,0.3);
+  color: rgba(15,23,42,0.4);
   box-shadow: none;
 }
 
@@ -247,9 +247,9 @@ button:active,
   gap: 8px;
   margin-left: 8px;
   flex-shrink: 0;
-  background: rgba(0,0,0,0.45);
-  border: 1px solid rgba(0,212,255,0.2);
-  box-shadow: 0 0 10px rgba(0,212,255,0.1);
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(29,78,216,0.18);
+  box-shadow: 0 0 10px rgba(29,78,216,0.08);
   padding: 5px 12px 5px 8px;
   clip-path: polygon(8px 0%, 100% 0%, calc(100% - 0px) 100%, 0% 100%);
   font-family: var(--font-mono, ui-monospace, 'SF Mono', Consolas, monospace);
@@ -258,8 +258,8 @@ button:active,
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  background: linear-gradient(135deg, #00d4ff, #0077ff);
-  box-shadow: 0 0 8px rgba(0,212,255,0.5), inset 0 1px 1px rgba(255,255,255,0.25);
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 0 8px rgba(29,78,216,0.4), inset 0 1px 1px rgba(255,255,255,0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -274,7 +274,7 @@ button:active,
   gap: 1px;
 }
 .user-name {
-  color: #e2e8f0;
+  color: #0f172a;
   font-weight: 700;
   font-size: 9px;
   letter-spacing: 0.08em;
@@ -286,7 +286,7 @@ button:active,
 .logout-btn {
   background: transparent;
   border: none;
-  color: rgba(0,212,255,0.5);
+  color: rgba(29,78,216,0.55);
   font-family: inherit;
   font-size: 8px;
   cursor: pointer;
@@ -295,7 +295,7 @@ button:active,
   text-align: left;
 }
 .logout-btn:hover {
-  color: rgba(0,212,255,0.9);
+  color: rgba(29,78,216,0.9);
   box-shadow: none !important;
 }
 

@@ -142,22 +142,23 @@ export default function InMap2PointAlignToolbar({ job, onComplete, onCancel }: P
       <div style={{
         position: "absolute", top: 16, left: "50%",
         transform: "translateX(-50%)", zIndex: 2000,
-        background: "#0f172a", border: "1.5px solid #0284c7",
-        boxShadow: "0 8px 32px rgba(2,132,199,0.4)",
+        background: "#ffffff",
+        border: "1.5px solid #1d4ed8",
+        boxShadow: "0 8px 32px rgba(29,78,216,0.18)",
         borderRadius: 12, padding: "10px 18px",
         display: "flex", alignItems: "center", gap: 14,
         fontFamily: "ui-monospace, Consolas, monospace", minWidth: 520,
       }}>
         <span style={{ fontSize: 18 }}>🎯</span>
-        <span style={{ fontSize: 11, fontWeight: 900, color: "#38bdf8", letterSpacing: "0.08em", flexShrink: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 900, color: "#1d4ed8", letterSpacing: "0.08em", flexShrink: 0 }}>
           2-POINT ALIGN
         </span>
         {/* Step indicators */}
         {([1,2,3,4] as const).map(n => (
           <div key={n} style={{
             width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
-            background: step > n ? "#22c55e" : step === n ? "#0284c7" : "#334155",
-            border: step === n ? "2px solid #7dd3fc" : "2px solid transparent",
+            background: step > n ? "#22c55e" : step === n ? "#1d4ed8" : "#e2e8f0",
+            border: step === n ? "2px solid #bfdbfe" : "2px solid transparent",
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 10, fontWeight: 900, color: "#fff",
           }}>{n}</div>
@@ -172,8 +173,9 @@ export default function InMap2PointAlignToolbar({ job, onComplete, onCancel }: P
             if (pin2Ref.current) pin2Ref.current.setMap(null);
             onCancel();
           }} disabled={busy} style={{
-            background: "#1e293b", border: "1px solid #475569",
-            color: "#94a3b8", borderRadius: 6, padding: "4px 10px",
+            background: "#1d4ed8",
+            color: "#ffffff",
+            borderRadius: 6, padding: "4px 10px",
             fontSize: 11, fontWeight: 700, cursor: busy ? "wait" : "pointer", flexShrink: 0,
           }}>
             Cancel ✕
@@ -192,8 +194,8 @@ export default function InMap2PointAlignToolbar({ job, onComplete, onCancel }: P
           height: 260,
           background: "#ffffff",
           borderRadius: 12,
-          border: "2px solid #0284c7",
-          boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
+          border: "2px solid #1d4ed8",
+          boxShadow: "0 12px 40px rgba(29,78,216,0.15)",
           display: "flex",
           flexDirection: "column",
           overflow: "auto",
@@ -206,8 +208,8 @@ export default function InMap2PointAlignToolbar({ job, onComplete, onCancel }: P
       >
         <div
           style={{
-            background: "#0f172a",
-            color: "#38bdf8",
+            background: "#1d4ed8",
+            color: "#ffffff",
             padding: "6px 12px",
             fontSize: 10,
             fontWeight: 800,
