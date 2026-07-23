@@ -23,7 +23,7 @@ export type OverlayRef =
 export const ZOOM_REF = 17;
 
 /** Hide all atag labels when zoomed out below this level. */
-export const MIN_LABEL_ZOOM = 18;
+export const MIN_LABEL_ZOOM = 19;
 
 import { getActiveContract } from "../workspace/contractStore.js";
 
@@ -40,6 +40,7 @@ export function labelTextForObj(obj: DrawingObject): string | null {
   if ("text" in obj && obj.text && obj.text.trim()) text = obj.text.trim();
   else if (obj.style.userLabel && obj.style.userLabel.trim()) text = obj.style.userLabel.trim();
   else if (obj.style.description && obj.style.description.trim()) text = obj.style.description.trim();
+  else if (obj.style.ziplyFootage) text = `${obj.style.ziplyFootage}'`;
   
   if (text) {
     const contract = getActiveContract();

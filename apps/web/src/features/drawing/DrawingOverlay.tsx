@@ -63,17 +63,45 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
   const tool = obj.tool as string;
   const style = obj.style;
 
+  const isZiplyCable = [
+    "placed_cable",
+    "ziply_feeder",
+    "ziply_distribution",
+    "ziply_drop",
+    "ziply_bore"
+  ].includes(tool);
+
+  let color = style.strokeColor || "#1ea7ff";
+  if (tool === "placed_cable") {
+    color = PLACED_COLOR;
+  } else if (tool === "removed_cable") {
+    color = REMOVED_COLOR;
+  }
+
+  let opacity = style.opacity ?? 0.9;
+  let weight = style.strokeWidth ?? 3;
+  let icons: google.maps.IconSequence[] | undefined = undefined;
+
+  if (isZiplyCable) {
+    const status = style.ziplyStatus || "planned";
+    if (status === "planned") {
+      opacity = 0.45;
+      icons = [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: weight }, offset: "0", repeat: "12px" }];
+    } else if (status === "Complete") {
+      color = "#00ffff";
+    }
+  }
+
   if (style.animateFlow && (tool === "placed_cable" || tool === "line" || tool === "arrow")) {
-    const color = tool === "placed_cable" ? PLACED_COLOR : (style.strokeColor || "#1ea7ff");
     return {
       strokeColor: color,
-      strokeWeight: style.strokeWidth,
+      strokeWeight: weight,
       strokeOpacity: 0.35,
       icons: [{
         icon: {
           path: "M 0,-1.5 0,1.5",
           strokeOpacity: 1,
-          scale: style.strokeWidth * 1.2,
+          scale: weight * 1.2,
           strokeColor: color,
         },
         offset: "0px",
@@ -82,40 +110,34 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
     };
   }
 
-  if (tool === "placed_cable") {
-    const isComplete = style.ziplyStatus === "Complete";
-    return {
-      strokeColor: isComplete ? "#00ffff" : PLACED_COLOR,
-      strokeWeight: style.strokeWidth,
-      strokeOpacity: style.opacity,
-    };
-  }
-
   if (tool === "removed_cable") {
     const xSymbol: google.maps.Symbol = {
       path: "M -1,-1 1,1 M -1,1 1,-1",
       strokeColor: REMOVED_COLOR,
-      strokeWeight: Math.max(2, style.strokeWidth - 1),
-      scale: Math.max(3, style.strokeWidth + 1),
+      strokeWeight: Math.max(2, weight - 1),
+      scale: Math.max(3, weight + 1),
     };
     return {
-      strokeColor: REMOVED_COLOR,
-      strokeWeight: style.strokeWidth,
-      strokeOpacity: style.opacity,
+      strokeColor: color,
+      strokeWeight: weight,
+      strokeOpacity: opacity,
       icons: [{ icon: xSymbol, offset: "0", repeat: "60px" }],
     };
   }
 
+  if (!icons) {
+    if (style.strokeStyle === "dashed") {
+      icons = [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: weight }, offset: "0", repeat: "12px" }];
+    } else if (style.strokeStyle === "dotted") {
+      icons = [{ icon: { path: "M 0,0 0,0.01", strokeOpacity: 1, scale: weight }, offset: "0", repeat: "6px" }];
+    }
+  }
+
   return {
-    strokeColor: style.strokeColor,
-    strokeWeight: style.strokeWidth,
-    strokeOpacity: style.opacity,
-    icons:
-      style.strokeStyle === "dashed"
-        ? [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: style.strokeWidth }, offset: "0", repeat: "12px" }]
-        : style.strokeStyle === "dotted"
-        ? [{ icon: { path: "M 0,0 0,0.01", strokeOpacity: 1, scale: style.strokeWidth }, offset: "0", repeat: "6px" }]
-        : undefined,
+    strokeColor: color,
+    strokeWeight: weight,
+    strokeOpacity: opacity,
+    icons,
   };
 }
 
@@ -570,7 +592,7 @@ export default function DrawingOverlay() {
         if (!(marker instanceof google.maps.Marker)) return;
         const pointSize = obj.style.pointSize ?? 1.0;
         const px = computeSymbolPx(zoom, pointSize);
-        const icon = iconForTool(obj.tool, obj.style.strokeColor, pointSize);
+        const icon = iconForTool(obj.tool, obj.style.strokeColor, pointSize, obj.style.ziplyStatus);
         marker.setIcon({
           ...icon,
           size: new google.maps.Size(px, px),
@@ -799,7 +821,7 @@ export default function DrawingOverlay() {
             const pointSize = obj.style.pointSize ?? 1.0;
             const px = computeSymbolPx(zoom, pointSize);
             const color = isSelected ? "#3aa7ff" : obj.style.strokeColor;
-            const icon = iconForTool(obj.tool, color, pointSize * (isSelected ? 1.15 : 1.0));
+            const icon = iconForTool(obj.tool, color, pointSize * (isSelected ? 1.15 : 1.0), obj.style.ziplyStatus);
             existing.setIcon({
               ...icon,
               size: new google.maps.Size(px, px),
@@ -1379,7 +1401,7 @@ function createOverlay(
   if ("position" in obj && !("text" in obj)) {
     const pointSize = obj.style.pointSize ?? 1.0;
     const px = computeSymbolPx(zoom, pointSize);
-    const baseIcon = iconForTool(obj.tool, obj.style.strokeColor, pointSize);
+    const baseIcon = iconForTool(obj.tool, obj.style.strokeColor, pointSize, obj.style.ziplyStatus);
     const marker = new google.maps.Marker({
       position: new google.maps.LatLng(obj.position.lat, obj.position.lng),
       map,

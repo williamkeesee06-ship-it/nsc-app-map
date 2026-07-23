@@ -26,7 +26,7 @@ function wrap(inner: string, color: string): string {
 // MH — circle outline, "MH" text centered
 function mhSvg(color: string): string {
   return wrap(
-    `<circle cx="16" cy="16" r="12"/>
+    `<circle cx="16" cy="16" r="12" fill="#ffffff"/>
     <text x="16" y="20" text-anchor="middle" font-size="9" font-weight="bold"
       fill="${color}" stroke="none" font-family="system-ui, sans-serif">MH</text>`,
     color
@@ -34,21 +34,33 @@ function mhSvg(color: string): string {
 }
 
 // HH — rectangle outline, "HH" text centered
-function hhSvg(color: string): string {
+function hhSvg(color: string, status?: string): string {
+  const isPlanned = status === "planned";
+  const isFilled = status === "placed" || status === "Complete";
+  const fillVal = isFilled ? color : (isPlanned ? "none" : "#ffffff");
+  const strokeOpacity = isPlanned ? "0.5" : "1.0";
+  const textFill = isFilled ? "#ffffff" : color;
+
   return wrap(
-    `<rect x="4" y="8" width="24" height="16" rx="2"/>
+    `<rect x="4" y="8" width="24" height="16" rx="2" fill="${fillVal}" stroke-opacity="${strokeOpacity}"/>
     <text x="16" y="20" text-anchor="middle" font-size="9" font-weight="bold"
-      fill="${color}" stroke="none" font-family="system-ui, sans-serif">HH</text>`,
+      fill="${textFill}" stroke="none" font-family="system-ui, sans-serif" fill-opacity="${strokeOpacity}">HH</text>`,
     color
   );
 }
 
 // PED — square outline with cross inside
-function pedSvg(color: string): string {
+function pedSvg(color: string, status?: string): string {
+  const isPlanned = status === "planned";
+  const isFilled = status === "placed" || status === "Complete";
+  const fillVal = isFilled ? color : (isPlanned ? "none" : "#ffffff");
+  const strokeOpacity = isPlanned ? "0.5" : "1.0";
+  const innerLineColor = isFilled ? "#ffffff" : color;
+
   return wrap(
-    `<rect x="6" y="6" width="20" height="20" rx="2"/>
-    <line x1="16" y1="8" x2="16" y2="24"/>
-    <line x1="8" y1="16" x2="24" y2="16"/>`,
+    `<rect x="6" y="6" width="20" height="20" rx="2" fill="${fillVal}" stroke-opacity="${strokeOpacity}"/>
+    <line x1="16" y1="8" x2="16" y2="24" stroke="${innerLineColor}" stroke-opacity="${strokeOpacity}"/>
+    <line x1="8" y1="16" x2="24" y2="16" stroke="${innerLineColor}" stroke-opacity="${strokeOpacity}"/>`,
     color
   );
 }
@@ -146,11 +158,16 @@ function ziplyAddressSvg(color: string): string {
   );
 }
 
-function ziplyHandholeSvg(color: string): string {
+function ziplyHandholeSvg(color: string, status?: string): string {
+  const isPlanned = status === "planned";
+  const isFilled = status === "placed" || status === "Complete";
+  const fillVal = isFilled ? color : (isPlanned ? "none" : "#f8fafc");
+  const strokeOpacity = isPlanned ? "0.5" : "1.0";
+
   return wrap(
-    `<rect x="6" y="6" width="20" height="20" rx="1.5" fill="#f8fafc" stroke="${color}" stroke-width="2"/>
-    <line x1="16" y1="6" x2="16" y2="26" stroke="${color}" stroke-width="1.2" stroke-dasharray="2,2"/>
-    <line x1="6" y1="16" x2="26" y2="16" stroke="${color}" stroke-width="1.2" stroke-dasharray="2,2"/>`,
+    `<rect x="6" y="6" width="20" height="20" rx="1.5" fill="${fillVal}" stroke-opacity="${strokeOpacity}"/>
+    <line x1="16" y1="6" x2="16" y2="26" stroke="${color}" stroke-width="1.2" stroke-dasharray="2,2" stroke-opacity="${strokeOpacity}"/>
+    <line x1="6" y1="16" x2="26" y2="16" stroke="${color}" stroke-width="1.2" stroke-dasharray="2,2" stroke-opacity="${strokeOpacity}"/>`,
     color
   );
 }
@@ -197,25 +214,33 @@ export function railSvgForTool(tool: string, color?: string): string {
 export function iconForTool(
   tool: string,
   overrideColor?: string,
-  pointSize = 1.0
+  pointSize = 1.0,
+  ziplyStatus?: string
 ): { url: string; size: google.maps.Size; scaledSize?: google.maps.Size; anchor: google.maps.Point } {
   const t = (tool || "").toLowerCase();
   const isPole = t.includes("pole");
-  const color = isPole ? "#000000" : (overrideColor ?? DEFAULT_ICON_COLOR);
+  const isPed = t.includes("ped");
+  const isHH = t.includes("handhole") || t.includes("hh");
+
+  let color = overrideColor ?? DEFAULT_ICON_COLOR;
+  if (isPole) color = "#000000";
+  else if (isPed) color = "#10b981"; // green square for pedestals
+  else if (isHH) color = "#475569"; // slate rectangle for handholes
+
   const px = Math.max(24, Math.round(ICON_SIZE * pointSize));
 
   let svg: string;
   if (t === "ziply_hub" || t.includes("hub")) svg = ziplyHubSvg(color);
   else if (t === "ziply_terminal" || t.includes("terminal")) svg = ziplyTerminalSvg(color);
   else if (t === "ziply_address" || t.includes("address")) svg = ziplyAddressSvg(color);
-  else if (t === "ziply_handhole" || t.includes("handhole")) svg = ziplyHandholeSvg(color);
+  else if (t === "ziply_handhole" || t.includes("handhole")) svg = ziplyHandholeSvg(color, ziplyStatus);
   else if (t === "ziply_pole" || t.includes("pole")) svg = poleSvg(color);
   else if (t.includes("flower_pot") || t.includes("flowerpot")) svg = flowerPotSvg(color);
 
   else if (t.includes("pole")) svg = poleSvg(color);
   else if (t.includes("mh") || t.includes("manhole")) svg = mhSvg(color);
-  else if (t.includes("hh") || t.includes("handhole")) svg = hhSvg(color);
-  else if (t.includes("ped")) svg = pedSvg(color);
+  else if (t.includes("hh") || t.includes("handhole")) svg = hhSvg(color, ziplyStatus);
+  else if (t.includes("ped")) svg = pedSvg(color, ziplyStatus);
   else if (t.includes("cabinet") || t.includes("cab")) svg = cabinetSvg(color);
   else if (t.includes("anchor") || t.includes("guy")) svg = anchorSvg(color);
   else if (t.includes("splice")) svg = spliceSvg(color);

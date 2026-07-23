@@ -943,13 +943,32 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
                       borderRadius: 3,
                       border: "none",
                       cursor: "pointer",
-                      background: obj.style.ziplyStatus === "placed" || obj.style.ziplyStatus === "Complete" ? "linear-gradient(135deg, #059669 0%, #10b981 100%)" : "transparent",
-                      color: obj.style.ziplyStatus === "placed" || obj.style.ziplyStatus === "Complete" ? "#fff" : "#64748b",
-                      boxShadow: obj.style.ziplyStatus === "placed" || obj.style.ziplyStatus === "Complete" ? "0 0 12px rgba(16,185,129,0.6)" : "none",
+                      background: obj.style.ziplyStatus === "placed" ? "linear-gradient(135deg, #059669 0%, #10b981 100%)" : "transparent",
+                      color: obj.style.ziplyStatus === "placed" ? "#fff" : "#64748b",
+                      boxShadow: obj.style.ziplyStatus === "placed" ? "0 0 12px rgba(16,185,129,0.6)" : "none",
                       transition: "all 0.2s ease",
                     }}
                   >
-                    ⚡ PLACED
+                    CONDUIT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => patchStyle({ ziplyStatus: "Complete", ziplyTimestamp: Date.now() })}
+                    style={{
+                      flex: 1,
+                      padding: "4px 0",
+                      fontSize: 9,
+                      fontWeight: 900,
+                      borderRadius: 3,
+                      border: "none",
+                      cursor: "pointer",
+                      background: obj.style.ziplyStatus === "Complete" ? "linear-gradient(135deg, #0891b2 0%, #06b6d4 100%)" : "transparent",
+                      color: obj.style.ziplyStatus === "Complete" ? "#fff" : "#64748b",
+                      boxShadow: obj.style.ziplyStatus === "Complete" ? "0 0 12px rgba(6,182,212,0.6)" : "none",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    FIBER
                   </button>
                 </div>
               </div>
