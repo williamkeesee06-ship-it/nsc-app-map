@@ -521,14 +521,14 @@
   transform-origin: top left;
   pointer-events: auto;
   cursor: grab;
-  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.8), 0 8px 24px rgba(15, 23, 42, 0.3);
+  outline: 2px solid rgba(2, 132, 199, 0.8);
 }
 .po-map-overlay--dragging {
   cursor: grabbing;
 }
 .po-map-overlay--locked {
   cursor: default;
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.9);
+  outline: 2px solid rgba(34, 197, 94, 0.9);
 }
 .po-map-overlay img {
   display: block;

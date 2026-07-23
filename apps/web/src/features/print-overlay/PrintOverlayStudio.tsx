@@ -96,6 +96,15 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     ? { lat: job.geocode.lat, lng: job.geocode.lng }
     : { lat: 0, lng: 0 };
 
+  const didInitialFlyRef = useRef(false);
+  useEffect(() => {
+    if (map && job.geocode && !didInitialFlyRef.current) {
+      didInitialFlyRef.current = true;
+      map.panTo({ lat: job.geocode.lat, lng: job.geocode.lng });
+      map.setZoom(18);
+    }
+  }, [map, job.geocode]);
+
   const curDraft: AnchorDraft = activePageId ? anchorDraft[activePageId] ?? {} : {};
 
   useEffect(() => {
