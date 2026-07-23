@@ -63,7 +63,20 @@ const POINT_TOOLS = new Set([
 ]);
 
 function isPointTool(tool: string): boolean {
-  return POINT_TOOLS.has(tool);
+  if (!tool) return false;
+  const t = tool.toLowerCase();
+  return (
+    t.includes("pole") ||
+    t.includes("mh") ||
+    t.includes("hh") ||
+    t.includes("ped") ||
+    t.includes("cabinet") ||
+    t.includes("anchor") ||
+    t.includes("splice") ||
+    t.includes("flower") ||
+    t.startsWith("ziply_") ||
+    POINT_TOOLS.has(tool)
+  );
 }
 
 function computeSymbolPx(zoom: number, pointSize: number): number {

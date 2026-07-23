@@ -174,21 +174,22 @@ function flowerPotSvg(color: string): string {
 // Returns raw SVG string for use in rail tiles (not data-URI)
 export function railSvgForTool(tool: string, color?: string): string {
   const c = color ?? DEFAULT_ICON_COLOR;
-  if (tool === "ziply_hub") return ziplyHubSvg(c);
-  if (tool === "ziply_terminal") return ziplyTerminalSvg(c);
-  if (tool === "ziply_address") return ziplyAddressSvg(c);
-  if (tool === "ziply_handhole") return ziplyHandholeSvg(c);
-  if (tool === "ziply_pole") return poleSvg(c);
-  if (tool === "ziply_flower_pot" || tool.startsWith("flower_pot")) return flowerPotSvg(c);
+  const t = (tool || "").toLowerCase();
+  if (t === "ziply_hub" || t.includes("hub")) return ziplyHubSvg(c);
+  if (t === "ziply_terminal" || t.includes("terminal")) return ziplyTerminalSvg(c);
+  if (t === "ziply_address" || t.includes("address")) return ziplyAddressSvg(c);
+  if (t === "ziply_handhole" || t.includes("handhole")) return ziplyHandholeSvg(c);
+  if (t === "ziply_pole" || t.includes("pole")) return poleSvg(c);
+  if (t.includes("flower_pot") || t.includes("flowerpot")) return flowerPotSvg(c);
 
-  if (tool.startsWith("mh")) return mhSvg(c);
-  if (tool.startsWith("hh")) return hhSvg(c);
-  if (tool.startsWith("ped")) return pedSvg(c);
-  if (tool.startsWith("pole")) return poleSvg(c);
-  if (tool.startsWith("cabinet")) return cabinetSvg(c);
-  if (tool.startsWith("anchor")) return anchorSvg(c);
-  if (tool.startsWith("splice")) return spliceSvg(c);
-  return mhSvg(c); // fallback
+  if (t.includes("pole")) return poleSvg(c);
+  if (t.includes("mh") || t.includes("manhole")) return mhSvg(c);
+  if (t.includes("hh") || t.includes("handhole")) return hhSvg(c);
+  if (t.includes("ped")) return pedSvg(c);
+  if (t.includes("cabinet") || t.includes("cab")) return cabinetSvg(c);
+  if (t.includes("anchor") || t.includes("guy")) return anchorSvg(c);
+  if (t.includes("splice")) return spliceSvg(c);
+  return poleSvg(c); // fallback
 }
 
 // ── Map icon generator ────────────────────────────────────────────────────────
@@ -200,23 +201,24 @@ export function iconForTool(
 ): { url: string; size: google.maps.Size; anchor: google.maps.Point } {
   const color = overrideColor ?? DEFAULT_ICON_COLOR;
   const px = Math.round(ICON_SIZE * pointSize);
+  const t = (tool || "").toLowerCase();
 
   let svg: string;
-  if (tool === "ziply_hub") svg = ziplyHubSvg(color);
-  else if (tool === "ziply_terminal") svg = ziplyTerminalSvg(color);
-  else if (tool === "ziply_address") svg = ziplyAddressSvg(color);
-  else if (tool === "ziply_handhole") svg = ziplyHandholeSvg(color);
-  else if (tool === "ziply_pole") svg = poleSvg(color);
-  else if (tool === "ziply_flower_pot" || tool.startsWith("flower_pot")) svg = flowerPotSvg(color);
+  if (t === "ziply_hub" || t.includes("hub")) svg = ziplyHubSvg(color);
+  else if (t === "ziply_terminal" || t.includes("terminal")) svg = ziplyTerminalSvg(color);
+  else if (t === "ziply_address" || t.includes("address")) svg = ziplyAddressSvg(color);
+  else if (t === "ziply_handhole" || t.includes("handhole")) svg = ziplyHandholeSvg(color);
+  else if (t === "ziply_pole" || t.includes("pole")) svg = poleSvg(color);
+  else if (t.includes("flower_pot") || t.includes("flowerpot")) svg = flowerPotSvg(color);
 
-  else if (tool.startsWith("mh")) svg = mhSvg(color);
-  else if (tool.startsWith("hh")) svg = hhSvg(color);
-  else if (tool.startsWith("ped")) svg = pedSvg(color);
-  else if (tool.startsWith("pole")) svg = poleSvg(color);
-  else if (tool.startsWith("cabinet")) svg = cabinetSvg(color);
-  else if (tool.startsWith("anchor")) svg = anchorSvg(color);
-  else if (tool.startsWith("splice")) svg = spliceSvg(color);
-  else svg = pedSvg(color); // fallback
+  else if (t.includes("pole")) svg = poleSvg(color);
+  else if (t.includes("mh") || t.includes("manhole")) svg = mhSvg(color);
+  else if (t.includes("hh") || t.includes("handhole")) svg = hhSvg(color);
+  else if (t.includes("ped")) svg = pedSvg(color);
+  else if (t.includes("cabinet") || t.includes("cab")) svg = cabinetSvg(color);
+  else if (t.includes("anchor") || t.includes("guy")) svg = anchorSvg(color);
+  else if (t.includes("splice")) svg = spliceSvg(color);
+  else svg = poleSvg(color); // fallback
 
   return {
     url: svgUri(svg),
