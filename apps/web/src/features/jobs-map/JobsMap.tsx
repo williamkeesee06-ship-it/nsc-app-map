@@ -668,7 +668,7 @@ function JobsMapInner({
                     ne: { lat: selected.geocode.lat + 0.002, lng: selected.geocode.lng + 0.003 }
                   } : null}
                   onSaveTransform={(sheetId, updates) => {
-                    setActiveStudioSheet((prev) => prev ? { ...prev, ...updates } : null);
+                    setActiveStudioSheet((prev: ZiplyPrintSheetOverlay | null) => prev ? { ...prev, ...updates } : null);
                   }}
                   onCloseStudio={() => setActiveStudioSheet(null)}
                 />

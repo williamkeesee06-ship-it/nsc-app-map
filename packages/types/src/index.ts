@@ -262,7 +262,10 @@ export type DrawingObject =
         | "ziply_terminal"
         | "ziply_address"
         | "ziply_pole"
-        | "ziply_handhole";
+        | "ziply_handhole"
+        | "ziply_flower_pot"
+        | "flower_pot_new"
+        | "flower_pot_removed";
       position: { lat: number; lng: number };
       label?: string;
       style: DrawingStyle;
