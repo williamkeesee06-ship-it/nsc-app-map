@@ -36,7 +36,17 @@ function loadPrefs(): MapPreferences {
     if (raw) {
       const parsed = JSON.parse(raw);
       const theme: MapTheme = parsed.theme ?? (parsed.dark ? "dark" : "classic");
-      return { ...DEFAULT_PREFS, ...parsed, theme };
+      const mapType = parsed.mapType === "terrain" ? "roadmap" : (parsed.mapType ?? "roadmap");
+      return {
+        ...DEFAULT_PREFS,
+        ...parsed,
+        mapType,
+        theme,
+        showRoadLabels: mapType !== "satellite",
+        showPoiLabels: true,
+        showCityLabels: true,
+        showTransit: true,
+      };
     }
   } catch {}
   return { ...DEFAULT_PREFS };

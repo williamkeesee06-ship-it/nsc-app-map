@@ -14,7 +14,6 @@ import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 import { queuePrefWrite } from "../../lib/prefsSync.js";
 import StatusFilterPills from "./StatusFilterPills.js";
 import CentralOfficesPill from "./CentralOfficesPill.js";
-import MapTypeFilterSection from "../map/MapTypeFilterSection.js";
 // CalendarTab / Dashboard / 811 are mounted full-screen by JobsMap, not in the rail.
 // Lumina is the floating orb + ChatPanel (not a rail tab).
 import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
@@ -659,9 +658,6 @@ function FiltersTab({
         <CentralOfficesPill />
       </div>
 
-      <div className="glass-panel">
-        <MapTypeFilterSection />
-      </div>
 
       {!hideFilters && managerMode && availableSupervisors && availableSupervisors.length > 0 && (
         <div className="filters-tab__group glass-panel">

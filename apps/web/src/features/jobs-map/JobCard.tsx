@@ -1,19 +1,14 @@
-// Compact job card with INLINE EDITING (Billy 5/21).
-//   - Secondary Job Status pill â†’ click to cycle through dropdown
-//   - NSC Project Notes        â†’ click to edit text
-//   - Crew / Foreman           â†’ click to open dropdown
-//   - Schedule Date            â†’ click to open date picker
-//   - Traffic Control          â†’ click toggle
-// Saves write directly to Smartsheet via the nsc-smartapp Worker.
+// Compact job card with unified styling (Lumen & Ziply) and collapsible sections.
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, FileText, ChevronRight, CheckCircle2, ChevronDown, Wand2, Calendar, FileDown } from "lucide-react";
+import { ArrowRight, FileText, ChevronRight, ChevronDown, CheckCircle2, Wand2, Calendar, FileDown, UploadCloud, Layers } from "lucide-react";
 import { useMap } from "@vis.gl/react-google-maps";
 import type { DigTicket, Job } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
-
+import Eight11Section from "./Eight11Section.js";
+import { computePlantProgress, isZiplyJob } from "../ziply/ziplyUtils.js";
 
 interface Props {
   job: Job;
@@ -23,12 +18,23 @@ interface Props {
   onThemeChange?: (theme: "steel" | "cyberpunk" | "titanium" | "glass") => void;
 }
 
-const SS_WORKER = (import.meta as any).env?.VITE_SMARTSHEET_WORKER_URL || "https://nsc-smartapp.williamkeesee06.workers.dev";
+interface Schema {
+  secondaryStatusOptions: string[];
+  foremanOptions: string[];
+}
 
-// Cache the dropdown options between mounts so we don't refetch every click.
-type Schema = { secondaryStatusOptions: string[]; foremanOptions: string[] };
 let _schemaCache: Schema | null = null;
 let _schemaPromise: Promise<Schema> | null = null;
+
+const SS_WORKER = "https://nsc-smartapp.williamkeesee06.workers.dev";
+
+function slugify(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
 function loadSchema(): Promise<Schema> {
   if (_schemaCache) return Promise.resolve(_schemaCache);
   if (_schemaPromise) return _schemaPromise;
@@ -82,7 +88,10 @@ export default function JobCard({
   const activeTheme = onThemeChange ? theme : localTheme;
   const setActiveTheme = onThemeChange ? onThemeChange : setLocalTheme;
   const wo = job.workOrder;
-  const status = job.jobStatus ?? "â€”";
+  const status = job.jobStatus ?? "—";
+
+  // Collapse/Expand state
+  const [notesExpanded, setNotesExpanded] = useState(false);
 
   // Local edit state (optimistic display until save resolves)
   const [secondary, setSecondary] = useState<string>(job.secondaryJobStatus ?? "");
@@ -98,7 +107,7 @@ export default function JobCard({
     if (!schema) loadSchema().then((s) => setSchema(s));
   }, [schema]);
 
-  // Re-sync local state if the underlying job object changes (e.g. user clicks another job)
+  // Re-sync local state if the underlying job object changes
   useEffect(() => {
     setSecondary(job.secondaryJobStatus ?? "");
     setForeman(job.constructionCrewForeman ?? "");
@@ -107,7 +116,7 @@ export default function JobCard({
     setNotes(job.nscProjectNotes ?? "");
   }, [job.jobId]);
 
-  // Save indicator: "idle" | "saving" | "ok" | "err"
+  // Save indicator state
   const [savingField, setSavingField] = useState<string | null>(null);
   const [savedField, setSavedField] = useState<string | null>(null);
   const [errField, setErrField] = useState<string | null>(null);
@@ -121,9 +130,6 @@ export default function JobCard({
     if (res.ok) {
       setSavedField(field);
       setTimeout(() => setSavedField(null), 1500);
-      // Billy 5/26: keep Firestore (and therefore the map view) in sync with
-      // what we just wrote to Smartsheet. Without this, a refresh re-reads
-      // stale Firestore data and the user's edit appears to revert.
       try {
         if (username) {
           if (isManager) {
@@ -134,7 +140,7 @@ export default function JobCard({
           window.dispatchEvent(new Event("nsc:jobs-reload"));
         }
       } catch (err) {
-        console.warn("Post-save sync failed (UI will still show update locally):", err);
+        console.warn("Post-save sync failed:", err);
       }
     } else {
       setErrField(field);
@@ -143,10 +149,9 @@ export default function JobCard({
     }
   }
 
-  // Minimized pill â€” always rendered in popup variant
   if (minimized && variant === "popup") {
     return (
-      <div className="job-card-pill" title={`${wo} Â· ${status}`}>
+      <div className="job-card-pill" title={`${wo} · ${status}`}>
         <span className="job-card-pill__wo">{wo}</span>
         <button
           className="job-card-pill__restore icon-btn"
@@ -154,7 +159,7 @@ export default function JobCard({
           aria-label="Restore job card"
           title="Restore"
         >
-          âŒƒ
+          ↕
         </button>
         {onClose && (
           <button
@@ -163,7 +168,7 @@ export default function JobCard({
             aria-label="Close"
             title="Close"
           >
-            Ã—
+            ×
           </button>
         )}
       </div>
@@ -173,23 +178,35 @@ export default function JobCard({
   const secondaryOptions = schema?.secondaryStatusOptions ?? [];
   const foremanOptions = schema?.foremanOptions ?? [];
 
+  // Documents listing: Ziply documents + permits
+  const ziplyPrintLayer = job.ziplyPrintLayer;
+  const attachmentsList = ziplyPrintLayer?.permitFiles ?? [];
+
+  // Plant stats / Running totals
+  const stats = computePlantProgress(job);
+
   return (
-    <div className={`job-card job-card--${variant} theme-${activeTheme}`}>
-      <header className="job-card__head">
-        <div className="job-card__head-left">
-          <span className="job-card__wo">{wo}</span>
-          {/* Secondary status pill â€” now a dropdown (Billy 5/21) */}
-          <SecondaryStatusEditablePill
-            status={secondary}
-            options={secondaryOptions}
-            onChange={(v) => {
-              setSecondary(v);
-              commit("secondaryStatus", v);
-            }}
-            saving={savingField === "secondaryStatus"}
-            saved={savedField === "secondaryStatus"}
-            error={errField === "secondaryStatus"}
-          />
+    <div className={`job-card job-card--${variant} theme-${activeTheme}`} style={{ display: "flex", flexDirection: "column", gap: 12, padding: "14px" }}>
+      <header className="job-card__head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="job-card__head-left" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="job-card__wo" style={{ fontSize: "16px", fontWeight: 800 }}>{wo}</span>
+          
+          {/* Status pill with neon border */}
+          <span style={{
+            border: "1.5px solid #06B6D4",
+            boxShadow: "0 0 8px rgba(6, 182, 212, 0.3)",
+            background: "rgba(6, 182, 212, 0.05)",
+            color: "#06B6D4",
+            borderRadius: "9999px",
+            padding: "2px 8px",
+            fontSize: "9px",
+            fontWeight: 800,
+            letterSpacing: "0.05em",
+            textTransform: "uppercase"
+          }}>
+            {secondary || status}
+          </span>
+
           {!job.inTracker && (
             <span className="status-pill status-archived">Archived</span>
           )}
@@ -212,7 +229,6 @@ export default function JobCard({
               textTransform: "uppercase",
               letterSpacing: "0.04em",
               outline: "none",
-              marginRight: 4
             }}
             title="Choose Preview Theme"
           >
@@ -229,94 +245,255 @@ export default function JobCard({
               aria-label="Minimize job card"
               title="Minimize"
             >
-              âˆ’
+              −
             </button>
           )}
           {onClose && (
             <button className="icon-btn" onClick={onClose} aria-label="Close">
-              Ã—
+              ×
             </button>
           )}
         </div>
       </header>
 
-      {/* Primary job status row (read-only) */}
-      <div style={{ paddingLeft: 12, paddingBottom: 4, marginTop: -2 }}>
-        <span className={`status-pill status-${slugify(status)}`} style={{ fontSize: 9 }}>
-          {status}
-        </span>
+      {/* Primary Details Block */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, background: "rgba(255,255,255,0.02)", padding: 8, borderRadius: 8 }}>
+        <Row label="Address" value={job.address} />
+        <Row label="City" value={job.city} />
+        <Row label="Supervisor" value={job.constructionSupervisor || "Unassigned"} />
       </div>
 
-      <Row label="Address" value={job.address} />
-      <Row label="City" value={job.city} />
+      <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
 
-      <EditableRow
-        label="Crew / Foreman"
-        value={foreman}
-        type="select"
-        options={foremanOptions}
-        onChange={(v) => {
-          setForeman(v);
-          commit("foreman", v);
-        }}
-        saving={savingField === "foreman"}
-        saved={savedField === "foreman"}
-        error={errField === "foreman"}
-      />
+      {/* Collapsible Project Notes */}
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <button
+          type="button"
+          onClick={() => setNotesExpanded(!notesExpanded)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "none",
+            border: "none",
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: "11px",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            cursor: "pointer",
+            width: "100%",
+            textAlign: "left",
+            padding: "4px 0",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span>NSC Project Notes</span>
+            <SaveIndicator
+              saving={savingField === "notes"}
+              saved={savedField === "notes"}
+              error={errField === "notes"}
+            />
+          </div>
+          {notesExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+        
+        {notesExpanded && (
+          <div style={{ marginTop: 6 }}>
+            <EditableNotes value={notes} onCommit={(v) => { setNotes(v); commit("notes", v); }} />
+          </div>
+        )}
+      </div>
 
-      <EditableRow
-        label="Schedule Date"
-        value={schedDate}
-        type="date"
-        onChange={(v) => {
-          setSchedDate(v);
-          commit("schedDate", v || null);
-        }}
-        saving={savingField === "schedDate"}
-        saved={savedField === "schedDate"}
-        error={errField === "schedDate"}
-      />
+      <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
 
-      <EditableRow
-        label="Traffic Control"
-        value={tcReq === true ? "Required" : tcReq === false ? "Not required" : ""}
-        type="toggle"
-        toggleValue={tcReq === true}
-        onToggle={(v) => {
-          setTcReq(v);
-          commit("tcRequired", v);
-        }}
-        saving={savingField === "tcRequired"}
-        saved={savedField === "tcRequired"}
-        error={errField === "tcRequired"}
-      />
+      {/* Scheduling & Details */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <h4 style={{ fontSize: 10, fontWeight: 700, color: "#a0aec0", textTransform: "uppercase", margin: "0 0 4px 0", letterSpacing: "0.05em" }}>
+          Scheduling & Details
+        </h4>
+        <EditableRow
+          label="Crew / Foreman"
+          value={foreman}
+          type="select"
+          options={foremanOptions}
+          onChange={(v) => {
+            setForeman(v);
+            commit("foreman", v);
+          }}
+          saving={savingField === "foreman"}
+          saved={savedField === "foreman"}
+          error={errField === "foreman"}
+        />
 
-      <Row label="Completed" value={fmtDate(job.actualCompletionDate)} />
+        <EditableRow
+          label="Schedule Date"
+          value={schedDate}
+          type="date"
+          onChange={(v) => {
+            setSchedDate(v);
+            commit("schedDate", v || null);
+          }}
+          saving={savingField === "schedDate"}
+          saved={savedField === "schedDate"}
+          error={errField === "schedDate"}
+        />
 
-      {/* Notes â€” always shown so user can add even when empty */}
-      <div className="job-card__notes">
-        <div className="job-card__notes-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          NSC Project Notes
-          <SaveIndicator
-            saving={savingField === "notes"}
-            saved={savedField === "notes"}
-            error={errField === "notes"}
-          />
+        <EditableRow
+          label="Traffic Control"
+          value={tcReq === true ? "Required" : tcReq === false ? "Not required" : ""}
+          type="toggle"
+          toggleValue={tcReq === true}
+          onToggle={(v) => {
+            setTcReq(v);
+            commit("tcRequired", v);
+          }}
+          saving={savingField === "tcRequired"}
+          saved={savedField === "tcRequired"}
+          error={errField === "tcRequired"}
+        />
+      </div>
+
+      <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
+
+      {/* 811 Locate Section */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <h4 style={{ fontSize: 10, fontWeight: 700, color: "#a0aec0", textTransform: "uppercase", margin: "0 0 4px 0", letterSpacing: "0.05em" }}>
+          811 Locate shape
+        </h4>
+        <Eight11Section job={job} />
+      </div>
+
+      <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
+
+      {/* Documents & Attachments Section */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyItems: "space-between" }}>
+          <h4 style={{ fontSize: 10, fontWeight: 700, color: "#a0aec0", textTransform: "uppercase", margin: 0, letterSpacing: "0.05em", flexGrow: 1 }}>
+            Documents & Attachments
+          </h4>
+          <button
+            type="button"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              border: "1.5px solid #06B6D4",
+              background: "rgba(6, 182, 212, 0.05)",
+              color: "#06B6D4",
+              boxShadow: "0 0 6px rgba(6, 182, 212, 0.15)",
+              borderRadius: "6px",
+              padding: "3px 8px",
+              fontSize: "9px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            <UploadCloud size={10} /> Upload
+          </button>
         </div>
-        <EditableNotes value={notes} onCommit={(v) => { setNotes(v); commit("notes", v); }} />
+
+        {attachmentsList.length === 0 ? (
+          <span style={{ fontSize: 10, color: "#64748b", fontStyle: "italic", marginTop: 4 }}>No attachments uploaded yet.</span>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+            {attachmentsList.map((file: any, i: number) => (
+              <a
+                key={i}
+                href={file.downloadUrl || "#"}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: 11, color: "#cbd5e1", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}
+              >
+                <FileText size={12} /> {file.name || `Attachment ${i + 1}`}
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
-
+      {/* Georeferencing / PRINT OVERLAY Section */}
+      {isZiplyJob(job) && (
+        <>
+          <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <h4 style={{ fontSize: 10, fontWeight: 700, color: "#a0aec0", textTransform: "uppercase", margin: 0, letterSpacing: "0.05em" }}>
+              Print Anchoring
+            </h4>
+            
+            {!ziplyPrintLayer?.mapObjects ? (
+              <div style={{ marginTop: 4 }}>
+                <button
+                  type="button"
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    border: "1.5px solid #06B6D4",
+                    background: "rgba(6, 182, 212, 0.1)",
+                    color: "#06B6D4",
+                    boxShadow: "0 0 10px rgba(6, 182, 212, 0.25)",
+                    borderRadius: "8px",
+                    padding: "8px",
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    letterSpacing: "0.05em",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {
+                    // Dispatch overlay configuration event to begin split/crop georeference alignment
+                    window.dispatchEvent(new CustomEvent("nsc:ziply-align-start", { detail: { jobId: job.jobId } }));
+                  }}
+                >
+                  <Layers size={12} /> PRINT OVERLAY
+                </button>
+              </div>
+            ) : (
+              <div style={{ background: "rgba(255,255,255,0.03)", padding: 10, borderRadius: 8, border: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10 }}>
+                  <span style={{ color: "#94a3b8" }}>Bore Complete</span>
+                  <span style={{ fontWeight: 700 }}>{stats.completeFt} ft / {stats.totalFt} ft</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10 }}>
+                  <span style={{ color: "#94a3b8" }}>Terminals Installed</span>
+                  <span style={{ fontWeight: 700 }}>{stats.complete} / {stats.total}</span>
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <button
+                    type="button"
+                    style={{
+                      width: "100%",
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      background: "rgba(255,255,255,0.05)",
+                      color: "#e2e8f0",
+                      borderRadius: "6px",
+                      padding: "4px",
+                      fontSize: "9px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent("nsc:ziply-align-start", { detail: { jobId: job.jobId } }));
+                    }}
+                  >
+                    Adjust Print Overlay
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-
 // -----------------------------------------------------------------------------
-// 811 expiration pill â€” surfaces a filed/active dig ticket that is expiring
+// 811 expiration pill — surfaces a filed/active dig ticket that is expiring
 // within 7 days. Clicking it jumps to the 811 tab, selects the ticket, and
-// opens the ITIC modal (same nsc:lumina:openDigTicket contract the Lumina
-// startDigTicket tool uses; sessionStorage flag survives the tab switch).
+// opens the ITIC modal.
 // -----------------------------------------------------------------------------
 const EXPIRY_STATUSES = new Set<DigTicket["status"]>(["Filed", "Active", "Expiring"]);
 const EXPIRY_DAY_MS = 24 * 60 * 60 * 1000;
@@ -383,14 +560,16 @@ function Eight11ExpiryPill({ job }: { job: Job }) {
       type="button"
       className="status-pill"
       onClick={openTicket}
-      title={`Dig ticket ${ticket.ticketNumber || ""} â€” open on the 811 tab`}
+      title={`Dig ticket ${ticket.ticketNumber || ""} — open on the 811 tab`}
       style={{
-        marginLeft: 6,
         background: bg,
         color,
         border: "none",
         cursor: "pointer",
         fontWeight: 700,
+        fontSize: "9px",
+        borderRadius: "4px",
+        padding: "2px 6px"
       }}
     >
       {label}
@@ -399,162 +578,40 @@ function Eight11ExpiryPill({ job }: { job: Job }) {
 }
 
 // -----------------------------------------------------------------------------
-// Secondary-status pill: click to open a dropdown of all valid options.
+// Helper components for layout.
 // -----------------------------------------------------------------------------
-function SecondaryStatusEditablePill({
-  status,
-  options,
-  onChange,
+function SaveIndicator({
   saving,
   saved,
   error,
 }: {
-  status: string;
-  options: string[];
-  onChange: (v: string) => void;
   saving: boolean;
   saved: boolean;
   error: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const key = colorKeyForSecondaryStatus(status || "");
-  const color = MARKER_COLORS[key];
-  const display = status || "Set status";
+  if (saving) return <span style={{ fontSize: 9, color: "#38bdf8" }}>Saving…</span>;
+  if (saved) return <span style={{ fontSize: 9, color: "#34d399" }}>Saved</span>;
+  if (error) return <span style={{ fontSize: 9, color: "#f87171" }}>Error</span>;
+  return null;
+}
 
+function Row({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
   return (
-    <span style={{ position: "relative", display: "inline-block", marginLeft: 6 }}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        title="Click to change secondary status"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "2px 8px",
-          borderRadius: 10,
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          background: `${color.core}22`,
-          border: `1px solid ${color.core}`,
-          color: "#1a1a1a",
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-        }}
-      >
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: color.core,
-            boxShadow: `0 0 4px ${color.glow}`,
-            display: "inline-block",
-            flexShrink: 0,
-          }}
-        />
-        {display}
-        <span style={{ opacity: 0.7, fontSize: 8 }}>â–¾</span>
-      </button>
-      <SaveIndicator saving={saving} saved={saved} error={error} inline />
-      {open && (
-        <>
-          <div
-            onClick={() => setOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 1000,
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "calc(100% + 4px)",
-              left: 0,
-              zIndex: 1001,
-              minWidth: 200,
-              maxHeight: 280,
-              overflowY: "auto",
-              background: "#0f1623",
-              border: "1px solid #2a3a55",
-              borderRadius: 6,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-              padding: 4,
-            }}
-          >
-            {options.length === 0 && (
-              <div style={{ padding: 8, fontSize: 10, color: "#93d4ff" }}>
-                Loading optionsâ€¦
-              </div>
-            )}
-            {options.map((opt) => {
-              const isCurrent = opt === status;
-              const ck = colorKeyForSecondaryStatus(opt);
-              const c = MARKER_COLORS[ck];
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => {
-                    onChange(opt);
-                    setOpen(false);
-                  }}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "5px 8px",
-                    background: isCurrent ? "rgba(147,212,255,0.12)" : "transparent",
-                    border: "none",
-                    color: "#e6f0ff",
-                    fontSize: 10,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    borderRadius: 4,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(147,212,255,0.18)")}
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = isCurrent
-                      ? "rgba(147,212,255,0.12)"
-                      : "transparent")
-                  }
-                >
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: c.core,
-                      boxShadow: `0 0 4px ${c.glow}`,
-                      flexShrink: 0,
-                    }}
-                  />
-                  {opt}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </span>
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
+      <span style={{ color: "#94a3b8" }}>{label}</span>
+      <span style={{ fontWeight: 600, color: "#f1f5f9" }}>{value}</span>
+    </div>
   );
 }
 
-// -----------------------------------------------------------------------------
-// Generic editable row â€” click value to enter edit mode.
-// -----------------------------------------------------------------------------
 function EditableRow({
   label,
   value,
   type,
-  options,
-  toggleValue,
+  options = [],
   onChange,
+  toggleValue = false,
   onToggle,
   saving,
   saved,
@@ -564,223 +621,132 @@ function EditableRow({
   value: string;
   type: "select" | "date" | "toggle";
   options?: string[];
-  toggleValue?: boolean;
   onChange?: (v: string) => void;
+  toggleValue?: boolean;
   onToggle?: (v: boolean) => void;
-  saving: boolean;
-  saved: boolean;
-  error: boolean;
+  saving?: boolean;
+  saved?: boolean;
+  error?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
-
   return (
-    <div className="job-card__row job-card__row--editable">
-      <span className="job-card__row-label">{label}</span>
-      {type === "toggle" ? (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <label
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: 600,
-              color: toggleValue ? "#c25000" : "var(--text-secondary)",
-            }}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
+      <span style={{ color: "#94a3b8" }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <SaveIndicator saving={!!saving} saved={!!saved} error={!!error} />
+        {type === "select" && onChange && (
+          <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)", color: "#f1f5f9", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer" }}
           >
+            <option value="">Choose...</option>
+            {options.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        )}
+        {type === "date" && onChange && (
+          <input
+            type="date"
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)", color: "#f1f5f9", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer" }}
+          />
+        )}
+        {type === "toggle" && onToggle && (
+          <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
             <input
               type="checkbox"
-              checked={!!toggleValue}
-              onChange={(e) => onToggle && onToggle(e.target.checked)}
-              style={{ accentColor: "#ff6b00", cursor: "pointer" }}
+              checked={toggleValue}
+              onChange={(e) => onToggle(e.target.checked)}
+              style={{ accentColor: "#06b6d4", cursor: "pointer" }}
             />
-            {toggleValue ? "Required" : "Not required"}
           </label>
-          <SaveIndicator saving={saving} saved={saved} error={error} inline />
-        </span>
-      ) : editing ? (
-        type === "select" ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <select
-              autoFocus
-              value={value}
-              onChange={(e) => {
-                onChange && onChange(e.target.value);
-                setEditing(false);
-              }}
-              onBlur={() => setEditing(false)}
-              style={{
-                background: "#0f1623",
-                color: "#e6f0ff",
-                border: "1px solid #2a3a55",
-                borderRadius: 4,
-                padding: "2px 6px",
-                fontSize: 11,
-                maxWidth: 200,
-              }}
-            >
-              <option value="">â€” none â€”</option>
-              {(options || []).map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-            <SaveIndicator saving={saving} saved={saved} error={error} inline />
-          </span>
-        ) : (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <input
-              autoFocus
-              type="date"
-              value={value || ""}
-              onChange={(e) => {
-                onChange && onChange(e.target.value);
-              }}
-              onBlur={() => setEditing(false)}
-              style={{
-                background: "#0f1623",
-                color: "#e6f0ff",
-                border: "1px solid #2a3a55",
-                borderRadius: 4,
-                padding: "2px 6px",
-                fontSize: 11,
-              }}
-            />
-            <SaveIndicator saving={saving} saved={saved} error={error} inline />
-          </span>
-        )
-      ) : (
-        <span
-          className="job-card__row-value"
-          onClick={() => setEditing(true)}
-          title="Click to edit"
-          style={{
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            minWidth: value ? undefined : 110,
-            padding: value ? undefined : "3px 10px",
-            borderRadius: value ? undefined : 6,
-            border: value ? undefined : "1px dashed rgba(0,132,212,0.6)",
-            background: value ? undefined : "rgba(30,167,255,0.14)",
-            borderBottom: value ? "1px dotted rgba(0,132,212,0.45)" : undefined,
-            color: value ? undefined : "#1a1a1a",
-            fontSize: value ? undefined : 11,
-            fontWeight: value ? undefined : 700,
-            textTransform: value ? undefined : "uppercase",
-            letterSpacing: value ? undefined : "0.06em",
-          }}
-        >
-          {value || "TAP TO SET â–¾"}
-          <SaveIndicator saving={saving} saved={saved} error={error} inline />
-        </span>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
-// -----------------------------------------------------------------------------
-// EditableNotes â€” textarea that commits on blur.
-// -----------------------------------------------------------------------------
 function EditableNotes({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  const [val, setVal] = useState(value);
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setVal(value);
+  }, [value]);
 
   if (!editing) {
     return (
       <div
-        className="job-card__notes-body"
         onClick={() => setEditing(true)}
-        title="Click to edit"
         style={{
+          background: "rgba(0,0,0,0.25)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 6,
+          padding: 8,
+          fontSize: 11,
+          lineHeight: 1.45,
+          color: value ? "#e2e8f0" : "#64748b",
+          fontStyle: value ? "normal" : "italic",
           cursor: "pointer",
-          minHeight: 24,
-          borderBottom: "1px dotted rgba(0,132,212,0.35)",
-          color: value ? undefined : "var(--text-muted)",
+          minHeight: 48,
+          whiteSpace: "pre-wrap",
         }}
       >
-        {value || <em>Click to add notesâ€¦</em>}
+        {value || "Tap to add project notes..."}
       </div>
     );
   }
-  return (
-    <textarea
-      autoFocus
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        setEditing(false);
-        if (draft !== value) onCommit(draft);
-      }}
-      rows={3}
-      style={{
-        width: "100%",
-        background: "#0f1623",
-        color: "#e6f0ff",
-        border: "1px solid #2a3a55",
-        borderRadius: 4,
-        padding: 6,
-        fontSize: 11,
-        fontFamily: "inherit",
-        resize: "vertical",
-      }}
-    />
-  );
-}
 
-// -----------------------------------------------------------------------------
-// Save indicator dot.
-// -----------------------------------------------------------------------------
-function SaveIndicator({
-  saving,
-  saved,
-  error,
-  inline,
-}: {
-  saving: boolean;
-  saved: boolean;
-  error: boolean;
-  inline?: boolean;
-}) {
-  if (!saving && !saved && !error) return null;
-  const color = error ? "#ef4444" : saved ? "#16a34a" : "#f59e0b";
-  const text = error ? "ERR" : saved ? "âœ“" : "â€¦";
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        fontSize: 9,
-        fontWeight: 700,
-        color,
-        marginLeft: inline ? 4 : 0,
-      }}
-      title={error ? "Save failed" : saved ? "Saved" : "Savingâ€¦"}
-    >
-      {text}
-    </span>
-  );
-}
+  const done = () => {
+    setEditing(false);
+    if (val !== value) onCommit(val);
+  };
 
-function Row({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null;
   return (
-    <div className="job-card__row">
-      <span className="job-card__row-label">{label}</span>
-      <span className="job-card__row-value">{value}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <textarea
+        ref={ref}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={done}
+        style={{
+          width: "100%",
+          minHeight: 100,
+          background: "rgba(15,23,42,0.9)",
+          border: "1px solid #06b6d4",
+          boxShadow: "0 0 6px rgba(6,182,212,0.2)",
+          color: "#fff",
+          borderRadius: 6,
+          padding: 8,
+          fontSize: 11,
+          fontFamily: "inherit",
+          outline: "none",
+          resize: "vertical",
+        }}
+        autoFocus
+      />
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={done}
+          style={{ background: "#06b6d4", color: "#000", border: "none", borderRadius: 4, padding: "4px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
+        >
+          Save
+        </button>
+      </div>
     </div>
   );
 }
 
 function fmtDate(d: string | null | undefined): string | null {
   if (!d) return null;
-  return d;
-}
-
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  try {
+    return new Date(d).toLocaleDateString();
+  } catch {
+    return d;
+  }
 }
