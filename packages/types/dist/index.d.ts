@@ -1,4 +1,6 @@
 export * from "./geo.js";
+export * from "./printOverlay.js";
+import type { PrintOverlayDoc } from "./printOverlay.js";
 export type LatLng = {
     lat: number;
     lng: number;
@@ -536,6 +538,9 @@ export interface Job {
     locateNumber?: string | null;
     /** Mirrored from the active ticket. */
     locateExpires?: Timestamp | null;
+    /** Print Overlay studio doc (Stages 1–5): page rasters + non-destructive
+     *  crop/transform/alignment metadata. Binaries live in Storage. */
+    printOverlay?: PrintOverlayDoc | null;
 }
 export type Timestamp = number;
 export interface PolygonData {

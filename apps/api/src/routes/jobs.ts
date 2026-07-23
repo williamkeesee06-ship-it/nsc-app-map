@@ -31,7 +31,7 @@ import {
   parseZiplyPermit,
   ZiplyPrintParseError,
 } from "../services/ziplyParser.js";
-import type { DigShape, Job, PolygonData, ZiplyObjectStatus, ZiplySectionKind } from "@nsc/types";
+import type { DigShape, Job, PolygonData, PrintOverlayDoc, ZiplyObjectStatus, ZiplySectionKind } from "@nsc/types";
 import type { ControlPoint } from "../services/ziplyAffine.js";
 
 type ZiplyPermitFile = NonNullable<
@@ -2909,5 +2909,99 @@ router.post("/jobs/:jobId/ziply-section-crew", async (req, res, next) => {
     next(err);
   }
 });
+
+// ── Print Overlay (Stages 1–5) ──────────────────────────────────────────────
+// Job-scoped, non-destructive overlay metadata (source PDFs, split page
+// records, reversible crop rects, draft transforms + alignments). Binaries
+// (original PDFs, page preview PNGs) live in Firebase Storage; only Storage
+// references + small metadata are persisted here — never giant base64 blobs.
+// This is the Stage 1–5 draft document; the Stage 6 final "lock" state is
+// intentionally NOT modeled or persisted by this route.
+
+// GET /api/jobs/:jobId/print-overlay — read the saved overlay doc (or null).
+router.get("/jobs/:jobId/print-overlay", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const data = doc.data() as { printOverlay?: PrintOverlayDoc | null };
+    res.json({ jobId, printOverlay: data.printOverlay ?? null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/jobs/:jobId/print-overlay — save (or clear, with null) the overlay
+// draft. Body: { doc: PrintOverlayDoc | null }.
+router.put("/jobs/:jobId/print-overlay", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const body = req.body as { doc?: PrintOverlayDoc | null };
+    const incoming = body.doc ?? null;
+    if (incoming !== null) {
+      const err = validatePrintOverlayDoc(incoming);
+      if (err) {
+        res.status(400).json({ error: err });
+        return;
+      }
+    }
+
+    const updatedBy = (req as { user?: { email?: string } }).user?.email ?? null;
+    const saved: PrintOverlayDoc | null = incoming
+      ? { ...incoming, jobId, updatedAt: Date.now(), updatedBy }
+      : null;
+
+    await ref.update({ printOverlay: saved });
+    invalidateJobsCache();
+    res.json({ jobId, printOverlay: saved });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Validate a PrintOverlayDoc at the persistence boundary. Guards against giant
+// base64 previews (Firestore 1 MiB doc limit) and malformed page records.
+function validatePrintOverlayDoc(d: PrintOverlayDoc): string | null {
+  if (d.schemaVersion !== 1) return "schemaVersion must be 1";
+  if (!Array.isArray(d.sources)) return "sources must be an array";
+  if (!Array.isArray(d.pages)) return "pages must be an array";
+  if (typeof d.transforms !== "object" || d.transforms === null) {
+    return "transforms must be an object";
+  }
+  if (typeof d.alignments !== "object" || d.alignments === null) {
+    return "alignments must be an object";
+  }
+  for (const p of d.pages) {
+    if (typeof p.id !== "string" || !p.id) return "page.id must be a non-empty string";
+    if (typeof p.pageNumber !== "number" || p.pageNumber < 1) {
+      return `page ${p.id}: pageNumber must be a positive number`;
+    }
+    // Reject inline data URLs — previews belong in object storage.
+    if (typeof p.previewUrl === "string" && p.previewUrl.startsWith("data:")) {
+      return `page ${p.id}: previewUrl must be a Storage URL, not an inline data URL`;
+    }
+    if (p.crop) {
+      const c = p.crop;
+      const inRange = [c.x, c.y, c.width, c.height].every(
+        (n) => typeof n === "number" && n >= 0 && n <= 1
+      );
+      if (!inRange || c.width <= 0 || c.height <= 0) {
+        return `page ${p.id}: crop must be normalized (0..1) with positive size`;
+      }
+    }
+  }
+  return null;
+}
 
 export default router;

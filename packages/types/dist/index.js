@@ -1,6 +1,8 @@
 // Shared types for NSC APP MAP — used by both web and api workspaces.
 // Geodesic helpers for the 811 dig polygon tool (area/perimeter/bounds).
 export * from "./geo.js";
+// Print Overlay (Stages 1–5): page/crop/transform/alignment types + pure math.
+export * from "./printOverlay.js";
 export const emptyAsbuilt = (jobId) => ({
     jobId,
     points: [],

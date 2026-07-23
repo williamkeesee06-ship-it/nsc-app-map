@@ -9,6 +9,7 @@ import type {
   DigTicket,
   Job,
   PolygonData,
+  PrintOverlayDoc,
   SyncRun,
   ZiplySectionScope,
 } from "@nsc/types";
@@ -173,6 +174,18 @@ export const api = {
       `/api/jobs/${encodeURIComponent(jobId)}/dig-polygon`,
       { method: "PUT", body: JSON.stringify({ polygon }) }
     ),
+  // Print Overlay (Stages 1–5) — job-scoped, non-destructive overlay draft
+  // (source PDFs, split page records, reversible crops, transforms, alignment).
+  getPrintOverlay: (jobId: string) =>
+    request<{ jobId: string; printOverlay: PrintOverlayDoc | null }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/print-overlay`
+    ),
+  putPrintOverlay: (jobId: string, doc: PrintOverlayDoc | null) =>
+    request<{ jobId: string; printOverlay: PrintOverlayDoc | null }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/print-overlay`,
+      { method: "PUT", body: JSON.stringify({ doc }) }
+    ),
+
   // Ziply — AI print ingestion. Client uploads print files directly to
   // Firebase Storage first, then sends only small Storage references here.
   ziplyIngest: (

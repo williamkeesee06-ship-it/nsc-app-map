@@ -9,7 +9,7 @@ import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
 import Eight11Section from "./Eight11Section.js";
 import { computePlantProgress, isZiplyJob } from "../ziply/ziplyUtils.js";
-import ZiplyAlignmentStudio from "../ziply/ZiplyAlignmentStudio.js";
+import PrintOverlayStudio from "../print-overlay/PrintOverlayStudio.js";
 
 interface Props {
   job: Job;
@@ -485,7 +485,7 @@ export default function JobCard({
       )}
 
       {alignStudioOpen && (
-        <ZiplyAlignmentStudio job={job} onClose={() => setAlignStudioOpen(false)} />
+        <PrintOverlayStudio job={job} onClose={() => setAlignStudioOpen(false)} />
       )}
     </div>
   );
