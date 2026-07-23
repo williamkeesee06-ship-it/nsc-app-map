@@ -80,53 +80,64 @@ export function ZiplyPlantInventoryTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 0" }}>
-      {/* Summary KPI Strip */}
+      {/* Summary KPI Strip — Royal Blue & Light Steel */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
           gap: 6,
-          background: "rgba(0, 82, 204, 0.12)",
-          border: "1px solid rgba(0, 119, 255, 0.3)",
+          background: "linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)",
+          border: "1.5px solid #2563eb",
           borderRadius: 8,
           padding: 8,
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+          boxShadow: "0 2px 8px rgba(37, 99, 235, 0.15)",
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <span style={{ fontSize: 8, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", textTransform: "uppercase" }}>Total</span>
-          <span style={{ fontSize: 13, fontWeight: 900, color: "#f8fafc", fontFamily: "var(--font-mono, monospace)" }}>{totals.total}</span>
+          <span style={{ fontSize: 9, fontWeight: 900, color: "#1e40af", letterSpacing: "0.08em", textTransform: "uppercase" }}>Total</span>
+          <span style={{ fontSize: 14, fontWeight: 900, color: "#0f172a", fontFamily: "var(--font-mono, monospace)" }}>{totals.total}</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <span style={{ fontSize: 8, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", textTransform: "uppercase" }}>MSTs</span>
-          <span style={{ fontSize: 13, fontWeight: 900, color: "#60a5fa", fontFamily: "var(--font-mono, monospace)" }}>{totals.terminals}</span>
+          <span style={{ fontSize: 9, fontWeight: 900, color: "#1e40af", letterSpacing: "0.08em", textTransform: "uppercase" }}>MSTs</span>
+          <span style={{ fontSize: 14, fontWeight: 900, color: "#1d4ed8", fontFamily: "var(--font-mono, monospace)" }}>{totals.terminals}</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <span style={{ fontSize: 8, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", textTransform: "uppercase" }}>Placed</span>
-          <span style={{ fontSize: 13, fontWeight: 900, color: "#34d399", fontFamily: "var(--font-mono, monospace)" }}>{totals.placedCount}</span>
+          <span style={{ fontSize: 9, fontWeight: 900, color: "#047857", letterSpacing: "0.08em", textTransform: "uppercase" }}>Placed</span>
+          <span style={{ fontSize: 14, fontWeight: 900, color: "#059669", fontFamily: "var(--font-mono, monospace)" }}>{totals.placedCount}</span>
         </div>
       </div>
 
-      {/* Search Input */}
+      {/* Search Input — High Contrast Light Input */}
       <input
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Filter by T-label, address, cable..."
         style={{
-          background: "rgba(0,0,0,0.4)",
-          border: "1px solid rgba(255,255,255,0.14)",
+          background: "#ffffff",
+          border: "1.5px solid #cbd5e1",
           borderRadius: 6,
-          color: "#f8fafc",
+          color: "#0f172a",
           fontSize: 11,
-          padding: "6px 10px",
+          fontWeight: 600,
+          padding: "7px 10px",
           outline: "none",
           fontFamily: "inherit",
+          boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)",
+          transition: "border-color 0.15s, box-shadow 0.15s",
+        }}
+        onFocus={(e) => {
+          e.target.style.borderColor = "#2563eb";
+          e.target.style.boxShadow = "0 0 0 3px rgba(37, 99, 235, 0.15)";
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = "#cbd5e1";
+          e.target.style.boxShadow = "inset 0 1px 2px rgba(0,0,0,0.05)";
         }}
       />
 
-      {/* Filter Tabs */}
-      <div style={{ display: "flex", background: "rgba(0,0,0,0.5)", borderRadius: 6, padding: 2, border: "1px solid rgba(255,255,255,0.08)" }}>
+      {/* Filter Tabs — Light Segmented Bar */}
+      <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 6, padding: 3, border: "1px solid #cbd5e1" }}>
         {(["all", "planned", "placed"] as const).map((f) => (
           <button
             key={f}
@@ -134,16 +145,18 @@ export function ZiplyPlantInventoryTab() {
             onClick={() => setFilter(f)}
             style={{
               flex: 1,
-              padding: "4px 0",
+              padding: "5px 0",
               fontSize: 9,
-              fontWeight: 800,
+              fontWeight: 900,
               borderRadius: 4,
               border: "none",
               cursor: "pointer",
-              background: filter === f ? "#0052cc" : "transparent",
-              color: filter === f ? "#fff" : "#64748b",
+              background: filter === f ? "linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)" : "transparent",
+              color: filter === f ? "#ffffff" : "#475569",
+              boxShadow: filter === f ? "0 2px 6px rgba(29, 78, 216, 0.35)" : "none",
               textTransform: "uppercase",
-              transition: "all 0.2s ease",
+              letterSpacing: "0.06em",
+              transition: "all 0.15s ease",
             }}
           >
             {f}
@@ -151,11 +164,11 @@ export function ZiplyPlantInventoryTab() {
         ))}
       </div>
 
-      {/* Item List */}
+      {/* Item List — Crisp Light Cards */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "calc(100vh - 280px)", overflowY: "auto" }}>
         {filteredObjects.length === 0 ? (
-          <div style={{ padding: "16px 8px", textTransform: "uppercase", textAlign: "center", fontSize: 10, color: "#64748b" }}>
-            No plant items placed yet.
+          <div style={{ padding: "20px 8px", textTransform: "uppercase", textAlign: "center", fontSize: 10, fontWeight: 700, color: "#64748b" }}>
+            No plant items found.
           </div>
         ) : (
           filteredObjects.map((obj) => {
@@ -172,28 +185,36 @@ export function ZiplyPlantInventoryTab() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "8px 10px",
-                  borderRadius: 6,
-                  background: "linear-gradient(160deg, rgba(20, 27, 38, 0.9) 0%, rgba(12, 16, 23, 0.9) 100%)",
-                  border: isPlaced ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid rgba(255,255,255,0.08)",
-                  boxShadow: isPlaced ? "0 0 8px rgba(16, 185, 129, 0.15)" : "none",
+                  padding: "9px 12px",
+                  borderRadius: 8,
+                  background: "#ffffff",
+                  border: isPlaced ? "1.5px solid #10b981" : "1.5px solid #e2e8f0",
+                  boxShadow: isPlaced ? "0 2px 8px rgba(16, 185, 129, 0.15)" : "0 1px 3px rgba(0,0,0,0.05)",
                   cursor: "pointer",
-                  transition: "all 0.2s ease",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseOver={(e) => {
+                  if (!isPlaced) e.currentTarget.style.borderColor = "#2563eb";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }}
+                onMouseOut={(e) => {
+                  if (!isPlaced) e.currentTarget.style.borderColor = "#e2e8f0";
+                  e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "#f8fafc", fontFamily: "var(--font-mono, monospace)" }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#0f172a", fontFamily: "var(--font-mono, monospace)" }}>
                       {label}
                     </span>
                     {(ports || fibers) && (
-                      <span style={{ fontSize: 9, fontWeight: 700, color: "#60a5fa", background: "rgba(0,119,255,0.15)", padding: "1px 5px", borderRadius: 3 }}>
+                      <span style={{ fontSize: 9, fontWeight: 800, color: "#1d4ed8", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "1px 6px", borderRadius: 4 }}>
                         {ports || fibers}
                       </span>
                     )}
                   </div>
                   {obj.style.ziplyAddressesServed && (
-                    <span style={{ fontSize: 9, color: "#94a3b8", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: 9, fontWeight: 600, color: "#475569", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       Houses: {obj.style.ziplyAddressesServed}
                     </span>
                   )}
@@ -203,11 +224,11 @@ export function ZiplyPlantInventoryTab() {
                   style={{
                     fontSize: 8,
                     fontWeight: 900,
-                    padding: "2px 6px",
-                    borderRadius: 3,
-                    background: isPlaced ? "rgba(16, 185, 129, 0.2)" : "rgba(148, 163, 184, 0.15)",
-                    color: isPlaced ? "#34d399" : "#94a3b8",
-                    border: isPlaced ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid rgba(148, 163, 184, 0.2)",
+                    padding: "3px 7px",
+                    borderRadius: 4,
+                    background: isPlaced ? "#ecfdf5" : "#f1f5f9",
+                    color: isPlaced ? "#059669" : "#475569",
+                    border: isPlaced ? "1px solid #a7f3d0" : "1px solid #cbd5e1",
                     letterSpacing: "0.06em",
                   }}
                 >

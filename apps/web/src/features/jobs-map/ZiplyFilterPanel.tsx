@@ -334,7 +334,7 @@ export default function ZiplyFilterPanel({
     <div
       style={{
         padding: 12,
-        color: "#fff",
+        color: "#0f172a",
         display: "flex",
         flexDirection: "column",
         gap: 14,
@@ -355,13 +355,13 @@ export default function ZiplyFilterPanel({
         >
           ZIPLY MAP FILTERS
         </h3>
-        <p style={{ margin: 0, fontSize: 10, color: "#9ca3af" }}>
+        <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: "#334155" }}>
           Showing ~{visibleEstimate} of {ziplyJobs.length} Ziply jobs
           {filters.ziplyNorthMetroOnly
             ? ` · North Metro (${northMetroJobs.length})`
             : ""}
         </p>
-        <p style={{ margin: "4px 0 0", fontSize: 9, color: "#6b7280" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 9, fontWeight: 500, color: "#475569" }}>
           Prints: {printCounts.onMap} plottable on map · {printCounts.needRepair}{" "}
           need location repair · {printCounts.processing} ingesting ·{" "}
           {printCounts.none} none
