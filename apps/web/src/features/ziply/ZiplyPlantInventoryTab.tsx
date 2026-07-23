@@ -186,20 +186,12 @@ export function ZiplyPlantInventoryTab() {
                   alignItems: "center",
                   justifyContent: "space-between",
                   padding: "9px 12px",
-                  borderRadius: 8,
+                  borderRadius: 7,
                   background: "#ffffff",
-                  border: isPlaced ? "1.5px solid #10b981" : "1.5px solid #e2e8f0",
-                  boxShadow: isPlaced ? "0 2px 8px rgba(16, 185, 129, 0.15)" : "0 1px 3px rgba(0,0,0,0.05)",
+                  border: isPlaced ? "1.5px solid #10b981" : "1px solid #cbd5e1",
+                  boxShadow: isPlaced ? "0 2px 8px rgba(16, 185, 129, 0.15)" : "0 1px 3px rgba(0,0,0,0.06)",
                   cursor: "pointer",
                   transition: "all 0.15s ease",
-                }}
-                onMouseOver={(e) => {
-                  if (!isPlaced) e.currentTarget.style.borderColor = "#2563eb";
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                }}
-                onMouseOut={(e) => {
-                  if (!isPlaced) e.currentTarget.style.borderColor = "#e2e8f0";
-                  e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -214,7 +206,7 @@ export function ZiplyPlantInventoryTab() {
                     )}
                   </div>
                   {obj.style.ziplyAddressesServed && (
-                    <span style={{ fontSize: 9, fontWeight: 600, color: "#475569", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: 9, color: "#64748b", fontWeight: 600, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       Houses: {obj.style.ziplyAddressesServed}
                     </span>
                   )}
@@ -224,12 +216,12 @@ export function ZiplyPlantInventoryTab() {
                   style={{
                     fontSize: 8,
                     fontWeight: 900,
-                    padding: "3px 7px",
+                    padding: "3px 8px",
                     borderRadius: 4,
                     background: isPlaced ? "#ecfdf5" : "#f1f5f9",
-                    color: isPlaced ? "#059669" : "#475569",
+                    color: isPlaced ? "#047857" : "#475569",
                     border: isPlaced ? "1px solid #a7f3d0" : "1px solid #cbd5e1",
-                    letterSpacing: "0.06em",
+                    letterSpacing: "0.08em",
                   }}
                 >
                   {isPlaced ? "⚡ PLACED" : "PLANNED"}

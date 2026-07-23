@@ -98,17 +98,17 @@ export default function ZiplyDashboardTab({ jobs }: Props) {
   }, [hubNames, cityJobs]);
 
   return (
-    <div style={{ padding: 12, color: "#fff" }}>
-      <h3 style={{ margin: "0 0 4px 0", fontSize: 13, letterSpacing: "0.05em", color: "var(--accent)" }}>
+    <div style={{ padding: 12, color: "#0f172a" }}>
+      <h3 style={{ margin: "0 0 4px 0", fontSize: 13, fontWeight: 800, letterSpacing: "0.05em", color: "#1d4ed8" }}>
         ZIPLY COMPANY ROLLUP
       </h3>
-      <p style={{ margin: "0 0 12px 0", fontSize: 10, color: "#9ca3af" }}>
+      <p style={{ margin: "0 0 12px 0", fontSize: 10, color: "#64748b" }}>
         {selectedHub ? `Hub drill-down · ${selectedHub}` : selectedCity ? `City drill-down · ${selectedCity}` : "All cities / all hubs"}
       </p>
 
       {(selectedCity || selectedHub) && (
         <button
-          style={{ marginBottom: 10, background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid #374151", borderRadius: 4, padding: "5px 8px", fontSize: 10, cursor: "pointer" }}
+          style={{ marginBottom: 10, background: "#f1f5f9", color: "#0f172a", border: "1px solid #cbd5e1", borderRadius: 4, padding: "5px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
           onClick={() => selectedHub ? setSelectedHub(null) : setSelectedCity(null)}
         >
           ← Back to {selectedHub ? "city" : "company"}
@@ -140,18 +140,18 @@ export default function ZiplyDashboardTab({ jobs }: Props) {
 
       {selectedHub && (
         <div>
-          <h4 style={{ margin: "0 0 8px 0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#9ca3af", letterSpacing: "0.05em" }}>
+          <h4 style={{ margin: "0 0 8px 0", fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.05em" }}>
             Per-hub dashboard
           </h4>
-          <div style={{ background: "rgba(0,0,0,0.15)", borderRadius: 4, padding: 8, border: "1px solid #1f2937" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4 }}>
-              <span style={{ fontWeight: 700 }}>Hub {selectedHub}</span>
-              <span style={{ color: "var(--accent)" }}>{rollup.pct}%</span>
+          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 10, border: "1px solid #e2e8f0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 6 }}>
+              <span style={{ fontWeight: 800, color: "#0f172a" }}>Hub {selectedHub}</span>
+              <span style={{ color: "#1d4ed8", fontWeight: 800 }}>{rollup.pct}%</span>
             </div>
-            <div style={{ width: "100%", height: 4, background: "#111827", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ width: `${rollup.pct}%`, height: "100%", background: "var(--accent, #1d4ed8)", borderRadius: 2 }} />
+            <div style={{ width: "100%", height: 6, background: "#e2e8f0", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ width: `${rollup.pct}%`, height: "100%", background: "#1d4ed8", borderRadius: 3 }} />
             </div>
-            <div style={{ fontSize: 9, color: "#6b7280", marginTop: 8 }}>
+            <div style={{ fontSize: 10, color: "#475569", marginTop: 8 }}>
               {rollup.completedJobs} completed job records · {rollup.activeCrews.length} active crews · {rollup.unclearedSections} sections needing active 811 coverage
             </div>
           </div>
@@ -163,10 +163,10 @@ export default function ZiplyDashboardTab({ jobs }: Props) {
 
 function Metric({ label, value, sub, warn }: { label: string; value: string; sub: string; warn?: boolean }) {
   return (
-    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid #1f2937", borderRadius: 6, padding: 8 }}>
-      <div style={{ fontSize: 9, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 800, color: warn ? "#FACC15" : "var(--accent)", margin: "4px 0" }}>{value}</div>
-      <div style={{ fontSize: 9, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>
+    <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 6, padding: 9, boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
+      <div style={{ fontSize: 9, color: "#64748b", fontWeight: 800, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 900, color: warn ? "#d97706" : "#1d4ed8", margin: "4px 0" }}>{value}</div>
+      <div style={{ fontSize: 9, color: "#475569", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>
     </div>
   );
 }
@@ -174,15 +174,15 @@ function Metric({ label, value, sub, warn }: { label: string; value: string; sub
 function DrillList({ title, rows, onClick }: { title: string; rows: Array<{ name: string; meta: string; pct: number }>; onClick: (name: string) => void }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <h4 style={{ margin: "0 0 8px 0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#9ca3af", letterSpacing: "0.05em" }}>{title}</h4>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <h4 style={{ margin: "0 0 8px 0", fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.05em" }}>{title}</h4>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {rows.map((row) => (
-          <button key={row.name} onClick={() => onClick(row.name)} style={{ textAlign: "left", background: "rgba(0,0,0,0.15)", borderRadius: 4, padding: 7, border: "1px solid #1f2937", color: "#fff", cursor: "pointer" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4 }}>
-              <span style={{ fontWeight: 700 }}>{row.name}</span>
-              {row.pct > 0 && <span style={{ color: "var(--accent)" }}>{row.pct}%</span>}
+          <button key={row.name} onClick={() => onClick(row.name)} style={{ textAlign: "left", background: "#ffffff", borderRadius: 6, padding: 8, border: "1px solid #e2e8f0", color: "#0f172a", cursor: "pointer", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}>
+              <span style={{ fontWeight: 800 }}>{row.name}</span>
+              {row.pct > 0 && <span style={{ color: "#1d4ed8", fontWeight: 800 }}>{row.pct}%</span>}
             </div>
-            <div style={{ fontSize: 8, color: "#6b7280" }}>{row.meta}</div>
+            <div style={{ fontSize: 9, color: "#64748b" }}>{row.meta}</div>
           </button>
         ))}
       </div>
