@@ -28,6 +28,10 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
+            if (id.includes("pdfjs-dist")) return "pdfjs-vendor";
+            if (id.includes("html2canvas")) return "html2canvas-vendor";
+            if (id.includes("react-syntax-highlighter")) return "syntax-highlighter-vendor";
+            if (id.includes("react-markdown") || id.includes("remark-gfm")) return "markdown-vendor";
             if (id.includes("firebase")) return "firebase-vendor";
             if (id.includes("@vis.gl/react-google-maps")) return "google-maps-vendor";
             if (id.includes("@tiptap")) return "editor-vendor";

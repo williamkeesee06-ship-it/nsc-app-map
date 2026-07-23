@@ -1,10 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { Job } from "@nsc/types";
 import { Layers, RotateCw, Maximize2, Check, X, ShieldAlert, Sliders } from "lucide-react";
-import * as pdfjsLib from "pdfjs-dist";
-
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface Props {
   job: Job;
@@ -45,6 +41,10 @@ export default function ZiplyAlignmentStudio({ job, onClose }: Props) {
     try {
       const arrayBuffer = await file.arrayBuffer();
       setLoadingProgress("Parsing PDF document...");
+      const pdfjsLib = await import("pdfjs-dist");
+      if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      }
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const parsedPages: SplitPage[] = [];
 

@@ -43,7 +43,7 @@ import type { MapTheme } from "../map/themeContext.js";
 import { JobsProvider } from "./jobsContext.js";
 import { useAuth } from "../auth/authContext.js";
 import LuminaOrb from "../lumina/Orb.js";
-import LuminaChatPanel from "../lumina/ChatPanel.js";
+const LuminaChatPanel = lazy(() => import("../lumina/ChatPanel.js"));
 import LuminaMapBridge from "../lumina/MapBridge.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
 import {
@@ -523,7 +523,9 @@ function JobsMapInner({
           />
           {/* Lumina orb — floats above Google's pan/Pegman controls. */}
           <LuminaOrb />
-          <LuminaChatPanel />
+          <Suspense fallback={null}>
+            <LuminaChatPanel />
+          </Suspense>
 
           {/* Full-screen Calendar overlay — sits above the map and all
               in-map overlays (markers, drawings, Lumina orb) but below the

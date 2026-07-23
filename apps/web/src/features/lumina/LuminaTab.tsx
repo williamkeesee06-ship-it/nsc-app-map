@@ -10,8 +10,8 @@
  * area while the rail's other tabs continue to scroll normally.
  */
 
-import { useEffect } from "react";
-import ChatPanel from "./ChatPanel.js";
+import { useEffect, lazy, Suspense } from "react";
+const ChatPanel = lazy(() => import("./ChatPanel.js"));
 import { useLumina } from "./store/luminaStore.js";
 
 export default function LuminaTab(_props: { width: number }) {
@@ -24,5 +24,9 @@ export default function LuminaTab(_props: { width: number }) {
 
   // The rail mounts us inside a full-height flex column (see LeftRail.tsx),
   // so ChatPanel can just claim 100% of its parent.
-  return <ChatPanel />;
+  return (
+    <Suspense fallback={null}>
+      <ChatPanel />
+    </Suspense>
+  );
 }

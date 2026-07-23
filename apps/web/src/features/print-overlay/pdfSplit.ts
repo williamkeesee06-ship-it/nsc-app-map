@@ -6,15 +6,19 @@
 // cancellation so large multi-sheet prints never freeze the UI. Each page
 // yields a PNG Blob (uploaded to Storage by the caller) plus the detected
 // drawing-content bounds used to seed the Stage 3 crop suggestion.
-import * as pdfjsLib from "pdfjs-dist";
-// Vite resolves `?url` to the hashed asset path and bundles the worker locally.
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
 import type { ContentBounds } from "@nsc/types";
+import type * as pdfjsLib from "pdfjs-dist";
 
 let workerReady = false;
-function ensureWorker(): void {
+let pdfjsInstance: any = null;
+
+async function ensureWorker(): Promise<void> {
   if (workerReady) return;
-  pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+  if (!pdfjsInstance) {
+    pdfjsInstance = await import("pdfjs-dist");
+    const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.js?url")).default;
+    pdfjsInstance.GlobalWorkerOptions.workerSrc = workerUrl;
+  }
   workerReady = true;
 }
 
@@ -160,11 +164,11 @@ export async function splitPdf(
   onPage: (page: RenderedPage) => void,
   opts: { signal?: AbortSignal; onProgress?: (p: SplitProgress) => void } = {}
 ): Promise<number> {
-  ensureWorker();
+  await ensureWorker();
   const { signal, onProgress } = opts;
   throwIfAborted(signal);
 
-  const loadingTask = pdfjsLib.getDocument({ data });
+  const loadingTask = pdfjsInstance.getDocument({ data });
   const pdf = await loadingTask.promise;
   try {
     const total = pdf.numPages;
@@ -196,8 +200,8 @@ export async function splitPdf(
 
 /** Read the page count without rasterizing (used for source metadata). */
 export async function countPdfPages(data: ArrayBuffer): Promise<number> {
-  ensureWorker();
-  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  await ensureWorker();
+  const pdf = await pdfjsInstance.getDocument({ data }).promise;
   try {
     return pdf.numPages;
   } finally {
