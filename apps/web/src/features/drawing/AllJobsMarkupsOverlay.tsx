@@ -81,7 +81,7 @@ function isPointTool(tool: string): boolean {
 
 function computeSymbolPx(zoom: number, pointSize: number): number {
   const raw = BASE_SIZE * Math.pow(1.41, zoom - ZOOM_REF) * pointSize;
-  return Math.round(Math.max(22, Math.min(48, raw)));
+  return Math.round(Math.max(8, Math.min(40, raw)));
 }
 
 function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partial<google.maps.PolylineOptions> {

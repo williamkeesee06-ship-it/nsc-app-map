@@ -362,7 +362,7 @@ const BASE_SIZE = 24; // 24px at reference zoom 17 (down from 32 — less bloat)
 // at high zoom. Min raised to 8px so they're still tappable at low zoom.
 function computeSymbolPx(zoom: number, pointSize: number): number {
   const raw = BASE_SIZE * Math.pow(1.41, zoom - ZOOM_REF) * pointSize;
-  return Math.round(Math.max(22, Math.min(48, raw)));
+  return Math.round(Math.max(8, Math.min(40, raw)));
 }
 
 
