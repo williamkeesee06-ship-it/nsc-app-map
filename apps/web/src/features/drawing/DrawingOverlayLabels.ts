@@ -89,11 +89,13 @@ export function makeLabelSvg(text: string, borderColor: string = DEFAULT_LABEL_B
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w + 16}" height="${h + 16}">` +
     `<defs>` +
     `  <filter id="glow-${w}" x="-20%" y="-20%" width="140%" height="140%">` +
-    `    <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>` +
+    `    <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.12"/>` +
     `  </filter>` +
     `</defs>` +
-    // We shift X and Y by 8 to make room for the drop shadow blur
-    `<rect x="8" y="8" width="${w}" height="${h}" rx="13" ry="13" fill="rgba(255, 255, 255, 0.96)" stroke="${escSvg(activeBorderColor)}" stroke-width="${strokeW}" filter="url(#glow-${w})"/>` +
+    // Outer shell with drop shadow
+    `<rect x="8" y="8" width="${w}" height="${h}" rx="13" ry="13" fill="rgba(255, 255, 255, 0.98)" stroke="${escSvg(activeBorderColor)}" stroke-width="${strokeW}" filter="url(#glow-${w})"/>` +
+    // Inner glass bezel (Doppelrand)
+    `<rect x="9.5" y="9.5" width="${w - 3}" height="${h - 3}" rx="11.5" ry="11.5" fill="none" stroke="rgba(255, 255, 255, 0.9)" stroke-width="1"/>` +
     `<text x="${w / 2 + 8}" y="${h / 2 + 12}" text-anchor="middle" font-family="Inter, Roboto, system-ui, sans-serif" font-size="11.5" font-weight="700" letter-spacing="0.4" fill="#0f172a">${escSvg(text)}</text>` +
     `</svg>`
   );

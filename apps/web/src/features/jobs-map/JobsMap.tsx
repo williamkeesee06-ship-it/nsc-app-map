@@ -1191,10 +1191,11 @@ function JobMarkers({
             ? `<svg xmlns="http://www.w3.org/2000/svg" width="${paddedW}" height="${paddedH}">
     <defs>
       <filter id="glow-${pillW}" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>
+        <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.12"/>
       </filter>
     </defs>
-    <rect x="8" y="8" width="${pillW}" height="22" rx="11" fill="rgba(255, 255, 255, 0.96)" stroke="${pinColor}" stroke-width="1.5" filter="url(#glow-${pillW})"/>
+    <rect x="8" y="8" width="${pillW}" height="22" rx="11" fill="rgba(255, 255, 255, 0.98)" stroke="${pinColor}" stroke-width="1.5" filter="url(#glow-${pillW})"/>
+    <rect x="9.5" y="9.5" width="${pillW - 3}" height="19" rx="9.5" fill="none" stroke="rgba(255, 255, 255, 0.9)" stroke-width="1"/>
     <circle cx="20" cy="19" r="4" fill="${printDot}"/>
     <text x="${(pillW + 20) / 2}" y="22.5" text-anchor="middle" font-size="10.5" font-weight="700" letter-spacing="0.4"
       fill="#0f172a" font-family="Inter, Roboto, system-ui, sans-serif">${safeWoText}</text>
@@ -1202,10 +1203,11 @@ function JobMarkers({
             : `<svg xmlns="http://www.w3.org/2000/svg" width="${paddedW}" height="${paddedH}">
     <defs>
       <filter id="glow-${pillW}" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>
+        <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.12"/>
       </filter>
     </defs>
-    <rect x="8" y="8" width="${pillW}" height="22" rx="11" fill="rgba(255, 255, 255, 0.96)" stroke="${pinColor}" stroke-width="1.5" filter="url(#glow-${pillW})"/>
+    <rect x="8" y="8" width="${pillW}" height="22" rx="11" fill="rgba(255, 255, 255, 0.98)" stroke="${pinColor}" stroke-width="1.5" filter="url(#glow-${pillW})"/>
+    <rect x="9.5" y="9.5" width="${pillW - 3}" height="19" rx="9.5" fill="none" stroke="rgba(255, 255, 255, 0.9)" stroke-width="1"/>
     <text x="${pillW / 2 + 8}" y="22.5" text-anchor="middle" font-size="10.5" font-weight="700" letter-spacing="0.4"
       fill="#0f172a" font-family="Inter, Roboto, system-ui, sans-serif">${safeWoText}</text>
   </svg>`;
