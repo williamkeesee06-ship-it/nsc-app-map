@@ -2,11 +2,11 @@
 //
 // A google.maps.OverlayView drives placement: on every map draw we project the
 // page's geo-corners (derived from a GeoSolution) to div pixels and apply the
-// resulting affine matrix to a React-owned element. Because placement is
-// geographic, the sheet tracks the map correctly across pan/zoom. The element
-// stays mounted in React so the <img>, crop clip, and anchor dots render
-// declaratively; the OverlayView only appends it to a map pane and moves it.
-import { useEffect, useRef } from "react";
+// resulting affine matrix to a portal container element created imperatively.
+// Because placement is geographic, the sheet tracks the map correctly across
+// pan/zoom without DOM stealing or React reconciliation strobing.
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { pageToLatLng, type CropRect, type GeoSolution, type LatLng, type PagePoint } from "@nsc/types";
 
 export type OverlayMode = "move" | "pickPage" | "idle";
@@ -67,19 +67,25 @@ export default function PageOverlay({
   onScale,
   onRotate,
 }: Props) {
-  const elRef = useRef<HTMLDivElement | null>(null);
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const overlayRef = useRef<google.maps.OverlayView | null>(null);
+  const elRef = useRef<HTMLDivElement | null>(null);
   // Latest props for the imperative draw loop (avoids stale closures).
   const drawRef = useRef({ solution, imgW, imgH });
   drawRef.current = { solution, imgW, imgH };
   // Current draw matrix, kept for back-projecting overlay clicks → page pixels.
   const matrixRef = useRef<[number, number, number, number, number, number] | null>(null);
 
-  // Create the OverlayView once the element + map exist.
+  // Create the container element and OverlayView once map exists.
   useEffect(() => {
     if (!map) return;
-    if (!elRef.current) return;
-    const el: HTMLDivElement = elRef.current;
+
+    const el = document.createElement("div");
+    el.style.position = "absolute";
+    el.style.top = "0";
+    el.style.left = "0";
+    el.style.transformOrigin = "top left";
+    elRef.current = el;
 
     class PagePane extends google.maps.OverlayView {
       onAdd() {
@@ -119,9 +125,13 @@ export default function PageOverlay({
     const ov = new PagePane();
     overlayRef.current = ov;
     ov.setMap(map);
+    setContainerEl(el);
+
     return () => {
       ov.setMap(null);
       overlayRef.current = null;
+      setContainerEl(null);
+      elRef.current = null;
     };
   }, [map]);
 
@@ -183,9 +193,6 @@ export default function PageOverlay({
   };
 
   // ── Direct resize / rotate handles (Stage 4, unlocked, "move" mode) ───────
-  // The element's on-screen bounding-box center is the client-space image of
-  // the page center (an affine transform centers a rectangle's bbox on its
-  // centroid), so gestures are measured relative to that point.
   const gestureRef = useRef<
     | { kind: "rotate"; cx: number; cy: number; startAngle: number; startRot: number }
     | { kind: "resize"; cx: number; cy: number; startDist: number; startScale: number }
@@ -268,9 +275,10 @@ export default function PageOverlay({
     .filter(Boolean)
     .join(" ");
 
-  return (
+  if (!containerEl) return null;
+
+  return createPortal(
     <div
-      ref={elRef}
       className={cls}
       style={{ opacity }}
       onPointerDown={onPointerDown}
@@ -326,6 +334,7 @@ export default function PageOverlay({
           </div>
         </>
       )}
-    </div>
+    </div>,
+    containerEl
   );
 }

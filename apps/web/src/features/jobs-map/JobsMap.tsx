@@ -1128,21 +1128,9 @@ function escapeHtml(s: string): string {
 
 function focusMapOnLatLng(map: google.maps.Map, lat: number, lng: number, overrideZoom?: number) {
   map.panTo({ lat, lng });
-  
   const targetZoom = overrideZoom ?? FOCUS_ZOOM;
-  const currentZoom = map.getZoom() ?? 12;
-  if (currentZoom === targetZoom) return;
-
-  const step = currentZoom < targetZoom ? 1 : -1;
-  let nextZoom = currentZoom;
-
-  const runZoom = () => {
-    if (nextZoom !== targetZoom) {
-      nextZoom += step;
-      map.setZoom(nextZoom);
-      setTimeout(runZoom, 100);
-    }
-  };
-  // Wait for the pan to initiate, then animate the zoom levels smoothly
-  setTimeout(runZoom, 200);
+  const currentZoom = map.getZoom();
+  if (currentZoom !== targetZoom) {
+    map.setZoom(targetZoom);
+  }
 }
