@@ -20,6 +20,7 @@
     "@tiptap/extension-underline": "^3.27.1",
     "@tiptap/react": "^3.27.1",
     "@tiptap/starter-kit": "^3.27.1",
+    "@vercel/speed-insights": "^2.0.0",
     "@vis.gl/react-google-maps": "^1.1.0",
     "autoprefixer": "^10.5.0",
     "firebase": "^11.10.0",

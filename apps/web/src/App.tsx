@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useMatch } from "react-router-dom";
 import { APIProvider } from "@vis.gl/react-google-maps";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import JobsMap from "./features/jobs-map/JobsMap.js";
 import JobWorkspace from "./features/workspace/JobWorkspace.js";
 import SyncAdmin from "./features/sync-admin/SyncAdmin.js";
@@ -29,6 +30,7 @@ export default function App() {
           <FiltersProvider>
             <LuminaProvider>
               <Shell />
+              <SpeedInsights />
             </LuminaProvider>
           </FiltersProvider>
         </SearchFocusProvider>
