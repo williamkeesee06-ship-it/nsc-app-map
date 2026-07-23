@@ -16,6 +16,7 @@ export default function InMap2PointAlignToolbar({ job, onComplete, onCancel }: P
   const activeFile = files[0] ?? null;
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [zoom, setZoom] = useState<number>(100);
   const [pdfPt1, setPdfPt1] = useState<{ x: number; y: number } | null>(null);
   const [mapPt1, setMapPt1] = useState<{ lat: number; lng: number } | null>(null);
   const [pdfPt2, setPdfPt2] = useState<{ x: number; y: number } | null>(null);

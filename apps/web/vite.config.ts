@@ -24,5 +24,18 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("firebase")) return "firebase-vendor";
+            if (id.includes("@vis.gl/react-google-maps")) return "google-maps-vendor";
+            if (id.includes("@tiptap")) return "editor-vendor";
+            if (id.includes("lucide-react")) return "icons-vendor";
+            return "vendor";
+          }
+        },
+      },
+    },
   },
 });

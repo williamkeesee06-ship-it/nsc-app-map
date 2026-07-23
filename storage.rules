@@ -19,7 +19,8 @@ service firebase.storage {
     }
 
     match /ziply-prints/{jobId}/{fileName} {
-      allow read, create: if true;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isSupportedZiplyPrint();
       allow update, delete: if false;
     }
 
