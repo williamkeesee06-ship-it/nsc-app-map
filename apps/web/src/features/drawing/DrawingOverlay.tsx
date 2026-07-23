@@ -795,20 +795,11 @@ export default function DrawingOverlay() {
             draggable: isEditable,
           });
         } else if (existing instanceof google.maps.Marker) {
-          existing.setOptions({
-            zIndex: isSelected ? 20 : 5,
-            clickable: isClickable,
-            draggable: isEditable,
-            // Make selected points more prominent (neon ring effect via icon scaling)
-            icon: isSelected ? {
-              ...iconForTool(obj.tool, "#3aa7ff", (obj.style.pointSize ?? 1) * 1.15),
-            } : undefined,
-          });
-          // Rescale point symbols
           if (isPointTool(obj.tool)) {
             const pointSize = obj.style.pointSize ?? 1.0;
             const px = computeSymbolPx(zoom, pointSize);
-            const icon = iconForTool(obj.tool, obj.style.strokeColor, pointSize);
+            const color = isSelected ? "#3aa7ff" : obj.style.strokeColor;
+            const icon = iconForTool(obj.tool, color, pointSize * (isSelected ? 1.15 : 1.0));
             existing.setIcon({
               ...icon,
               size: new google.maps.Size(px, px),
@@ -816,6 +807,11 @@ export default function DrawingOverlay() {
               anchor: new google.maps.Point(px / 2, px / 2),
             });
           }
+          existing.setOptions({
+            zIndex: isSelected ? 20 : 5,
+            clickable: isClickable,
+            draggable: isEditable,
+          });
         }
 
         // Attach / detach geometry listeners based on editable state (points/shapes;

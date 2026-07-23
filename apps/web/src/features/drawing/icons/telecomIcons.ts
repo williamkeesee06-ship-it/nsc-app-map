@@ -53,10 +53,12 @@ function pedSvg(color: string): string {
   );
 }
 
-// POLE — circle outline with bold cross inside (+), white backing fill for max visibility
+// POLE — black circle outline with X and cross inside, white backing fill for max visibility
 function poleSvg(color: string = "#000000"): string {
   return wrap(
-    `<circle cx="16" cy="16" r="11" fill="#ffffff" fill-opacity="0.75"/>
+    `<circle cx="16" cy="16" r="11" fill="#ffffff" fill-opacity="0.85"/>
+    <line x1="8.2" y1="8.2" x2="23.8" y2="23.8"/>
+    <line x1="8.2" y1="23.8" x2="23.8" y2="8.2"/>
     <line x1="16" y1="5" x2="16" y2="27"/>
     <line x1="5" y1="16" x2="27" y2="16"/>`,
     color
