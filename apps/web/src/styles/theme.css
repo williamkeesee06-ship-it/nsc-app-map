@@ -21,11 +21,11 @@
   --rivet-highlight:      #f8f9fb;
   --rivet-shadow:         rgba(0,0,0,0.45);
 
-  /* ── Accent: electric blue ─────────────────────────────── */
-  --accent-blue:          #1ea7ff;
-  --accent-blue-soft:     rgba(30,167,255,0.18);
-  --accent-blue-deep:     #0084d4;
-  --accent-blue-glow:     0 0 12px rgba(30,167,255,0.55);
+  /* ── Accent: royal blue (matches left rail tab strip) ────── */
+  --accent-blue:          #1d4ed8;
+  --accent-blue-soft:     rgba(29,78,216,0.14);
+  --accent-blue-deep:     #1e40af;
+  --accent-blue-glow:     0 0 12px rgba(29,78,216,0.5);
 
   /* ── Text on steel ─────────────────────────────────────── */
   --text-primary:         #15202c;
@@ -54,9 +54,11 @@
   --border:               #8e96a0;
   --shadow-glass:         var(--panel-elevation);
   --danger:               #d63333;
+  --warning:              #f59e0b;
+  --warning-soft:         rgba(245,158,11,0.12);
   --neon-green:           #39ff7a;
   --neon-red:             #ff2d4a;
-  --neon-cyan:            var(--accent-blue);
+  --neon-cyan:            #06b6d4;  /* true neon cyan — cable lines & pill borders only */
   --ziply:                var(--accent-blue-deep);
 }
 
