@@ -23,7 +23,7 @@ export type OverlayRef =
 export const ZOOM_REF = 17;
 
 /** Hide all atag labels when zoomed out below this level. */
-export const MIN_LABEL_ZOOM = 16;
+export const MIN_LABEL_ZOOM = 18;
 
 import { getActiveContract } from "../workspace/contractStore.js";
 

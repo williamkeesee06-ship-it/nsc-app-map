@@ -38,7 +38,7 @@ const REMOVED_COLOR = "#ff2d4a";
 const ZOOM_REF = 17;
 const BASE_SIZE = 24; // matches DrawingOverlay (was ICON_SIZE = 32)
 // Phase 9.7: labels visible at zoom ≥16 (lowered from 18) — must match DrawingOverlay
-const MIN_LABEL_ZOOM = 16;
+const MIN_LABEL_ZOOM = 18;
 
 type OverlayRef =
   | google.maps.Polyline
