@@ -14,6 +14,7 @@ import MapTypeToggle from "./features/map/MapTypeToggle.js";
 // JobInfoBoxes removed from topbar — info shown in JobCard detail panel
 import { LuminaProvider } from "./features/lumina/store/luminaStore.js";
 import { useActiveContract } from "./features/workspace/contractStore.js";
+import PrintOverlayStandalone from "./features/print-overlay/PrintOverlayStandalone.js";
 import "./features/lumina/lumina.css";
 import "./features/lumina/pegmanTint.css";
 
@@ -28,12 +29,47 @@ export default function App() {
         <SearchFocusProvider>
           <FiltersProvider>
             <LuminaProvider>
-              <Shell />
+              <AppRoutes />
             </LuminaProvider>
           </FiltersProvider>
         </SearchFocusProvider>
       </AuthProvider>
     </APIProvider>
+  );
+}
+
+function AppRoutes() {
+  const { username, authReady } = useAuth();
+  const needsLogin = authReady && username === null;
+
+  return (
+    <>
+      <Routes>
+        <Route path="/print-overlay/jobs/:jobId" element={<PrintOverlayStandalone />} />
+        <Route path="/*" element={<Shell />} />
+      </Routes>
+
+      {!authReady && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 4999,
+            display: "grid",
+            placeItems: "center",
+            background: "rgba(255, 255, 255, 0.9)",
+            color: "#1a1a1a",
+            fontFamily: "ui-monospace, Consolas, monospace",
+            fontSize: 12,
+            letterSpacing: "0.12em",
+          }}
+        >
+          CHECKING ACCESS…
+        </div>
+      )}
+      {needsLogin && <LoginScreen />}
+      {!apiKey && <MissingKeyOverlay />}
+    </>
   );
 }
 
@@ -64,60 +100,36 @@ function ContractSelector() {
 }
 
 function Shell() {
-  const { username, authReady } = useAuth();
   const { contract } = useActiveContract();
-  const needsLogin = authReady && username === null;
   return (
-    <>
-      <div className={`app-frame ${contract === "Ziply" ? "contract-ziply" : ""}`}>
-        {/* Industrial rivets at inner corners */}
-        <div className="rivet rivet-tl" />
-        <div className="rivet rivet-tr" />
-        <div className="rivet rivet-bl" />
-        <div className="rivet rivet-br" />
-        <div className="app-shell">
-          <div className="shell">
-            <header className="topbar" style={{ gap: 8 }}>
-              <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
-              <ContractSelector />
-              <SearchBar />
-              <MapTypeToggle />
-              {/* Job info boxes removed — detail shown in JobCard panel */}
-              {/* Phase 9.6: inline job-info strip when in workspace mode */}
-              <InlineJobContext />
-              <TopbarActions />
-              <UserChip />
-            </header>
-            <Routes>
-              <Route path="/" element={<JobsMap />} />
-              <Route path="/jobs/:jobId" element={<JobWorkspace />} />
-              <Route path="/sync" element={<SyncAdmin />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </div>
+    <div className={`app-frame ${contract === "Ziply" ? "contract-ziply" : ""}`}>
+      {/* Industrial rivets at inner corners */}
+      <div className="rivet rivet-tl" />
+      <div className="rivet rivet-tr" />
+      <div className="rivet rivet-bl" />
+      <div className="rivet rivet-br" />
+      <div className="app-shell">
+        <div className="shell">
+          <header className="topbar" style={{ gap: 8 }}>
+            <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
+            <ContractSelector />
+            <SearchBar />
+            <MapTypeToggle />
+            {/* Job info boxes removed — detail shown in JobCard panel */}
+            {/* Phase 9.6: inline job-info strip when in workspace mode */}
+            <InlineJobContext />
+            <TopbarActions />
+            <UserChip />
+          </header>
+          <Routes>
+            <Route path="/" element={<JobsMap />} />
+            <Route path="/jobs/:jobId" element={<JobWorkspace />} />
+            <Route path="/sync" element={<SyncAdmin />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </div>
       </div>
-      {!authReady && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 4999,
-            display: "grid",
-            placeItems: "center",
-            background: "rgba(255, 255, 255, 0.9)",
-            color: "#1a1a1a",
-            fontFamily: "ui-monospace, Consolas, monospace",
-            fontSize: 12,
-            letterSpacing: "0.12em",
-          }}
-        >
-          CHECKING ACCESS…
-        </div>
-      )}
-      {needsLogin && <LoginScreen />}
-      {!apiKey && <MissingKeyOverlay />}
-    </>
+    </div>
   );
 }
 

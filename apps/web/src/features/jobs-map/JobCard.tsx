@@ -9,7 +9,6 @@ import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
 import Eight11Section from "./Eight11Section.js";
 import { computePlantProgress, isZiplyJob } from "../ziply/ziplyUtils.js";
-import PrintOverlayStudio from "../print-overlay/PrintOverlayStudio.js";
 
 interface Props {
   job: Job;
@@ -93,7 +92,6 @@ export default function JobCard({
 
   // Collapse/Expand state
   const [notesExpanded, setNotesExpanded] = useState(false);
-  const [alignStudioOpen, setAlignStudioOpen] = useState(false);
 
   // Local edit state (optimistic display until save resolves)
   const [secondary, setSecondary] = useState<string>(job.secondaryJobStatus ?? "");
@@ -444,7 +442,7 @@ export default function JobCard({
                     letterSpacing: "0.05em",
                     cursor: "pointer",
                   }}
-                  onClick={() => setAlignStudioOpen(true)}
+                  onClick={() => window.open(`/print-overlay/jobs/${job.jobId}`, "_blank")}
                 >
                   <Layers size={12} /> PRINT OVERLAY
                 </button>
@@ -473,7 +471,7 @@ export default function JobCard({
                       fontWeight: 700,
                       cursor: "pointer",
                     }}
-                    onClick={() => setAlignStudioOpen(true)}
+                    onClick={() => window.open(`/print-overlay/jobs/${job.jobId}`, "_blank")}
                   >
                     Adjust Print Overlay
                   </button>
@@ -484,9 +482,7 @@ export default function JobCard({
         </>
       )}
 
-      {alignStudioOpen && (
-        <PrintOverlayStudio job={job} onClose={() => setAlignStudioOpen(false)} />
-      )}
+
     </div>
   );
 }
