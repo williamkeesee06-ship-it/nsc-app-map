@@ -392,6 +392,39 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
         </div>
       </div>
 
+      {/* ── Background read-only overlays (already aligned pages) ──────── */}
+      {map && pages.map((p) => {
+        if (p.id === activePageId || p.excluded) return null;
+        const img = p.previewUrl || p.objectUrl;
+        if (!img) return null;
+        const sol = p.alignment && p.alignment.anchorA && p.alignment.anchorB
+          ? (() => { try { return solveGeoSolution(p.alignment); } catch { return null; } })()
+          : (p.transform ? solutionFromTransform(p.transform, p.pageWidth, p.pageHeight) : null);
+        if (!sol) return null;
+
+        return (
+          <PageOverlay
+            key={p.id}
+            map={map}
+            imageUrl={img}
+            imgW={p.pageWidth}
+            imgH={p.pageHeight}
+            crop={p.crop}
+            solution={sol}
+            opacity={p.transform?.opacity ?? 0.5}
+            locked={true}
+            mode="move"
+            anchors={[]}
+            scale={p.transform?.scale ?? 1}
+            rotationDeg={p.transform?.rotationDeg ?? 0}
+            onDragCenter={() => {}}
+            onPagePoint={() => {}}
+            onScale={() => {}}
+            onRotate={() => {}}
+          />
+        );
+      })}
+
       {/* ── Page overlay on the real map (Stage 4/5) ────────────────────── */}
       {map && activePage && overlayImg && solution && (
         <PageOverlay
