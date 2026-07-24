@@ -1011,6 +1011,7 @@ export default function DrawingOverlay() {
         const mainOverlay = overlaysRef.current.get(obj.id);
         if (mainOverlay && !mainOverlay.get("hasHoverListeners") && obj.style.ziplyCrewId && obj.style.ziplyTimestamp) {
           mainOverlay.addListener("mouseover", (e: any) => {
+            if (document.querySelector(".po-root")) return;
             const dom = e.domEvent as MouseEvent | undefined;
             if (dom) {
               setHoverInfo({
@@ -1128,6 +1129,7 @@ export default function DrawingOverlay() {
       if (selectionListenersRef.current.has(key)) return;
 
       const listener = overlay.addListener("click", (e: google.maps.MapMouseEvent) => {
+        if (document.querySelector(".po-root")) return;
         const domEvent = (e as any).domEvent as MouseEvent | undefined;
         const pos = domEvent 
           ? { x: domEvent.clientX, y: domEvent.clientY } 
@@ -1274,6 +1276,7 @@ function createOverlay(
 
   const clickHandler = (e: google.maps.MapMouseEvent | google.maps.IconMouseEvent | Event) => {
     if (obj.style.locked) return;
+    if (document.querySelector(".po-root")) return;
     const mapEvent = e as google.maps.MapMouseEvent;
     const native = mapEvent.domEvent as MouseEvent | undefined;
     const pos = getClickPos(mapEvent);

@@ -256,6 +256,7 @@ function createReadOnlyOverlay(
       // Tooltip handling
       if (onHover && obj.style.ziplyCrewId && obj.style.ziplyTimestamp) {
         polyline.addListener("mouseover", (e: any) => {
+          if (document.querySelector(".po-root")) return;
           const dom = e.domEvent as MouseEvent | undefined;
           if (dom) {
             onHover({
@@ -681,7 +682,12 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     for (const doc of docsRef.current) {
       if (activeJobId && doc.jobId === activeJobId) continue; // active job is rendered by DrawingOverlay
       // Click on any of this job's markups jumps to its card.
-      const handler = onMarkupClick ? () => onMarkupClick(doc.jobId) : null;
+      const handler = onMarkupClick
+        ? () => {
+            if (document.querySelector(".po-root")) return;
+            onMarkupClick(doc.jobId);
+          }
+        : null;
       for (const obj of doc.objects) {
         try {
           let auxIdx = 0;
