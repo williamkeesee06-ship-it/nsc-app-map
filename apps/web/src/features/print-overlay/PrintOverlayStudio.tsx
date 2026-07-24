@@ -123,6 +123,16 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     [beginSource]
   );
 
+  const autoLoadedRef = useRef(false);
+  useEffect(() => {
+    if (autoLoadedRef.current) return;
+    const existingSources = job.printOverlay?.sources ?? [];
+    if (existingSources.length > 0 && phase === "choosing") {
+      autoLoadedRef.current = true;
+      chooseExisting(existingSources[0]);
+    }
+  }, [job.printOverlay, phase, chooseExisting]);
+
   const onUploadPick = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];

@@ -172,7 +172,7 @@ export function usePrintOverlay(job: Job) {
         await splitPdf(
           bytes,
           (rp: RenderedPage) => {
-            const vm = buildPageVM(jobId, source, rp, trackUrl);
+            const vm = buildPageVM(jobId, source, rp, trackUrl, job.printOverlay);
             setPages((prev) => [...prev, vm].sort((a, b) => a.pageNumber - b.pageNumber));
             // Best-effort preview upload → replace transient url with a durable ref.
             const previewPath = `jobs/${jobId}/print-overlay/${documentId}/p${rp.pageNumber}.png`;
@@ -374,12 +374,19 @@ function buildPageVM(
   jobId: string,
   source: PrintOverlaySource,
   rp: RenderedPage,
-  trackUrl: (url: string) => string
+  trackUrl: (url: string) => string,
+  existingDoc: PrintOverlayDoc | null | undefined
 ): PageVM {
+  const pageId = `${source.documentId}:p${rp.pageNumber}`;
   const objectUrl = trackUrl(URL.createObjectURL(rp.blob));
   const autoCrop = suggestCropRect(rp.contentBounds, rp.rasterWidth, rp.rasterHeight);
+
+  const savedPage = existingDoc?.pages?.find((x) => x.id === pageId);
+  const savedTransform = existingDoc?.transforms?.[pageId] ?? null;
+  const savedAlignment = existingDoc?.alignments?.[pageId] ?? null;
+
   return {
-    id: `${source.documentId}:p${rp.pageNumber}`,
+    id: pageId,
     jobId,
     documentId: source.documentId,
     pageNumber: rp.pageNumber,
@@ -387,15 +394,15 @@ function buildPageVM(
     status: "ready",
     pageWidth: rp.pageWidth,
     pageHeight: rp.pageHeight,
-    previewStoragePath: null,
-    previewUrl: null,
-    crop: autoCrop,
-    cropSource: autoCrop ? "auto" : null,
-    excluded: false,
+    previewStoragePath: savedPage?.previewStoragePath ?? null,
+    previewUrl: savedPage?.previewUrl ?? null,
+    crop: savedPage ? savedPage.crop : autoCrop,
+    cropSource: savedPage ? savedPage.cropSource : (autoCrop ? "auto" : null),
+    excluded: savedPage?.excluded ?? false,
     autoCrop,
     objectUrl,
-    transform: null,
-    alignment: null,
+    transform: savedTransform,
+    alignment: savedAlignment,
   };
 }
 
