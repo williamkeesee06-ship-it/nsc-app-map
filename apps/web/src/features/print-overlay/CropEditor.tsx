@@ -33,7 +33,7 @@ export default function CropEditor({
   const [rect, setRect] = useState<CropRect>(initial ?? auto ?? FULL);
   const [edited, setEdited] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const dragRef = useRef<{ kind: DragKind; startX: number; startY: number; start: CropRect } | null>(
+  const dragRef = useRef<{ kind: DragKind; startX: number; startY: number; start: CropRect; box: DOMRect } | null>(
     null
   );
 
@@ -45,14 +45,16 @@ export default function CropEditor({
   const onDown = (kind: DragKind) => (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    dragRef.current = { kind, startX: e.clientX, startY: e.clientY, start: rect };
+    const b = box();
+    if (!b) return;
+    dragRef.current = { kind, startX: e.clientX, startY: e.clientY, start: rect, box: b };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const onMove = (e: React.PointerEvent) => {
     const drag = dragRef.current;
-    const b = box();
-    if (!drag || !b) return;
+    if (!drag) return;
+    const b = drag.box;
     const dx = (e.clientX - drag.startX) / b.width;
     const dy = (e.clientY - drag.startY) / b.height;
     const s = drag.start;
