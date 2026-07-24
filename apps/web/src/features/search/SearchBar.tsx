@@ -87,13 +87,10 @@ export default function SearchBar() {
       return;
     }
     const handle = window.setTimeout(() => {
-      const g = (window as unknown as { google?: { maps?: { places?: typeof google.maps.places } } }).google;
+      const g = (window as any).google;
       if (!g?.maps?.places) {
         // Places lib not loaded yet — silently skip; user can still press Enter to geocode.
         return;
-      }
-      if (!autocompleteRef.current) {
-        autocompleteRef.current = new g.maps.places.AutocompleteService();
       }
       if (!sessionTokenRef.current) {
         sessionTokenRef.current = new g.maps.places.AutocompleteSessionToken();
@@ -102,28 +99,71 @@ export default function SearchBar() {
         { lat: 45.5, lng: -124.8 },
         { lat: 49.0, lng: -116.9 },
       );
-      autocompleteRef.current.getPlacePredictions(
-        {
+
+      function runLegacyAutocomplete(inputVal: string, mapsObj: any, boundary: google.maps.LatLngBounds) {
+        if (!autocompleteRef.current) {
+          autocompleteRef.current = new mapsObj.maps.places.AutocompleteService();
+        }
+        autocompleteRef.current!.getPlacePredictions(
+          {
+            input: inputVal,
+            bounds: boundary,
+            componentRestrictions: { country: "us" },
+            sessionToken: sessionTokenRef.current!,
+          },
+          (preds, status) => {
+            if (status !== google.maps.places.PlacesServiceStatus.OK || !preds) {
+              setPlacePreds([]);
+              return;
+            }
+            setPlacePreds(
+              preds.slice(0, 5).map((p) => ({
+                placeId: p.place_id,
+                description: p.description,
+                main: p.structured_formatting?.main_text ?? p.description,
+                secondary: p.structured_formatting?.secondary_text ?? "",
+              })),
+            );
+          },
+        );
+      }
+
+      // Check if Places API (New) is available
+      if (g.maps.places.AutocompleteSuggestion) {
+        g.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
           input: t,
-          bounds,
-          componentRestrictions: { country: "us" },
+          locationBias: bounds,
+          includedRegionCodes: ["us"],
           sessionToken: sessionTokenRef.current,
-        },
-        (preds, status) => {
-          if (status !== google.maps.places.PlacesServiceStatus.OK || !preds) {
-            setPlacePreds([]);
-            return;
-          }
-          setPlacePreds(
-            preds.slice(0, 5).map((p) => ({
-              placeId: p.place_id,
-              description: p.description,
-              main: p.structured_formatting?.main_text ?? p.description,
-              secondary: p.structured_formatting?.secondary_text ?? "",
-            })),
-          );
-        },
-      );
+        })
+          .then((res: any) => {
+            const suggestions = res.suggestions || [];
+            setPlacePreds(
+              suggestions
+                .slice(0, 5)
+                .map((s: any) => {
+                  const p = s.placePrediction;
+                  if (!p) return null;
+                  const fullText = p.text?.text || "";
+                  const mainText = p.mainText?.text || fullText;
+                  const secText = p.secondaryText?.text || "";
+                  return {
+                    placeId: p.placeId,
+                    description: fullText,
+                    main: mainText,
+                    secondary: secText,
+                  };
+                })
+                .filter(Boolean) as PlacePrediction[]
+            );
+          })
+          .catch((err: any) => {
+            console.warn("Places API (New) failed, falling back to legacy:", err);
+            runLegacyAutocomplete(t, g, bounds);
+          });
+      } else {
+        runLegacyAutocomplete(t, g, bounds);
+      }
     }, 200);
     return () => window.clearTimeout(handle);
   }, [term]);
