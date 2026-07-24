@@ -168,6 +168,7 @@ export default function PageOverlay({
       centerDiv: { x: centerDiv.x, y: centerDiv.y },
     };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    map.setOptions({ gestureHandling: "none" });
     e.stopPropagation();
   };
 
@@ -185,6 +186,7 @@ export default function PageOverlay({
   const endDrag = (e: React.PointerEvent) => {
     if (!dragRef.current) return;
     dragRef.current = null;
+    map.setOptions({ gestureHandling: "greedy" });
     try {
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
@@ -217,6 +219,7 @@ export default function PageOverlay({
       startRot: rotationDeg,
     };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    map.setOptions({ gestureHandling: "none" });
   };
 
   const onResizeDown = (e: React.PointerEvent) => {
@@ -231,6 +234,7 @@ export default function PageOverlay({
       startScale: scale,
     };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    map.setOptions({ gestureHandling: "none" });
   };
 
   const onHandleMove = (e: React.PointerEvent) => {
@@ -252,6 +256,7 @@ export default function PageOverlay({
 
   const onHandleUp = (e: React.PointerEvent) => {
     gestureRef.current = null;
+    map.setOptions({ gestureHandling: "greedy" });
     try {
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {

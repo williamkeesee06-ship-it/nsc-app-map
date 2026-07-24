@@ -8,6 +8,7 @@ import { stylesFor } from "../map/mapStyles.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import PrintOverlayStudio from "./PrintOverlayStudio.js";
 import MapTypeToggle from "../map/MapTypeToggle.js";
+import MapTypeApplier from "../map/MapTypeApplier.js";
 import type { Job } from "@nsc/types";
 
 const DEFAULT_CENTER = { lat: 47.6062, lng: -122.3321 };
@@ -145,7 +146,6 @@ function StandaloneInner({
         <Map
           defaultCenter={initialCenter}
           defaultZoom={initialZoom}
-          styles={stylesFor("dark")}
           gestureHandling="greedy"
           disableDefaultUI={false}
           zoomControl={false}
@@ -155,6 +155,7 @@ function StandaloneInner({
         >
           <MapHandle mapRef={mapRef} />
           <DrawingOverlay />
+          <MapTypeApplier forceLight={true} />
         </Map>
       </div>
 
