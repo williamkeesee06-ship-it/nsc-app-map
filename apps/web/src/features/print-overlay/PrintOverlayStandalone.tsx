@@ -134,10 +134,17 @@ function StandaloneInner({
       });
   }, [jobId, job.workOrder, setTarget, loadObjects]);
 
-  const initialCenter = job.geocode && job.geocode.lat !== 0
-    ? { lat: job.geocode.lat, lng: job.geocode.lng }
-    : DEFAULT_CENTER;
-  const initialZoom = job.geocode && job.geocode.lat !== 0 ? WORKSPACE_ZOOM : DEFAULT_ZOOM;
+  const jobCenter =
+    job.geocode?.status === "OK" &&
+    typeof job.geocode.lat === "number" &&
+    typeof job.geocode.lng === "number" &&
+    !isNaN(job.geocode.lat) &&
+    !isNaN(job.geocode.lng) &&
+    job.geocode.lat !== 0
+      ? { lat: job.geocode.lat, lng: job.geocode.lng }
+      : null;
+  const initialCenter = jobCenter ?? DEFAULT_CENTER;
+  const initialZoom = jobCenter ? WORKSPACE_ZOOM : DEFAULT_ZOOM;
 
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#050505" }}>
