@@ -17,6 +17,7 @@ import { defaultFilters } from "../jobs-map/FilterRail.js";
 import { api } from "../../lib/api.js";
 import LayersPanel from "./LayersPanel.js";
 import { useJob } from "./useJob.js";
+import JobPrintOverlays from "../print-overlay/JobPrintOverlays.js";
 
 const WORKSPACE_ZOOM = 19; // street-level, ready for placing physical infrastructure
 
@@ -112,6 +113,7 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
               <MapHandle mapRef={mapRef} />
               <FitToJobGeometry job={job} jobId={jobId} />
               <DrawingOverlay />
+              {job && <JobPrintOverlays job={job} visible={true} />}
               {/* MapTypeToggle lives in the topbar; this applier wires it to the map. */}
               <MapTypeApplier />
             </Map>

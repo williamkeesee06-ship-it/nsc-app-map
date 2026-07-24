@@ -28,6 +28,7 @@ import { api } from "../../lib/api.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import { DigPolygonProvider, useDigPolygon } from "../dig-polygon/digPolygonContext.js";
+import JobPrintOverlays from "../print-overlay/JobPrintOverlays.js";
 import DigPolygonOverlay from "../dig-polygon/DigPolygonOverlay.js";
 import SavedDigShapeOverlay from "../dig-polygon/SavedDigShapeOverlay.js";
 import AllDigShapesOverlay from "../dig-polygon/AllDigShapesOverlay.js";
@@ -475,6 +476,9 @@ function JobsMapInner({
                 : { mapId: (import.meta as any).env?.VITE_GOOGLE_MAPS_ID || "DEMO_MAP_ID", tilt: 45, heading: 0 })}
             >
               <MapHandle mapRef={mapRef} />
+              {selected && (
+                <JobPrintOverlays job={selected} visible={ziplyPrintLayerVisible} />
+              )}
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
               <JobMarkers
                 jobs={mapped}
