@@ -15,6 +15,7 @@ interface Props {
   variant?: "popup" | "panel";
   theme?: "steel" | "cyberpunk" | "titanium" | "glass";
   onThemeChange?: (theme: "steel" | "cyberpunk" | "titanium" | "glass") => void;
+  layoutOverride?: number;
 }
 
 interface Schema {
@@ -71,10 +72,12 @@ export default function JobCard({
   job,
   onClose,
   variant = "popup",
+  layoutOverride,
 }: Props) {
   const { username, isManager } = useAuth();
   const [minimized, setMinimized] = useState(false);
-  const [activeLayout, setActiveLayout] = useState<number>(4); // Default to Cyberpunk HUD (Layout 4) as it's the most premium
+  const [activeLayout, setActiveLayout] = useState<number>(4); // Default to Cyberpunk HUD (Layout 4)
+  const currentLayout = layoutOverride ?? activeLayout;
   const wo = job.workOrder;
   const status = job.jobStatus ?? "—";
 
@@ -1016,7 +1019,7 @@ export default function JobCard({
   };
 
   const renderActiveLayoutContent = () => {
-    switch (activeLayout) {
+    switch (currentLayout) {
       case 1: return renderLayoutBento();
       case 2: return renderLayoutDoubleBezel();
       case 3: return renderLayoutEditorial();
@@ -1040,11 +1043,12 @@ export default function JobCard({
         display: "flex",
         flexDirection: "column",
         gap: 0,
-        background: "#0b0f19",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
+        background: "#ffffff",
+        border: "1px solid rgba(0, 0, 0, 0.08)",
         borderRadius: "8px",
         overflow: "hidden",
-        width: "100%"
+        width: "100%",
+        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.05)"
       }}
     >
       {/* Layout Selection Control Header */}
@@ -1167,8 +1171,8 @@ function Row({ label, value }: { label: string; value: string | null | undefined
   if (!value) return null;
   return (
     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
-      <span style={{ color: "#94a3b8" }}>{label}</span>
-      <span style={{ fontWeight: 600, color: "#f1f5f9" }}>{value}</span>
+      <span style={{ color: "#475569" }}>{label}</span>
+      <span style={{ fontWeight: 600, color: "#0f172a" }}>{value}</span>
     </div>
   );
 }
@@ -1198,14 +1202,14 @@ function EditableRow({
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
-      <span style={{ color: "#94a3b8" }}>{label}</span>
+      <span style={{ color: "#475569" }}>{label}</span>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <SaveIndicator saving={!!saving} saved={!!saved} error={!!error} />
         {type === "select" && onChange && (
           <select
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)", color: "#f1f5f9", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer" }}
+            style={{ background: "#fff", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer" }}
           >
             <option value="">Choose...</option>
             {options.map((opt) => (
@@ -1218,7 +1222,7 @@ function EditableRow({
             type="date"
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
-            style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)", color: "#f1f5f9", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer" }}
+            style={{ background: "#fff", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer" }}
           />
         )}
         {type === "toggle" && onToggle && (
@@ -1250,13 +1254,13 @@ function EditableNotes({ value, onCommit }: { value: string; onCommit: (v: strin
       <div
         onClick={() => setEditing(true)}
         style={{
-          background: "rgba(0,0,0,0.25)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          background: "#f8fafc",
+          border: "1px solid #cbd5e1",
           borderRadius: 6,
           padding: 8,
           fontSize: 11,
           lineHeight: 1.45,
-          color: value ? "#e2e8f0" : "#64748b",
+          color: value ? "#0f172a" : "#64748b",
           fontStyle: value ? "normal" : "italic",
           cursor: "pointer",
           minHeight: 48,
@@ -1283,10 +1287,10 @@ function EditableNotes({ value, onCommit }: { value: string; onCommit: (v: strin
         style={{
           width: "100%",
           minHeight: 100,
-          background: "rgba(15,23,42,0.9)",
+          background: "#fff",
           border: "1px solid #06b6d4",
-          boxShadow: "0 0 6px rgba(6,182,212,0.2)",
-          color: "#fff",
+          boxShadow: "0 0 6px rgba(6,182,212,0.15)",
+          color: "#000",
           borderRadius: 6,
           padding: 8,
           fontSize: 11,

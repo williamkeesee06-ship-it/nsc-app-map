@@ -15,6 +15,7 @@ import MapTypeToggle from "./features/map/MapTypeToggle.js";
 import { LuminaProvider } from "./features/lumina/store/luminaStore.js";
 import { useActiveContract } from "./features/workspace/contractStore.js";
 import PrintOverlayStandalone from "./features/print-overlay/PrintOverlayStandalone.js";
+import JobCardDesignsPage from "./features/jobs-map/JobCardDesignsPage.js";
 import "./features/lumina/lumina.css";
 import "./features/lumina/pegmanTint.css";
 
@@ -46,6 +47,7 @@ function AppRoutes() {
     <>
       <Routes>
         <Route path="/print-overlay/jobs/:jobId" element={<PrintOverlayStandalone />} />
+        <Route path="/job-card-designs" element={<JobCardDesignsPage />} />
         <Route path="/*" element={<Shell />} />
       </Routes>
 
