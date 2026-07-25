@@ -520,8 +520,8 @@ button:active,
   color: rgba(255, 255, 255, 0.85) !important;
 }
 
-/* ── Ziply FTTH — same royal blue + steel as Lumen (no green neon) ── */
-.contract-ziply {
+/* ── Unified Telecom Contract Theme — royal blue + steel (no green neon) ── */
+.app-frame {
   --accent-blue: #1d4ed8;
   --accent-blue-deep: #1e40af;
   --accent-blue-soft: rgba(29, 78, 216, 0.16);
@@ -533,21 +533,21 @@ button:active,
   --rail-accent-soft: var(--accent-blue-soft);
 }
 
-/* Ziply active tool tiles: metal face + royal blue */
-.contract-ziply .tool-tile--active {
+/* Active tool tiles globally: metal face + royal blue */
+.tool-tile--active {
   border-color: var(--accent-blue) !important;
   background: linear-gradient(160deg, #f8fafc 0%, #e2e8f0 55%, #cbd5e1 100%) !important;
 }
-.contract-ziply .tool-tile--active .tool-tile__icon,
-.contract-ziply .tool-tile--active .tool-tile__label {
+.tool-tile--active .tool-tile__icon,
+.tool-tile--active .tool-tile__label {
   color: var(--accent-blue-deep) !important;
 }
-.contract-ziply .tool-tile--active .tool-tile__icon svg {
+.tool-tile--active .tool-tile__icon svg {
   stroke: var(--accent-blue-deep) !important;
 }
 
-/* ── Ziply Panel Themes: Clean, White-Royal Blue, Rivets, Tough Metal ── */
-.contract-ziply .job-right-panel.theme-steel {
+/* ── Unified Panel Themes: Clean, White-Royal Blue, Rivets, Tough Metal ── */
+.job-right-panel.theme-steel {
   background: #f8fafc !important;
   background-image: linear-gradient(180deg, #ffffff 0%, #f1f5f9 50%, #e2e8f0 100%) !important;
   border-left: 4px solid #1d4ed8 !important;
@@ -557,11 +557,11 @@ button:active,
   padding: 20px !important;
 }
 
-/* Futuristic rivets in the corners of panels for Ziply */
-.contract-ziply .job-right-panel::before,
-.contract-ziply .job-right-panel::after,
-.contract-ziply .left-rail__scroll::before,
-.contract-ziply .left-rail__scroll::after {
+/* Futuristic rivets in the corners of panels globally */
+.job-right-panel::before,
+.job-right-panel::after,
+.left-rail__scroll::before,
+.left-rail__scroll::after {
   content: "" !important;
   position: absolute !important;
   width: 9px !important;
@@ -573,13 +573,13 @@ button:active,
   z-index: 50 !important;
   pointer-events: none !important;
 }
-.contract-ziply .job-right-panel::before { top: 12px !important; left: 12px !important; }
-.contract-ziply .job-right-panel::after { bottom: 12px !important; left: 12px !important; }
-.contract-ziply .left-rail__scroll::before { top: 12px !important; right: 12px !important; }
-.contract-ziply .left-rail__scroll::after { bottom: 12px !important; right: 12px !important; }
+.job-right-panel::before { top: 12px !important; left: 12px !important; }
+.job-right-panel::after { bottom: 12px !important; left: 12px !important; }
+.left-rail__scroll::before { top: 12px !important; right: 12px !important; }
+.left-rail__scroll::after { bottom: 12px !important; right: 12px !important; }
 
-/* Ziply-specific Left Rail sidebar styling */
-.contract-ziply .left-rail__scroll {
+/* Unified Left Rail sidebar styling */
+.left-rail__scroll {
   background: #f8fafc !important;
   background-image: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
   color: #0f172a !important;
@@ -587,59 +587,59 @@ button:active,
   position: relative !important;
   padding: 16px 16px 24px !important;
 }
-.contract-ziply .left-rail-tabstrip {
+.left-rail-tabstrip {
   background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 50%, #1e40af 100%) !important;
   border-right: 2px solid #1e40af !important;
 }
-.contract-ziply .left-rail-tab {
+.left-rail-tab {
   color: rgba(255, 255, 255, 0.75) !important;
   font-weight: 800 !important;
 }
-.contract-ziply .left-rail-tab:hover {
+.left-rail-tab:hover {
   background: rgba(255, 255, 255, 0.12) !important;
   color: #ffffff !important;
 }
-.contract-ziply .left-rail-tab.active {
+.left-rail-tab.active {
   background: rgba(255, 255, 255, 0.15) !important;
   color: #ffffff !important;
   box-shadow: inset 0 0 0 2px #ffffff !important;
 }
 
 /* Translucent details cards inside the job panel */
-.contract-ziply .job-right-panel__card,
-.contract-ziply .job-right-panel__811,
-.contract-ziply .job-right-panel div[style*="background: rgba(0,0,0,0.2)"],
-.contract-ziply .job-right-panel div[style*="background: rgba(255,255,255,0.03)"] {
+.job-right-panel__card,
+.job-right-panel__811,
+.job-right-panel div[style*="background: rgba(0,0,0,0.2)"],
+.job-right-panel div[style*="background: rgba(255,255,255,0.03)"] {
   background: #ffffff !important;
   border: 1px solid #cbd5e1 !important;
   border-radius: 8px !important;
   box-shadow: 0 2px 8px rgba(15,23,42,0.04) !important;
   color: #0f172a !important;
 }
-.contract-ziply .job-right-panel h1,
-.contract-ziply .job-right-panel h2,
-.contract-ziply .job-right-panel h3,
-.contract-ziply .job-right-panel h4,
-.contract-ziply .left-rail__scroll h1,
-.contract-ziply .left-rail__scroll h2,
-.contract-ziply .left-rail__scroll h3,
-.contract-ziply .left-rail__scroll h4,
-.contract-ziply .left-rail-panel h1,
-.contract-ziply .left-rail-panel h2,
-.contract-ziply .left-rail-panel h3,
-.contract-ziply .left-rail-panel h4 {
+.job-right-panel h1,
+.job-right-panel h2,
+.job-right-panel h3,
+.job-right-panel h4,
+.left-rail__scroll h1,
+.left-rail__scroll h2,
+.left-rail__scroll h3,
+.left-rail__scroll h4,
+.left-rail-panel h1,
+.left-rail-panel h2,
+.left-rail-panel h3,
+.left-rail-panel h4 {
   color: #1d4ed8 !important; /* Royal Blue headers */
   font-weight: 700 !important;
 }
-.contract-ziply .job-right-panel p,
-.contract-ziply .job-right-panel span,
-.contract-ziply .job-right-panel label,
-.contract-ziply .left-rail__scroll p,
-.contract-ziply .left-rail__scroll span,
-.contract-ziply .left-rail__scroll label,
-.contract-ziply .left-rail-panel p,
-.contract-ziply .left-rail-panel span,
-.contract-ziply .left-rail-panel label {
+.job-right-panel p,
+.job-right-panel span,
+.job-right-panel label,
+.left-rail__scroll p,
+.left-rail__scroll span,
+.left-rail__scroll label,
+.left-rail-panel p,
+.left-rail-panel span,
+.left-rail-panel label {
   color: #334155 !important;
 }
 

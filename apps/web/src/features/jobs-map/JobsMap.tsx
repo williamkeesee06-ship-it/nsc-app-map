@@ -259,7 +259,6 @@ function JobsMapInner({
   const { contract } = useActiveContract();
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
   const { setTarget: setDigTarget } = useDigPolygon();
-  const [panelTheme, setPanelTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
   const [selectedFeature, setSelectedFeature] = useState<PlatformFeature | null>(null);
   const [ziplyPrintLayerVisible, setZiplyPrintLayerVisible] = useState(true);
   const [ziply811OverlayVisible, setZiply811OverlayVisible] = useState(false);
@@ -449,8 +448,6 @@ function JobsMapInner({
         setSelectedJob={setSelected}
         selectedFeature={selectedFeature}
         setSelectedFeature={setSelectedFeature}
-        panelTheme={panelTheme}
-        setPanelTheme={setPanelTheme}
       />
 
       <div className="jobs-map__main">

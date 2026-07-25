@@ -22,8 +22,6 @@ import ZiplyFilterPanel from "./ZiplyFilterPanel.js";
 import { ZiplyPlantInventoryTab } from "../ziply/ZiplyPlantInventoryTab.js";
 import JobCard from "./JobCard.js";
 import { useActiveContract } from "../workspace/contractStore.js";
-import Eight11Section from "./Eight11Section.js";
-import LayersPanel from "../workspace/LayersPanel.js";
 import FeatureDetailSheet, { type PlatformFeature } from "../ziply/FeatureDetailSheet.js";
 import { api } from "../../lib/api.js";
 
@@ -56,8 +54,6 @@ interface Props {
   setSelectedJob?: (j: Job | null) => void;
   selectedFeature?: PlatformFeature | null;
   setSelectedFeature?: (f: PlatformFeature | null) => void;
-  panelTheme?: "steel" | "cyberpunk" | "titanium" | "glass";
-  setPanelTheme?: (t: "steel" | "cyberpunk" | "titanium" | "glass") => void;
 }
 
 
@@ -77,8 +73,6 @@ export default function LeftRail({
   setSelectedJob,
   selectedFeature,
   setSelectedFeature,
-  panelTheme,
-  setPanelTheme,
 }: Props) {
   const { contract } = useActiveContract();
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
@@ -274,7 +268,7 @@ export default function LeftRail({
 
       {!collapsed && (
         <>
-          <div className="left-rail__scroll">
+          <div className="left-rail__scroll" style={selectedJob || selectedFeature ? { padding: 0, overflow: 'hidden' } : undefined}>
             {selectedJob || selectedFeature ? (
               <div className="left-rail-details-pane" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ padding: '8px', borderBottom: '1px solid rgba(0,0,0,0.1)', background: '#F8FAFC', zIndex: 10 }}>
@@ -303,30 +297,16 @@ export default function LeftRail({
                    </button>
                 </div>
                 
-                <div style={{ flex: 1, overflowY: 'auto' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   {selectedJob && (
-                    <div className={`theme-${panelTheme || 'steel'}`}>
-                      <div className="job-right-panel__card">
-                        <JobCard
-                          job={selectedJob}
-                          onClose={() => {
-                            setSelectedJob?.(null);
-                            window.dispatchEvent(new Event("nsc:markups-saved"));
-                          }}
-                          variant="panel"
-                          theme={panelTheme || "steel"}
-                          onThemeChange={setPanelTheme || (() => {})}
-                        />
-                      </div>
-                      <div className="job-right-panel__811">
-                        <Eight11Section job={selectedJob} />
-                      </div>
-                      {contract !== "Ziply" && (
-                        <div className="job-right-panel__layers">
-                          <LayersPanel />
-                        </div>
-                      )}
-                    </div>
+                    <JobCard
+                      job={selectedJob}
+                      onClose={() => {
+                        setSelectedJob?.(null);
+                        window.dispatchEvent(new Event("nsc:markups-saved"));
+                      }}
+                      variant="panel"
+                    />
                   )}
 
                   {selectedFeature && (
