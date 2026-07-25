@@ -520,11 +520,11 @@ button:active,
   color: rgba(255, 255, 255, 0.85) !important;
 }
 
-/* ── Unified Telecom Contract Theme — royal blue + steel (no green neon) ── */
+/* ── Unified Telecom Contract Theme — royal blue + steel ── */
 .app-frame {
-  --accent-blue: #1d4ed8;
-  --accent-blue-deep: #1e40af;
-  --accent-blue-soft: rgba(29, 78, 216, 0.16);
+  --accent-blue: #0033A0;
+  --accent-blue-deep: #002280;
+  --accent-blue-soft: rgba(0, 51, 160, 0.08);
   --accent: var(--accent-blue);
   --accent-hover: var(--accent-blue-deep);
   --primary: var(--accent-blue);
@@ -533,63 +533,87 @@ button:active,
   --rail-accent-soft: var(--accent-blue-soft);
 }
 
-/* Active tool tiles globally: metal face + royal blue */
+/* Inactive tool tiles, dig switcher buttons, undo redo buttons: white face + stainless steel metallic rim */
+.tool-tile,
+.dig-tool-btn,
+.undo-redo-btn {
+  background: #ffffff !important;
+  background-image: none !important;
+  border: 1px solid #c7cdd5 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), inset 0 1px 0 #ffffff !important;
+  color: #475569 !important;
+  border-radius: 8px !important;
+}
+
+.tool-tile:hover:not(:disabled),
+.dig-tool-btn:hover:not(:disabled),
+.undo-redo-btn:hover:not(:disabled) {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
+/* Active tool tiles globally: solid royal blue #0033A0 */
 .tool-tile--active {
-  border-color: var(--accent-blue) !important;
-  background: linear-gradient(160deg, #f8fafc 0%, #e2e8f0 55%, #cbd5e1 100%) !important;
+  border-color: #002280 !important;
+  background: #0033A0 !important;
+  background-image: none !important;
+  box-shadow: 0 2px 8px rgba(0, 51, 160, 0.2) !important;
 }
 .tool-tile--active .tool-tile__icon,
 .tool-tile--active .tool-tile__label {
-  color: var(--accent-blue-deep) !important;
+  color: #ffffff !important;
 }
 .tool-tile--active .tool-tile__icon svg {
-  stroke: var(--accent-blue-deep) !important;
+  stroke: #ffffff !important;
 }
 
-/* ── Unified Panel Themes: Clean, White-Royal Blue, Rivets, Tough Metal ── */
+/* Active dig tool switcher buttons: solid royal blue #0033A0 */
+.dig-tool-btn--active {
+  background: #0033A0 !important;
+  background-image: none !important;
+  border-color: #002280 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 51, 160, 0.2) !important;
+}
+.dig-tool-btn--active .dig-tool-btn__label {
+  color: #ffffff !important;
+}
+.dig-tool-btn--active svg,
+.dig-tool-btn--active svg circle,
+.dig-tool-btn--active svg line,
+.dig-tool-btn--active svg path,
+.dig-tool-btn--active svg polygon {
+  stroke: #ffffff !important;
+}
+.dig-tool-btn--active svg circle[fill="#ff6a00"],
+.dig-tool-btn--active svg polygon[fill="STROKE"] {
+  fill: #ffffff !important;
+}
+
+/* ── Unified Panel Themes: Clean, White-Royal Blue ── */
 .job-right-panel.theme-steel {
-  background: #f8fafc !important;
-  background-image: linear-gradient(180deg, #ffffff 0%, #f1f5f9 50%, #e2e8f0 100%) !important;
-  border-left: 4px solid #1d4ed8 !important;
-  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.9), -5px 0 25px rgba(0,0,0,0.12) !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  border-left: 4px solid #0033A0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
   color: #0f172a !important;
   position: relative !important;
   padding: 20px !important;
 }
 
-/* Futuristic rivets in the corners of panels globally */
-.job-right-panel::before,
-.job-right-panel::after,
-.left-rail__scroll::before,
-.left-rail__scroll::after {
-  content: "" !important;
-  position: absolute !important;
-  width: 9px !important;
-  height: 9px !important;
-  background: radial-gradient(circle, #f1f5f9 25%, #cbd5e1 60%, #475569 100%) !important;
-  border: 1px solid #94a3b8 !important;
-  border-radius: 50% !important;
-  box-shadow: 1px 1px 2px rgba(15,23,42,0.3), inset -1px -1px 1px rgba(255,255,255,0.8) !important;
-  z-index: 50 !important;
-  pointer-events: none !important;
-}
-.job-right-panel::before { top: 12px !important; left: 12px !important; }
-.job-right-panel::after { bottom: 12px !important; left: 12px !important; }
-.left-rail__scroll::before { top: 12px !important; right: 12px !important; }
-.left-rail__scroll::after { bottom: 12px !important; right: 12px !important; }
-
-/* Unified Left Rail sidebar styling */
+/* Unified Left Rail sidebar styling: pure white base background */
 .left-rail__scroll {
-  background: #f8fafc !important;
-  background-image: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
+  background: #ffffff !important;
+  background-image: none !important;
   color: #0f172a !important;
   border-right: 1px solid #cbd5e1 !important;
   position: relative !important;
   padding: 16px 16px 24px !important;
 }
 .left-rail-tabstrip {
-  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 50%, #1e40af 100%) !important;
-  border-right: 2px solid #1e40af !important;
+  background: linear-gradient(180deg, #0044cc 0%, #0033A0 50%, #002280 100%) !important;
+  border-right: 2px solid #002280 !important;
 }
 .left-rail-tab {
   color: rgba(255, 255, 255, 0.75) !important;
@@ -628,7 +652,7 @@ button:active,
 .left-rail-panel h2,
 .left-rail-panel h3,
 .left-rail-panel h4 {
-  color: #1d4ed8 !important; /* Royal Blue headers */
+  color: #0033A0 !important; /* Royal Blue headers */
   font-weight: 700 !important;
 }
 .job-right-panel p,
@@ -641,5 +665,14 @@ button:active,
 .left-rail-panel span,
 .left-rail-panel label {
   color: #334155 !important;
+}
+
+.telecom-divider {
+  color: #0033A0 !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  margin: 14px 0 6px 0 !important;
 }
 

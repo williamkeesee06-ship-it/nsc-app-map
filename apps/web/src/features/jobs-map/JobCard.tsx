@@ -250,19 +250,19 @@ export default function JobCard({
   const getStatusStyles = (statusStr: string) => {
     const s = statusStr.toLowerCase();
     if (s.includes("ready") || s.includes("rts") || s.includes("clear")) {
-      return { border: "1.5px solid #00C853", shadow: "0 0 8px rgba(0, 200, 83, 0.25)", bg: "rgba(0, 200, 83, 0.05)", color: "#00C853" };
+      return { border: "1.5px solid #00C853", boxShadow: "0 0 8px rgba(0, 200, 83, 0.25)", backgroundColor: "rgba(0, 200, 83, 0.05)", color: "#00C853" };
     } else if (s.includes("progress") || s.includes("active") || s.includes("sched") || s.includes("route")) {
-      return { border: "1.5px solid #1d4ed8", shadow: "0 0 8px rgba(29, 78, 216, 0.25)", bg: "rgba(29, 78, 216, 0.05)", color: "#1d4ed8" };
+      return { border: "1.5px solid #0033A0", boxShadow: "0 0 8px rgba(0, 51, 160, 0.25)", backgroundColor: "rgba(0, 51, 160, 0.05)", color: "#0033A0" };
     } else if (s.includes("pending")) {
-      return { border: "1.5px solid #ff8a1f", shadow: "0 0 8px rgba(255, 138, 31, 0.25)", bg: "rgba(255, 138, 31, 0.05)", color: "#ff8a1f" };
+      return { border: "1.5px solid #ff8a1f", boxShadow: "0 0 8px rgba(255, 138, 31, 0.25)", backgroundColor: "rgba(255, 138, 31, 0.05)", color: "#ff8a1f" };
     } else if (s.includes("complete") || s.includes("done")) {
-      return { border: "1.5px solid #00C853", shadow: "0 0 8px rgba(0, 200, 83, 0.25)", bg: "rgba(0, 200, 83, 0.05)", color: "#00C853" };
+      return { border: "1.5px solid #00C853", boxShadow: "0 0 8px rgba(0, 200, 83, 0.25)", backgroundColor: "rgba(0, 200, 83, 0.05)", color: "#00C853" };
     } else if (s.includes("hold")) {
-      return { border: "1.5px solid #ff2d4a", shadow: "0 0 8px rgba(255, 45, 74, 0.25)", bg: "rgba(255, 45, 74, 0.05)", color: "#ff2d4a" };
+      return { border: "1.5px solid #ff2d4a", boxShadow: "0 0 8px rgba(255, 45, 74, 0.25)", backgroundColor: "rgba(255, 45, 74, 0.05)", color: "#ff2d4a" };
     } else if (s.includes("fielding")) {
-      return { border: "1.5px solid #c44dff", shadow: "0 0 8px rgba(196, 77, 255, 0.25)", bg: "rgba(196, 77, 255, 0.05)", color: "#c44dff" };
+      return { border: "1.5px solid #c44dff", boxShadow: "0 0 8px rgba(196, 77, 255, 0.25)", backgroundColor: "rgba(196, 77, 255, 0.05)", color: "#c44dff" };
     } else {
-      return { border: "1.5px solid #94a3b8", shadow: "0 0 8px rgba(148, 163, 184, 0.25)", bg: "rgba(148, 163, 184, 0.05)", color: "#94a3b8" };
+      return { border: "1.5px solid #94a3b8", boxShadow: "0 0 8px rgba(148, 163, 184, 0.25)", backgroundColor: "rgba(148, 163, 184, 0.05)", color: "#94a3b8" };
     }
   };
 
@@ -272,7 +272,7 @@ export default function JobCard({
     return (
       <div className={`job-card job-card--popup theme-${activeTheme}`} style={{ display: "flex", flexDirection: "column", gap: 10, padding: "12px", width: "280px" }}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: "14px", fontWeight: 900, color: "#1d4ed8" }}>{wo}</span>
+          <span style={{ fontSize: "14px", fontWeight: 900, color: "#0033A0" }}>{wo}</span>
           <span style={{
             fontSize: "9px",
             fontWeight: 800,
@@ -309,11 +309,11 @@ export default function JobCard({
           <div style={{
             fontSize: "26px",
             fontWeight: 900,
-            color: "#1d4ed8",
+            color: "#0033A0",
             fontFamily: "'Space Grotesk', 'Rajdhani', sans-serif",
             letterSpacing: "-0.02em",
             lineHeight: 1.1,
-            textShadow: "0 0 1px rgba(29, 78, 216, 0.05)"
+            textShadow: "0 0 1px rgba(0, 51, 160, 0.05)"
           }}>
             {wo}
           </div>
@@ -387,9 +387,9 @@ export default function JobCard({
               onClick={() => setActiveTab(tab)}
               style={{
                 flex: 1,
-                background: isActive ? "rgba(29, 78, 216, 0.08)" : "transparent",
-                border: isActive ? "1.5px solid #1d4ed8" : "1.5px solid transparent",
-                color: isActive ? "#1d4ed8" : "var(--text-muted)",
+                background: isActive ? "rgba(0, 51, 160, 0.08)" : "transparent",
+                border: isActive ? "1.5px solid #0033A0" : "1.5px solid transparent",
+                color: isActive ? "#0033A0" : "var(--text-muted)",
                 fontSize: "10px",
                 fontWeight: 900,
                 textTransform: "uppercase",
@@ -397,14 +397,14 @@ export default function JobCard({
                 borderRadius: "8px",
                 cursor: "pointer",
                 textAlign: "center",
-                boxShadow: isActive ? "0 0 10px rgba(29, 78, 216, 0.3)" : "none",
+                boxShadow: isActive ? "0 2px 6px rgba(0, 51, 160, 0.15)" : "none",
                 transition: "all 0.2s ease-in-out",
                 letterSpacing: "0.05em"
               }}
               onMouseOver={(e) => {
                 if (!isActive) {
-                  e.currentTarget.style.color = "#1d4ed8";
-                  e.currentTarget.style.borderColor = "rgba(29, 78, 216, 0.2)";
+                  e.currentTarget.style.color = "#0033A0";
+                  e.currentTarget.style.borderColor = "rgba(0, 51, 160, 0.2)";
                 }
               }}
               onMouseOut={(e) => {
@@ -505,24 +505,24 @@ export default function JobCard({
                     Ziply Construction Progress
                   </span>
                   
-                  <div style={{ background: "rgba(15,23,42,0.02)", border: "1px solid var(--border)", padding: 10, borderRadius: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ background: "#ffffff", border: "1px solid #cbd5e1", padding: 10, borderRadius: 8, display: "flex", flexDirection: "column", gap: 8, boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)" }}>
                     <div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4 }}>
                         <span style={{ color: "var(--text-muted)" }}>Bore Complete:</span>
                         <span style={{ fontWeight: 800, color: "var(--text)" }}>{stats.completeFt} ft / {stats.totalFt} ft</span>
                       </div>
-                      <div style={{ width: "100%", height: 6, background: "rgba(0,0,0,0.06)", borderRadius: 3, overflow: "hidden" }}>
-                        <div style={{ width: `${stats.totalFt > 0 ? (stats.completeFt / stats.totalFt) * 100 : 0}%`, height: "100%", background: "#1d4ed8" }} />
+                      <div style={{ width: "100%", height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ width: `${stats.totalFt > 0 ? (stats.completeFt / stats.totalFt) * 100 : 0}%`, height: "100%", background: "#0033A0" }} />
                       </div>
                     </div>
                     
                     <div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4 }}>
-                        <span style={{ color: "var(--text-muted)" }}>Terminals Set:</span>
+                        <span style={{ color: "var(--text-muted)" }}>Splice Terminals Complete:</span>
                         <span style={{ fontWeight: 800, color: "var(--text)" }}>{stats.complete} / {stats.total}</span>
                       </div>
-                      <div style={{ width: "100%", height: 6, background: "rgba(0,0,0,0.06)", borderRadius: 3, overflow: "hidden" }}>
-                        <div style={{ width: `${stats.total > 0 ? (stats.complete / stats.total) * 100 : 0}%`, height: "100%", background: "#1d4ed8" }} />
+                      <div style={{ width: "100%", height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ width: `${stats.total > 0 ? (stats.complete / stats.total) * 100 : 0}%`, height: "100%", background: "#0033A0" }} />
                       </div>
                     </div>
                   </div>
@@ -561,10 +561,10 @@ export default function JobCard({
                         alignItems: "center",
                         justifyContent: "center",
                         gap: 6,
-                        border: "1.5px solid #1d4ed8",
-                        background: "rgba(29, 78, 216, 0.08)",
-                        color: "#1d4ed8",
-                        boxShadow: "0 0 8px rgba(29, 78, 216, 0.2)",
+                        border: "1.5px solid #002280",
+                        background: "#0033A0",
+                        color: "#ffffff",
+                        boxShadow: "0 2px 6px rgba(0, 51, 160, 0.2)",
                         borderRadius: "8px",
                         padding: "8px",
                         fontSize: "11px",
@@ -613,9 +613,9 @@ export default function JobCard({
                               void updatePageOpacity(activePageSelId, parseFloat(e.target.value));
                             }
                           }}
-                          style={{ flexGrow: 1, height: 4, accentColor: "#1d4ed8" }}
+                          style={{ flexGrow: 1, height: 4, accentColor: "#0033A0" }}
                         />
-                        <span style={{ fontSize: 9, color: "#1d4ed8", fontWeight: 800, width: 26, textAlign: "right" }}>
+                        <span style={{ fontSize: 9, color: "#0033A0", fontWeight: 800, width: 26, textAlign: "right" }}>
                           {Math.round(activePageOpacity * 100)}%
                         </span>
                       </div>
@@ -631,7 +631,7 @@ export default function JobCard({
                             type="checkbox"
                             checked={!p.excluded}
                             onChange={() => void togglePageExcluded(p.id)}
-                            style={{ accentColor: "#1d4ed8" }}
+                            style={{ accentColor: "#0033A0" }}
                           />
                         </label>
                       ))}
@@ -642,9 +642,10 @@ export default function JobCard({
                         type="button"
                         style={{
                           width: "100%",
-                          border: "1px solid var(--border)",
-                          background: "rgba(0,0,0,0.04)",
-                          color: "var(--text)",
+                          border: "1px solid #c7cdd5",
+                          background: "#ffffff",
+                          color: "#475569",
+                          boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
                           borderRadius: "6px",
                           padding: "5px",
                           fontSize: "9px",
@@ -695,7 +696,7 @@ export default function JobCard({
             width: "100%",
             padding: "12px 20px",
             cursor: "pointer",
-            color: docsExpanded ? "#1d4ed8" : "var(--text-muted)",
+            color: docsExpanded ? "#0033A0" : "var(--text-muted)",
             fontSize: "11px",
             fontWeight: 800,
             textTransform: "uppercase",
@@ -704,17 +705,17 @@ export default function JobCard({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Paperclip size={14} style={{ color: docsExpanded ? "#1d4ed8" : "var(--text-muted)", transform: "rotate(45deg)" }} />
+            <Paperclip size={14} style={{ color: docsExpanded ? "#0033A0" : "var(--text-muted)", transform: "rotate(45deg)" }} />
             <span>Attachments</span>
             <span style={{
-              background: docsExpanded ? "rgba(29, 78, 216, 0.12)" : "rgba(0, 0, 0, 0.06)",
-              color: docsExpanded ? "#1d4ed8" : "var(--text)",
+              background: docsExpanded ? "rgba(0, 51, 160, 0.08)" : "rgba(0, 0, 0, 0.06)",
+              color: docsExpanded ? "#0033A0" : "var(--text)",
               borderRadius: "9999px",
               padding: "1px 6px",
               fontSize: "9px",
               fontWeight: 800,
               marginLeft: 4,
-              border: docsExpanded ? "1.5px solid rgba(29, 78, 216, 0.3)" : "1.5px solid var(--border)"
+              border: docsExpanded ? "1.5px solid rgba(0, 51, 160, 0.3)" : "1.5px solid var(--border)"
             }}>
               {attachmentsList.length}
             </span>
@@ -741,9 +742,9 @@ export default function JobCard({
                   display: "flex",
                   alignItems: "center",
                   gap: 4,
-                  border: "1px solid #1d4ed8",
-                  background: "rgba(29, 78, 216, 0.08)",
-                  color: "#1d4ed8",
+                  border: "1px solid #0033A0",
+                  background: "rgba(0, 51, 160, 0.08)",
+                  color: "#0033A0",
                   borderRadius: "4px",
                   padding: "3px 8px",
                   fontSize: "9px",
@@ -766,7 +767,7 @@ export default function JobCard({
                     rel="noreferrer"
                     style={{ fontSize: 11, color: "var(--text)", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}
                   >
-                    <FileText size={12} style={{ color: "#1d4ed8" }} /> {file.name || `Attachment ${i + 1}`}
+                    <FileText size={12} style={{ color: "#0033A0" }} /> {file.name || `Attachment ${i + 1}`}
                   </a>
                 ))}
               </div>
@@ -919,14 +920,14 @@ function EditableRow({
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
-      <span style={{ color: "#94a3b8" }}>{label}</span>
+      <span style={{ color: "#475569" }}>{label}</span>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <SaveIndicator saving={!!saving} saved={!!saved} error={!!error} />
         {type === "select" && onChange && (
           <select
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)", color: "#f1f5f9", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer" }}
+            style={{ background: "#ffffff", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)" }}
           >
             <option value="">Choose...</option>
             {options.map((opt) => (
@@ -939,7 +940,7 @@ function EditableRow({
             type="date"
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
-            style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)", color: "#f1f5f9", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer" }}
+            style={{ background: "#ffffff", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)" }}
           />
         )}
         {type === "toggle" && onToggle && (
@@ -948,7 +949,7 @@ function EditableRow({
               type="checkbox"
               checked={toggleValue}
               onChange={(e) => onToggle(e.target.checked)}
-              style={{ accentColor: "#06b6d4", cursor: "pointer" }}
+              style={{ accentColor: "#0033A0", cursor: "pointer" }}
             />
           </label>
         )}
@@ -971,17 +972,18 @@ function EditableNotes({ value, onCommit }: { value: string; onCommit: (v: strin
       <div
         onClick={() => setEditing(true)}
         style={{
-          background: "rgba(0,0,0,0.25)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          background: "#ffffff",
+          border: "1px solid #cbd5e1",
           borderRadius: 6,
           padding: 8,
           fontSize: 11,
           lineHeight: 1.45,
-          color: value ? "#e2e8f0" : "#64748b",
+          color: value ? "#0f172a" : "#64748b",
           fontStyle: value ? "normal" : "italic",
           cursor: "pointer",
           minHeight: 48,
           whiteSpace: "pre-wrap",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
         }}
       >
         {value || "Tap to add project notes..."}
@@ -1004,10 +1006,10 @@ function EditableNotes({ value, onCommit }: { value: string; onCommit: (v: strin
         style={{
           width: "100%",
           minHeight: 100,
-          background: "rgba(15,23,42,0.9)",
-          border: "1px solid #06b6d4",
-          boxShadow: "0 0 6px rgba(6,182,212,0.2)",
-          color: "#fff",
+          background: "#ffffff",
+          border: "1px solid #0033A0",
+          boxShadow: "0 0 6px rgba(0,51,160,0.15)",
+          color: "#0f172a",
           borderRadius: 6,
           padding: 8,
           fontSize: 11,
@@ -1022,7 +1024,7 @@ function EditableNotes({ value, onCommit }: { value: string; onCommit: (v: strin
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={done}
-          style={{ background: "#06b6d4", color: "#000", border: "none", borderRadius: 4, padding: "4px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
+          style={{ background: "#0033A0", color: "#ffffff", border: "none", borderRadius: 4, padding: "4px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
         >
           Save
         </button>
