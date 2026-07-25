@@ -198,11 +198,11 @@ export default function Eight11Section({ job }: { job: Job }) {
 
       {/* ── Progress Track (#1) ── */}
       {state !== "A" && (
-        <div style={{ padding: "4px 2px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ padding: "4px 2px 10px", display: "flex", flexDirection: "column", gap: 4 }}>
           {/* Track Line & Dots */}
           <div style={{ position: "relative", height: 16, display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 10px" }}>
             {/* Background line */}
-            <div style={{ position: "absolute", left: 0, right: 0, height: 2, background: "rgba(255,255,255,0.08)", zIndex: 1 }} />
+            <div style={{ position: "absolute", left: 0, right: 0, height: 2, background: "#e5e7eb", zIndex: 1 }} />
             
             {/* Active filled line */}
             <div 
@@ -218,11 +218,8 @@ export default function Eight11Section({ job }: { job: Job }) {
                 background: 
                   state === "D" ? "#ff2d4a" :
                   ticket?.readyToDig ? "#3ecf6b" :
-                  status === "Active" || status === "Expiring" ? "#1ea7ff" : "#ff9a3a", 
-                boxShadow: 
-                  state === "D" ? "0 0 6px #ff2d4a" :
-                  ticket?.readyToDig ? "0 0 6px #3ecf6b" :
-                  status === "Active" || status === "Expiring" ? "0 0 6px #1ea7ff" : "0 0 6px #ff9a3a",
+                  status === "Active" || status === "Expiring" ? "#0033A0" : "#ff9a3a", 
+                boxShadow: "none",
                 zIndex: 2,
                 transition: "all 0.3s ease"
               }} 
@@ -232,11 +229,10 @@ export default function Eight11Section({ job }: { job: Job }) {
             {[
               { label: "Draft", active: true, color: "#ff9a3a" },
               { label: "Filed", active: state !== "B", color: "#ffb300" },
-              { label: "Active", active: status === "Active" || status === "Expiring" || ticket?.readyToDig || state === "D", color: "#1ea7ff" },
+              { label: "Active", active: status === "Active" || status === "Expiring" || ticket?.readyToDig || state === "D", color: "#0033A0" },
               { label: "Ready", active: !!ticket?.readyToDig, color: "#3ecf6b" },
-              { label: "Done", active: state === "D", color: state === "D" ? "#ff2d4a" : "#8e96a0" }
+              { label: "Done", active: state === "D", color: state === "D" ? "#ff2d4a" : "#cbd5e1" }
             ].map((node, index) => {
-              const glow = node.active ? `0 0 8px ${node.color}` : "none";
               return (
                 <div 
                   key={index} 
@@ -244,8 +240,8 @@ export default function Eight11Section({ job }: { job: Job }) {
                     width: 8, 
                     height: 8, 
                     borderRadius: "50%", 
-                    background: node.active ? node.color : "#3a3a3a", 
-                    boxShadow: glow,
+                    background: node.active ? node.color : "#cbd5e1", 
+                    boxShadow: "none",
                     zIndex: 3, 
                     position: "relative",
                     transition: "all 0.3s ease"
@@ -310,7 +306,7 @@ export default function Eight11Section({ job }: { job: Job }) {
               </Eight11Line>
 
               {/* Utility Locator Responses Dashboard HUD (#3) */}
-              <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid rgba(200,208,218,0.08)", paddingTop: 8 }}>
+              <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid #cbd5e1", paddingTop: 8 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
                   Locator Responses
                 </div>
@@ -319,29 +315,29 @@ export default function Eight11Section({ job }: { job: Job }) {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
                     {ticket.utilityStatuses.map((ut, idx) => {
                       const statusColors = {
-                        clear: { border: "rgba(62,207,107,0.8)", bg: "rgba(62,207,107,0.15)", text: "#3ecf6b", icon: "✓", glow: "rgba(62,207,107,0.3)" },
-                        marked: { border: "rgba(62,207,107,0.8)", bg: "rgba(62,207,107,0.15)", text: "#3ecf6b", icon: "✓", glow: "rgba(62,207,107,0.3)" },
-                        pending: { border: "rgba(255,165,0,0.8)", bg: "rgba(255,165,0,0.15)", text: "#ffa500", icon: "◷", glow: "rgba(255,165,0,0.3)" },
-                        "in-progress": { border: "rgba(255,165,0,0.8)", bg: "rgba(255,165,0,0.15)", text: "#ffa500", icon: "◷", glow: "rgba(255,165,0,0.3)" },
-                        conflict: { border: "rgba(255,45,74,0.8)", bg: "rgba(255,45,74,0.15)", text: "#ff2d4a", icon: "⚠", glow: "rgba(255,45,74,0.3)" },
-                      }[ut.status] || { border: "rgba(255,255,255,0.3)", bg: "rgba(255,255,255,0.05)", text: "#c8d0da", icon: "?", glow: "rgba(255,255,255,0.1)" };
+                        clear: { border: "rgba(76,175,80,0.3)", bg: "rgba(76,175,80,0.06)", text: "#1b5e20", icon: "✓" },
+                        marked: { border: "rgba(76,175,80,0.3)", bg: "rgba(76,175,80,0.06)", text: "#1b5e20", icon: "✓" },
+                        pending: { border: "rgba(255,152,0,0.3)", bg: "rgba(255,152,0,0.06)", text: "#b25e00", icon: "◷" },
+                        "in-progress": { border: "rgba(255,152,0,0.3)", bg: "rgba(255,152,0,0.06)", text: "#b25e00", icon: "◷" },
+                        conflict: { border: "rgba(239,68,68,0.3)", bg: "rgba(239,68,68,0.06)", text: "#c62828", icon: "⚠" },
+                      }[ut.status] || { border: "rgba(0,0,0,0.08)", bg: "rgba(0,0,0,0.02)", text: "#334155", icon: "?" };
 
                       return (
                         <div 
                           key={idx}
                           style={{
                             background: statusColors.bg,
-                            border: `1.2px solid ${statusColors.border}`,
-                            borderRadius: 5,
-                            padding: "5px 7px",
+                            border: `1px solid ${statusColors.border}`,
+                            borderRadius: 6,
+                            padding: "4px 6px",
                             display: "flex",
                             flexDirection: "column",
                             gap: 2,
-                            boxShadow: `0 0 8px ${statusColors.glow}`,
+                            boxShadow: "0 1px 2px rgba(0, 0, 0, 0.04)",
                             transition: "all 0.2s ease"
                           }}
                         >
-                        <span style={{ fontSize: 9, fontWeight: 700, color: "#f4f8ff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={ut.utility}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={ut.utility}>
                           {ut.utility}
                         </span>
                         <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 8, fontWeight: 700, color: statusColors.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>
@@ -467,11 +463,12 @@ function Eight11Button({
         alignItems: "center",
         gap: 4,
         padding: "6px 12px",
-        borderRadius: 999,
-        background: primary ? "rgba(255,106,0,0.14)" : "rgba(0,0,0,0.05)",
-        border: primary ? "1px solid rgba(255,106,0,0.55)" : "1px solid var(--border)",
-        color: primary ? "#c25000" : "var(--text-secondary)",
-        fontSize: 11,
+        borderRadius: 6,
+        background: primary ? "#0033A0" : "#ffffff",
+        border: primary ? "1px solid #002280" : "1px solid #c7cdd5",
+        color: primary ? "#ffffff" : "#475569",
+        boxShadow: primary ? "0 2px 4px rgba(0, 51, 160, 0.15)" : "0 1px 2px rgba(0, 0, 0, 0.05)",
+        fontSize: 10,
         fontWeight: 700,
         letterSpacing: "0.05em",
         textTransform: "uppercase",

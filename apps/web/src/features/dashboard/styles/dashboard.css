@@ -28,11 +28,8 @@
      translucent light veil covers the full board so the blueprint bleeds
      through softly; widgets carry their own chrome bezels, so the skyline
      peeks through the gaps between them. */
-  background-image: url("/dashboard/bg1.jpg");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: cover;
-  background-attachment: fixed;
+  background: #0f172a;
+  background-image: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%) !important;
 }
 
 /* Subtle brushed-steel noise overlay. */

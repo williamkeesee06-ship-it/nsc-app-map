@@ -432,7 +432,7 @@ export default function JobCard({
               <Row label="Supervisor" value={job.constructionSupervisor || "Unassigned"} />
             </div>
 
-            <div style={{ height: "1px", background: "var(--border)" }} />
+            <div style={{ height: 0, borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #ffffff", margin: "14px 0 12px 0" }} />
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -499,7 +499,7 @@ export default function JobCard({
             {/* Construction Progress (Bore/Terminal progress bars) */}
             {isZiplyJob(job) && (
               <>
-                <div style={{ height: "1px", background: "var(--border)" }} />
+                <div style={{ height: 0, borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #ffffff", margin: "14px 0 12px 0" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Ziply Construction Progress
@@ -531,7 +531,7 @@ export default function JobCard({
             )}
 
             {/* 811 Locate Section inside Tab */}
-            <div style={{ height: "1px", background: "var(--border)" }} />
+            <div style={{ height: 0, borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #ffffff", margin: "14px 0 12px 0" }} />
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <h4 style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", margin: "0 0 2px 0", letterSpacing: "0.05em" }}>
                 811 Locate Shape
