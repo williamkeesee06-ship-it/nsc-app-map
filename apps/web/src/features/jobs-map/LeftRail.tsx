@@ -3,22 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Job } from "@nsc/types";
 import type { MutableRefObject } from "react";
-import FilterRail from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
-import "./filtersTab.css";
 import { isJobCompleted } from "./markerStyle.js";
 import { useDrawing } from "../drawing/drawingContext.js";
 import { useDigPolygon, type DigTool } from "../dig-polygon/digPolygonContext.js";
 import type { DrawingTool } from "@nsc/types";
 import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 import { queuePrefWrite } from "../../lib/prefsSync.js";
-import StatusFilterPills from "./StatusFilterPills.js";
-import CentralOfficesPill from "./CentralOfficesPill.js";
 // CalendarTab / Dashboard / 811 are mounted full-screen by JobsMap, not in the rail.
 // Lumina is the floating orb + ChatPanel (not a rail tab).
 import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
-import ZiplyFilterPanel from "./ZiplyFilterPanel.js";
 import { ZiplyPlantInventoryTab } from "../ziply/ZiplyPlantInventoryTab.js";
 import JobCard from "./JobCard.js";
 import { useActiveContract } from "../workspace/contractStore.js";
@@ -222,14 +217,12 @@ export default function LeftRail({
         { id: 'jobs', label: 'JOBS' },
         { id: 'plant', label: 'PLANT' },
         { id: 'filters', label: 'MAP' },
-        { id: 'tools', label: 'TOOLS' },
         { id: 'calendar', label: 'CALENDAR' },
         { id: '811-tickets', label: '811 TICKETS' },
       ]
     : [
         { id: 'dashboard', label: 'DASHBOARD' },
         { id: 'filters', label: 'MAP' },
-        { id: 'tools', label: 'TOOLS' },
         { id: 'calendar', label: 'CALENDAR' },
         { id: '811-tickets', label: '811 TICKETS' },
       ];
@@ -348,29 +341,7 @@ export default function LeftRail({
               /* Tab Content */
               <div className="left-rail-tab-content">
                  {activeTab === 'plant' && <ZiplyPlantInventoryTab />}
-                 {activeTab === 'filters' && (
-                   contract === 'Ziply' ? (
-                     <ZiplyFilterPanel
-                       jobs={jobs}
-                       filters={filters}
-                       setFilters={setFilters}
-                       ziplyPrintLayerVisible={ziplyPrintLayerVisible}
-                       setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
-                       ziply811OverlayVisible={ziply811OverlayVisible}
-                       setZiply811OverlayVisible={setZiply811OverlayVisible}
-                     />
-                   ) : (
-                     <FiltersTab
-                       jobs={jobs}
-                       filters={filters}
-                       setFilters={setFilters}
-                       hideFilters={hideFilters}
-                       managerMode={managerMode}
-                       availableSupervisors={availableSupervisors}
-                     />
-                   )
-                 )}
-                {activeTab === 'tools' && <AnnotateTab selectedJob={selectedJob ?? null} />}
+                 {activeTab === 'filters' && <AnnotateTab selectedJob={selectedJob ?? null} />}
                   {/* Calendar, Jobs (Ziply), and Dashboard (Lumen & Ziply) tabs have no rail content — 
                       they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
                       on entry so there's nothing visible here. */}
@@ -610,49 +581,6 @@ const ZIPLY_TOOL_DEFS: ToolDef[] = [
 ];
 
 // ─── Tab Components ────────────────────────────────────────────────────────────
-
-function FiltersTab({
-  jobs,
-  filters,
-  setFilters,
-  hideFilters,
-  managerMode,
-  availableSupervisors,
-}: {
-  jobs: Job[];
-  filters: Filters;
-  setFilters: (f: Filters) => void;
-  hideFilters?: boolean;
-  managerMode?: boolean;
-  availableSupervisors?: string[];
-}) {
-  return (
-    <section className="rail-section filters-tab premium-filters">
-      <div className="filters-tab__group glass-panel">
-        <div className="filters-tab__heading glow-text">STATUS</div>
-        <StatusFilterPills />
-      </div>
-
-      <div className="filters-tab__group glass-panel">
-        <div className="filters-tab__heading glow-text">OVERLAYS</div>
-        <CentralOfficesPill />
-      </div>
-
-
-      {!hideFilters && managerMode && availableSupervisors && availableSupervisors.length > 0 && (
-        <div className="filters-tab__group glass-panel">
-          <FilterRail
-            jobs={jobs}
-            filters={filters}
-            setFilters={setFilters}
-            managerMode={managerMode}
-            availableSupervisors={availableSupervisors}
-          />
-        </div>
-      )}
-    </section>
-  );
-}
 
 // 811 tool switcher definitions (neon-orange excavation shapes).
 const DIG_TOOLS: { id: DigTool; label: string; iconSvg: string }[] = [
