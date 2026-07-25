@@ -297,6 +297,8 @@ export default function LeftRail({
                         window.dispatchEvent(new Event("nsc:markups-saved"));
                       }}
                       variant="panel"
+                      ziplyPrintLayerVisible={ziplyPrintLayerVisible}
+                      setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
                     />
                   )}
 

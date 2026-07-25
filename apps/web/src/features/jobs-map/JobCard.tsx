@@ -18,6 +18,8 @@ interface Props {
   variant?: "popup" | "panel";
   theme?: "steel" | "cyberpunk" | "titanium" | "glass";
   onThemeChange?: (theme: "steel" | "cyberpunk" | "titanium" | "glass") => void;
+  ziplyPrintLayerVisible?: boolean;
+  setZiplyPrintLayerVisible?: (v: boolean) => void;
 }
 
 interface Schema {
@@ -83,6 +85,8 @@ export default function JobCard({
   variant = "popup",
   theme = "steel",
   onThemeChange,
+  ziplyPrintLayerVisible = true,
+  setZiplyPrintLayerVisible = () => {},
 }: Props) {
   const { username, isManager } = useAuth();
   const [minimized, setMinimized] = useState(false);
@@ -551,7 +555,7 @@ export default function JobCard({
                   Print Anchoring
                 </h4>
                 
-                {!ziplyPrintLayer?.mapObjects ? (
+                {overlayPages.length === 0 ? (
                   <div style={{ marginTop: 4 }}>
                     <button
                       type="button"
@@ -579,6 +583,29 @@ export default function JobCard({
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {/* Master Overlay Toggle */}
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 10px",
+                      background: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 6,
+                      boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+                      marginBottom: 4
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text)" }}>
+                        Show Overlays on Map
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={ziplyPrintLayerVisible}
+                        onChange={(e) => setZiplyPrintLayerVisible(e.target.checked)}
+                        style={{ accentColor: "#0033A0", cursor: "pointer" }}
+                      />
+                    </div>
+
                     {/* Active page opacity slider */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
