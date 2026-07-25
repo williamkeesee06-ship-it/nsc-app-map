@@ -14,7 +14,6 @@ import { queuePrefWrite } from "../../lib/prefsSync.js";
 // Lumina is the floating orb + ChatPanel (not a rail tab).
 import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
 import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
-import { ZiplyPlantInventoryTab } from "../ziply/ZiplyPlantInventoryTab.js";
 import JobCard from "./JobCard.js";
 import { useActiveContract } from "../workspace/contractStore.js";
 import FeatureDetailSheet, { type PlatformFeature } from "../ziply/FeatureDetailSheet.js";
@@ -28,7 +27,7 @@ const MAX_WIDTH = 380;
 const LS_KEY = "nsc.leftRailWidth";
 
 // Only tabs that are actually mounted in the rail or as full-screen overlays.
-type TabId = "dashboard" | "jobs" | "filters" | "tools" | "calendar" | "811-tickets" | "plant";
+type TabId = "dashboard" | "jobs" | "filters" | "tools" | "calendar" | "811-tickets";
 
 interface Props {
   jobs: Job[];
@@ -215,7 +214,6 @@ export default function LeftRail({
     ? [
         { id: 'dashboard', label: 'DASHBOARD' },
         { id: 'jobs', label: 'JOBS' },
-        { id: 'plant', label: 'PLANT' },
         { id: 'filters', label: 'MAP' },
         { id: 'calendar', label: 'CALENDAR' },
         { id: '811-tickets', label: '811 TICKETS' },
@@ -340,8 +338,7 @@ export default function LeftRail({
             ) : (
               /* Tab Content */
               <div className="left-rail-tab-content">
-                 {activeTab === 'plant' && <ZiplyPlantInventoryTab />}
-                 {activeTab === 'filters' && <AnnotateTab selectedJob={selectedJob ?? null} />}
+                  {activeTab === 'filters' && <AnnotateTab selectedJob={selectedJob ?? null} />}
                   {/* Calendar, Jobs (Ziply), and Dashboard (Lumen & Ziply) tabs have no rail content — 
                       they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
                       on entry so there's nothing visible here. */}
