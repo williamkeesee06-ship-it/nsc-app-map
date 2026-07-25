@@ -223,9 +223,9 @@ export function iconForTool(
   const isHH = t.includes("handhole") || t.includes("hh");
 
   let color = overrideColor ?? DEFAULT_ICON_COLOR;
-  if (isPole) color = "#000000";
-  else if (isPed) color = "#10b981"; // green square for pedestals
-  else if (isHH) color = "#475569"; // slate rectangle for handholes
+  if (isPole && overrideColor !== "#3aa7ff") color = "#000000";
+  else if (isPed && overrideColor !== "#3aa7ff") color = "#10b981"; // green square for pedestals
+  else if (isHH && overrideColor !== "#3aa7ff") color = "#475569"; // slate rectangle for handholes
 
   const px = Math.max(24, Math.round(ICON_SIZE * pointSize));
 

@@ -101,10 +101,7 @@ export function getMapStyles(options: MapStyleOptions = {}): google.maps.MapType
   // POI / Business / Place labels
   if (!showPoiLabels) {
     styles.push(
-      { featureType: "poi", elementType: "labels.text", stylers: [{ visibility: "off" }] },
-      { featureType: "poi.business", elementType: "labels.text", stylers: [{ visibility: "off" }] },
-      { featureType: "poi.medical", elementType: "labels.text", stylers: [{ visibility: "off" }] },
-      { featureType: "poi.park", elementType: "labels.text", stylers: [{ visibility: "off" }] },
+      { featureType: "poi", stylers: [{ visibility: "off" }] }
     );
   } else if (isDark) {
     styles.push(
@@ -115,7 +112,7 @@ export function getMapStyles(options: MapStyleOptions = {}): google.maps.MapType
   // Transit lines / stations
   if (!showTransit) {
     styles.push(
-      { featureType: "transit", elementType: "all", stylers: [{ visibility: "off" }] },
+      { featureType: "transit", stylers: [{ visibility: "off" }] }
     );
   }
 
@@ -124,7 +121,10 @@ export function getMapStyles(options: MapStyleOptions = {}): google.maps.MapType
 
 // Backwards compatibility
 export const darkTacticalStyle = getMapStyles({ dark: true });
-export const lightStyle: google.maps.MapTypeStyle[] = [];
+export const lightStyle: google.maps.MapTypeStyle[] = [
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+];
 
 export function stylesFor(theme: "dark" | "light"): google.maps.MapTypeStyle[] {
   return theme === "dark" ? darkTacticalStyle : lightStyle;

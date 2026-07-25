@@ -25,9 +25,9 @@ const DEFAULT_PREFS: MapPreferences = {
   theme: "classic",
   dark: false,
   showRoadLabels: true,
-  showPoiLabels: true,
+  showPoiLabels: false,
   showCityLabels: true,
-  showTransit: true,
+  showTransit: false,
 };
 
 function loadPrefs(): MapPreferences {
@@ -43,9 +43,9 @@ function loadPrefs(): MapPreferences {
         mapType,
         theme,
         showRoadLabels: mapType !== "satellite",
-        showPoiLabels: true,
-        showCityLabels: true,
-        showTransit: true,
+        showPoiLabels: parsed.showPoiLabels ?? false,
+        showCityLabels: parsed.showCityLabels ?? true,
+        showTransit: parsed.showTransit ?? false,
       };
     }
   } catch {}
