@@ -310,16 +310,19 @@ export default function JobCard({
       {/* Header Info: Job Number & Status Pill */}
       <div style={{ padding: "18px 20px 12px 20px", display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{
-            fontSize: "26px",
-            fontWeight: 900,
-            color: "#0033A0",
-            fontFamily: "'Space Grotesk', 'Rajdhani', sans-serif",
-            letterSpacing: "-0.02em",
-            lineHeight: 1.1,
-            textShadow: "0 0 1px rgba(0, 51, 160, 0.05)"
-          }}>
-            {wo}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <div style={{
+              fontSize: "26px",
+              fontWeight: 900,
+              color: "#0033A0",
+              fontFamily: "'Space Grotesk', 'Rajdhani', sans-serif",
+              letterSpacing: "-0.02em",
+              lineHeight: 1.1,
+              textShadow: "0 0 1px rgba(0, 51, 160, 0.05)"
+            }}>
+              {wo}
+            </div>
+            {job.hubNumber && <HubOctagonBadge hub={job.hubNumber} />}
           </div>
           {onClose && (
             <button 
@@ -439,17 +442,56 @@ export default function JobCard({
             <div style={{ height: 0, borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #ffffff", margin: "14px 0 12px 0" }} />
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  NSC Project Notes
-                </span>
+              <button
+                type="button"
+                onClick={() => setNotesExpanded((v) => !v)}
+                aria-expanded={notesExpanded}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "none",
+                  border: "none",
+                  padding: "4px 0",
+                  margin: 0,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  color: "var(--text-muted)",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {notesExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                <span>NSC Project Notes</span>
+                {!notesExpanded && notes.trim() && (
+                  <span
+                    style={{
+                      color: "var(--text)",
+                      fontWeight: 600,
+                      textTransform: "none",
+                      letterSpacing: 0,
+                      opacity: 0.7,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: 200,
+                      marginLeft: 4,
+                    }}
+                  >
+                    · {notes.trim().slice(0, 60)}{notes.trim().length > 60 ? "…" : ""}
+                  </span>
+                )}
                 <SaveIndicator
                   saving={savingField === "notes"}
                   saved={savedField === "notes"}
                   error={errField === "notes"}
                 />
-              </div>
-              <EditableNotes value={notes} onCommit={(v) => { setNotes(v); void commit("notes", v); }} />
+              </button>
+              {notesExpanded && (
+                <EditableNotes value={notes} onCommit={(v) => { setNotes(v); void commit("notes", v); }} />
+              )}
             </div>
           </>
         )}
@@ -891,6 +933,80 @@ function Eight11ExpiryPill({ job }: { job: Job }) {
     >
       {label}
     </button>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Hub octagon badge — Ziply royal-blue neon octagon with hub number inside.
+// Sits next to the WO in the JobCard header when job.hubNumber is present.
+// SVG octagon is a regular polygon inscribed in a 48x48 box. The number scales
+// down for longer hub codes (e.g. "SPBW03") so it always fits inside.
+// -----------------------------------------------------------------------------
+function HubOctagonBadge({ hub }: { hub: string }) {
+  const NEON = "#1E5EFF";
+  const size = 44;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = size / 2 - 3;
+  // Octagon vertices — start at top edge, step every 45°, offset by 22.5° so
+  // the flat side is on top (classic stop-sign orientation).
+  const points = Array.from({ length: 8 }, (_, i) => {
+    const angle = (Math.PI / 4) * i - Math.PI / 8 - Math.PI / 2;
+    return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+  }).join(" ");
+
+  const label = String(hub).trim();
+  // Font size shrinks for longer labels so they always fit inside the octagon.
+  const fontSize =
+    label.length <= 3 ? 15 : label.length <= 4 ? 13 : label.length <= 5 ? 11 : 9;
+
+  return (
+    <div
+      title={`Hub ${label}`}
+      aria-label={`Hub ${label}`}
+      style={{
+        width: size,
+        height: size,
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        filter: `drop-shadow(0 0 3px ${NEON}) drop-shadow(0 0 6px ${NEON}88)`,
+      }}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+        {/* Outer neon octagon */}
+        <polygon
+          points={points}
+          fill="#0a1a3a"
+          stroke={NEON}
+          strokeWidth={2}
+          strokeLinejoin="round"
+        />
+        {/* Inner subtle stroke for depth */}
+        <polygon
+          points={points}
+          fill="none"
+          stroke="rgba(255,255,255,0.15)"
+          strokeWidth={0.6}
+          strokeLinejoin="round"
+          transform={`translate(${cx} ${cy}) scale(0.88) translate(${-cx} ${-cy})`}
+        />
+        <text
+          x={cx}
+          y={cy}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontFamily="'Space Grotesk', 'Rajdhani', sans-serif"
+          fontWeight={900}
+          fontSize={fontSize}
+          fill="#ffffff"
+          style={{ letterSpacing: "0.02em" }}
+        >
+          {label}
+        </text>
+      </svg>
+    </div>
   );
 }
 
