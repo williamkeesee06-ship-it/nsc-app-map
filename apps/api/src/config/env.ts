@@ -20,6 +20,8 @@ const Schema = z.object({
   // Shared secret gating POST /api/sync/admin. When unset, the endpoint
   // returns 503. Rotate this by updating the Vercel env var.
   SYNC_ADMIN_KEY: z.string().optional(),
+  // Lumen sync is disabled by default. Set to "true" to re-enable.
+  SYNC_LUMEN: z.string().default("false"),
   // Geocoding key for the Google Geocoding API. If unset, we'll fall back to
   // VITE_GOOGLE_MAPS_API_KEY — but a referrer-restricted browser key will
   // reject server-side calls, so a dedicated unrestricted (or IP-restricted)

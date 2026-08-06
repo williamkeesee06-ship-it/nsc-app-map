@@ -231,7 +231,9 @@ export async function runJobsSyncForSupervisors(
       isZiply: boolean;
       defaultSupervisor?: string;
     }> = [];
-    if (env.SMARTSHEET_SHEET_ID) {
+    // Lumen sync is DISABLED. Set SYNC_LUMEN=true in Vercel env to re-enable
+    // (kept behind a flag rather than deleted so the code path stays exercised).
+    if (env.SMARTSHEET_SHEET_ID && env.SYNC_LUMEN === "true") {
       sheetsToSync.push({
         id: env.SMARTSHEET_SHEET_ID,
         supervisorKey: "Construction Supervisor",
