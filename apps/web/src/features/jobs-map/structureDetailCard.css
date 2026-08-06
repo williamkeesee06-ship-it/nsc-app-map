@@ -1,0 +1,181 @@
+/* StructureDetailCard
+ *
+ * Floating, absolutely-positioned detail card. Rendered as a sibling of the
+ * map inside the map wrapper. Uses the neon-glass language shared with
+ * MapStatusFilterPill and FeatureDetailSheet. Left border carries the layer
+ * accent color so users can visually tie the card back to the marker they
+ * clicked. */
+
+.structure-detail-card {
+  position: absolute;
+  z-index: 45;
+  background: rgba(14, 18, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-left: 3px solid #0EA5E9;
+  border-radius: 12px;
+  padding: 12px 14px 10px;
+  color: #e6ecf5;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.4;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  animation: sdc-in 0.14s ease-out both;
+  outline: none;
+}
+
+@keyframes sdc-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* --- Header ---------------------------------------------------------- */
+
+.structure-detail-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.structure-detail-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(58, 167, 255, 0.14);
+  color: #7ac8ff;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.structure-detail-card__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.structure-detail-card__label {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.structure-detail-card__sublabel {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+.structure-detail-card__close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 6px;
+  margin: -4px -6px -4px 0;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.structure-detail-card__close:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* --- Meta grid ------------------------------------------------------- */
+
+.structure-detail-card__meta {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 4px 10px;
+  margin: 0 0 10px;
+}
+
+.structure-detail-card__meta dt {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  padding-top: 2px;
+}
+
+.structure-detail-card__meta dd {
+  margin: 0;
+  font-size: 12.5px;
+  color: #e6ecf5;
+  word-break: break-word;
+}
+
+.structure-detail-card__pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+/* --- Footer buttons -------------------------------------------------- */
+
+.structure-detail-card__footer {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 8px;
+}
+
+.structure-detail-card__btn {
+  flex: 1;
+  appearance: none;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.structure-detail-card__btn--primary {
+  background: linear-gradient(180deg, #3aa7ff 0%, #1d7dd8 100%);
+  color: #ffffff;
+  border: 1px solid rgba(58, 167, 255, 0.7);
+  box-shadow: 0 0 12px rgba(58, 167, 255, 0.35);
+}
+
+.structure-detail-card__btn--primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 18px rgba(58, 167, 255, 0.55);
+}
+
+.structure-detail-card__btn--ghost {
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.structure-detail-card__btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}

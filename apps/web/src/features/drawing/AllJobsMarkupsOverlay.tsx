@@ -15,7 +15,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
-import type { DrawingObject } from "@nsc/types";
+import type { DrawingObject, DrawingStyle } from "@nsc/types";
+import type { PlatformFeature } from "../ziply/FeatureDetailSheet.js";
 import { api } from "../../lib/api.js";
 import { useDrawing } from "./drawingContext.js";
 import { useAuth } from "../auth/authContext.js";
@@ -186,7 +187,7 @@ function createReadOnlyOverlay(
   obj: DrawingObject,
   map: google.maps.Map,
   zoom: number,
-  onClick: (() => void) | null,
+  onClick: ((screenXY: { x: number; y: number }) => void) | null,
   /** Callback to register auxiliary overlays (e.g. callout leader polyline)
    *  so the parent can dispose them on clear/unmount. */
   registerAux?: (overlay: OverlayRef) => void,
@@ -197,10 +198,19 @@ function createReadOnlyOverlay(
   const clickable = onClick !== null;
 
   // Helper to attach a click listener if the overlay is clickable.
+  // We forward the click's screen coordinates so a floating detail card can
+  // anchor itself next to the cursor.
   function wireClick<T extends { addListener: (e: string, fn: ((e?: google.maps.MapMouseEvent) => void)) => unknown }>(
     overlay: T
   ): T {
-    if (clickable && onClick) overlay.addListener("click", () => onClick());
+    if (clickable && onClick) {
+      overlay.addListener("click", (e?: google.maps.MapMouseEvent) => {
+        const dom = (e as (google.maps.MapMouseEvent & { domEvent?: MouseEvent }) | undefined)?.domEvent;
+        const x = dom?.clientX ?? window.innerWidth / 2;
+        const y = dom?.clientY ?? window.innerHeight / 2;
+        onClick({ x, y });
+      });
+    }
     if (onRightClick) {
       overlay.addListener("rightclick", (e?: google.maps.MapMouseEvent) => {
         // Google Maps types declare domEvent as a wide union; cast on read.
@@ -574,12 +584,87 @@ function createLabelMarker(
 
 const REFRESH_INTERVAL_MS = 15_000; // Solo desktop use: very frequent refresh so markups feel instantly persistent after saving. Network cost is tiny for personal use.
 
-interface AllJobsMarkupsOverlayProps {
-  /** Called when a markup is clicked. Receives the jobId it belongs to. */
-  onMarkupClick?: (jobId: string) => void;
+/**
+ * Convert a DrawingObject to a GeoJSON-style PlatformFeature so the shared
+ * FeatureDetailSheet + LeftRail pop-out can render it. We keep the raw
+ * DrawingObject on `_raw` for advanced consumers, but the properties bag is
+ * flat + friendly for display code.
+ */
+export function drawingObjectToFeature(
+  obj: DrawingObject,
+  jobId: string,
+  extra: { jobWorkOrder?: string; jobName?: string; hub?: string; city?: string } = {}
+): PlatformFeature {
+  const style = obj.style ?? ({} as DrawingStyle);
+  // Structure-family label — human readable for the card title.
+  const layer = (() => {
+    const t = obj.tool;
+    if (t.startsWith("ziply_")) return t.replace("ziply_", "");
+    if (t.startsWith("hh_")) return "handhole";
+    if (t.startsWith("mh_")) return "manhole";
+    if (t.startsWith("ped_")) return "pedestal";
+    if (t.startsWith("pole_") || t === "pole_new" || t === "pole_removed") return "pole";
+    if (t.startsWith("cabinet_")) return "cabinet";
+    if (t.startsWith("anchor_")) return "anchor";
+    if (t === "splice") return "splice";
+    if (t === "placed_cable" || t === "removed_cable") return "cable";
+    if (t === "flower_pot_new" || t === "flower_pot_removed") return "flower_pot";
+    return t;
+  })();
+
+  // Geometry — either a Point (structure markers) or LineString (cables/polylines).
+  let geometry: PlatformFeature["geometry"] = null;
+  let position: { lat: number; lng: number } | null = null;
+  if ("position" in obj && obj.position) {
+    position = obj.position;
+    geometry = { type: "Point", coordinates: [obj.position.lng, obj.position.lat] };
+  } else if ("anchor" in obj && obj.anchor) {
+    position = obj.anchor;
+    geometry = { type: "Point", coordinates: [obj.anchor.lng, obj.anchor.lat] };
+  } else if ("vertices" in obj && Array.isArray(obj.vertices)) {
+    geometry = {
+      type: "LineString",
+      coordinates: obj.vertices.map((v) => [v.lng, v.lat]),
+    };
+    if (obj.vertices[0]) position = obj.vertices[0];
+  } else if ("bounds" in obj && obj.bounds) {
+    const { n, s, e, w } = obj.bounds;
+    position = { lat: (n + s) / 2, lng: (e + w) / 2 };
+    geometry = { type: "Point", coordinates: [position.lng, position.lat] };
+  }
+
+  return {
+    type: "Feature",
+    id: obj.id,
+    properties: {
+      jobId,
+      layer,
+      tool: obj.tool,
+      label: (obj as { label?: string; text?: string }).label ?? (obj as { text?: string }).text,
+      strokeColor: style.strokeColor,
+      fillColor: style.fill && style.fill.kind === "solid" ? style.fill.color : undefined,
+      lat: position?.lat,
+      lng: position?.lng,
+      jobWorkOrder: extra.jobWorkOrder,
+      jobName: extra.jobName,
+      hub: extra.hub,
+      city: extra.city,
+      status: (style as unknown as { status?: string }).status,
+      _raw: obj,
+    },
+    geometry,
+  };
 }
 
-export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsOverlayProps = {}) {
+interface AllJobsMarkupsOverlayProps {
+  /** Legacy: called with just the jobId (kept for compat). */
+  onMarkupClick?: (jobId: string) => void;
+  /** New: called with the full PlatformFeature so a detail card can render.
+   *  Takes precedence over onMarkupClick when both are provided. */
+  onFeatureClick?: (feature: PlatformFeature, screenXY: { x: number; y: number }) => void;
+}
+
+export default function AllJobsMarkupsOverlay({ onMarkupClick, onFeatureClick }: AllJobsMarkupsOverlayProps = {}) {
   const map = useMap();
   const { state } = useDrawing();
   const overlaysRef = useRef<Map<string, OverlayRef>>(new Map());
@@ -701,13 +786,19 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     const activeJobId = state.targetJobId;
     for (const doc of docsRef.current) {
       if (activeJobId && doc.jobId === activeJobId) continue; // active job is rendered by DrawingOverlay
-      // Click on any of this job's markups jumps to its card.
-      const handler = onMarkupClick
+      // Legacy label-click handler — clicking a text label still jumps to the
+      // job card since a label has no per-structure identity to feature-click.
+      const labelHandler: (() => void) | null = onMarkupClick
         ? () => {
             if (document.querySelector(".po-root")) return;
             onMarkupClick(doc.jobId);
           }
         : null;
+      // Click-through routing for structure markers / polylines:
+      //   1. onFeatureClick (new): builds a PlatformFeature so a floating detail
+      //      card + LeftRail pop-out can render structure metadata.
+      //   2. onMarkupClick (legacy): plain jobId jump — kept for callers who
+      //      still just want to navigate to the job card.
       for (const obj of doc.objects) {
         try {
           let auxIdx = 0;
@@ -719,6 +810,17 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
             // (skip text-tool labels for now — photos belong on assets).
             setPhotos({ obj: target, jobId: doc.jobId, screen });
           };
+          const handler = onFeatureClick
+            ? (screen: { x: number; y: number }) => {
+                if (document.querySelector(".po-root")) return;
+                onFeatureClick(drawingObjectToFeature(obj, doc.jobId), screen);
+              }
+            : onMarkupClick
+            ? () => {
+                if (document.querySelector(".po-root")) return;
+                onMarkupClick(doc.jobId);
+              }
+            : null;
           const overlay = createReadOnlyOverlay(obj, map, zoom, handler, registerAux, rightClickHandler, setHoverInfo);
           if (overlay) overlaysRef.current.set(`${doc.jobId}:${obj.id}`, overlay);
         } catch {
@@ -746,7 +848,7 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
         doc.objects,
         labelBag,
         calloutBag,
-        handler ? () => handler() : undefined
+        labelHandler ?? undefined
       );
     }
   }
@@ -772,6 +874,13 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     renderAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.targetJobId]);
+
+  // Re-render when the click-handler identity changes so newly wired handlers
+  // attach to the existing overlays without waiting for the next data refresh.
+  useEffect(() => {
+    if (docsRef.current.length > 0) renderAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onFeatureClick, onMarkupClick]);
 
   // After a successful save (dirty→false while we have a target), re-fetch so
   // the global layer reflects the latest persisted state

@@ -3,7 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Map, useMap } from "@vis.gl/react-google-maps";
 import { stylesFor, ZIPLY_MUTED_STYLE, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
 import { useMapTheme } from "../map/themeContext.js";
-import { useNetworkViewBands } from "./networkView.js";
+import { computeZoomBand, useNetworkViewBands } from "./networkView.js";
 import "./networkView.css";
 import { useJobs } from "./useJobs.js";
 import { applyFilters } from "./FilterRail.js";
@@ -12,6 +12,7 @@ import { useFiltersContext } from "./filtersContext.js";
 import FilterRail from "./FilterRail.js";
 import MapThemeToggleSwitch from "./MapThemeToggleSwitch.js";
 import MapStatusFilterPill from "./MapStatusFilterPill.js";
+import StructureDetailCard from "./StructureDetailCard.js";
 import MeasuringOverlay from "./MeasuringOverlay.js";
 import LeftRail from "./LeftRail.js";
 import CalendarTab from "./CalendarTab.js";
@@ -263,6 +264,13 @@ function JobsMapInner({
   const { state: drawState, setTarget, loadObjects, save: saveDrawing } = useDrawing();
   const { setTarget: setDigTarget } = useDigPolygon();
   const [selectedFeature, setSelectedFeature] = useState<PlatformFeature | null>(null);
+  // Floating structure detail card — shows next to the cursor when a
+  // structure marker or polyline is clicked. Independent from selectedFeature
+  // so the card can dismiss without collapsing the LeftRail's pop-out.
+  const [structureCard, setStructureCard] = useState<{
+    feature: PlatformFeature;
+    anchor: { x: number; y: number };
+  } | null>(null);
   const [ziplyPrintLayerVisible, setZiplyPrintLayerVisible] = useState(true);
   const [ziply811OverlayVisible, setZiply811OverlayVisible] = useState(false);
 
@@ -499,11 +507,15 @@ function JobsMapInner({
                 jobs={mapped}
                 onSelect={handleSelect}
                 allJobs={allJobs}
+                theme={theme}
               />
               <AllJobsMarkupsOverlay
-                onMarkupClick={(jobId) => {
-                  const j = allJobs.find((x) => x.jobId === jobId);
-                  if (j) void handleSelect(j);
+                onFeatureClick={(feature, screenXY) => {
+                  // Show the floating detail card next to the cursor.
+                  // We do NOT auto-open the LeftRail — that stays a
+                  // user-driven action via the card's "Open in Left Rail"
+                  // button so casual clicks don't disrupt the current view.
+                  setStructureCard({ feature, anchor: screenXY });
                 }}
               />
               <CentralOfficesOverlay visible={showCOs} />
@@ -525,6 +537,31 @@ function JobsMapInner({
               <LuminaMapBridge />
 
             </Map>
+            {/* Floating structure detail card. Sibling of the Google Map so
+                its absolute positioning is scoped to the visible map area. */}
+            <StructureDetailCard
+              feature={structureCard?.feature ?? null}
+              anchor={structureCard?.anchor ?? null}
+              allJobs={allJobs}
+              onClose={() => setStructureCard(null)}
+              onOpenInRail={(feature) => {
+                setSelectedFeature(feature);
+                setStructureCard(null);
+              }}
+              onNavigate={(feature) => {
+                const lat = feature.properties.lat;
+                const lng = feature.properties.lng;
+                if (
+                  typeof lat === "number" &&
+                  typeof lng === "number" &&
+                  mapInstance
+                ) {
+                  mapInstance.panTo({ lat, lng });
+                  const z = mapInstance.getZoom() ?? 12;
+                  if (z < 17) mapInstance.setZoom(18);
+                }
+              }}
+            />
           </div>
           <div
             ref={panoRef}
@@ -869,10 +906,12 @@ function JobMarkers({
   jobs,
   onSelect,
   allJobs,
+  theme,
 }: {
   jobs: Job[];
   onSelect: (j: Job) => void;
   allJobs: Job[];
+  theme: string;
 }) {
   const map = useMap();
   const { contract } = useActiveContract();
@@ -1028,9 +1067,51 @@ function JobMarkers({
     markersRef.current = created;
     labelMarkersRef.current = labelMarkers;
 
-    // Zoom listener: efficiently toggle label visibility on existing label markers without tearing down pins
+    // ─── Zoom-driven pin sizing ───────────────────────────────────────────
+    // Pins are google.maps.Marker instances — they don't respond to CSS, so
+    // Network View's --map-zoom-scale can't touch them. Without this, at
+    // z≈11 the 26×36 pins from 25+ jobs pile up into one giant blob
+    // (Billy 8/6 screenshot). We rescale each marker's icon on zoom_changed.
+    //
+    // Sizing rules:
+    //   • Network View: honor the full iconScale band (0.06 far → ~1.0 near)
+    //     so pins vanish gracefully into the cable network at citywide zoom.
+    //   • Light mode: clamp to 0.55 minimum so pins stay tappable when the
+    //     mode is purely a job tracker.
+    //   • A single Google Maps repaint per zoom event is fine — setIcon just
+    //     swaps the icon config, doesn't tear down the marker.
+    const BASE_PIN_W = 26;
+    const BASE_PIN_H = 36;
+    const applyPinScale = (z: number) => {
+      const band = computeZoomBand(z);
+      const raw = band.iconScale;
+      const scale = theme === "network" ? raw : Math.max(raw, 0.55);
+      const w = Math.max(6, Math.round(BASE_PIN_W * scale));
+      const h = Math.max(9, Math.round(BASE_PIN_H * scale));
+      // Anchor is bottom-tip of the pin — keep it proportional so the pin's
+      // point stays glued to the exact geocode as it shrinks.
+      const anchorX = Math.round(w / 2);
+      const anchorY = h - Math.max(2, Math.round(h * 0.08));
+      markersRef.current?.forEach((mk) => {
+        const cur = mk.getIcon() as google.maps.Icon | undefined;
+        if (!cur || !cur.url || cur.url.indexOf("data:image/svg+xml") !== 0) return;
+        // Skip cluster markers (80×80) and other custom icons.
+        if (cur.scaledSize && cur.scaledSize.height > 50) return;
+        mk.setIcon({
+          url: cur.url,
+          scaledSize: new google.maps.Size(w, h),
+          anchor: new google.maps.Point(anchorX, anchorY),
+        });
+      });
+    };
+    // Prime pin scale immediately so the initial paint matches the current zoom.
+    applyPinScale(currentZoom);
+
+    // Zoom listener: rescale pins + toggle label visibility on existing label
+    // markers without tearing down pins.
     const zoomListener = map.addListener("zoom_changed", () => {
       const z = map.getZoom() ?? 0;
+      applyPinScale(z);
       const showLabels = z >= WO_LABEL_MIN_ZOOM;
       labelMarkersRef.current.forEach((lm) => lm.setMap(showLabels ? map : null));
     });
@@ -1084,7 +1165,7 @@ function JobMarkers({
       if (markersRef.current === created) markersRef.current = null;
       google.maps.event.removeListener(zoomListener);
     };
-  }, [map, jobs, contract]); // removed onSelect from deps to prevent re-renders
+  }, [map, jobs, contract, theme]); // theme affects pin scale clamp; onSelect deliberately omitted
 
   useEffect(() => {
     if (!map || !focus) return;
