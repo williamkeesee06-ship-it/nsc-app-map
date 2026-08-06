@@ -43,12 +43,22 @@ export default function DashboardPage({
 }: DashboardPageProps) {
   const { isManager } = useAuth();
   const { contract } = useActiveContract();
-  const data = useDashboardData(jobs);
+
+  // Dashboard-wide Ziply filter. Lumen jobs still live in Firestore (per user
+  // directive: "IGNORE" them, don't delete) but the entire dashboard now
+  // renders Ziply-only — status buckets, active builds, dig tickets, rollup,
+  // gigs, and the supervisor gauge all read from this filtered list.
+  const ziplyJobs = useMemo(
+    () => jobs.filter((j) => j.customerProject === "Ziply"),
+    [jobs]
+  );
+
+  const data = useDashboardData(ziplyJobs);
 
   // Supervisor rollup counts (fed to WeatherStrip for the manager gauge).
   const supervisorCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const j of jobs) {
+    for (const j of ziplyJobs) {
       const status = (j.jobStatus ?? "").trim().toLowerCase();
       if (status === "completed") continue;
       const supervisor = (j.constructionSupervisor ?? "").trim();
@@ -56,13 +66,8 @@ export default function DashboardPage({
       counts[supervisor] = (counts[supervisor] || 0) + 1;
     }
     return counts;
-  }, [jobs]);
+  }, [ziplyJobs]);
 
-  // Ziply-only view for the panels that assume Ziply schema (Rollup, Gigs).
-  const ziplyJobs = useMemo(
-    () => jobs.filter((j) => j.customerProject === "Ziply"),
-    [jobs]
-  );
   const isZiply = contract === "Ziply";
 
   return (
@@ -79,18 +84,18 @@ export default function DashboardPage({
 
         {/* ── Row 1: Active Build Jobs (primary focus panel) ────────────── */}
         <div className="nsc-dashboard__row nsc-dashboard__row--build">
-          <ActiveBuildJobsCard jobs={jobs} onOpenJob={onOpenJob} />
+          <ActiveBuildJobsCard jobs={ziplyJobs} onOpenJob={onOpenJob} />
         </div>
 
         {/* ── Row 2: Active Dig Tickets (moved BELOW build panel) ───────── */}
         <div className="nsc-dashboard__row nsc-dashboard__row--tickets">
-          <ActiveDigTicketsCard jobs={jobs} />
+          <ActiveDigTicketsCard jobs={ziplyJobs} />
         </div>
 
         {/* ── Row 3: Calendar (Lumen) / Rollup (Ziply) ──────────────────── */}
         <div className="nsc-dashboard__row nsc-dashboard__row--calendar">
           {isZiply ? (
-            <ZiplyRollupCard jobs={jobs} />
+            <ZiplyRollupCard jobs={ziplyJobs} />
           ) : (
             <CalendarCard
               weekStart={data.weekStart}
