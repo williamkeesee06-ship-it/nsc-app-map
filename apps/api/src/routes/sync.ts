@@ -203,6 +203,49 @@ router.get("/sync/inspect", async (req, res, next) => {
   }
 });
 
+// POST /api/sync/admin?key=<SYNC_ADMIN_KEY>
+// Public admin trigger guarded by a shared secret. Runs the full multi-
+// supervisor sync (equivalent to a manager clicking "Resync now"). Used by
+// operators / crons that don't have a Firebase login. Only enabled when
+// SYNC_ADMIN_KEY is set in the environment.
+// Note: registered as both POST (explicit) and GET (Vercel cron uses GET) so
+// the same handler can be called by the cron and by ad-hoc curl invocations.
+const syncAdminHandler: import("express").RequestHandler = async (req, res, next) => {
+  try {
+    const env = getEnv();
+    const configuredKey = (env.SYNC_ADMIN_KEY ?? "").trim();
+    if (!configuredKey) {
+      res.status(503).json({
+        error:
+          "Admin sync disabled. Set SYNC_ADMIN_KEY in the Vercel environment to enable.",
+      });
+      return;
+    }
+    // Accept the key via ?key= (curl / ad-hoc), request body (JSON POST), or
+    // Authorization: Bearer <key> (Vercel cron sends this header).
+    const bearer =
+      req.header("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? "";
+    const providedKey = String(
+      req.query.key ?? (req.body as { key?: unknown })?.key ?? bearer
+    ).trim();
+    if (providedKey !== configuredKey) {
+      res.status(403).json({ error: "Invalid admin key" });
+      return;
+    }
+
+    const allowlist = (env.SYNC_SUPERVISORS || env.SYNC_SUPERVISOR)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const result = await runJobsSyncForSupervisors(allowlist);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+router.post("/sync/admin", syncAdminHandler);
+router.get("/sync/admin", syncAdminHandler);
+
 // GET /api/sync/diag — TEMP diagnostic (public, no auth). Reports last sync
 // run + hits the Ziply report directly and returns row count, column names,
 // and the distinct supervisor values found. Used to debug why the Ziply sync
