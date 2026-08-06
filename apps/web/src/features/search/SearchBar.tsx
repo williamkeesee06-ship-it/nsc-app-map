@@ -182,6 +182,11 @@ export default function SearchBar() {
       if (status === "OK" && results && results[0]) {
         const loc = results[0].geometry.location;
         focusLatLng(loc.lat(), loc.lng(), p.description);
+        window.dispatchEvent(
+          new CustomEvent("nsc:pan-to", {
+            detail: { lat: loc.lat(), lng: loc.lng(), zoom: 17 },
+          })
+        );
       }
       // Reset session token after a pick — starts a new billing session.
       sessionTokenRef.current = null;
@@ -219,6 +224,18 @@ export default function SearchBar() {
     navigate("/");
     window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
     focusJob(job.jobId);
+    // Belt-and-suspenders: the JobsMap focus effect sometimes loses the pan
+    // when a job-select re-render races the panTo call. Fire the proven
+    // `nsc:pan-to` bus event too — the JobsMapInner listener grabs mapRef
+    // directly and pans unconditionally.
+    const g = job.geocode;
+    if (g?.status === "OK" && g.lat && g.lng) {
+      window.dispatchEvent(
+        new CustomEvent("nsc:pan-to", {
+          detail: { lat: g.lat, lng: g.lng, zoom: 17 },
+        })
+      );
+    }
   }
 
   function pickMarkup(m: MarkupSearchEntry) {
@@ -296,6 +313,11 @@ export default function SearchBar() {
       }
       window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
       focusLatLng(hit.lat, hit.lng, hit.label);
+      window.dispatchEvent(
+        new CustomEvent("nsc:pan-to", {
+          detail: { lat: hit.lat, lng: hit.lng, zoom: 17 },
+        })
+      );
       setOpen(false);
     } finally {
       setBusy(false);

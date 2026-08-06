@@ -165,6 +165,17 @@ export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: P
                           onClick={(e) => {
                             e.stopPropagation();
                             if (setSelected) setSelected(job);
+                            // Fly the map to this job's geocode. Uses the same
+                            // proven bus event JobsMapInner already listens to
+                            // (see the Ziply focus effect in JobsMap.tsx).
+                            const g = job.geocode;
+                            if (g?.status === "OK" && g.lat && g.lng) {
+                              window.dispatchEvent(
+                                new CustomEvent("nsc:pan-to", {
+                                  detail: { lat: g.lat, lng: g.lng, zoom: 17 },
+                                })
+                              );
+                            }
                             if (onClose) onClose();
                           }}
                         >
