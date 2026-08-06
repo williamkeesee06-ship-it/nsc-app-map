@@ -1010,17 +1010,43 @@ function JobMarkers({
     });
 
     if (!fittedRef.current && jobs.length > 0) {
+      // Only extend bounds with geocodes inside the Pacific Northwest window
+      // (roughly WA + N Oregon). A single stray marker in Kansas/Florida would
+      // otherwise cause fitBounds to zoom out to the whole country — which is
+      // exactly the bug Billy reported 8/6.
+      const PNW = { minLat: 45.0, maxLat: 49.5, minLng: -125.0, maxLng: -116.0 };
+      const inPNW = (lat: number, lng: number) =>
+        lat >= PNW.minLat && lat <= PNW.maxLat && lng >= PNW.minLng && lng <= PNW.maxLng;
       const bounds = new google.maps.LatLngBounds();
-      jobs.forEach((j) =>
-        bounds.extend({ lat: j.geocode!.lat, lng: j.geocode!.lng })
-      );
-      const ne = bounds.getNorthEast();
-      const sw = bounds.getSouthWest();
-      if (ne.lat() !== sw.lat() || ne.lng() !== sw.lng()) {
-        map.fitBounds(bounds, 60);
-      } else {
-        map.setCenter({ lat: jobs[0]!.geocode!.lat, lng: jobs[0]!.geocode!.lng });
+      let extended = 0;
+      let firstPt: { lat: number; lng: number } | null = null;
+      jobs.forEach((j) => {
+        const lat = j.geocode!.lat;
+        const lng = j.geocode!.lng;
+        if (!inPNW(lat, lng)) return;
+        bounds.extend({ lat, lng });
+        extended++;
+        if (!firstPt) firstPt = { lat, lng };
+      });
+      if (extended === 0) {
+        // Nothing inside the PNW window — fall back to the first geocode we
+        // have so we at least don't sit on the whole country.
+        const j = jobs[0];
+        if (j?.geocode) {
+          map.setCenter({ lat: j.geocode.lat, lng: j.geocode.lng });
+          map.setZoom(11);
+        }
+      } else if (extended === 1 && firstPt) {
+        map.setCenter(firstPt);
         map.setZoom(14);
+      } else {
+        map.fitBounds(bounds, 80);
+        // Cap zoom so a tight cluster doesn't slam us into street-level.
+        const cap = google.maps.event.addListenerOnce(map, "idle", () => {
+          const z = map.getZoom() ?? 0;
+          if (z > 13) map.setZoom(13);
+          void cap;
+        });
       }
       fittedRef.current = true;
     }

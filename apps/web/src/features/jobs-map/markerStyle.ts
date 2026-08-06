@@ -96,6 +96,11 @@ export function isJobCompleted(job: {
 }
 
 // Resolve the marker color for a job, honoring the Completed override.
+//
+// Ziply contract (Phase 10): color the pin by its Job Status bucket so the map
+// visually matches the 7 dashboard gauges — Commitment=purple, In Progress=blue,
+// RTS=yellow, Ready Soon=orange, Resto=green, Gigs=completed_green, On Hold=red.
+// Lumen contract: keep the legacy secondaryJobStatus → color mapping.
 export function colorKeyForJob(
   job: {
     jobStatus?: string | null;
@@ -103,7 +108,9 @@ export function colorKeyForJob(
   },
   contract?: string
 ): MarkerColorKey {
-  if (contract === "Ziply") return "blue";
+  if (contract === "Ziply") {
+    return bucketColorKey(bucketForJob(job));
+  }
   if (isJobCompleted(job)) return "completed_green";
   return colorKeyForSecondaryStatus(job.secondaryJobStatus);
 }

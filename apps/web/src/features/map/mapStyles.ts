@@ -149,5 +149,8 @@ export const ZIPLY_MUTED_STYLE: google.maps.MapTypeStyle[] = [
 ];
 
 // Snoqualmie / Seattle area default — user is based in WA.
-export const DEFAULT_CENTER = { lat: 47.5301, lng: -121.8255 };
-export const DEFAULT_ZOOM = 11;
+// Centered on the North Metro Ziply job cluster (Snohomish / Marysville /
+// Lake Stevens). Prevents the map from flashing a country-wide view on mount
+// before fitBounds runs against the loaded jobs.
+export const DEFAULT_CENTER = { lat: 48.05, lng: -122.15 };
+export const DEFAULT_ZOOM = 10;
