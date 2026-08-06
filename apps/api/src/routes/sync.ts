@@ -203,4 +203,71 @@ router.get("/sync/inspect", async (req, res, next) => {
   }
 });
 
+// GET /api/sync/diag — TEMP diagnostic (public, no auth). Reports last sync
+// run + hits the Ziply report directly and returns row count, column names,
+// and the distinct supervisor values found. Used to debug why the Ziply sync
+// isn't returning the expected 358 jobs. Remove once verified.
+router.get("/sync/diag", async (_req, res, next) => {
+  try {
+    const env = getEnv();
+    const out: Record<string, unknown> = {
+      ts: new Date().toISOString(),
+      env: {
+        hasSmartsheetToken: Boolean(env.SMARTSHEET_API_TOKEN),
+        lumenSheetId: env.SMARTSHEET_SHEET_ID,
+        ziplySheetId: env.ZIPLY_SMARTSHEET_SHEET_ID ?? null,
+        syncSupervisors: env.SYNC_SUPERVISORS,
+      },
+    };
+
+    // Last sync run
+    try {
+      const snap = await db()
+        .collection("syncRuns")
+        .orderBy("startedAt", "desc")
+        .limit(3)
+        .get();
+      out.lastSyncRuns = snap.docs.map((d) => d.data());
+    } catch (e: any) {
+      out.lastSyncRunsError = String(e?.message ?? e);
+    }
+
+    // Try Ziply report directly
+    const ziplyId = env.ZIPLY_SMARTSHEET_SHEET_ID;
+    if (ziplyId) {
+      try {
+        const sheet = await getSheet({}, ziplyId);
+        const colsById = buildColumnsById(sheet);
+        const records = sheet.rows.map((r) => rowToRecord(r, colsById));
+        const supervisorCounts: Record<string, number> = {};
+        for (const rec of records) {
+          const sup = String(
+            rec["NSC Supervisor"] ?? rec["Construction Supervisor"] ?? "(blank)"
+          );
+          supervisorCounts[sup] = (supervisorCounts[sup] ?? 0) + 1;
+        }
+        out.ziply = {
+          kind: (sheet as any).kind,
+          sheetId: sheet.id,
+          sheetName: sheet.name,
+          totalRowCount: sheet.totalRowCount,
+          fetchedRowCount: sheet.rows.length,
+          columnTitles: sheet.columns.map((c) => c.title),
+          supervisorCounts,
+          sampleRow: records[0] ?? null,
+        };
+      } catch (e: any) {
+        out.ziplyError = {
+          message: String(e?.message ?? e),
+          stack: String(e?.stack ?? "").split("\n").slice(0, 5),
+        };
+      }
+    }
+
+    res.json(out);
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

@@ -38,7 +38,8 @@ export function isPublicApiPath(path: string): boolean {
   return (
     p === "/health" ||
     p === "/lumina/brief/daily" ||
-    p === "/lumina/stale-tasks"
+    p === "/lumina/stale-tasks" ||
+    p === "/sync/diag"
   );
 }
 
