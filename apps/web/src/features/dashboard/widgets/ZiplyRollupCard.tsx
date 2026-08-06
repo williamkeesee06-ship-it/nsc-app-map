@@ -42,7 +42,10 @@ export default function ZiplyRollupCard({ jobs }: Props) {
     };
   }, []);
 
-  const ziplyJobs = useMemo(() => jobs.filter((j) => j.customerProject === "Ziply"), [jobs]);
+  const ziplyJobs = useMemo(
+    () => jobs.filter((j) => j.customerProject === "Ziply" && j.inTracker !== false),
+    [jobs],
+  );
   const cityNames = useMemo(() => Array.from(new Set(ziplyJobs.map((j) => (j.city || "Unknown City").trim()))).sort(), [ziplyJobs]);
   const cityJobs = selectedCity ? ziplyJobs.filter((j) => (j.city || "Unknown City").trim() === selectedCity) : ziplyJobs;
   const hubNames = useMemo(() => Array.from(new Set(cityJobs.map(hubId))).sort(), [cityJobs]);

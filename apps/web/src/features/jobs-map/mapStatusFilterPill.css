@@ -1,0 +1,227 @@
+/* Map Status Filter Pill — glass floating pill that expands into a bucket
+   toggle menu. Positioned by the parent map container (absolute inside the
+   map-host wrapper). Matches the existing neon UI language: dark translucent
+   background, subtle glow, monospace numbers for counts. */
+
+.map-status-filter-pill {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 40;
+  font-family: inherit;
+  user-select: none;
+}
+
+/* --- Trigger (the pill) ------------------------------------------------- */
+
+.msfp-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(14, 18, 26, 0.78);
+  color: #e6ecf5;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.4),
+    0 0 0 0 rgba(58, 167, 255, 0);
+  transition:
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.12s ease;
+}
+
+.msfp-trigger:hover {
+  border-color: rgba(58, 167, 255, 0.5);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(58, 167, 255, 0.3);
+}
+
+.msfp-trigger:active {
+  transform: translateY(1px);
+}
+
+.msfp-trigger--active {
+  border-color: rgba(255, 138, 31, 0.55);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 138, 31, 0.35);
+}
+
+.msfp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3aa7ff, #00e5ff);
+  box-shadow: 0 0 6px rgba(58, 167, 255, 0.7);
+}
+
+.msfp-label {
+  line-height: 1;
+}
+
+.msfp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: rgba(255, 138, 31, 0.22);
+  color: #ffb35c;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid rgba(255, 138, 31, 0.35);
+}
+
+.msfp-chevron {
+  font-size: 9px;
+  opacity: 0.75;
+  line-height: 1;
+}
+
+/* --- Menu --------------------------------------------------------------- */
+
+.msfp-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 240px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 14, 22, 0.92);
+  color: #e6ecf5;
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(58, 167, 255, 0.14);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  animation: msfp-fade-in 0.14s ease-out;
+}
+
+@keyframes msfp-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.msfp-menu__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(230, 236, 245, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 4px;
+}
+
+.msfp-clear {
+  border: none;
+  background: transparent;
+  color: #ffb35c;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+}
+
+.msfp-clear:hover {
+  background: rgba(255, 138, 31, 0.12);
+}
+
+.msfp-menu__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* --- Bucket item -------------------------------------------------------- */
+
+.msfp-item {
+  display: grid;
+  grid-template-columns: 14px 1fr auto 16px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.msfp-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.msfp-item--off {
+  opacity: 0.42;
+}
+
+.msfp-item--off:hover {
+  opacity: 0.65;
+}
+
+.msfp-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: 0 0 12px;
+}
+
+.msfp-item--off .msfp-swatch {
+  box-shadow: none !important;
+  filter: saturate(0.4);
+}
+
+.msfp-item__label {
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+
+.msfp-item__count {
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(230, 236, 245, 0.55);
+}
+
+.msfp-item__toggle {
+  font-size: 10px;
+  color: rgba(230, 236, 245, 0.7);
+  text-align: right;
+  line-height: 1;
+}
+
+.msfp-item--on .msfp-item__toggle {
+  color: #39ff14;
+  text-shadow: 0 0 4px rgba(57, 255, 20, 0.6);
+}

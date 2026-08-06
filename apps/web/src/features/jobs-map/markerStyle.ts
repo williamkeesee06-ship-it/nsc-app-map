@@ -183,15 +183,39 @@ export function bucketForJob(job: {
   if (lower.startsWith("06") || lower.includes("ready soon")) return "ready_soon";
   if (lower.startsWith("07") || lower.includes("pending resto")) return "resto";
   if (lower.startsWith("08") || lower.includes("pending gigs")) return "gigs";
-  if (lower.startsWith("10") || lower.includes("on hold") || lower.includes("cancel"))
+  // 09 Complete — finished work, surfaces in Gigs alongside other done work.
+  if (lower.startsWith("09") || lower.includes("ready for billing") || lower.includes("complete"))
+    return "gigs";
+  // 10 On Hold + 11 Pending Permit + 12 Awarded to Others + 15 Pending Approval
+  // are all forms of "not buildable right now" — Billy 8/6: if it's pending
+  // permit or awaiting approval, treat it as on hold. Red pin, on-hold bucket.
+  if (
+    lower.startsWith("10") ||
+    lower.startsWith("11") ||
+    lower.startsWith("12") ||
+    lower.startsWith("15") ||
+    lower.includes("on hold") ||
+    lower.includes("pending permit") ||
+    lower.includes("pending approval") ||
+    lower.includes("awarded to others") ||
+    lower.includes("cancel")
+  ) {
     return "on_hold";
-
-  // Non-bucketed Ziply statuses (11 Pending Permit, 15 Pending Approval,
-  // 09 Complete, 12 Awarded to Others) fall through to legacy Lumen logic.
+  }
 
   // --- Legacy Lumen fallback --------------------------------------------
+  // Only runs for jobs whose jobStatus didn't match any numbered Ziply prefix
+  // above. Ziply rows with a numbered status prefix never reach this branch,
+  // so unknown Ziply statuses fall through to the safest default: on_hold
+  // rather than ready_soon (Billy 8/6: don't silently dump unknowns into
+  // "ready to build" — mark them as needing attention).
   if (isJobCompleted(job)) return "gigs"; // completed Lumen jobs surface in Gigs
   const s = (job.secondaryJobStatus || "").trim().toLowerCase();
+  // If this looks like a Ziply row (has a numbered jobStatus) with no
+  // secondaryJobStatus, we already tried and failed to bucket it above —
+  // don't pretend it's Ready Soon. Send it to on_hold so it surfaces as
+  // needing attention instead of inflating the build queue.
+  if (!s && /^\d/.test(raw)) return "on_hold";
   if (!s) return "ready_soon";
   if (s === "needs fielding") return "commitment";
   if (

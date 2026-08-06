@@ -205,7 +205,7 @@ export default function ZiplyFilterPanel({
     r.readAsText(file);
   };
   const ziplyJobs = useMemo(
-    () => jobs.filter((j) => j.customerProject === "Ziply"),
+    () => jobs.filter((j) => j.customerProject === "Ziply" && j.inTracker !== false),
     [jobs]
   );
 

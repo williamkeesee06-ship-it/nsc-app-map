@@ -49,7 +49,7 @@ export default function DashboardPage({
   // renders Ziply-only — status buckets, active builds, dig tickets, rollup,
   // gigs, and the supervisor gauge all read from this filtered list.
   const ziplyJobs = useMemo(
-    () => jobs.filter((j) => j.customerProject === "Ziply"),
+    () => jobs.filter((j) => j.customerProject === "Ziply" && j.inTracker !== false),
     [jobs]
   );
 

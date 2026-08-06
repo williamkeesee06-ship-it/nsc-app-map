@@ -76,7 +76,7 @@ export default function ActiveBuildJobsCard({ jobs, onOpenJob }: ActiveBuildJobs
   // hub number for stable ordering across renders.
   const activeJobs = useMemo(() => {
     return jobs
-      .filter((j) => j.customerProject === "Ziply")
+      .filter((j) => j.customerProject === "Ziply" && j.inTracker !== false)
       .filter((j) => ACTIVE_BUCKETS.has(bucketForJob(j)))
       .sort((a, b) => {
         const pa = a.percentComplete ?? -1;

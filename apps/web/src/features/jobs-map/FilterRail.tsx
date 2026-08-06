@@ -33,6 +33,13 @@ export interface Filters {
   ziplyStatusGroups?: Set<"not_started" | "in_progress" | "complete">;
   /** Ziply-only: active digital twin asset layers. */
   ziplyActiveLayers?: Set<string>;
+  /**
+   * Ziply-only: buckets the user wants HIDDEN from the map.
+   * Empty/undefined = show everything. Populated = hide those bucket keys.
+   * Uses the 7 pipeline buckets: commitment, in_progress, rts, ready_soon,
+   * resto, gigs, on_hold. Backed by the Map Status Filter pill.
+   */
+  hiddenStatusBuckets?: Set<StatusBucket>;
 }
 
 export function defaultFilters(): Filters {
@@ -57,6 +64,10 @@ export function defaultFilters(): Filters {
     ziplyPrintFilter: "all",
     ziplyStatusGroups: new Set(),
     ziplyActiveLayers: new Set(["hub", "feeder", "distribution", "drop", "bore", "terminal", "service_point", "pole", "handhole"]),
+    // Default: hide On Hold pins on the map. Billy 8/6: "I most likely will
+    // never want to see my jobs on hold." User can flip it back on from the
+    // Map Status Filter pill.
+    hiddenStatusBuckets: new Set<StatusBucket>(["on_hold"]),
   };
 }
 
@@ -78,6 +89,10 @@ export function applyFilters(jobs: Job[], f: Filters): Job[] {
     }
     if (f.hideUnmapped) {
       if (!j.geocode || j.geocode.status !== "OK") return false;
+    }
+    // Map Status Filter (pill dropdown): buckets in this set are hidden.
+    if (f.hiddenStatusBuckets && f.hiddenStatusBuckets.size > 0) {
+      if (f.hiddenStatusBuckets.has(bucketForJob(j))) return false;
     }
     return true;
   });

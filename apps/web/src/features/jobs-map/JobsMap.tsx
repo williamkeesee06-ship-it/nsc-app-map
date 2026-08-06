@@ -11,6 +11,7 @@ import type { Filters } from "./FilterRail.js";
 import { useFiltersContext } from "./filtersContext.js";
 import FilterRail from "./FilterRail.js";
 import MapThemeToggleSwitch from "./MapThemeToggleSwitch.js";
+import MapStatusFilterPill from "./MapStatusFilterPill.js";
 import MeasuringOverlay from "./MeasuringOverlay.js";
 import LeftRail from "./LeftRail.js";
 import CalendarTab from "./CalendarTab.js";
@@ -270,7 +271,7 @@ function JobsMapInner({
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
   useNetworkViewBands(mapInstance, theme === "network");
   const ziplyJobs = useMemo(
-    () => allJobs.filter((j) => j.customerProject === "Ziply"),
+    () => allJobs.filter((j) => j.customerProject === "Ziply" && j.inTracker !== false),
     [allJobs]
   );
 
@@ -461,6 +462,13 @@ function JobsMapInner({
         <ModifiersPanel />
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
           <div style={{ flex: 1, height: "100%", position: "relative", minWidth: 0 }}>
+            {/* Floating status filter pill — lets Billy toggle which bucket
+                pins render on the map. Anchored top-left of the map area. */}
+            <MapStatusFilterPill
+              jobs={ziplyJobs}
+              filters={filters}
+              setFilters={setFilters}
+            />
             <Map
               defaultCenter={DEFAULT_CENTER}
               defaultZoom={DEFAULT_ZOOM}

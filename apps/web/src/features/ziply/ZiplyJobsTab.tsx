@@ -17,8 +17,10 @@ interface Props {
 type RegionFilter = "all" | "north_metro";
 
 export default function ZiplyJobsTab({ jobs, selected, setSelected, onClose }: Props) {
+  // Only jobs currently on Ziply's tracker — sync marks removed rows as
+  // inTracker:false so they don't inflate counts here.
   const ziplyJobs = useMemo(
-    () => jobs.filter((j) => j.customerProject === "Ziply"),
+    () => jobs.filter((j) => j.customerProject === "Ziply" && j.inTracker !== false),
     [jobs]
   );
 

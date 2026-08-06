@@ -314,7 +314,10 @@ router.get("/jobs/ziply-fidelity", async (_req, res, next) => {
       .collection("jobs")
       .where("customerProject", "==", "Ziply")
       .get();
-    const jobs = snap.docs.map((d) => d.data() as Job);
+    // Exclude off-tracker rows so counts match the live Ziply sheet.
+    const jobs = snap.docs
+      .map((d) => d.data() as Job)
+      .filter((j) => j.inTracker !== false);
     res.json({ ok: true, ...summarizeFleetFidelity(jobs) });
   } catch (err) {
     next(err);
@@ -325,7 +328,10 @@ router.get("/jobs/ziply-fidelity", async (_req, res, next) => {
 router.get("/jobs/ziply-metrics", async (_req, res, next) => {
   try {
     const snap = await db().collection("jobs").where("customerProject", "==", "Ziply").get();
-    const jobs = snap.docs.map((d) => d.data() as Job);
+    // Exclude off-tracker rows so KPIs match the live sheet.
+    const jobs = snap.docs
+      .map((d) => d.data() as Job)
+      .filter((j) => j.inTracker !== false);
 
     let totalBoreEst = 0;
     let totalBoreComp = 0;

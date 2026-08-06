@@ -168,7 +168,10 @@ async function buildZiplyBriefing(username?: string): Promise<BriefingResponse> 
   if (ziplyJobs.length === 0) {
     const snap = await db().collection("jobs").where("customerProject", "==", "Ziply").get();
     snap.forEach((doc) => {
-      ziplyJobs.push(doc.data() as Job);
+      const j = doc.data() as Job;
+      // Skip off-tracker rows so Lumina reports live counts, not stale carry-over.
+      if (j.inTracker === false) return;
+      ziplyJobs.push(j);
     });
   }
 
