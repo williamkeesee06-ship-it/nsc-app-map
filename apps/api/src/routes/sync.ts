@@ -5,7 +5,7 @@ import {
   buildColumnsById,
   rowToRecord,
 } from "../lib/smartsheet.js";
-import { runJobsSync, runJobsSyncForSupervisors } from "../services/jobsSync.js";
+import { runJobsSync, runJobsSyncForSupervisors, workOrderToJobId } from "../services/jobsSync.js";
 import { db } from "../lib/firestore.js";
 import { getEnv } from "../config/env.js";
 import type { SyncRun } from "@nsc/types";
@@ -245,6 +245,161 @@ const syncAdminHandler: import("express").RequestHandler = async (req, res, next
 };
 router.post("/sync/admin", syncAdminHandler);
 router.get("/sync/admin", syncAdminHandler);
+
+// POST /api/sync/reconcile-tracker?key=<SYNC_ADMIN_KEY>&reportId=<id>[&dryRun=true][&customerProject=Ziply]
+//
+// One-shot reconciliation: treat the given Smartsheet report as the SOURCE OF
+// TRUTH for which jobs are "in tracker." Any Firestore job matching the scope
+// (default: customerProject === "Ziply") whose jobId is NOT in the report gets
+// flipped to inTracker:false. Jobs already inTracker:false are left alone.
+//
+// This exists because the per-supervisor sheet sync can't detect rows removed
+// from Billy's rolled-up tracker report — removals in the report don't
+// propagate to the underlying supervisor sheets, so runJobsSyncForSupervisors
+// never sees them as "gone." This endpoint closes that gap on demand.
+//
+// Query params:
+//   key             — SYNC_ADMIN_KEY (required)
+//   reportId        — numeric Smartsheet report ID (defaults to env.ZIPLY_TRACKER_REPORT_ID)
+//   dryRun=true     — return the diff without writing
+//   customerProject — Firestore scope filter (default: "Ziply")
+const reconcileTrackerHandler: import("express").RequestHandler = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const env = getEnv();
+    const configuredKey = (env.SYNC_ADMIN_KEY ?? "").trim();
+    if (!configuredKey) {
+      res.status(503).json({ error: "Admin sync disabled." });
+      return;
+    }
+    const bearer =
+      req.header("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? "";
+    const providedKey = String(
+      req.query.key ?? (req.body as { key?: unknown })?.key ?? bearer
+    ).trim();
+    if (providedKey !== configuredKey) {
+      res.status(403).json({ error: "Invalid admin key" });
+      return;
+    }
+
+    const reportId = String(
+      req.query.reportId ?? env.ZIPLY_TRACKER_REPORT_ID ?? ""
+    ).trim();
+    if (!reportId) {
+      res.status(400).json({
+        error:
+          "reportId required (query ?reportId=... or env ZIPLY_TRACKER_REPORT_ID)",
+      });
+      return;
+    }
+    const dryRun = String(req.query.dryRun ?? "").toLowerCase() === "true";
+    const scopeProject = String(req.query.customerProject ?? "Ziply").trim();
+
+    // 1. Fetch the report and build the authoritative set of jobIds.
+    const report = await getSheet({}, reportId);
+    const colsById = buildColumnsById(report);
+    // Smartsheet convention: the Primary column is always at index 0. The
+    // SmartsheetColumn type doesn't expose a `primary` flag, so we detect it
+    // positionally and fall back to a title-based match for safety.
+    const primaryCol =
+      report.columns.find((c) => c.index === 0) ??
+      report.columns.find((c) => c.title === "Primary") ??
+      report.columns.find((c) => c.title === "Work Order");
+    const primaryTitle = primaryCol?.title ?? "Primary";
+
+    const inReport = new Set<string>();
+    const reportPrimaryValues: string[] = [];
+    for (const row of report.rows) {
+      const rec = rowToRecord(row, colsById);
+      // Prefer the explicit primary column; fall back to "Work Order" then
+      // "Primary" so this is resilient to report column-title tweaks.
+      const raw =
+        (rec[primaryTitle] as string | undefined) ??
+        (rec["Work Order"] as string | undefined) ??
+        (rec["Primary"] as string | undefined);
+      const wo = raw == null ? null : String(raw).trim();
+      if (!wo) continue;
+      reportPrimaryValues.push(wo);
+      inReport.add(workOrderToJobId(wo));
+    }
+
+    // 2. Query Firestore for in-scope jobs currently marked in-tracker.
+    const firestore = db();
+    // Firestore doesn't index inTracker:!== false directly; pull all
+    // customerProject rows and filter in memory (Ziply set is small).
+    const snap = await firestore
+      .collection("jobs")
+      .where("customerProject", "==", scopeProject)
+      .get();
+
+    const toFlipOff: Array<{ jobId: string; workOrder: string }> = [];
+    const alreadyOff: string[] = [];
+    let onTrackerCount = 0;
+    for (const doc of snap.docs) {
+      const data = doc.data() as {
+        jobId: string;
+        workOrder: string;
+        inTracker?: boolean;
+      };
+      if (data.inTracker === false) {
+        alreadyOff.push(data.jobId);
+        continue;
+      }
+      onTrackerCount++;
+      if (!inReport.has(data.jobId)) {
+        toFlipOff.push({ jobId: data.jobId, workOrder: data.workOrder });
+      }
+    }
+
+    // 3. Write the flip (unless dry-run).
+    let written = 0;
+    if (!dryRun && toFlipOff.length > 0) {
+      let batch = firestore.batch();
+      let batchCount = 0;
+      const now = Date.now();
+      for (const { jobId } of toFlipOff) {
+        batch.update(firestore.collection("jobs").doc(jobId), {
+          inTracker: false,
+          lastSyncedAt: now,
+        });
+        batchCount++;
+        written++;
+        if (batchCount >= 400) {
+          await batch.commit();
+          batch = firestore.batch();
+          batchCount = 0;
+        }
+      }
+      if (batchCount > 0) await batch.commit();
+    }
+
+    res.json({
+      reportId,
+      reportName: report.name,
+      reportKind: report.kind,
+      primaryColumn: primaryTitle,
+      reportRowCount: report.rows.length,
+      reportUniqueJobIds: inReport.size,
+      firestoreScopeProject: scopeProject,
+      firestoreScopeCount: snap.size,
+      firestoreOnTrackerBefore: onTrackerCount,
+      firestoreAlreadyOffTracker: alreadyOff.length,
+      wouldFlipOff: toFlipOff.length,
+      flippedOff: written,
+      dryRun,
+      // Small sample so operators can eyeball what's happening.
+      sampleReportPrimary: reportPrimaryValues.slice(0, 5),
+      sampleFlipOff: toFlipOff.slice(0, 10),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+router.post("/sync/reconcile-tracker", reconcileTrackerHandler);
+router.get("/sync/reconcile-tracker", reconcileTrackerHandler);
 
 // GET /api/sync/diag — TEMP diagnostic (public, no auth). Reports last sync
 // run + hits the Ziply report directly and returns row count, column names,

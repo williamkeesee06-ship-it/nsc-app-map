@@ -88,7 +88,12 @@ export default function JobsMap() {
   // crew, foreman, or inspector names.
   const allJobs = useMemo(() => {
     if (contract === "Ziply") {
-      return rawJobs.filter((j) => isZiplyJob(j));
+      // Ziply is authoritative from Billy's rolled-up tracker report — rows
+      // dropped from that report get flipped to inTracker:false on the API
+      // side. Filter here too so the total-jobs count, filter-rail progress
+      // ring, and every downstream memo reflect the tracker, not the raw
+      // Firestore superset.
+      return rawJobs.filter((j) => isZiplyJob(j) && j.inTracker !== false);
     }
 
     let filtered = rawJobs;

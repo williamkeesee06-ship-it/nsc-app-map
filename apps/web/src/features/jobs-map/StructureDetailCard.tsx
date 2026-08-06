@@ -191,21 +191,34 @@ export default function StructureDetailCard({
       </header>
 
       <dl className="structure-detail-card__meta">
+        {/* Job # = Smartsheet Primary column (stored on Job.workOrder).
+            Always shown; falls back to raw jobId only if the row was
+            somehow ingested without a Primary value. */}
         {enriched?.jobId && (
           <>
-            <dt>Job</dt>
+            <dt>Job #</dt>
             <dd title={enriched.jobId}>
-              {enriched.wo ? `#${enriched.wo}` : enriched.jobId}
+              {enriched.wo ?? enriched.jobId}
               {enriched.name ? ` — ${enriched.name}` : ""}
             </dd>
           </>
         )}
-        {(enriched?.hub || enriched?.city) && (
+        {enriched?.hub && (
           <>
-            <dt>Location</dt>
-            <dd>
-              {[enriched.hub, enriched.city].filter(Boolean).join(" • ")}
-            </dd>
+            <dt>Hub</dt>
+            <dd>{enriched.hub}</dd>
+          </>
+        )}
+        {enriched?.city && !enriched?.hub && (
+          <>
+            <dt>City</dt>
+            <dd>{enriched.city}</dd>
+          </>
+        )}
+        {enriched?.city && enriched?.hub && (
+          <>
+            <dt>City</dt>
+            <dd>{enriched.city}</dd>
           </>
         )}
         {statusColor && (

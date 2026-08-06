@@ -13,6 +13,10 @@ const Schema = z.object({
   SMARTSHEET_API_TOKEN: z.string().optional(),
   SMARTSHEET_SHEET_ID: z.string().optional(),
   ZIPLY_SMARTSHEET_SHEET_ID: z.string().optional(),
+  // Numeric ID of Billy's rolled-up Ziply tracker report. When set, the
+  // reconcile-tracker endpoint uses this as the source of truth for which
+  // Ziply jobs count as "in tracker." Query param overrides this default.
+  ZIPLY_TRACKER_REPORT_ID: z.string().optional(),
   // Ziply per-supervisor trackers are pre-filtered in Smartsheet and have no
   // supervisor column. Stamp every row with this supervisor so the UI filter
   // can find them. Defaults to "Billy Keesee" (his tracker is our only one today).
