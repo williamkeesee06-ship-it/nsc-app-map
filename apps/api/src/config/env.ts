@@ -13,6 +13,10 @@ const Schema = z.object({
   SMARTSHEET_API_TOKEN: z.string().optional(),
   SMARTSHEET_SHEET_ID: z.string().optional(),
   ZIPLY_SMARTSHEET_SHEET_ID: z.string().optional(),
+  // Ziply per-supervisor trackers are pre-filtered in Smartsheet and have no
+  // supervisor column. Stamp every row with this supervisor so the UI filter
+  // can find them. Defaults to "Billy Keesee" (his tracker is our only one today).
+  ZIPLY_DEFAULT_SUPERVISOR: z.string().default("Billy Keesee"),
   // Geocoding key for the Google Geocoding API. If unset, we'll fall back to
   // VITE_GOOGLE_MAPS_API_KEY — but a referrer-restricted browser key will
   // reject server-side calls, so a dedicated unrestricted (or IP-restricted)

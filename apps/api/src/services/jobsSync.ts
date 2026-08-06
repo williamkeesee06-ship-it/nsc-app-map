@@ -58,8 +58,12 @@ export function normalizeRow(
   isZiply = false
 ): Job | null {
   const rec = rowToRecord(row, colsById);
-  const workOrder = s(rec["Work Order"]);
-  if (!workOrder) return null; // skip rows without a WO
+
+  // Ziply reports use "Primary" for the work order id; Lumen sheets use "Work Order".
+  // Fall back to Primary so per-supervisor Ziply trackers (which have neither a
+  // Work Order column nor a supervisor column) still produce valid Job records.
+  const workOrder = s(rec["Work Order"]) ?? s(rec["Primary"]);
+  if (!workOrder) return null; // skip rows without a WO/Primary id
 
   const now = Date.now();
 
@@ -74,6 +78,9 @@ export function normalizeRow(
       }
     }
 
+    // Ziply per-supervisor reports are pre-filtered in Smartsheet, so they do
+    // NOT include a supervisor column. The supervisor is stamped by the caller
+    // (see sheetsToSync loop) via a defaultSupervisor override.
     return {
       jobId: workOrderToJobId(workOrder),
       workOrder,
@@ -83,7 +90,7 @@ export function normalizeRow(
       secondaryJobStatus: null,
       workType,
       workTypeTags: splitWorkType(workType),
-      constructionSupervisor: s(rec["NSC Supervisor"]),
+      constructionSupervisor: s(rec["NSC Supervisor"]), // may be null; caller overrides
       constructionManager: s(rec["APM"]),
       constructionBase: null,
       customerProject: "Ziply",
@@ -213,12 +220,32 @@ export async function runJobsSyncForSupervisors(
 
   try {
     const env = getEnv();
-    const sheetsToSync: Array<{ id: string; supervisorKey: string; isZiply: boolean }> = [];
+    // Per-source config. `defaultSupervisor` is set for Ziply reports because
+    // Smartsheet per-supervisor trackers are pre-filtered and have no
+    // supervisor column. When defaultSupervisor is set, we skip the row-level
+    // supervisor filter and stamp every row with that supervisor name so the
+    // existing UI-side supervisor filtering keeps working.
+    const sheetsToSync: Array<{
+      id: string;
+      supervisorKey: string;
+      isZiply: boolean;
+      defaultSupervisor?: string;
+    }> = [];
     if (env.SMARTSHEET_SHEET_ID) {
-      sheetsToSync.push({ id: env.SMARTSHEET_SHEET_ID, supervisorKey: "Construction Supervisor", isZiply: false });
+      sheetsToSync.push({
+        id: env.SMARTSHEET_SHEET_ID,
+        supervisorKey: "Construction Supervisor",
+        isZiply: false,
+      });
     }
     if (env.ZIPLY_SMARTSHEET_SHEET_ID) {
-      sheetsToSync.push({ id: env.ZIPLY_SMARTSHEET_SHEET_ID, supervisorKey: "NSC Supervisor", isZiply: true });
+      // Ziply report is Billy's pre-filtered tracker. Every row belongs to Billy.
+      sheetsToSync.push({
+        id: env.ZIPLY_SMARTSHEET_SHEET_ID,
+        supervisorKey: "NSC Supervisor",
+        isZiply: true,
+        defaultSupervisor: env.ZIPLY_DEFAULT_SUPERVISOR || "Billy Keesee",
+      });
     }
 
     const filteredJobs: Job[] = [];
@@ -229,15 +256,28 @@ export async function runJobsSyncForSupervisors(
         const sheet = await getSheet({}, sheetInfo.id);
         totalRowCount += sheet.totalRowCount;
         const colsById = buildColumnsById(sheet);
-        const matchedRows = sheet.rows.filter((r) => {
-          const rec = rowToRecord(r, colsById);
-          const v = s(rec[sheetInfo.supervisorKey]) ?? "";
-          return allowSet.has(v.trim().toLowerCase());
-        });
+
+        // If defaultSupervisor is set (pre-filtered report), skip the row-level
+        // supervisor filter and take every row. Otherwise filter by the
+        // supervisor column against the caller's allowSet.
+        const matchedRows = sheetInfo.defaultSupervisor
+          ? sheet.rows.filter(() =>
+              allowSet.has(sheetInfo.defaultSupervisor!.trim().toLowerCase())
+            )
+          : sheet.rows.filter((r) => {
+              const rec = rowToRecord(r, colsById);
+              const v = s(rec[sheetInfo.supervisorKey]) ?? "";
+              return allowSet.has(v.trim().toLowerCase());
+            });
 
         for (const row of matchedRows) {
           const job = normalizeRow(row, colsById, sheetInfo.isZiply);
           if (job) {
+            // Stamp the supervisor for pre-filtered reports so downstream UI
+            // filters (by supervisor) can find these jobs.
+            if (sheetInfo.defaultSupervisor && !job.constructionSupervisor) {
+              job.constructionSupervisor = sheetInfo.defaultSupervisor;
+            }
             filteredJobs.push(job);
           }
         }
