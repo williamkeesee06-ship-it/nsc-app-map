@@ -237,7 +237,8 @@ export class DrawingEngine {
       // Text-bearing markups also use the popup to capture the user's typed text/notes
       "text", "callout",
       // Ziply point tools
-      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole", "ziply_flower_pot"
+      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole", "ziply_flower_pot",
+      "ziply_splitter", "ziply_riser", "ziply_slack_loop"
     ].includes(tool);
   }
 
@@ -266,7 +267,8 @@ export class DrawingEngine {
       "splice",
       "flower_pot_new", "flower_pot_removed",
       // Ziply point tools
-      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole", "ziply_flower_pot"
+      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole", "ziply_flower_pot",
+      "ziply_splitter", "ziply_riser", "ziply_slack_loop"
     ].includes(tool);
   }
 

@@ -50,6 +50,9 @@ const LABEL_REQUIRED_TOOLS = new Set<string>([
   "ziply_drop",
   "ziply_bore",
   "ziply_flower_pot",
+  "ziply_splitter",
+  "ziply_riser",
+  "ziply_slack_loop",
   "flower_pot_new",
   "flower_pot_removed",
 ]);
@@ -356,6 +359,9 @@ const POINT_TOOLS = new Set([
   "ziply_address",
   "ziply_pole",
   "ziply_handhole",
+  "ziply_splitter",
+  "ziply_riser",
+  "ziply_slack_loop",
 ]);
 
 function isPointTool(tool: string): boolean {

@@ -54,6 +54,15 @@ function promptForTool(tool: string): IconPrompt {
   if (tool === "anchor_new" || tool === "anchor_removed") {
     return { placeholder: "Anchor # / label (optional)", prefix: null };
   }
+  if (tool === "ziply_splitter") {
+    return { placeholder: "Splitter ID / ratio (e.g. 1x8, SP-3)", prefix: null };
+  }
+  if (tool === "ziply_riser") {
+    return { placeholder: "Riser # / label (optional)", prefix: null };
+  }
+  if (tool === "ziply_slack_loop") {
+    return { placeholder: "Slack length ft (e.g. 50)", prefix: null };
+  }
   if (tool === "text") {
     return { placeholder: "Type the text to show on the map\u2026", prefix: null };
   }

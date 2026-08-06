@@ -59,6 +59,9 @@ const POINT_TOOLS = new Set([
   "ziply_address",
   "ziply_pole",
   "ziply_handhole",
+  "ziply_splitter",
+  "ziply_riser",
+  "ziply_slack_loop",
 ]);
 
 function isPointTool(tool: string): boolean {

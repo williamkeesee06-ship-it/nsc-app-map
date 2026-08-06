@@ -521,23 +521,26 @@ const TELECOM_TOOL_DEFS: ToolDef[] = [
 const ZIPLY_TOOL_DEFS: ToolDef[] = [
   {
     tool: "ziply_feeder",
-    label: "FEEDER CABLE",
+    label: "F1 CABLE",
     iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
       <line x1="2" y1="13" x2="30" y2="13" stroke="#06B6D4" stroke-width="4" stroke-linecap="round"/>
+      <text x="16" y="11" text-anchor="middle" font-size="7" font-weight="900" fill="#06B6D4" font-family="monospace">F1</text>
     </svg>`,
   },
   {
     tool: "ziply_distribution",
-    label: "DIST CABLE",
+    label: "F2 CABLE",
     iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
       <line x1="2" y1="13" x2="30" y2="13" stroke="#6366F1" stroke-width="3.2" stroke-linecap="round"/>
+      <text x="16" y="11" text-anchor="middle" font-size="7" font-weight="900" fill="#6366F1" font-family="monospace">F2</text>
     </svg>`,
   },
   {
     tool: "ziply_drop",
-    label: "DROP CABLE",
+    label: "DROP",
     iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
       <line x1="2" y1="13" x2="30" y2="13" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/>
+      <text x="16" y="11" text-anchor="middle" font-size="7" font-weight="900" fill="#F59E0B" font-family="monospace">DROP</text>
     </svg>`,
   },
   {
@@ -549,13 +552,28 @@ const ZIPLY_TOOL_DEFS: ToolDef[] = [
   },
   {
     tool: "ziply_hub",
-    label: "SPLITTER HUB",
+    label: "HUB",
     iconSvg: (active) => railSvgForTool("ziply_hub", blackOrActive(active)),
   },
   {
     tool: "ziply_terminal",
-    label: "TERMINAL",
+    label: "MST",
     iconSvg: (active) => railSvgForTool("ziply_terminal", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_splitter",
+    label: "SPLITTER",
+    iconSvg: (active) => railSvgForTool("ziply_splitter", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_riser",
+    label: "RISER",
+    iconSvg: (active) => railSvgForTool("ziply_riser", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_slack_loop",
+    label: "SLACK LOOP",
+    iconSvg: (active) => railSvgForTool("ziply_slack_loop", blackOrActive(active)),
   },
   {
     tool: "ziply_address",

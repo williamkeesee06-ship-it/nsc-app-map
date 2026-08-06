@@ -35,7 +35,7 @@ export interface AsbuiltDoc {
     schemaVersion: 1;
 }
 export declare const emptyAsbuilt: (jobId: string) => AsbuiltDoc;
-export type DrawingTool = "placed_cable" | "removed_cable" | "mh_new" | "mh_removed" | "hh_new" | "hh_removed" | "ped_new" | "ped_removed" | "pole_new" | "pole_removed" | "cabinet_new" | "cabinet_removed" | "anchor_new" | "anchor_removed" | "splice" | "text" | "line" | "arrow" | "rectangle" | "circle" | "polygon" | "freehand" | "measure" | "select" | "eraser" | "highlighter" | "callout" | "lasso" | "rotate" | "stamp" | "ziply_hub" | "ziply_terminal" | "ziply_feeder" | "ziply_distribution" | "ziply_drop" | "ziply_bore" | "ziply_address" | "ziply_pole" | "ziply_handhole" | "ziply_flower_pot" | "flower_pot_new" | "flower_pot_removed";
+export type DrawingTool = "placed_cable" | "removed_cable" | "mh_new" | "mh_removed" | "hh_new" | "hh_removed" | "ped_new" | "ped_removed" | "pole_new" | "pole_removed" | "cabinet_new" | "cabinet_removed" | "anchor_new" | "anchor_removed" | "splice" | "text" | "line" | "arrow" | "rectangle" | "circle" | "polygon" | "freehand" | "measure" | "select" | "eraser" | "highlighter" | "callout" | "lasso" | "rotate" | "stamp" | "ziply_hub" | "ziply_terminal" | "ziply_feeder" | "ziply_distribution" | "ziply_drop" | "ziply_bore" | "ziply_address" | "ziply_pole" | "ziply_handhole" | "ziply_flower_pot" | "ziply_splitter" | "ziply_riser" | "ziply_slack_loop" | "flower_pot_new" | "flower_pot_removed";
 export interface DrawingStyle {
     strokeColor: string;
     strokeWidth: number;

@@ -118,7 +118,9 @@ function anchorSvg(color: string): string {
 // ── Rail SVG strings (for React inline rendering) ────────────────────────────
 
 // Ziply specific point icons
-function ziplyHubSvg(color: string): string {
+// (legacy 5-branch hub icon; retained but unused after octagon port)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _ziplyHubSvgLegacy(color: string): string {
   return wrap(
     `<rect x="12" y="21" width="8" height="4" fill="${color}"/>
     <rect x="13.5" y="17" width="5" height="4" fill="${color}"/>
@@ -142,12 +144,77 @@ function ziplyHubSvg(color: string): string {
   );
 }
 
-function ziplyTerminalSvg(color: string): string {
-  return wrap(
-    `<polygon points="8,10 24,16 8,22" fill="#f8fafc" stroke="${color}" stroke-width="2"/>
-    <circle cx="12" cy="16" r="2.5" fill="${color}"/>`,
-    color
-  );
+// Pixel-identical MST terminal port from map-studio-gis:
+// Neon pink rectangle with glowing drop-shadow + "MST" label.
+// Uses 36×24 native viewBox — ignores color override to preserve exact look.
+function ziplyTerminalSvg(_color: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 24" width="36" height="24">
+    <defs>
+      <filter id="mst-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="2" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <rect x="2" y="2" width="32" height="20" rx="4" fill="#090d16" fill-opacity="0.95" stroke="#ff007f" stroke-width="2.5" filter="url(#mst-glow)"/>
+    <rect x="2" y="2" width="32" height="20" rx="4" fill="none" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.5"/>
+    <text x="18" y="15.5" font-size="11" font-weight="900" text-anchor="middle" fill="#ff007f" font-family="'JetBrains Mono', monospace" letter-spacing="0.5">MST</text>
+  </svg>`;
+}
+
+// Pixel-identical Hub port from map-studio-gis: glowing green octagon with HUB text.
+function ziplyHubOctagonSvg(_color: string, labelText = "HUB"): string {
+  const hubText = (labelText || "HUB").trim();
+  let fontSize = 11;
+  if (hubText.length > 7) fontSize = 7.5;
+  else if (hubText.length > 5) fontSize = 8.5;
+  else if (hubText.length > 3) fontSize = 10;
+  else fontSize = 12;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="44" height="44">
+    <defs>
+      <filter id="hub-led-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3" result="b1"/>
+        <feGaussianBlur stdDeviation="6" result="b2"/>
+        <feMerge><feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <polygon points="13,2 31,2 42,13 42,31 31,42 13,42 2,31 2,13" fill="#10b981" fill-opacity="0.25" stroke="#00ff66" stroke-width="4.5" filter="url(#hub-led-glow)"/>
+    <polygon points="13,2 31,2 42,13 42,31 31,42 13,42 2,31 2,13" fill="#022c22" fill-opacity="0.95" stroke="#10b981" stroke-width="2.5"/>
+    <polygon points="14.5,4 29.5,4 40,14.5 40,29.5 29.5,40 14.5,40 4,29.5 4,14.5" fill="none" stroke="#059669" stroke-width="1"/>
+    <text x="22" y="26" font-size="${fontSize}" font-weight="900" text-anchor="middle" fill="#ffffff" stroke="#000000" stroke-width="0.5" font-family="monospace" letter-spacing="0.5">${hubText}</text>
+  </svg>`;
+}
+
+// Pixel-identical Splitter port from map-studio-gis: optical fiber splitter node.
+function ziplySplitterSvg(color: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+    <polygon points="16,2 30,16 16,30 2,16" fill="none" stroke="${color}" stroke-width="2.5"/>
+    <circle cx="10" cy="16" r="2" fill="${color}" />
+    <line x1="12" y1="16" x2="20" y2="10" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+    <line x1="12" y1="16" x2="22" y2="16" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+    <line x1="12" y1="16" x2="20" y2="22" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="20" cy="10" r="1.5" fill="none" stroke="${color}" stroke-width="1"/>
+    <circle cx="22" cy="16" r="1.5" fill="none" stroke="${color}" stroke-width="1"/>
+    <circle cx="20" cy="22" r="1.5" fill="none" stroke="${color}" stroke-width="1"/>
+  </svg>`;
+}
+
+// Pixel-identical Riser port from map-studio-gis: circle with R.
+function ziplyRiserSvg(color: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+    <circle cx="16" cy="16" r="9" fill="#ffffff" stroke="${color}" stroke-width="2.5"/>
+    <text x="16" y="19.5" font-size="10" font-weight="900" text-anchor="middle" fill="${color}" font-family="monospace">R</text>
+  </svg>`;
+}
+
+// Pixel-identical Slack Loop port from map-studio-gis: circle with slack length label.
+function ziplySlackLoopSvg(color: string, labelText = "50"): string {
+  const loopText = (labelText || "50").trim();
+  let fontSize = 9;
+  if (loopText.length > 2) fontSize = 7.5;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+    <circle cx="16" cy="16" r="10" fill="#ffffff" stroke="${color}" stroke-width="2.5"/>
+    <text x="16" y="19.5" font-size="${fontSize}" font-weight="900" text-anchor="middle" fill="${color}" font-family="monospace">${loopText}</text>
+  </svg>`;
 }
 
 function ziplyAddressSvg(color: string): string {
@@ -192,9 +259,12 @@ function flowerPotSvg(color: string): string {
 export function railSvgForTool(tool: string, color?: string): string {
   const c = color ?? DEFAULT_ICON_COLOR;
   const t = (tool || "").toLowerCase();
-  if (t === "ziply_hub" || t.includes("hub")) return ziplyHubSvg(c);
+  if (t === "ziply_hub" || t.includes("hub")) return ziplyHubOctagonSvg(c);
   if (t === "ziply_terminal" || t.includes("terminal")) return ziplyTerminalSvg(c);
-  if (t === "ziply_address" || t.includes("address")) return ziplyAddressSvg(c);
+  if (t === "ziply_splitter" || t === "splitter") return ziplySplitterSvg(c);
+  if (t === "ziply_riser" || t === "riser") return ziplyRiserSvg(c);
+  if (t === "ziply_slack_loop" || t === "slack_loop" || t.includes("slack")) return ziplySlackLoopSvg(c);
+  if (t === "ziply_address" || t === "ziply_service_address" || t.includes("address")) return ziplyAddressSvg(c);
   if (t === "ziply_handhole" || t.includes("handhole")) return ziplyHandholeSvg(c);
   if (t === "ziply_pole" || t.includes("pole")) return poleSvg(c);
   if (t.includes("flower_pot") || t.includes("flowerpot")) return flowerPotSvg(c);
@@ -230,8 +300,11 @@ export function iconForTool(
   const px = Math.max(24, Math.round(ICON_SIZE * pointSize));
 
   let svg: string;
-  if (t === "ziply_hub" || t.includes("hub")) svg = ziplyHubSvg(color);
+  if (t === "ziply_hub" || t.includes("hub")) svg = ziplyHubOctagonSvg(color);
   else if (t === "ziply_terminal" || t.includes("terminal")) svg = ziplyTerminalSvg(color);
+  else if (t === "ziply_splitter" || t === "splitter") svg = ziplySplitterSvg(color);
+  else if (t === "ziply_riser" || t === "riser") svg = ziplyRiserSvg(color);
+  else if (t === "ziply_slack_loop" || t === "slack_loop" || t.includes("slack")) svg = ziplySlackLoopSvg(color);
   else if (t === "ziply_address" || t.includes("address")) svg = ziplyAddressSvg(color);
   else if (t === "ziply_handhole" || t.includes("handhole")) svg = ziplyHandholeSvg(color, ziplyStatus);
   else if (t === "ziply_pole" || t.includes("pole")) svg = poleSvg(color);

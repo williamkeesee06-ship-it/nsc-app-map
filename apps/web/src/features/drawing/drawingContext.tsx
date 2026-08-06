@@ -186,6 +186,36 @@ function defaultStyleForTool(tool: DrawingTool): DrawingStyle {
       pointSize: 1.0,
     };
   }
+  if (tool === "ziply_splitter") {
+    return {
+      strokeColor: "#000000",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_riser") {
+    return {
+      strokeColor: "#000000",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_slack_loop") {
+    return {
+      strokeColor: "#000000",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
 
   // Phase 4: cable colors are hardcoded in DrawingOverlay, but we still set
   // them here so the modifier strip can show the right color swatch.

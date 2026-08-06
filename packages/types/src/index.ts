@@ -104,6 +104,9 @@ export type DrawingTool =
   | "ziply_pole"
   | "ziply_handhole"
   | "ziply_flower_pot"
+  | "ziply_splitter"
+  | "ziply_riser"
+  | "ziply_slack_loop"
   | "flower_pot_new"
   | "flower_pot_removed";
 
