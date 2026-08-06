@@ -283,11 +283,14 @@ router.get("/sync/diag", async (_req, res, next) => {
         const colsById = buildColumnsById(sheet);
         const records = sheet.rows.map((r) => rowToRecord(r, colsById));
         const supervisorCounts: Record<string, number> = {};
+        const jobStatusCounts: Record<string, number> = {};
         for (const rec of records) {
           const sup = String(
             rec["NSC Supervisor"] ?? rec["Construction Supervisor"] ?? "(blank)"
           );
           supervisorCounts[sup] = (supervisorCounts[sup] ?? 0) + 1;
+          const st = String(rec["Job Status"] ?? "(blank)");
+          jobStatusCounts[st] = (jobStatusCounts[st] ?? 0) + 1;
         }
         out.ziply = {
           kind: (sheet as any).kind,
@@ -297,6 +300,7 @@ router.get("/sync/diag", async (_req, res, next) => {
           fetchedRowCount: sheet.rows.length,
           columnTitles: sheet.columns.map((c) => c.title),
           supervisorCounts,
+          jobStatusCounts,
           sampleRow: records[0] ?? null,
         };
       } catch (e: any) {
