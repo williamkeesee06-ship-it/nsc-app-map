@@ -13,10 +13,16 @@ export interface SmartsheetColumn {
   index: number;
   options?: string[];
   symbol?: string;
+  // Report responses carry BOTH `id` (the underlying sheet column id) AND
+  // `virtualId`. Report cells then reference `virtualColumnId`, so lookups
+  // must be able to resolve either identifier.
+  virtualId?: number;
 }
 
 export interface SmartsheetCell {
-  columnId: number;
+  columnId?: number;
+  // Present on report responses only. Points at the report's virtual column id.
+  virtualColumnId?: number;
   value?: string | number | boolean | null;
   displayValue?: string;
 }
@@ -44,6 +50,17 @@ export interface SmartsheetSheet {
   totalRowCount: number;
   columns: SmartsheetColumn[];
   rows: SmartsheetRow[];
+  /**
+   * Which Smartsheet endpoint produced this data.
+   *  - "sheet"  : GET /sheets/{id}?includeAll=true. Cells key on `columnId`.
+   *              Supports PUT /sheets/{id}/rows (updateRowCells).
+   *  - "report" : GET /reports/{id}?pageSize=500&page=N. Cells key on
+   *              `virtualColumnId`. Read-only: PUT /rows is REJECTED by
+   *              Smartsheet for reports, so updateRowCells cannot be called
+   *              against a report id (callers must resolve the underlying
+   *              sheet id first).
+   */
+  kind: "sheet" | "report";
 }
 
 async function ssFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -71,32 +88,157 @@ export interface GetSheetOpts {
   withAttachments?: boolean;
 }
 
-export async function getSheet(opts: GetSheetOpts = {}, sheetId?: string): Promise<SmartsheetSheet> {
+/**
+ * Load a tracker by id, accepting EITHER a sheet id or a report id.
+ *
+ * Smartsheet exposes trackers under two endpoints:
+ *   - /sheets/{id}   -> paginates internally via includeAll=true
+ *   - /reports/{id}  -> paginates explicitly via ?page=N&pageSize=500
+ *
+ * The id itself does not indicate which kind it is (both are numeric), so we
+ * try the sheet endpoint first and fall back to the report endpoint on 404.
+ * Report responses use `virtualColumnId` on cells and `virtualId` on columns
+ * -- `buildColumnsById` below indexes BOTH so downstream `rowToRecord` calls
+ * resolve either shape without branching.
+ *
+ * Reports carry no `totalRowCount` field, so we synthesize it from rows.length.
+ */
+export async function getSheet(
+  opts: GetSheetOpts = {},
+  sheetId?: string
+): Promise<SmartsheetSheet> {
   const env = getEnv();
-  const targetSheetId = sheetId ?? env.SMARTSHEET_SHEET_ID;
-  if (!targetSheetId) {
+  const targetId = sheetId ?? env.SMARTSHEET_SHEET_ID;
+  if (!targetId) {
     throw new Error("[smartsheet] Sheet ID missing");
   }
-  // Smartsheet's GET /sheets/{id} defaults to 100 rows per page. With our
-  // tracker holding 500+ rows we MUST request the whole sheet, otherwise the
-  // sync only sees the first 100 (and off-tracker logic then flags the rest).
+
+  // --- try sheet endpoint first --------------------------------------------
   const includes: string[] = [];
   if (opts.withAttachments) includes.push("attachments");
   const includeQs = includes.length ? `&include=${includes.join(",")}` : "";
-  return ssFetch<SmartsheetSheet>(
-    `/sheets/${targetSheetId}?includeAll=true${includeQs}`
+
+  const sheetRes = await ssFetchRaw(
+    `/sheets/${encodeURIComponent(targetId)}?includeAll=true${includeQs}`
   );
+  if (sheetRes.ok) {
+    const body = sheetRes.body as SmartsheetSheet;
+    return { ...body, kind: "sheet" };
+  }
+  // Auth failures are the same for both endpoints -- surface immediately.
+  if (sheetRes.status === 401 || sheetRes.status === 403) {
+    throw new Error(
+      `[smartsheet] ${sheetRes.status} on /sheets/${targetId}: token rejected. ${sheetRes.bodyText}`
+    );
+  }
+  // Only 404 means "try report endpoint". Anything else is a real failure.
+  if (sheetRes.status !== 404) {
+    throw new Error(
+      `[smartsheet] ${sheetRes.status} on /sheets/${targetId}: ${sheetRes.bodyText}`
+    );
+  }
+
+  // --- fall back to report endpoint ----------------------------------------
+  // Reports do NOT support the `attachments` include, so opts.withAttachments
+  // is silently ignored on this path (there is no per-row attachment data on
+  // a report anyway -- attachments live on the underlying sheet row).
+  const pageSize = 500;
+  let page = 1;
+  let totalPages = 1;
+  let name = "";
+  let columns: SmartsheetColumn[] = [];
+  const rows: SmartsheetRow[] = [];
+
+  // Hard cap of 40 pages (= 20,000 rows) as a runaway guard.
+  do {
+    const r = await ssFetchRaw(
+      `/reports/${encodeURIComponent(targetId)}?pageSize=${pageSize}&page=${page}`
+    );
+    if (!r.ok) {
+      if (r.status === 404) {
+        throw new Error(
+          `[smartsheet] No sheet or report found with id ${targetId}.`
+        );
+      }
+      if (r.status === 401 || r.status === 403) {
+        throw new Error(
+          `[smartsheet] ${r.status} on /reports/${targetId}: token rejected. ${r.bodyText}`
+        );
+      }
+      throw new Error(
+        `[smartsheet] ${r.status} on /reports/${targetId}: ${r.bodyText}`
+      );
+    }
+    const body = r.body as SmartsheetSheet & { totalPages?: number };
+    if (page === 1) {
+      name = body.name ?? "";
+      columns = body.columns ?? [];
+    }
+    if (Array.isArray(body.rows)) rows.push(...body.rows);
+    totalPages = body.totalPages ?? 1;
+    page += 1;
+  } while (page <= totalPages && page <= 40);
+
+  return {
+    // Reports don't expose a numeric `id`, so echo the caller-supplied string
+    // as a number-ish value only used for logging; downstream never reads it.
+    id: Number(targetId) || 0,
+    name,
+    totalRowCount: rows.length,
+    columns,
+    rows,
+    kind: "report",
+  };
+}
+
+/**
+ * Low-level fetch that returns the raw {ok, status, body, bodyText} shape.
+ * Used by getSheet() to distinguish "try the other endpoint" (404) from
+ * "give up" (401/403/5xx). All other callers should use ssFetch().
+ */
+async function ssFetchRaw(
+  path: string,
+  init: RequestInit = {}
+): Promise<{ ok: boolean; status: number; body: unknown; bodyText: string }> {
+  const env = getEnv();
+  if (!env.SMARTSHEET_API_TOKEN) {
+    throw new Error("[smartsheet] SMARTSHEET_API_TOKEN missing");
+  }
+  const res = await fetch(`${SS_BASE}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${env.SMARTSHEET_API_TOKEN}`,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+  });
+  const bodyText = await res.text().catch(() => "");
+  let body: unknown = null;
+  if (bodyText) {
+    try {
+      body = JSON.parse(bodyText);
+    } catch {
+      // Non-JSON body -- keep as text for the error message.
+    }
+  }
+  return { ok: res.ok, status: res.status, body, bodyText };
 }
 
 // Convenience: build a {columnTitle -> cellValue} record from a row.
 // Uses displayValue when present (formatted strings), else raw value.
+//
+// Report cells reference `virtualColumnId`; sheet cells reference `columnId`.
+// A report cell can carry either, so try both -- `buildColumnsById` registers
+// each column under BOTH ids, so whichever the cell exposes resolves.
 export function rowToRecord(
   row: SmartsheetRow,
   columnsById: Map<number, SmartsheetColumn>
 ): Record<string, string | number | boolean | null> {
   const out: Record<string, string | number | boolean | null> = {};
   for (const cell of row.cells) {
-    const col = columnsById.get(cell.columnId);
+    const col =
+      (cell.virtualColumnId !== undefined ? columnsById.get(cell.virtualColumnId) : undefined) ??
+      (cell.columnId !== undefined ? columnsById.get(cell.columnId) : undefined);
     if (!col) continue;
     const v = cell.displayValue ?? cell.value ?? null;
     out[col.title] = v;
@@ -104,8 +246,23 @@ export function rowToRecord(
   return out;
 }
 
+/**
+ * Index every column by BOTH its `id` and (when present) its `virtualId`.
+ *
+ * A report response carries columns with `{ id, virtualId }` -- the `id` is
+ * the underlying sheet column, `virtualId` is the report-scoped id that the
+ * report's cells actually reference. Keying on only one of them means half
+ * the cells resolve nothing and every row looks empty.
+ *
+ * Sheet responses only carry `id`, so the extra registration is a no-op.
+ */
 export function buildColumnsById(sheet: SmartsheetSheet): Map<number, SmartsheetColumn> {
-  return new Map(sheet.columns.map((c) => [c.id, c]));
+  const map = new Map<number, SmartsheetColumn>();
+  for (const c of sheet.columns) {
+    if (c.id !== undefined) map.set(c.id, c);
+    if (c.virtualId !== undefined) map.set(c.virtualId, c);
+  }
+  return map;
 }
 
 export function buildColumnsByTitle(sheet: SmartsheetSheet): Map<string, SmartsheetColumn> {
@@ -141,6 +298,14 @@ export async function updateRowCells(
     throw new Error("[smartsheet] Sheet ID missing");
   }
   const resolvedSheet = sheet ?? (await getSheet({}, targetSheetId));
+  // Reports are read-only through this API -- PUT /rows only exists on the
+  // sheet endpoint. Fail loudly so a caller pointed at a report id can fix
+  // the wiring instead of getting a Smartsheet 400 with no explanation.
+  if (resolvedSheet.kind === "report") {
+    throw new Error(
+      `[smartsheet] updateRowCells called against a REPORT id (${targetSheetId}). Reports are read-only; pass the underlying sheet id instead.`
+    );
+  }
   const byTitle = buildColumnsByTitle(resolvedSheet);
   const cellPayload: Array<{ columnId: number; value: string | number | boolean | null; strict?: boolean }> = [];
   for (const [title, value] of Object.entries(cells)) {
