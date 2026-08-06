@@ -126,8 +126,36 @@ export const lightStyle: google.maps.MapTypeStyle[] = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-export function stylesFor(theme: "dark" | "light"): google.maps.MapTypeStyle[] {
-  return theme === "dark" ? darkTacticalStyle : lightStyle;
+// ─── Network View basemap ─────────────────────────────────────────────────
+// Deep-blue near-black land, dim charcoal roads, quiet water. The point is to
+// give every drawn cable a dark surface to burn against — the map itself
+// should almost disappear and let the fiber network be the picture.
+// Roads stay visible (slightly warmer than land) so a run reads as following
+// the street, not floating in space.
+export const NETWORK_VIEW_STYLE: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#060a12" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#060a12" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#4a5566" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#03080f" }] },
+  { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#080d17" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#171d28" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#0f141c" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#1c2432" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#232d3d" }] },
+  { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#1a2230" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#5a6478" }] },
+  { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#6b7688" }] },
+  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#1e2836" }] },
+  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#7a8698" }] },
+];
+
+export function stylesFor(theme: "network" | "light" | "dark"): google.maps.MapTypeStyle[] {
+  if (theme === "network") return NETWORK_VIEW_STYLE;
+  // "dark" kept for back-compat with any old caller — collapse into network.
+  if (theme === "dark") return NETWORK_VIEW_STYLE;
+  return lightStyle;
 }
 
 // ─── Ziply / CAD-blueprint base map (spec §9) ──────────────────────────────

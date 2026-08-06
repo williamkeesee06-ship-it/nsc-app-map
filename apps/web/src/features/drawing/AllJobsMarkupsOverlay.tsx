@@ -33,6 +33,7 @@ import {
   clearAllLabels as sharedClearAllLabels,
   MIN_LABEL_ZOOM,
 } from "./DrawingOverlayLabels.js";
+import { attachNetworkHalo } from "../jobs-map/networkHalo.js";
 
 const PLACED_COLOR  = "#39ff7a";
 const REMOVED_COLOR = "#ff2d4a";
@@ -232,6 +233,22 @@ function createReadOnlyOverlay(
       clickable,
       map,
     });
+
+    // Network View halo companion. Attaches immediately for any line tool
+    // (cable, arrow, freehand — anything with vertices). Hides itself when
+    // Network View is off; no cost in Light mode.
+    {
+      const haloColor =
+        (opts as { strokeColor?: string }).strokeColor ||
+        obj.style?.strokeColor ||
+        "#00d4ff";
+      const halo = attachNetworkHalo(map, polyline, haloColor);
+      registerAux?.({
+        setMap: (m: google.maps.Map | null) => {
+          if (m === null) halo.dispose();
+        },
+      } as unknown as OverlayRef);
+    }
 
     if (
       (obj.tool === "placed_cable" ||

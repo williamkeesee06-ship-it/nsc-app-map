@@ -51,17 +51,17 @@
 }
 
 /* Dark Mode Neon Glow */
-.map-theme-toggle-btn.dark-mode {
+.map-theme-toggle-btn.network-mode {
   border-color: rgba(139, 92, 246, 0.4);
   box-shadow: 0 0 15px rgba(139, 92, 246, 0.2), inset 0 0 10px rgba(139, 92, 246, 0.1);
   color: #a78bfa;
 }
 
-.map-theme-toggle-btn.dark-mode .toggle-track {
+.map-theme-toggle-btn.network-mode .toggle-track {
   background: rgba(139, 92, 246, 0.2);
 }
 
-.map-theme-toggle-btn.dark-mode .toggle-thumb {
+.map-theme-toggle-btn.network-mode .toggle-thumb {
   transform: translateX(20px);
   background: #8b5cf6;
   box-shadow: 0 0 10px #8b5cf6, 0 0 20px #8b5cf6;

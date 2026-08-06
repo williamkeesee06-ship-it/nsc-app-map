@@ -16,6 +16,7 @@ import ObjectDetailsPopup from "./ObjectDetailsPopup.js";
 import ObjectDetailsCard from "./ObjectDetailsCard.js";
 import MarkupPhotosPopup from "./MarkupPhotosPopup.js";
 import { useAuth } from "../auth/authContext.js";
+import { attachNetworkHalo } from "../jobs-map/networkHalo.js";
 // Billy 6/8 (#5): label rendering / placement / callout helpers extracted.
 import {
   type OverlayRef,
@@ -1327,6 +1328,25 @@ function createOverlay(
     });
     pl.addListener("click", clickHandler);
     wireRightClick(pl);
+    // Network View halo companion — lit only when the user toggles to
+    // Network View. Hides itself when the theme flips back to Light.
+    const halo = attachNetworkHalo(
+      map,
+      pl,
+      (opts as { strokeColor?: string }).strokeColor ||
+        obj.style?.strokeColor ||
+        "#00d4ff"
+    );
+    // Bolt the halo's lifecycle to the polyline's own setMap. When the
+    // overlay recycler calls setMap(null) to remove the polyline, the halo
+    // tears itself down too. This preserves the existing overlay lifecycle
+    // without a parallel bookkeeping list.
+    const originalSetMap = pl.setMap.bind(pl);
+    pl.setMap = ((m: google.maps.Map | null) => {
+      if (m === null) halo.dispose();
+      else halo.syncPath();
+      return originalSetMap(m);
+    }) as typeof pl.setMap;
     if (obj.tool === "arrow" && obj.vertices.length >= 2) {
       addArrowhead(pl, obj.vertices, obj.style, map);
     }

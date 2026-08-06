@@ -3,6 +3,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Map, useMap } from "@vis.gl/react-google-maps";
 import { stylesFor, ZIPLY_MUTED_STYLE, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
 import { useMapTheme } from "../map/themeContext.js";
+import { useNetworkViewBands } from "./networkView.js";
+import "./networkView.css";
 import { useJobs } from "./useJobs.js";
 import { applyFilters } from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
@@ -262,6 +264,11 @@ function JobsMapInner({
   const [selectedFeature, setSelectedFeature] = useState<PlatformFeature | null>(null);
   const [ziplyPrintLayerVisible, setZiplyPrintLayerVisible] = useState(true);
   const [ziply811OverlayVisible, setZiply811OverlayVisible] = useState(false);
+
+  // Live map instance mirror. MapHandle populates it via onMap so hooks that
+  // depend on the actual google.maps.Map (Network View zoom bands) can react.
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+  useNetworkViewBands(mapInstance, theme === "network");
   const ziplyJobs = useMemo(
     () => allJobs.filter((j) => j.customerProject === "Ziply"),
     [allJobs]
@@ -472,7 +479,10 @@ function JobsMapInner({
                 ? {}
                 : { mapId: (import.meta as any).env?.VITE_GOOGLE_MAPS_ID || "DEMO_MAP_ID", tilt: 45, heading: 0 })}
             >
-              <MapHandle mapRef={mapRef} />
+              <MapHandle
+                mapRef={mapRef}
+                onMap={(m) => setMapInstance(m)}
+              />
               {selected && (
                 <JobPrintOverlays job={selected} visible={ziplyPrintLayerVisible} />
               )}
@@ -734,14 +744,22 @@ function ZiplyPrintMapBanner({
 
 // Tiny invisible child whose only purpose is to push the live google.maps.Map
 // instance up into a ref the LeftRail (and other UI outside <Map>) can use.
-function MapHandle({ mapRef }: { mapRef: React.MutableRefObject<google.maps.Map | null> }) {
+function MapHandle({
+  mapRef,
+  onMap,
+}: {
+  mapRef: React.MutableRefObject<google.maps.Map | null>;
+  onMap?: (m: google.maps.Map | null) => void;
+}) {
   const map = useMap();
   useEffect(() => {
     mapRef.current = map ?? null;
+    onMap?.(map ?? null);
     return () => {
       if (mapRef.current === map) mapRef.current = null;
+      onMap?.(null);
     };
-  }, [map, mapRef]);
+  }, [map, mapRef, onMap]);
   return null;
 }
 

@@ -1,4 +1,5 @@
-// Segmented control to switch the map between dark and light.
+// Segmented control to switch the map between Network View and Light.
+// (Legacy component — MapThemeToggleSwitch is what actually renders in the UI.)
 import { useMapTheme } from "./themeContext.js";
 
 export default function ThemeToggle() {
@@ -7,12 +8,12 @@ export default function ThemeToggle() {
     <div className="theme-toggle" role="group" aria-label="Map theme">
       <button
         type="button"
-        className={theme === "dark" ? "active" : ""}
-        onClick={() => setTheme("dark")}
-        aria-pressed={theme === "dark"}
-        title="Dark tactical map"
+        className={theme === "network" ? "active" : ""}
+        onClick={() => setTheme("network")}
+        aria-pressed={theme === "network"}
+        title="Network View — dark basemap with illuminated fiber"
       >
-        Dark
+        Network
       </button>
       <button
         type="button"
