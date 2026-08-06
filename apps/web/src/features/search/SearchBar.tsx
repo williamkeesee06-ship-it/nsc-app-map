@@ -224,18 +224,43 @@ export default function SearchBar() {
     navigate("/");
     window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
     focusJob(job.jobId);
-    // Belt-and-suspenders: the JobsMap focus effect sometimes loses the pan
-    // when a job-select re-render races the panTo call. Fire the proven
-    // `nsc:pan-to` bus event too — the JobsMapInner listener grabs mapRef
-    // directly and pans unconditionally.
+    // Fly the map. React re-renders on job-select can cause the camera to
+    // reset (marker re-mount, print overlay bounds, filter re-apply), so we
+    // dispatch the pan multiple times across animation frames so at least one
+    // lands AFTER the churn settles. Idempotent — same target every time.
     const g = job.geocode;
-    if (g?.status === "OK" && g.lat && g.lng) {
+    const geoOk =
+      g?.status === "OK" &&
+      typeof g.lat === "number" &&
+      typeof g.lng === "number" &&
+      g.lat !== 0 &&
+      g.lng !== 0;
+    if (!geoOk) {
+      console.warn("[SearchBar] pickJob: no valid geocode on job", {
+        jobId: job.jobId,
+        workOrder: job.workOrder,
+        geocode: job.geocode,
+      });
+      return;
+    }
+    const lat = g!.lat!;
+    const lng = g!.lng!;
+    const fire = () => {
       window.dispatchEvent(
         new CustomEvent("nsc:pan-to", {
-          detail: { lat: g.lat, lng: g.lng, zoom: 17 },
+          detail: { lat, lng, zoom: 17 },
         })
       );
-    }
+    };
+    // Immediate + across the next few frames + after selection side-effects
+    // have flushed. If the map isn't mounted yet, later dispatches still land.
+    fire();
+    requestAnimationFrame(() => {
+      fire();
+      requestAnimationFrame(fire);
+    });
+    window.setTimeout(fire, 120);
+    window.setTimeout(fire, 400);
   }
 
   function pickMarkup(m: MarkupSearchEntry) {

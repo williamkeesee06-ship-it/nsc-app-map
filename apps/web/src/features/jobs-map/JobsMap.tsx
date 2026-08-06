@@ -284,7 +284,14 @@ function JobsMapInner({
   useEffect(() => {
     const handlePan = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (!mapRef.current || !detail) return;
+      if (!detail) {
+        console.warn("[JobsMap] nsc:pan-to received with no detail");
+        return;
+      }
+      if (!mapRef.current) {
+        console.warn("[JobsMap] nsc:pan-to fired but mapRef is null", detail);
+        return;
+      }
       if (detail.bounds) {
         const bounds = new google.maps.LatLngBounds();
         detail.bounds.forEach((pt: { lat: number; lng: number }) => {
@@ -293,13 +300,16 @@ function JobsMapInner({
         mapRef.current.fitBounds(bounds);
         return;
       }
-        const center = detail.center ?? (detail.lat != null && detail.lng != null
-          ? { lat: detail.lat, lng: detail.lng }
-          : null);
-        if (center && typeof center.lat === "number" && typeof center.lng === "number") {
-          focusMapOnLatLng(mapRef.current, center.lat, center.lng, detail.zoom ?? 17);
-        }
-      };
+      const center = detail.center ?? (detail.lat != null && detail.lng != null
+        ? { lat: detail.lat, lng: detail.lng }
+        : null);
+      if (center && typeof center.lat === "number" && typeof center.lng === "number") {
+        console.log("[JobsMap] nsc:pan-to → flying to", center, "zoom", detail.zoom ?? 17);
+        focusMapOnLatLng(mapRef.current, center.lat, center.lng, detail.zoom ?? 17);
+      } else {
+        console.warn("[JobsMap] nsc:pan-to bad center", detail);
+      }
+    };
     window.addEventListener("nsc:pan-to", handlePan);
     return () => window.removeEventListener("nsc:pan-to", handlePan);
   }, [mapRef]);
