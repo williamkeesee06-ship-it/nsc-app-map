@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { Job, Gig } from "@nsc/types";
 import { api } from "../../../lib/api.js";
+import { bucketForJob } from "../../jobs-map/markerStyle.js";
 import Bezel from "../components/Bezel.js";
 import { Check, Trash2, Plus } from "lucide-react";
 
@@ -33,6 +34,16 @@ export default function GigWorkCard({ ziplyJobs, onOpenJob }: GigWorkCardProps) 
   }, []);
 
   const openGigs = useMemo(() => gigs.filter(g => g.status === "open"), [gigs]);
+
+  // Per Billy 8/6: tie the Gig Work + Go-Backs picker to the "Gigs" status
+  // bucket on the tracker so the dropdown only shows jobs currently in
+  // "08_Complete - Pending Gigs" (the punch-list phase). Falls back to the
+  // full Ziply list if nothing is in that bucket yet, so the picker never
+  // ends up empty when the sync hasn't populated statuses.
+  const gigEligibleJobs = useMemo(() => {
+    const inGigs = ziplyJobs.filter((j) => bucketForJob(j) === "gigs");
+    return inGigs.length > 0 ? inGigs : ziplyJobs;
+  }, [ziplyJobs]);
 
   const handleAddGig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +104,7 @@ export default function GigWorkCard({ ziplyJobs, onOpenJob }: GigWorkCardProps) 
           }}
         >
           <option value="">Select Ziply Job...</option>
-          {ziplyJobs.map((j) => (
+          {gigEligibleJobs.map((j) => (
             <option key={j.jobId} value={j.jobId}>
               {j.workOrder || j.jobId} - {j.city || "Unknown City"}
             </option>

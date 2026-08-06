@@ -1,23 +1,28 @@
 // Dashboard home — default landing view. Mounted full-screen over the map by
 // JobsMap when the Dashboard tab is active.
 //
-// NEW LAYOUT (post-redesign):
-//   Row 0 — Hero card: Weather + Job Status Gauges + Quick Links (merged)
-//   Row 1 — Active Dig Tickets (wide) | Calendar (large)
-//   Row 2 — Map Overview (small) | Lumina Briefing | At Risk Jobs (small)
+// LAYOUT (Phase 10 — Ziply-first redesign, 2026-08):
+//   Row 0 — Hero card: Weather + 7 Ziply status gauges + Quick Links
+//   Row 1 — Active Build Jobs (Hub / Address / % gauge / markups / Print btn)
+//   Row 2 — Active Dig Tickets  (moved BELOW the build jobs panel)
+//   Row 3 — Ziply Rollup (contract=Ziply) or Calendar (contract=Lumen)
+//   Row 4 — Gig Work + Go-Backs (tied to the "gigs" status bucket)
+//
+// Removed in this pass: Map Overview preview, Lumina AI Briefing card.
+// Reason (per Billy 8/6): "I only care about building on the map — overlaying
+// prints with our parse feature". The remaining widgets are all
+// build-execution focused; map preview and daily briefing were signal-noise.
 
-import { Suspense, useMemo } from "react";
+import { useMemo } from "react";
 import type { Job } from "@nsc/types";
 import { useAuth } from "../auth/authContext.js";
 import { useDashboardData } from "./hooks/useDashboardData.js";
 import type { StatusBucket } from "../jobs-map/markerStyle.js";
 import { useActiveContract } from "../workspace/contractStore.js";
 import WeatherStrip from "./widgets/WeatherStrip.js";
-import MapPreviewCard from "./widgets/MapPreviewCard.js";
+import ActiveBuildJobsCard from "./widgets/ActiveBuildJobsCard.js";
 import ActiveDigTicketsCard from "./widgets/ActiveDigTicketsCard.js";
 import CalendarCard from "./widgets/CalendarCard.js";
-import LuminaBriefingCard from "./widgets/LuminaBriefingCard.js";
-import AtRiskJobsCard from "./widgets/AtRiskJobsCard.js";
 import GigWorkCard from "./widgets/GigWorkCard.js";
 import ZiplyRollupCard from "./widgets/ZiplyRollupCard.js";
 import "./styles/dashboard.css";
@@ -30,23 +35,17 @@ export interface DashboardPageProps {
   onOpenJob: (jobId: string) => void;
 }
 
-function firstNameOf(username: string | null): string {
-  if (!username) return "";
-  return username.trim().split(/\s+/)[0] || "";
-}
-
 export default function DashboardPage({
   jobs,
   onFilterStatus,
-  onOpenMap,
   onOpenCalendar,
   onOpenJob,
 }: DashboardPageProps) {
-  const { username, isManager } = useAuth();
+  const { isManager } = useAuth();
   const { contract } = useActiveContract();
   const data = useDashboardData(jobs);
-  const firstName = firstNameOf(username);
 
+  // Supervisor rollup counts (fed to WeatherStrip for the manager gauge).
   const supervisorCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const j of jobs) {
@@ -59,6 +58,7 @@ export default function DashboardPage({
     return counts;
   }, [jobs]);
 
+  // Ziply-only view for the panels that assume Ziply schema (Rollup, Gigs).
   const ziplyJobs = useMemo(
     () => jobs.filter((j) => j.customerProject === "Ziply"),
     [jobs]
@@ -69,7 +69,7 @@ export default function DashboardPage({
     <div className="nsc-dashboard" role="region" aria-label="Dashboard home">
       <div className="nsc-dashboard__scroll">
 
-        {/* ── Row 0: Hero card — Weather + Gauges + Quick Links ── */}
+        {/* ── Row 0: Hero — Weather + 7 Ziply status gauges + Quick Links ── */}
         <WeatherStrip
           jobCounts={data.statusCounts}
           onSelectBucket={onFilterStatus}
@@ -77,9 +77,18 @@ export default function DashboardPage({
           supervisorCounts={supervisorCounts}
         />
 
-        {/* ── Row 1: Active Dig Tickets | Calendar (Lumen) / Rollup (Ziply) ── */}
-        <div className="nsc-dashboard__row nsc-dashboard__row--tickets-cal">
+        {/* ── Row 1: Active Build Jobs (primary focus panel) ────────────── */}
+        <div className="nsc-dashboard__row nsc-dashboard__row--build">
+          <ActiveBuildJobsCard jobs={jobs} onOpenJob={onOpenJob} />
+        </div>
+
+        {/* ── Row 2: Active Dig Tickets (moved BELOW build panel) ───────── */}
+        <div className="nsc-dashboard__row nsc-dashboard__row--tickets">
           <ActiveDigTicketsCard jobs={jobs} />
+        </div>
+
+        {/* ── Row 3: Calendar (Lumen) / Rollup (Ziply) ──────────────────── */}
+        <div className="nsc-dashboard__row nsc-dashboard__row--calendar">
           {isZiply ? (
             <ZiplyRollupCard jobs={jobs} />
           ) : (
@@ -92,17 +101,9 @@ export default function DashboardPage({
           )}
         </div>
 
-        {/* ── Row 2: Map | Lumina | At Risk (Lumen) / Gig Work (Ziply) ── */}
-        <div className="nsc-dashboard__row nsc-dashboard__row--map-ai">
-          <Suspense fallback={<div className="dash-skel dash-skel--map" aria-hidden />}>
-            <MapPreviewCard jobs={data.myJobs} onOpenMap={onOpenMap} />
-          </Suspense>
-          <LuminaBriefingCard firstName={firstName} username={username} contract={contract} />
-          {isZiply ? (
-            <GigWorkCard ziplyJobs={ziplyJobs} onOpenJob={onOpenJob} />
-          ) : (
-            <AtRiskJobsCard atRiskJobs={data.atRiskJobs} onOpenJob={onOpenJob} />
-          )}
+        {/* ── Row 4: Gig Work + Go-Backs (tied to "gigs" bucket) ────────── */}
+        <div className="nsc-dashboard__row nsc-dashboard__row--gigs">
+          <GigWorkCard ziplyJobs={ziplyJobs} onOpenJob={onOpenJob} />
         </div>
 
       </div>

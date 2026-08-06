@@ -117,12 +117,23 @@ export function colorForSecondaryStatus(
 // ── Phase 9: Status bucket regrouping ────────────────────────────────────────
 // The Smartsheet has many raw status strings; we collapse to 6 user-facing buckets.
 
+// Ziply Job Status buckets (Phase 10 rewrite). Ziply's raw Job Status column
+// uses numbered prefixes like "01_In Progress - Commitiment", "05_Ready for
+// Construction", etc. We collapse those into 7 user-facing buckets. The
+// legacy Lumen-era buckets (needs_fielding, pending, completed) are kept as
+// type aliases so older code compiles while it's migrated over.
 export type StatusBucket =
-  | "needs_fielding"
-  | "rts"
-  | "on_hold"
-  | "pending"
+  | "commitment"
   | "in_progress"
+  | "rts"
+  | "ready_soon"
+  | "resto"
+  | "gigs"
+  | "on_hold"
+  // Legacy Lumen buckets — kept for backwards compatibility, mapped in
+  // bucketForJob() below but no longer surfaced in the dashboard.
+  | "needs_fielding"
+  | "pending"
   | "completed";
 
 export interface StatusBucketDef {
@@ -131,23 +142,51 @@ export interface StatusBucketDef {
   colorKey: MarkerColorKey;
 }
 
+// The seven buckets shown in the dashboard's top status bar (Ziply, Phase 10).
+// Order left-to-right is the logical pipeline: pre-build → building →
+// finishing → on-hold. Colors intentionally reuse the existing marker palette
+// so the map/legend/dashboard all agree.
 export const STATUS_BUCKETS: StatusBucketDef[] = [
-  { key: "needs_fielding", label: "Needs Fielding", colorKey: "purple" },
-  { key: "rts",            label: "RTS",            colorKey: "yellow" },
-  { key: "on_hold",        label: "On Hold",        colorKey: "red" },
-  { key: "pending",        label: "Pending",        colorKey: "orange" },
-  { key: "in_progress",    label: "In Progress",    colorKey: "blue" },
-  { key: "completed",      label: "Completed",      colorKey: "completed_green" },
+  { key: "commitment",  label: "Commitment",  colorKey: "purple" },
+  { key: "in_progress", label: "In Progress", colorKey: "blue" },
+  { key: "rts",         label: "RTS",         colorKey: "yellow" },
+  { key: "ready_soon",  label: "Ready Soon",  colorKey: "orange" },
+  { key: "resto",       label: "Resto",       colorKey: "green" },
+  { key: "gigs",        label: "Gigs",        colorKey: "completed_green" },
+  { key: "on_hold",     label: "On Hold",     colorKey: "red" },
 ];
 
+// Map a job to one of the 7 Ziply buckets. Uses the Job Status column's
+// numeric prefix ("01_..." … "15_...") first because that's what Ziply's
+// tracker actually ships — falls back to the legacy secondaryJobStatus
+// matching so any non-Ziply Lumen rows still bucket sensibly.
 export function bucketForJob(job: {
   jobStatus?: string | null;
   secondaryJobStatus?: string | null;
 }): StatusBucket {
-  if (isJobCompleted(job)) return "completed";
+  const raw = (job.jobStatus || "").trim();
+  const lower = raw.toLowerCase();
+
+  // --- Ziply numbered prefixes -------------------------------------------
+  // "01_In Progress - Commitiment" (note: Smartsheet has this misspelled;
+  // we match the prefix, so the typo doesn't matter).
+  if (lower.startsWith("01") || lower.includes("commit")) return "commitment";
+  if (lower.startsWith("04") && lower.includes("in progress")) return "in_progress";
+  if (lower.startsWith("05") || lower.includes("ready for construction")) return "rts";
+  if (lower.startsWith("06") || lower.includes("ready soon")) return "ready_soon";
+  if (lower.startsWith("07") || lower.includes("pending resto")) return "resto";
+  if (lower.startsWith("08") || lower.includes("pending gigs")) return "gigs";
+  if (lower.startsWith("10") || lower.includes("on hold") || lower.includes("cancel"))
+    return "on_hold";
+
+  // Non-bucketed Ziply statuses (11 Pending Permit, 15 Pending Approval,
+  // 09 Complete, 12 Awarded to Others) fall through to legacy Lumen logic.
+
+  // --- Legacy Lumen fallback --------------------------------------------
+  if (isJobCompleted(job)) return "gigs"; // completed Lumen jobs surface in Gigs
   const s = (job.secondaryJobStatus || "").trim().toLowerCase();
-  if (!s) return "pending";
-  if (s === "needs fielding") return "needs_fielding";
+  if (!s) return "ready_soon";
+  if (s === "needs fielding") return "commitment";
   if (
     s === "rts" ||
     (s.includes("fielded") && s.includes("rts")) ||
@@ -162,13 +201,7 @@ export function bucketForJob(job: {
     s === "pending hsr"
   )
     return "in_progress";
-  if (
-    s === "pending" ||
-    s === "pending permit" ||
-    s === "pending engineering"
-  )
-    return "pending";
-  return "pending";
+  return "ready_soon";
 }
 
 export function bucketLabel(b: StatusBucket): string {

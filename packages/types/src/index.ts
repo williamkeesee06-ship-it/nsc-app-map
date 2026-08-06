@@ -399,6 +399,10 @@ export interface Job {
   estAerialFt?: number | null;
   completedAerialFt?: number | null;
 
+  /** Ziply job % complete (0–100). Sourced from the tracker's "% Complete"
+   *  column and rendered as a neon gauge inside Active Build Job cards. */
+  percentComplete?: number | null;
+
   /** Async status for Ziply visual print ingestion. */
   ziplyIngest?: {
     status: "processing" | "complete" | "failed";

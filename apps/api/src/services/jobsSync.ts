@@ -132,6 +132,11 @@ export function normalizeRow(
       completedAerialFt: rec["Completed Aerial Footage"] != null ? Number(rec["Completed Aerial Footage"]) : null,
       locateNumber: s(rec["Locate Ticket"]),
       locateExpires,
+
+      // Ziply's tracker has a "% Complete" column that field crews update. It
+      // ships as either a fractional number (0.42) or a percentage string
+      // ("42%"); normalize both to an integer 0–100 for consistent UI.
+      percentComplete: parsePercent(rec["% Complete"]),
     };
   }
 
@@ -167,6 +172,18 @@ export function normalizeRow(
     lastSyncedAt: now,
     geocode: null, // filled below
   };
+}
+
+// Parse Smartsheet "% Complete" values — they come through as either 0–1
+// fractions (0.42), 0–100 numbers (42), or percent strings ("42%"). We store
+// as an integer 0–100 so the dashboard gauge can read it without guessing.
+function parsePercent(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const raw = typeof v === "string" ? v.replace("%", "").trim() : v;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const pct = n <= 1 ? n * 100 : n;
+  return Math.max(0, Math.min(100, Math.round(pct)));
 }
 
 // Drop any keys whose value is `undefined`. Firestore rejects them.
