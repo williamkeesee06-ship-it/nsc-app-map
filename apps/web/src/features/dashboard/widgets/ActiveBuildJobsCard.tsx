@@ -24,16 +24,18 @@ export interface ActiveBuildJobsCardProps {
   onOpenJob: (jobId: string) => void;
 }
 
-// The set of buckets we count as "actively building". Per Billy 8/6: show
-// ALL Ziply jobs so he can see every job in the tracker on one screen.
-// Anything not-Ziply is filtered upstream.
+// The set of buckets we count as "actively building" — per Billy 8/6 screenshot:
+//   01_In Progress - Commitment  → commitment
+//   04_In Progress               → in_progress
+//   05_Ready for Construction    → rts
+//   06_Project to be Ready Soon  → ready_soon
+// Resto, Gigs, Complete-*, On Hold, Pending Permit, Awarded, Approval are
+// intentionally excluded — they aren't jobs Billy is actively building today.
 const ACTIVE_BUCKETS = new Set([
   "commitment",
   "in_progress",
   "rts",
   "ready_soon",
-  "resto",
-  "gigs",
 ]);
 
 // Markup counts are stored in a separate AsBuiltDocument (objects[]) per job,
@@ -96,6 +98,7 @@ export default function ActiveBuildJobsCard({ jobs, onOpenJob }: ActiveBuildJobs
       {activeJobs.length === 0 ? (
         <div className="active-build__empty">No active Ziply jobs.</div>
       ) : (
+        <div className="active-build__scroll">
         <ul className="active-build__list" role="list">
           {activeJobs.map((job) => {
             const markups = markupCounts[job.jobId] ?? 0;
@@ -154,6 +157,7 @@ export default function ActiveBuildJobsCard({ jobs, onOpenJob }: ActiveBuildJobs
             );
           })}
         </ul>
+        </div>
       )}
     </Bezel>
   );
