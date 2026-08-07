@@ -296,6 +296,43 @@ export default function JobCard({
           <div>{job.address}</div>
           <div>{job.city}</div>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            const hidden = new Set(filters.hiddenOverlayJobIds ?? []);
+            if (isOverlayOn) {
+              hidden.add(job.jobId);
+            } else {
+              hidden.delete(job.jobId);
+            }
+            setFilters({
+              ...filters,
+              showPrintOverlays: true,
+              hiddenOverlayJobIds: hidden,
+            });
+          }}
+          style={{
+            borderRadius: "9999px",
+            padding: "5px 12px",
+            fontSize: "10px",
+            fontWeight: 900,
+            letterSpacing: "0.05em",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            transition: "all 0.2s ease-in-out",
+            border: isOverlayOn ? "1.5px solid #00d4ff" : "1.5px solid #6a7580",
+            boxShadow: isOverlayOn ? "0 0 10px rgba(0, 212, 255, 0.4)" : "none",
+            background: isOverlayOn ? "rgba(0, 212, 255, 0.1)" : "rgba(255, 255, 255, 0.03)",
+            color: isOverlayOn ? "#00d4ff" : "#8a96a3",
+            marginTop: 4,
+          }}
+        >
+          <Layers size={13} style={{ color: isOverlayOn ? "#00d4ff" : "#8a96a3" }} />
+          {isOverlayOn ? "OVERLAY ON" : "OVERLAY OFF"}
+        </button>
       </div>
     );
   }
