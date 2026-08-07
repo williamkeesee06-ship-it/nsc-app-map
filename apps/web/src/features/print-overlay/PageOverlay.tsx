@@ -89,7 +89,9 @@ export default function PageOverlay({
 
     class PagePane extends google.maps.OverlayView {
       onAdd() {
-        this.getPanes()?.overlayMouseTarget.appendChild(el);
+        const panes = this.getPanes();
+        const target = panes?.overlayLayer ?? panes?.overlayMouseTarget;
+        target?.appendChild(el);
       }
       onRemove() {
         el.parentNode?.removeChild(el);
