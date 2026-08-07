@@ -20,8 +20,8 @@ export default function JobPrintOverlays({ job, visible = true }: JobPrintOverla
     <>
       {pages.map((p) => {
         if (p.excluded) return null;
-        // Use previewUrl (durable Storage reference) first, then objectUrl (temporary URL)
-        const img = p.previewUrl || (p as any).objectUrl;
+        const source = doc.sources?.find((s) => s.documentId === p.documentId);
+        const img = p.previewUrl || (p as any).objectUrl || source?.downloadUrl;
         if (!img) return null;
 
         const transform = doc.transforms?.[p.id] ?? null;

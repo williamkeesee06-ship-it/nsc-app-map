@@ -395,7 +395,7 @@ function buildPageVM(
     pageWidth: rp.pageWidth,
     pageHeight: rp.pageHeight,
     previewStoragePath: savedPage?.previewStoragePath ?? null,
-    previewUrl: savedPage?.previewUrl ?? null,
+    previewUrl: savedPage?.previewUrl ?? source.downloadUrl ?? null,
     crop: savedPage ? savedPage.crop : autoCrop,
     cropSource: savedPage ? savedPage.cropSource : (autoCrop ? "auto" : null),
     excluded: savedPage?.excluded ?? false,
