@@ -92,11 +92,11 @@ export function getCadFidelity(job: Job): {
 }
 
 export function isNorthMetroJob(job: Job): boolean {
-  const base = (job.constructionBase ?? "").trim().toLowerCase();
+  const base = String(job.constructionBase ?? "").trim().toLowerCase();
   if (base.includes("north metro") || base.includes("northmetro") || base.includes("n. metro")) {
     return true;
   }
-  const city = (job.city ?? "").trim().toLowerCase();
+  const city = String(job.city ?? "").trim().toLowerCase();
   if (!city) return false;
   if ((NORTH_METRO_CITIES as readonly string[]).includes(city)) return true;
   // "Lake Stevens", "LAKE STEVENS, WA", etc.
@@ -107,7 +107,7 @@ export function isNorthMetroJob(job: Job): boolean {
 
 /** Ziply contract row (sheet may use "Ziply", "ZIPLY", "Ziply FTTH", …). */
 export function isZiplyJob(job: Job): boolean {
-  const cp = (job.customerProject ?? "").trim().toLowerCase();
+  const cp = String(job.customerProject ?? "").trim().toLowerCase();
   if (cp.includes("ziply")) return true;
   // Print layer / ingest is Ziply-only in this app
   if (job.ziplyPrintLayer?.mapObjects != null) return true;
@@ -116,9 +116,9 @@ export function isZiplyJob(job: Job): boolean {
 }
 
 export function isLakeStevensJob(job: Job): boolean {
-  const city = (job.city ?? "").trim().toLowerCase();
-  const addr = (job.address ?? "").trim().toLowerCase();
-  const notes = (job.nscProjectNotes ?? "").trim().toLowerCase();
+  const city = String(job.city ?? "").trim().toLowerCase();
+  const addr = String(job.address ?? "").trim().toLowerCase();
+  const notes = String(job.nscProjectNotes ?? "").trim().toLowerCase();
   return (
     city.includes("lake stevens") ||
     addr.includes("lake stevens") ||
@@ -367,7 +367,7 @@ export const ZIPLY_PERMIT_TYPES: { id: ZiplyPermitTypeKey; label: string }[] = [
 export type ZiplyStatusGroup = "not_started" | "in_progress" | "complete";
 
 export function ziplyStatusGroupForJob(job: Job): ZiplyStatusGroup {
-  const s = (job.jobStatus || "").toLowerCase();
+  const s = String(job.jobStatus ?? "").toLowerCase();
   if (
     s.includes("complete") ||
     s.includes("billing") ||

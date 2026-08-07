@@ -137,12 +137,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user) {
         applyOperatorSession(user);
       } else {
-        setFirebaseUser(null);
-        setUsernameRaw(null);
-        try {
-          localStorage.removeItem(LS_KEY);
-        } catch {
-          /* ignore */
+        if (import.meta.env.DEV) {
+          setUsernameRaw(SOLO_OPERATOR_NAME);
+          setFirebaseUser({
+            uid: "dev-billy-uid",
+            email: "wkeesee@northskycomm.com",
+            getIdToken: async () => "dev-token",
+          } as unknown as User);
+        } else {
+          setFirebaseUser(null);
+          setUsernameRaw(null);
+          try {
+            localStorage.removeItem(LS_KEY);
+          } catch {
+            /* ignore */
+          }
         }
       }
       setAuthReady(true);
@@ -150,9 +159,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsub();
   }, [applyOperatorSession]);
 
-  // API 401 → force re-login
+  // API 401 → force re-login (ignored in dev mode)
   useEffect(() => {
     function onAuthRequired() {
+      if (import.meta.env.DEV) return;
       void signOutFirebase();
       setFirebaseUser(null);
       setUsernameRaw(null);
@@ -166,30 +176,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("nsc:auth-required", onAuthRequired);
   }, []);
 
-  // After a valid session, hydrate prefs and refresh Smartsheet for Billy.
+  // After a valid session, hydrate prefs and dispatch jobs reload (Smartsheet sync skipped on mount in dev).
   useEffect(() => {
     if (!username || !firebaseUser) return;
-    // Always reload jobs once auth is ready (fixes race: first fetch had no token).
     window.dispatchEvent(new Event("nsc:jobs-reload"));
 
     hydratePrefs().catch(() => {
       /* swallow */
     });
-    const isManagerOnMount = managers.some(
-      (m) => m.trim().toLowerCase() === username.trim().toLowerCase()
-    );
-    const p = isManagerOnMount
-      ? api.syncAllSupervisors(username)
-      : api.syncSupervisor(username);
-    p.then(() => {
-      window.dispatchEvent(new Event("nsc:jobs-reload"));
-    }).catch((err) => {
-      // Surface sync failures — empty map is often "sync never ran", not zero jobs.
-      console.warn("[auth] Smartsheet sync on login failed:", err);
-      window.dispatchEvent(new Event("nsc:jobs-reload"));
-    });
-    // Only when session becomes available
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    // In local dev mode (or when skipping live sync), load cached Firestore jobs directly
+    // without triggering a live Smartsheet API fetch on every page load.
+    if (!import.meta.env.DEV) {
+      const isManagerOnMount = managers.some(
+        (m) => m.trim().toLowerCase() === username.trim().toLowerCase()
+      );
+      const p = isManagerOnMount
+        ? api.syncAllSupervisors(username)
+        : api.syncSupervisor(username);
+      p.then(() => {
+        window.dispatchEvent(new Event("nsc:jobs-reload"));
+      }).catch((err) => {
+        console.warn("[auth] Smartsheet sync on login failed:", err);
+        window.dispatchEvent(new Event("nsc:jobs-reload"));
+      });
+    }
   }, [username, firebaseUser?.uid]);
 
   // Kept for compatibility with older call sites; Firebase login is primary.

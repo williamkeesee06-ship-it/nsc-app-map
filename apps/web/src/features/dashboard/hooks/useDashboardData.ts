@@ -72,12 +72,14 @@ function daysFromToday(iso: string | null): number | null {
   return Math.round((t - today) / DAY_MS);
 }
 
-function isEmpty(value: string | null | undefined): boolean {
-  return !value || !value.trim();
+function isEmpty(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  return !String(value).trim();
 }
 
-function isTruthyFlag(value: string | null | undefined): boolean {
-  return /^(y|yes|true|required|1)/i.test((value ?? "").trim());
+function isTruthyFlag(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  return /^(y|yes|true|required|1)/i.test(String(value).trim());
 }
 
 // Days since an ISO timestamp (e.g. smartsheetModified). null if unparseable.

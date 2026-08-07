@@ -79,10 +79,10 @@ export default function ActiveBuildJobsCard({ jobs, onOpenJob }: ActiveBuildJobs
       .filter((j) => j.customerProject === "Ziply" && j.inTracker !== false)
       .filter((j) => ACTIVE_BUCKETS.has(bucketForJob(j)))
       .sort((a, b) => {
-        const pa = a.percentComplete ?? -1;
-        const pb = b.percentComplete ?? -1;
+        const pa = typeof a.percentComplete === "number" ? a.percentComplete : -1;
+        const pb = typeof b.percentComplete === "number" ? b.percentComplete : -1;
         if (pb !== pa) return pb - pa;
-        return (a.hubNumber || "").localeCompare(b.hubNumber || "");
+        return String(a.hubNumber ?? "").localeCompare(String(b.hubNumber ?? ""));
       });
   }, [jobs]);
 

@@ -637,7 +637,12 @@ export default function DrawingOverlay() {
     }
 
     const listener = map.addListener("zoom_changed", handleZoomChange);
-    return () => listener.remove();
+    return () => {
+      try {
+        if (typeof listener?.remove === "function") listener.remove();
+        else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(listener);
+      } catch { /* ignore */ }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, state.objects]);
 
@@ -652,7 +657,12 @@ export default function DrawingOverlay() {
     // Remove existing listeners first
     const existing = geoListenersRef.current.get(objId);
     if (existing) {
-      existing.forEach((l) => l.remove());
+      existing.forEach((l) => {
+        try {
+          if (typeof l?.remove === "function") l.remove();
+          else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(l);
+        } catch { /* ignore */ }
+      });
     }
     const listeners: google.maps.MapsEventListener[] = [];
 
@@ -723,7 +733,12 @@ export default function DrawingOverlay() {
   function removeGeoListeners(objId: string) {
     const existing = geoListenersRef.current.get(objId);
     if (existing) {
-      existing.forEach((l) => l.remove());
+      existing.forEach((l) => {
+        try {
+          if (typeof l?.remove === "function") l.remove();
+          else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(l);
+        } catch { /* ignore */ }
+      });
       geoListenersRef.current.delete(objId);
     }
   }
@@ -777,7 +792,10 @@ export default function DrawingOverlay() {
         // Remove selection listener if present
         const selListener = selectionListenersRef.current.get(obj.id);
         if (selListener) {
-          selListener.remove();
+          try {
+            if (typeof selListener?.remove === "function") selListener.remove();
+            else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(selListener);
+          } catch { /* ignore */ }
           selectionListenersRef.current.delete(obj.id);
         }
         return;

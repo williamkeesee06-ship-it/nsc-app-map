@@ -33,6 +33,7 @@ import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import { DigPolygonProvider, useDigPolygon } from "../dig-polygon/digPolygonContext.js";
 import JobPrintOverlays from "../print-overlay/JobPrintOverlays.js";
+import AllJobsPrintOverlays from "../print-overlay/AllJobsPrintOverlays.js";
 import DigPolygonOverlay from "../dig-polygon/DigPolygonOverlay.js";
 import SavedDigShapeOverlay from "../dig-polygon/SavedDigShapeOverlay.js";
 import AllDigShapesOverlay from "../dig-polygon/AllDigShapesOverlay.js";
@@ -98,7 +99,7 @@ export default function JobsMap() {
 
     let filtered = rawJobs;
     if (!isManager) {
-      const u = (username ?? "").trim().toLowerCase();
+      const u = String(username ?? "").trim().toLowerCase();
       if (!u) return [];
       // Lumen assignment-based visibility: a supervisor sees a job when they
       // are named on any of its assignment fields.
@@ -109,7 +110,7 @@ export default function JobsMap() {
           j.crewName,
           j.ziplyInspector,
         ];
-        return assignees.some((a) => (a ?? "").trim().toLowerCase() === u);
+        return assignees.some((a) => String(a ?? "").trim().toLowerCase() === u);
       });
     }
     return filtered.filter((j) => !isZiplyJob(j));
@@ -171,8 +172,9 @@ export default function JobsMap() {
     if (contract !== "Ziply") {
       return applyFilters(allJobs, filters);
     }
-    // Shared hide-unmapped / tracker flags only (empty buckets = no Lumen bucket filter)
-    let list = applyFilters(allJobs, { ...filters, buckets: new Set() });
+    // Ziply contract: strictly isolate Ziply jobs and exclude Lumen/off-tracker rows
+    const ziplyOnly = allJobs.filter((j) => j.customerProject === "Ziply" && j.inTracker !== false);
+    let list = applyFilters(ziplyOnly, { ...filters, buckets: new Set() });
     if (filters.ziplyNorthMetroOnly) {
       list = list.filter((j) => isNorthMetroJob(j));
     }
@@ -282,6 +284,10 @@ function JobsMapInner({
   // Live map instance mirror. MapHandle populates it via onMap so hooks that
   // depend on the actual google.maps.Map (Network View zoom bands) can react.
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+  const handleMapReady = useCallback((m: google.maps.Map | null) => {
+    if (mapRef) mapRef.current = m;
+    setMapInstance((prev) => (prev === m ? prev : m));
+  }, [mapRef]);
   useNetworkViewBands(mapInstance, theme === "network");
   const ziplyJobs = useMemo(
     () => allJobs.filter((j) => j.customerProject === "Ziply" && j.inTracker !== false),
@@ -502,11 +508,13 @@ function JobsMapInner({
             >
               <MapHandle
                 mapRef={mapRef}
-                onMap={(m) => setMapInstance(m)}
+                onMap={handleMapReady}
               />
-              {selected && (
-                <JobPrintOverlays job={selected} visible={ziplyPrintLayerVisible} />
-              )}
+              <AllJobsPrintOverlays
+                jobs={mapped}
+                showGlobal={filters.showPrintOverlays !== false}
+                hiddenJobIds={filters.hiddenOverlayJobIds}
+              />
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
               <JobMarkers
                 jobs={mapped}
@@ -802,14 +810,18 @@ function MapHandle({
   onMap?: (m: google.maps.Map | null) => void;
 }) {
   const map = useMap();
+  const onMapRef = useRef(onMap);
+  useEffect(() => {
+    onMapRef.current = onMap;
+  }, [onMap]);
+
   useEffect(() => {
     mapRef.current = map ?? null;
-    onMap?.(map ?? null);
+    onMapRef.current?.(map ?? null);
     return () => {
       if (mapRef.current === map) mapRef.current = null;
-      onMap?.(null);
     };
-  }, [map, mapRef, onMap]);
+  }, [map, mapRef]);
   return null;
 }
 

@@ -59,9 +59,9 @@ export default function DashboardPage({
   const supervisorCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const j of ziplyJobs) {
-      const status = (j.jobStatus ?? "").trim().toLowerCase();
+      const status = String(j.jobStatus ?? "").trim().toLowerCase();
       if (status === "completed") continue;
-      const supervisor = (j.constructionSupervisor ?? "").trim();
+      const supervisor = String(j.constructionSupervisor ?? "").trim();
       if (!supervisor) continue;
       counts[supervisor] = (counts[supervisor] || 0) + 1;
     }

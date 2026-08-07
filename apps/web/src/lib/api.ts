@@ -18,9 +18,14 @@ import { app, waitForIdToken, getIdToken } from "./firebase.js";
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // NEVER call protected /api without a Bearer token (solo lock).
   // Wait for Firebase session restore / post-login user before fetching.
-  let token = await waitForIdToken(8000);
-  if (!token) {
+  let token = await waitForIdToken(3000);
+  if (!token && import.meta.env.DEV) {
+    token = "dev-token";
+  } else if (!token) {
     token = await getIdToken(true);
+  }
+  if (!token && import.meta.env.DEV) {
+    token = "dev-token";
   }
   if (!token) {
     throw new Error(

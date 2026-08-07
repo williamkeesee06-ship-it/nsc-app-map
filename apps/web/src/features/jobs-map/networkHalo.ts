@@ -53,34 +53,50 @@ export function attachNetworkHalo(
   let disposed = false;
   let currentColor = color || "#00d4ff";
 
+  let initialPath: any = [];
+  try {
+    if (core && typeof core.getPath === "function") {
+      const p = core.getPath();
+      if (p) initialPath = p;
+    }
+  } catch {
+    /* ignore */
+  }
+
   const halo = new google.maps.Polyline({
-    path: core.getPath(),
-    // Colored halo — screen-blended would be nicer but Google canvas can't
-    // do blend modes. Semi-transparent + wide gives 90% of the effect.
+    path: initialPath,
     strokeColor: currentColor,
     strokeOpacity: 0, // set by applyZoomBand below
     strokeWeight: 1,  // set by applyZoomBand below
     clickable: false,
-    zIndex: (core.get("zIndex") ?? 0) - 1,
+    zIndex: ((core.get?.("zIndex") ?? 0) as number) - 1,
     // Halos never occlude icons or the core.
     map: isNetworkOn() ? map : null,
   });
 
   function applyZoomBand(): void {
     if (disposed) return;
-    const z = map.getZoom();
-    if (typeof z !== "number") return;
-    const band = computeZoomBand(z);
-    halo.setOptions({
-      strokeWeight: band.haloWeight,
-      strokeOpacity: band.haloOpacity,
-    });
+    try {
+      const z = map.getZoom();
+      if (typeof z !== "number") return;
+      const band = computeZoomBand(z);
+      halo.setOptions({
+        strokeWeight: band.haloWeight,
+        strokeOpacity: band.haloOpacity,
+      });
+    } catch {
+      /* ignore */
+    }
   }
 
   function applyThemeVisibility(): void {
     if (disposed) return;
-    halo.setMap(isNetworkOn() ? map : null);
-    if (isNetworkOn()) applyZoomBand();
+    try {
+      halo.setMap(isNetworkOn() ? map : null);
+      if (isNetworkOn()) applyZoomBand();
+    } catch {
+      /* ignore */
+    }
   }
 
   // React to zoom (bands change halo width/opacity).
@@ -105,20 +121,53 @@ export function attachNetworkHalo(
   return {
     syncPath() {
       if (disposed) return;
-      halo.setPath(core.getPath());
+      try {
+        if (core && typeof core.getPath === "function") {
+          const p = core.getPath();
+          if (p) halo.setPath(p);
+        }
+      } catch {
+        /* ignore */
+      }
     },
     setColor(c: string) {
       if (disposed) return;
       currentColor = c || currentColor;
-      halo.setOptions({ strokeColor: currentColor });
+      try {
+        halo.setOptions({ strokeColor: currentColor });
+      } catch {
+        /* ignore */
+      }
     },
     dispose() {
       if (disposed) return;
       disposed = true;
-      google.maps.event.removeListener(zoomListener);
-      google.maps.event.removeListener(idleListener);
-      themeObserver?.disconnect();
-      halo.setMap(null);
+      try {
+        if (zoomListener) {
+          if (typeof (zoomListener as any).remove === "function") (zoomListener as any).remove();
+          else google.maps.event.removeListener(zoomListener);
+        }
+      } catch {
+        /* ignore */
+      }
+      try {
+        if (idleListener) {
+          if (typeof (idleListener as any).remove === "function") (idleListener as any).remove();
+          else google.maps.event.removeListener(idleListener);
+        }
+      } catch {
+        /* ignore */
+      }
+      try {
+        themeObserver?.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        halo.setMap(null);
+      } catch {
+        /* ignore */
+      }
     },
   };
 }

@@ -260,7 +260,7 @@ export default function WeatherStrip({
     return () => window.removeEventListener("focus", onFocus);
   }, []);
 
-  const total = STATUS_BUCKETS.reduce((sum, seg) => sum + jobCounts[seg.key], 0);
+  const total = STATUS_BUCKETS.reduce((sum, seg) => sum + (jobCounts?.[seg.key] ?? 0), 0);
 
   // Group and sort supervisors descending by count, take top 6
   const sortedSupervisors = isManager && supervisorCounts

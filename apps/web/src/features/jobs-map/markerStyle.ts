@@ -74,7 +74,7 @@ export function colorKeyForSecondaryStatus(
   secondaryJobStatus: string | null | undefined
 ): MarkerColorKey {
   if (!secondaryJobStatus) return "gray";
-  const s = secondaryJobStatus.trim().toLowerCase();
+  const s = String(secondaryJobStatus).trim().toLowerCase();
   for (const rule of STATUS_TO_COLOR) {
     if (rule.test(s)) return rule.key;
   }
@@ -89,9 +89,9 @@ export function isJobCompleted(job: {
   jobStatus?: string | null;
   secondaryJobStatus?: string | null;
 }): boolean {
-  const p = (job.jobStatus || "").trim().toLowerCase();
+  const p = String(job?.jobStatus ?? "").trim().toLowerCase();
   if (p === "complete" || p === "completed") return true;
-  const s = (job.secondaryJobStatus || "").trim().toLowerCase();
+  const s = String(job?.secondaryJobStatus ?? "").trim().toLowerCase();
   return s.startsWith("complete");
 }
 
@@ -171,7 +171,7 @@ export function bucketForJob(job: {
   jobStatus?: string | null;
   secondaryJobStatus?: string | null;
 }): StatusBucket {
-  const raw = (job.jobStatus || "").trim();
+  const raw = String(job?.jobStatus ?? "").trim();
   const lower = raw.toLowerCase();
 
   // --- Ziply numbered prefixes -------------------------------------------
@@ -210,7 +210,7 @@ export function bucketForJob(job: {
   // rather than ready_soon (Billy 8/6: don't silently dump unknowns into
   // "ready to build" — mark them as needing attention).
   if (isJobCompleted(job)) return "gigs"; // completed Lumen jobs surface in Gigs
-  const s = (job.secondaryJobStatus || "").trim().toLowerCase();
+  const s = String(job?.secondaryJobStatus ?? "").trim().toLowerCase();
   // If this looks like a Ziply row (has a numbered jobStatus) with no
   // secondaryJobStatus, we already tried and failed to bucket it above —
   // don't pretend it's Ready Soon. Send it to on_hold so it surfaces as

@@ -108,7 +108,12 @@ export class DrawingEngine {
   }
 
   deactivate(): void {
-    this.listeners.forEach((l) => l.remove());
+    this.listeners.forEach((l) => {
+      try {
+        if (typeof l?.remove === "function") l.remove();
+        else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(l);
+      } catch { /* ignore */ }
+    });
     this.listeners = [];
     this.previewLine?.setMap(null);
     this.previewLine = null;

@@ -644,7 +644,7 @@ function AnnotateTab({ selectedJob }: { selectedJob: Job | null }) {
     const isActive = activeTool === tool;
     return (
       <button
-         key={tool}
+         key={`${tool}-${label}`}
          className={`tool-tile${isActive ? " tool-tile--active" : ""}`}
          onClick={() => toggleTool(tool)}
          title={label}
@@ -771,46 +771,6 @@ function AnnotateTab({ selectedJob }: { selectedJob: Job | null }) {
             ? `${digShape.type} shape saved`
             : "No shape yet"}
       </div>
-
-      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>SELECTION</div>
-      <div className="tool-grid">
-        {selectionTools.map(({ tool, label, iconSvg }) => {
-          const isActive = activeTool === tool;
-          return (
-            <button key={tool} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)}>
-              <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
-              <span className="tool-tile__label">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>DRAWING</div>
-      <div className="tool-grid">
-        {drawingTools.map(({ tool, label, iconSvg }, i) => {
-          const isActive = activeTool === tool;
-          return (
-            <button key={`${tool}-${label}-${i}`} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)} title={label}>
-              <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
-              <span className="tool-tile__label">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>MARKUP</div>
-      <div className="tool-grid">
-        {markupTools.map(({ tool, label, iconSvg }, i) => {
-          const isActive = activeTool === tool;
-          return (
-            <button key={`${tool}-${label}-${i}`} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)} title={label}>
-              <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
-              <span className="tool-tile__label">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
     </section>
   );
 }

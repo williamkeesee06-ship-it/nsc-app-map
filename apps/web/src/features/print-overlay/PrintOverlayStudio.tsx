@@ -326,8 +326,11 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
 
   const doSave = useCallback(async () => {
     const ok = await save(username);
-    setSavedNote(ok ? "Draft saved to job." : null);
-    if (ok) setTimeout(() => setSavedNote(null), 2500);
+    if (ok) {
+      setSavedNote("Saved to Map & Firestore");
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+      setTimeout(() => setSavedNote(null), 3000);
+    }
   }, [save, username]);
 
   useEffect(() => {
@@ -394,7 +397,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             onClick={doSave}
             disabled={saving || pages.length === 0}
           >
-            {saving ? "Saving…" : "Save draft"}
+            {saving ? "Saving to Map…" : "Save Overlay to Map"}
           </button>
           <button className="po-btn po-btn--ghost" onClick={onClose} aria-label="Close studio">
             <X size={18} />

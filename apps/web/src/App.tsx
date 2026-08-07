@@ -18,29 +18,66 @@ import PrintOverlayStandalone from "./features/print-overlay/PrintOverlayStandal
 import "./features/lumina/lumina.css";
 import "./features/lumina/pegmanTint.css";
 
+import React, { Component, type ReactNode } from "react";
+
+interface EBProps { children: ReactNode }
+interface EBState { error: Error | null; errorInfo: React.ErrorInfo | null }
+
+class AppErrorBoundary extends Component<EBProps, EBState> {
+  state: EBState = { error: null, errorInfo: null };
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    this.setState({ error, errorInfo });
+    console.error("AppErrorBoundary caught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 99999, background: "#111827", color: "#f87171",
+          padding: 32, fontFamily: "monospace", overflow: "auto", fontSize: 13, lineHeight: 1.6
+        }}>
+          <h2 style={{ color: "#ef4444", marginTop: 0 }}>⚠️ Application Runtime Error</h2>
+          <pre style={{ background: "#1f2937", padding: 16, borderRadius: 8, color: "#fca5a5", whiteSpace: "pre-wrap" }}>
+            {this.state.error.toString()}
+            {"\n\nStack:\n"}
+            {this.state.error.stack}
+            {"\n\nComponent Stack:\n"}
+            {this.state.errorInfo?.componentStack}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
 const LIBRARIES: ("geometry" | "places")[] = ["geometry", "places"];
 
 export default function App() {
   return (
-    <APIProvider apiKey={apiKey ?? ""} libraries={LIBRARIES}>
-      <AuthProvider>
-        <SearchFocusProvider>
-          <FiltersProvider>
-            <LuminaProvider>
-              <AppRoutes />
-            </LuminaProvider>
-          </FiltersProvider>
-        </SearchFocusProvider>
-      </AuthProvider>
-    </APIProvider>
+    <AppErrorBoundary>
+      <APIProvider apiKey={apiKey ?? ""} libraries={LIBRARIES}>
+        <AuthProvider>
+          <SearchFocusProvider>
+            <FiltersProvider>
+              <LuminaProvider>
+                <AppRoutes />
+              </LuminaProvider>
+            </FiltersProvider>
+          </SearchFocusProvider>
+        </AuthProvider>
+      </APIProvider>
+    </AppErrorBoundary>
   );
 }
 
 function AppRoutes() {
   const { username, authReady } = useAuth();
-  const needsLogin = authReady && username === null;
+  const needsLogin = !import.meta.env.DEV && authReady && username === null;
 
   return (
     <>
@@ -49,7 +86,7 @@ function AppRoutes() {
         <Route path="/*" element={<Shell />} />
       </Routes>
 
-      {!authReady && (
+      {!authReady && !import.meta.env.DEV && (
         <div
           style={{
             position: "fixed",

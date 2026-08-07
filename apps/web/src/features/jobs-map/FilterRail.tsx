@@ -40,6 +40,10 @@ export interface Filters {
    * resto, gigs, on_hold. Backed by the Map Status Filter pill.
    */
   hiddenStatusBuckets?: Set<StatusBucket>;
+  /** Global toggle to show/hide print overlays on the map. Default true. */
+  showPrintOverlays?: boolean;
+  /** Individual job IDs whose print overlays are hidden. */
+  hiddenOverlayJobIds?: Set<string>;
 }
 
 export function defaultFilters(): Filters {
@@ -59,6 +63,8 @@ export function defaultFilters(): Filters {
     workTypeTags: new Set(),
     supervisors: new Set<string>(),
     showDigPolygons: true,
+    showPrintOverlays: true,
+    hiddenOverlayJobIds: new Set<string>(),
     // Ziply defaults: North Metro (Lake Stevens etc.) — Billy's current focus
     ziplyNorthMetroOnly: true,
     ziplyPrintFilter: "all",
