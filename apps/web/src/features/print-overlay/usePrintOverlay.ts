@@ -314,6 +314,7 @@ export function usePrintOverlay(job: Job) {
       setError(null);
       try {
         await api.putPrintOverlay(jobId, buildDoc(username));
+        window.dispatchEvent(new Event("nsc:jobs-reload"));
         return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -333,6 +334,7 @@ export function usePrintOverlay(job: Job) {
       try {
         await api.putPrintOverlay(jobId, buildDoc(username));
         setDraftStatus("saved");
+        window.dispatchEvent(new Event("nsc:jobs-reload"));
         return true;
       } catch (e) {
         console.warn("[print-overlay] draft auto-save failed", e);
