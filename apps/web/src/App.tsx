@@ -55,8 +55,7 @@ class AppErrorBoundary extends Component<EBProps, EBState> {
   }
 }
 
-const DEFAULT_MAPS_KEY = "AIzaSyDKUnUfkg8YDXjbzgK2_B8X8fSVUWnvTMw";
-const apiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined)?.trim() || DEFAULT_MAPS_KEY;
+const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
 const LIBRARIES: ("geometry" | "places")[] = ["geometry", "places"];
 
