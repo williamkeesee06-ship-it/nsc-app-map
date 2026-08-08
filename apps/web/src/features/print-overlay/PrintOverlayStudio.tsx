@@ -8,7 +8,7 @@
 // print-overlay doc via the API.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
-import { Layers, X, Crop, Move, MapPin, RotateCw, Undo2, EyeOff, RotateCcw, Trash2 } from "lucide-react";
+import { Layers, X, Crop, Move, MapPin, RotateCw, Undo2, EyeOff, RotateCcw } from "lucide-react";
 import {
   alignmentResidualFt,
   solveGeoSolution,
@@ -75,9 +75,6 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     setTransform,
     setAlignment,
     setExcluded,
-    deletePage,
-    deleteSource,
-    deleteOverlayProject,
     save,
     saveDraft,
   } = studio;
@@ -131,12 +128,8 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     if (autoLoadedRef.current) return;
     const existingSources = job.printOverlay?.sources ?? [];
     if (existingSources.length > 0 && phase === "choosing") {
-      const src = existingSources[0];
-      // Only auto-load if downloadUrl exists; if missing, keep chooser open with prompt
-      if (src.downloadUrl) {
-        autoLoadedRef.current = true;
-        chooseExisting(src);
-      }
+      autoLoadedRef.current = true;
+      chooseExisting(existingSources[0]);
     }
   }, [job.printOverlay, phase, chooseExisting]);
 
@@ -145,17 +138,12 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       const file = e.target.files?.[0];
       e.target.value = "";
       if (!file) return;
-      
-      const existingSources = job.printOverlay?.sources ?? [];
-      const match = existingSources.find((s) => s.name === file.name);
-      const documentId = match ? match.documentId : `upload-${Date.now()}`;
-
       const src: PrintOverlaySource = {
-        documentId,
+        documentId: `upload-${Date.now()}`,
         name: file.name,
         origin: "upload",
-        storagePath: match?.storagePath ?? null,
-        downloadUrl: match?.downloadUrl ?? null,
+        storagePath: null,
+        downloadUrl: null,
         contentType: file.type || "application/pdf",
         size: file.size,
         pageCount: null,
@@ -163,7 +151,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       setShowChooser(false);
       void beginSource(src, file);
     },
-    [beginSource, job.printOverlay]
+    [beginSource]
   );
 
   // ── Stage 4 — select a page and place it (seed transform + anchor draft) ──
@@ -338,11 +326,8 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
 
   const doSave = useCallback(async () => {
     const ok = await save(username);
-    if (ok) {
-      setSavedNote("Saved to Map & Firestore");
-      window.dispatchEvent(new Event("nsc:jobs-reload"));
-      setTimeout(() => setSavedNote(null), 3000);
-    }
+    setSavedNote(ok ? "Draft saved to job." : null);
+    if (ok) setTimeout(() => setSavedNote(null), 2500);
   }, [save, username]);
 
   useEffect(() => {
@@ -409,23 +394,8 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             onClick={doSave}
             disabled={saving || pages.length === 0}
           >
-            {saving ? "Saving to Map…" : "Save Overlay to Map"}
+            {saving ? "Saving…" : "Save draft"}
           </button>
-          {pages.length > 0 && (
-            <button
-              className="po-btn"
-              style={{ borderColor: "rgba(252, 165, 165, 0.4)", color: "#ef4444", background: "rgba(254, 242, 242, 0.15)" }}
-              title="Delete all print overlays for this job"
-              onClick={async () => {
-                if (window.confirm(`Delete print overlay project for ${job.workOrder || job.jobId}? This will remove all placed print sheets.`)) {
-                  await deleteOverlayProject();
-                  if (onClose) onClose();
-                }
-              }}
-            >
-              <Trash2 size={14} /> Delete Overlay
-            </button>
-          )}
           <button className="po-btn po-btn--ghost" onClick={onClose} aria-label="Close studio">
             <X size={18} />
           </button>
@@ -690,21 +660,6 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
                 >
                   {excluded ? <RotateCcw size={13} /> : <EyeOff size={13} />}
                 </button>
-                <button
-                  type="button"
-                  className="po-thumb__action"
-                  style={{ color: "#ef4444" }}
-                  title="Permanently delete page from overlay project"
-                  aria-label={`Delete ${p.label}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (window.confirm(`Permanently delete ${p.label} from this overlay project?`)) {
-                      deletePage(p.id);
-                    }
-                  }}
-                >
-                  <Trash2 size={13} />
-                </button>
               </div>
             );
           })}
@@ -726,37 +681,21 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             {sources.length > 0 && (
               <div className="po-source-list">
                 {sources.map((s) => (
-                  <div key={s.downloadUrl ?? s.documentId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <button
-                      className="po-source"
-                      style={{ flex: 1 }}
-                      onClick={() => chooseExisting(s)}
-                    >
-                      <Layers size={18} className="po-title__accent" />
-                      <span>
-                        <span className="po-source__name">{s.name}</span>
-                        <br />
-                        <span className="po-source__meta">
-                          {s.origin === "attachment" ? "Attached PDF" : "Prior overlay source"}
-                          {s.pageCount ? ` · ${s.pageCount} pages` : ""}
-                        </span>
+                  <button
+                    key={s.downloadUrl ?? s.documentId}
+                    className="po-source"
+                    onClick={() => chooseExisting(s)}
+                  >
+                    <Layers size={18} className="po-title__accent" />
+                    <span>
+                      <span className="po-source__name">{s.name}</span>
+                      <br />
+                      <span className="po-source__meta">
+                        {s.origin === "attachment" ? "Attached PDF" : "Prior overlay source"}
+                        {s.pageCount ? ` · ${s.pageCount} pages` : ""}
                       </span>
-                    </button>
-                    <button
-                      type="button"
-                      className="po-btn"
-                      style={{ borderColor: "rgba(252, 165, 165, 0.4)", color: "#ef4444", background: "rgba(254, 242, 242, 0.2)", padding: "8px 12px" }}
-                      title="Delete this PDF source from overlay project"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(`Delete source ${s.name} and all of its pages from the project?`)) {
-                          deleteSource(s.documentId);
-                        }
-                      }}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
+                    </span>
+                  </button>
                 ))}
               </div>
             )}

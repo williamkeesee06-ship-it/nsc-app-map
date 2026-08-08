@@ -527,9 +527,9 @@
   cursor: grabbing;
 }
 .po-map-overlay--locked {
-  cursor: grab;
-  outline: 1px solid rgba(2, 132, 199, 0.4);
-  pointer-events: auto !important;
+  cursor: default;
+  outline: none !important;
+  pointer-events: none !important;
 }
 .po-map-overlay img {
   display: block;
