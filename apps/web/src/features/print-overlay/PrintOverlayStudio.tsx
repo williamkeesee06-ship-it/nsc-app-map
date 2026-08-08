@@ -404,6 +404,13 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             </span>
           )}
           {savedNote && <span className="po-quality">{savedNote}</span>}
+          <button
+            className="po-btn po-btn--primary"
+            onClick={doSave}
+            disabled={saving || pages.length === 0}
+          >
+            {saving ? "Saving to Map…" : "Save Overlay to Map"}
+          </button>
           {pages.length > 0 && (
             <button
               className="po-btn"
