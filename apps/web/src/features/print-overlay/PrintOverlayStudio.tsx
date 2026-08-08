@@ -354,7 +354,8 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
         pedestal: "ped_new",
         riser: "ziply_riser",
         splitter: "ziply_splitter",
-        hub: "ziply_hub"
+        hub: "ziply_hub",
+        flowerpot: "ziply_flower_pot",
       };
 
       const tool = toolMap[armedEntity.kind] || "ziply_terminal";
@@ -427,7 +428,8 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       pedestal: "ped_new",
       riser: "ziply_riser",
       splitter: "ziply_splitter",
-      hub: "ziply_hub"
+      hub: "ziply_hub",
+      flowerpot: "ziply_flower_pot",
     };
 
     let placedCount = 0;
@@ -765,6 +767,17 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
                       {parsedEntities.map((entity) => {
                         const isPlaced = !!entity.placedMarkerId;
                         const isArmed = armedEntity?.id === entity.id;
+                        const kindLabels: Record<string, string> = {
+                          terminal: "term",
+                          pole: "pole",
+                          handhole: "vault",
+                          flowerpot: "pot",
+                          manhole: "mh",
+                          pedestal: "ped",
+                          riser: "riser",
+                          splitter: "splt",
+                          hub: "hub"
+                        };
                         return (
                           <div
                             key={entity.id}
@@ -777,7 +790,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
                             }}
                           >
                             <span className={`parser-tag parser-tag--${entity.kind}`}>
-                              {entity.kind.slice(0, 4)}
+                              {kindLabels[entity.kind] || entity.kind.slice(0, 4)}
                             </span>
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-bold text-slate-200 truncate leading-none">

@@ -34,7 +34,8 @@ export type PrintEntityKind =
   | "pedestal"
   | "riser"
   | "splitter"
-  | "hub";
+  | "hub"
+  | "flowerpot";
 
 /**
  * A parsed entity once it belongs to a job and can track its own placement.
@@ -57,6 +58,7 @@ export const PLACEABLE_KINDS: PrintEntityKind[] = [
   "riser",
   "splitter",
   "hub",
+  "flowerpot",
 ];
 
 export interface PrintEntity {
@@ -398,19 +400,22 @@ function parseLabelledStructures(lines: PrintTextLine[]): PrintEntity[] {
 
     if (hhSized || hhBare) {
       const size = hhSized ? normalizeSize(hhSized[1]) : "";
-      const label = size ? `HH-${size}` : "HH";
-      const n = next("handhole");
+      const isFp = hhBare && /FP|FLOWER/i.test(text);
+      const kind = isFp ? "flowerpot" : "handhole";
+      const label = isFp ? "FP" : (size ? `HH-${size}` : "HH");
+      const n = next(kind);
+
       out.push({
-        id: `handhole:${line.page}:${n}`,
-        kind: "handhole",
-        label,
-        mapTag: label,
-        iconSymbol: "handhole",
+        id: `${kind}:${line.page}:${n}`,
+        kind,
+        label: isFp ? `FP-${n}` : label,
+        mapTag: isFp ? `FP-${n}` : label,
+        iconSymbol: isFp ? "flowerpot" : "handhole",
         page: line.page,
         x: line.x,
         y: line.y,
         details: { ...(size ? { "Vault Size": size } : {}), Sheet: String(line.page) },
-        summary: size ? `${size} handhole` : "Handhole (size not called out)",
+        summary: isFp ? "Proposed Flower Pot" : (size ? `${size} handhole` : "Handhole (size not called out)"),
       });
       return;
     }
@@ -552,6 +557,7 @@ export function parsePrintEntities(items: PrintTextItem[]): PrintEntity[] {
     "pedestal",
     "pole",
     "riser",
+    "flowerpot",
   ];
   return entities.sort(
     (a, b) =>
