@@ -438,6 +438,11 @@ const STANDARD_TOOL_DEFS: ToolDef[] = [
     iconSvg: basicSvg(`<rect x="4" y="5" width="24" height="16" rx="2" stroke="STROKE" stroke-width="2" fill="none"/>`),
   },
   {
+    tool: "circle",
+    label: "CIRCLE",
+    iconSvg: basicSvg(`<ellipse cx="16" cy="13" rx="12" ry="9" stroke="STROKE" stroke-width="2" fill="none"/>`),
+  },
+  {
     tool: "polygon",
     label: "POLYGON",
     iconSvg: basicSvg(`<polygon points="16,3 28,18 22,23 10,23 4,18" stroke="STROKE" stroke-width="2" fill="none"/>`),
