@@ -5,6 +5,8 @@
 import { getStorage, ref, getDownloadURL } from "firebase/storage";
 import { app } from "../../lib/firebase.js";
 import { uploadBlob } from "../../lib/storage.js";
+// @ts-ignore
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
 
 const DB_NAME = "nsc-gis-print-documents";
 const DB_VERSION = 1;
@@ -141,7 +143,7 @@ export async function renderPagesFromDocument(
 
   try {
     const pdfjsLib = await import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
 
@@ -169,7 +171,7 @@ export async function renderPagesFromDocument(
 export async function readPageCount(bytes: ArrayBuffer): Promise<number> {
   try {
     const pdfjsLib = await import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
     return pdf.numPages;
   } catch {

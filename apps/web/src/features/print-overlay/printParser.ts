@@ -4,6 +4,8 @@
  */
 
 import { putPrintDocument } from "./printDocumentStore.js";
+// @ts-ignore
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
 
 /** One positioned run of text lifted off a PDF page. */
 export interface PrintTextItem {
@@ -566,7 +568,7 @@ export async function extractPrintEntities(
   fileOrBuffer: File | ArrayBuffer
 ): Promise<PrintEntity[]> {
   const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
   const arrayBuffer =
     fileOrBuffer instanceof File ? await fileOrBuffer.arrayBuffer() : fileOrBuffer;

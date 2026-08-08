@@ -1,7 +1,8 @@
 import * as pdfjsLib from "pdfjs-dist";
+// @ts-ignore
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
 
-// Use CDN worker for browser execution in Vite
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 export interface PdfPageImage {
   pageNumber: number;
