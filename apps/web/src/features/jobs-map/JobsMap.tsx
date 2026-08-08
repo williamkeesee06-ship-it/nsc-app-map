@@ -482,46 +482,6 @@ function JobsMapInner({
         <ModifiersPanel />
         <div className="map-host" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "row" }}>
           <div style={{ flex: 1, height: "100%", position: "relative", minWidth: 0 }}>
-            {/* Top rail floating controls: Status filter pill + Global ALL OVERLAYS ON/OFF pill button */}
-            <div style={{ position: "absolute", top: 12, left: 14, zIndex: 10, display: "flex", alignItems: "center", gap: 8 }}>
-              <MapStatusFilterPill
-                jobs={ziplyJobs}
-                filters={filters}
-                setFilters={setFilters}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const isGlobalOn = filters.showPrintOverlays !== false;
-                  setFilters({
-                    ...filters,
-                    showPrintOverlays: !isGlobalOn,
-                  });
-                }}
-                style={{
-                  borderRadius: "9999px",
-                  padding: "6px 14px",
-                  fontSize: "10px",
-                  fontWeight: 900,
-                  letterSpacing: "0.05em",
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  transition: "all 0.2s ease-in-out",
-                  border: filters.showPrintOverlays !== false ? "1.5px solid #00d4ff" : "1.5px solid #6a7580",
-                  boxShadow: filters.showPrintOverlays !== false ? "0 0 10px rgba(0, 212, 255, 0.4)" : "none",
-                  background: filters.showPrintOverlays !== false ? "rgba(0, 212, 255, 0.12)" : "rgba(15, 23, 42, 0.85)",
-                  backdropFilter: "blur(12px)",
-                  color: filters.showPrintOverlays !== false ? "#00d4ff" : "#8a96a3",
-                }}
-                title={filters.showPrintOverlays !== false ? "Hide all background map overlays" : "Show all background map overlays"}
-              >
-                <Layers size={13} style={{ color: filters.showPrintOverlays !== false ? "#00d4ff" : "#8a96a3" }} />
-                {filters.showPrintOverlays !== false ? "ALL OVERLAYS ON" : "ALL OVERLAYS OFF"}
-              </button>
-            </div>
-
             <Map
               defaultCenter={DEFAULT_CENTER}
               defaultZoom={DEFAULT_ZOOM}

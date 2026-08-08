@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Job } from "@nsc/types";
 import type { Filters } from "./FilterRail.js";
+import { useFiltersContext } from "./filtersContext.js";
 import {
   STATUS_BUCKETS,
   MARKER_COLORS,
@@ -27,12 +28,17 @@ import {
 import "./mapStatusFilterPill.css";
 
 interface Props {
-  jobs: Job[];
-  filters: Filters;
-  setFilters: (f: Filters) => void;
+  jobs?: Job[];
+  filters?: Filters;
+  setFilters?: (f: Filters) => void;
 }
 
-export default function MapStatusFilterPill({ jobs, filters, setFilters }: Props) {
+export default function MapStatusFilterPill(props: Props) {
+  const ctx = useFiltersContext();
+  const filters = props.filters ?? ctx.filters;
+  const setFilters = props.setFilters ?? ctx.setFilters;
+  const jobs = props.jobs ?? ctx.jobs;
+
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
