@@ -257,10 +257,11 @@ export async function runJobsSyncForSupervisors(
         isZiply: false,
       });
     }
-    if (env.ZIPLY_SMARTSHEET_SHEET_ID) {
-      // Ziply report is Billy's pre-filtered tracker. Every row belongs to Billy.
+    const ziplyTargetId = env.ZIPLY_TRACKER_REPORT_ID || env.ZIPLY_SMARTSHEET_SHEET_ID;
+    if (ziplyTargetId) {
+      // Ziply report is the pre-filtered tracker.
       sheetsToSync.push({
-        id: env.ZIPLY_SMARTSHEET_SHEET_ID,
+        id: ziplyTargetId,
         supervisorKey: "NSC Supervisor",
         isZiply: true,
         defaultSupervisor: env.ZIPLY_DEFAULT_SUPERVISOR || "Billy Keesee",
@@ -379,21 +380,36 @@ export async function runJobsSyncForSupervisors(
     let flaggedOffTracker = 0;
     for (const [jobId, prior] of existingJobs.entries()) {
       const priorSup = (prior.constructionSupervisor ?? "").trim().toLowerCase();
-      if (!allowSet.has(priorSup)) continue;
-      if (!currentJobIds.has(jobId) && prior.inTracker !== false) {
-        const docRef = firestore.collection("jobs").doc(jobId);
-        batch.update(docRef, {
-          inTracker: false,
-          lastSyncedAt: Date.now(),
-        });
-        flaggedOffTracker++;
-        batchCount++;
+      const isZiply = prior.customerProject === "Ziply";
 
-        if (batchCount >= 400) {
-          await batch.commit();
-          batch = firestore.batch();
-          batchCount = 0;
+      if (isZiply) {
+        const ziplySynced = sheetsToSync.some(s => s.isZiply);
+        if (ziplySynced && !currentJobIds.has(jobId) && prior.inTracker !== false) {
+          const docRef = firestore.collection("jobs").doc(jobId);
+          batch.update(docRef, {
+            inTracker: false,
+            lastSyncedAt: Date.now(),
+          });
+          flaggedOffTracker++;
+          batchCount++;
         }
+      } else {
+        if (!allowSet.has(priorSup)) continue;
+        if (!currentJobIds.has(jobId) && prior.inTracker !== false) {
+          const docRef = firestore.collection("jobs").doc(jobId);
+          batch.update(docRef, {
+            inTracker: false,
+            lastSyncedAt: Date.now(),
+          });
+          flaggedOffTracker++;
+          batchCount++;
+        }
+      }
+
+      if (batchCount >= 400) {
+        await batch.commit();
+        batch = firestore.batch();
+        batchCount = 0;
       }
     }
 
