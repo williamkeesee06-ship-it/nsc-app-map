@@ -90,7 +90,7 @@ export default function PageOverlay({
     class PagePane extends google.maps.OverlayView {
       onAdd() {
         const panes = this.getPanes();
-        const target = panes?.overlayLayer ?? panes?.overlayMouseTarget;
+        const target = panes?.overlayMouseTarget ?? panes?.overlayLayer;
         target?.appendChild(el);
       }
       onRemove() {
@@ -155,7 +155,7 @@ export default function PageOverlay({
       onPagePoint({ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY });
       return;
     }
-    if (mode !== "move" || locked) return;
+    if (mode !== "move") return;
     const proj = overlayRef.current?.getProjection();
     if (!proj) return;
     const ll = pageToLatLng(drawRef.current.solution, {
@@ -266,7 +266,7 @@ export default function PageOverlay({
     }
   };
 
-  const showHandles = mode === "move" && !locked;
+  const showHandles = mode === "move";
   const corners: Array<{ k: string; x: number; y: number }> = [
     { k: "nw", x: 0, y: 0 },
     { k: "ne", x: imgW, y: 0 },

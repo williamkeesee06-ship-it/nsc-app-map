@@ -110,7 +110,9 @@ export function usePrintOverlay(job: Job) {
   const loadSourceBytes = useCallback(
     async (source: PrintOverlaySource, file: File | null): Promise<ArrayBuffer> => {
       if (file) return file.arrayBuffer();
-      if (!source.downloadUrl) throw new Error("Source has no download URL");
+      if (!source.downloadUrl) {
+        throw new Error(`PDF binary missing for ${source.name || "source"}. Please re-select the PDF file to display overlays.`);
+      }
       const res = await fetch(source.downloadUrl);
       if (!res.ok) throw new Error(`Could not fetch source PDF (${res.status})`);
       return res.arrayBuffer();
@@ -151,9 +153,7 @@ export function usePrintOverlay(job: Job) {
       const documentId = source.documentId;
       sourcesRef.current.set(documentId, source);
       try {
-        // Best-effort: upload a freshly-chosen file to Storage so the original
-        // stays attached to the job (durable job attachment / "Documents").
-        // Never blocks rendering.
+        // Upload freshly-chosen file to Storage so original stays attached to job
         if (file && !source.storagePath) {
           const path = `jobs/${jobId}/print-overlay/${documentId}/${sanitizeStorageSegment(file.name)}`;
           uploadToStorage(path, file, { contentType: file.type || "application/pdf", signal: ac.signal })
@@ -161,6 +161,8 @@ export function usePrintOverlay(job: Job) {
               source.storagePath = r.storagePath;
               source.downloadUrl = r.downloadUrl;
               sourcesRef.current.set(documentId, { ...source });
+              // Automatically persist updated downloadUrl to Firestore once upload completes!
+              void saveDraft(null);
             })
             .catch((e) => console.warn("[print-overlay] source PDF upload failed", e));
         }
@@ -350,6 +352,34 @@ export function usePrintOverlay(job: Job) {
     [pages, activePageId]
   );
 
+  const deletePage = useCallback((id: string) => {
+    setPages((prev) => prev.filter((p) => p.id !== id));
+    if (activePageId === id) setActivePageId(null);
+  }, [activePageId]);
+
+  const deleteSource = useCallback((documentId: string) => {
+    sourcesRef.current.delete(documentId);
+    setPages((prev) => prev.filter((p) => p.documentId !== documentId));
+  }, []);
+
+  const deleteOverlayProject = useCallback(async () => {
+    setSaving(true);
+    try {
+      await api.putPrintOverlay(jobId, null);
+      sourcesRef.current.clear();
+      setPages([]);
+      setActivePageId(null);
+      setPhase("choosing");
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [jobId]);
+
   return {
     phase,
     pages,
@@ -367,6 +397,9 @@ export function usePrintOverlay(job: Job) {
     setTransform,
     setAlignment,
     setExcluded,
+    deletePage,
+    deleteSource,
+    deleteOverlayProject,
     save,
     saveDraft,
   };

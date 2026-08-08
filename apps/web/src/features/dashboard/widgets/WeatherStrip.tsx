@@ -260,6 +260,26 @@ export default function WeatherStrip({
     return () => window.removeEventListener("focus", onFocus);
   }, []);
 
+  const [gaugeSize, setGaugeSize] = useState<number>(() => {
+    if (typeof window === "undefined") return 104;
+    const w = window.innerWidth;
+    if (w < 1250) return 82;
+    if (w < 1500) return 92;
+    return 104;
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      const w = window.innerWidth;
+      if (w < 1250) setGaugeSize(82);
+      else if (w < 1500) setGaugeSize(92);
+      else setGaugeSize(104);
+    }
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const total = STATUS_BUCKETS.reduce((sum, seg) => sum + (jobCounts?.[seg.key] ?? 0), 0);
 
   // Group and sort supervisors descending by count, take top 6
@@ -288,7 +308,7 @@ export default function WeatherStrip({
       <div className="hero-card__body" role="region" aria-label="Dashboard overview" style={{ display: "flex", width: "100%", height: "100%" }}>
 
         {/* ── LEFT ZONE: Weather + Quick Links (underneath) ───────── */}
-        <div className="hero-card__weather" style={{ display: "flex", flexDirection: "column", gap: "12px", flex: "0 0 370px", padding: "0 16px 0 8px" }}>
+        <div className="hero-card__weather" style={{ display: "flex", flexDirection: "column", gap: "12px", flex: "0 0 340px", padding: "0 16px 0 8px" }}>
           {/* Top: Weather details + compact dials */}
           <div style={{ display: "flex", alignItems: "center", gap: "16px", width: "100%" }}>
             {weatherContent ? (
@@ -372,7 +392,7 @@ export default function WeatherStrip({
                       label={name}
                       color={color}
                       icon={supervisorIcon}
-                      size={104}
+                      size={gaugeSize}
                     />
                   </div>
                 );
@@ -400,7 +420,7 @@ export default function WeatherStrip({
                     label={seg.label}
                     color={color}
                     icon={BUCKET_ICONS[seg.key]}
-                    size={104}
+                    size={gaugeSize}
                   />
                 </button>
               );

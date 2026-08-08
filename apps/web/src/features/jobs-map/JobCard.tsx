@@ -1,11 +1,13 @@
 // Compact job card with unified styling (Lumen & Ziply) and collapsible sections.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, FileText, ChevronRight, ChevronDown, CheckCircle2, Wand2, Calendar, FileDown, UploadCloud, Layers, Paperclip } from "lucide-react";
 import { useMap } from "@vis.gl/react-google-maps";
 import type { DigTicket, Job } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
+import { uploadToStorage, sanitizeStorageSegment } from "../../lib/storage.js";
+import type { PrintOverlayDoc, PrintOverlaySource } from "@nsc/types";
 import { useAuth } from "../auth/authContext.js";
 import Eight11Section from "./Eight11Section.js";
 import { computePlantProgress, isZiplyJob } from "../ziply/ziplyUtils.js";
@@ -193,9 +195,151 @@ export default function JobCard({
   const secondaryOptions = schema?.secondaryStatusOptions ?? [];
   const foremanOptions = schema?.foremanOptions ?? [];
 
-  // Documents listing: Ziply documents + permits
+  // Documents listing: Ziply permit files + Firestore print overlay attachments
   const ziplyPrintLayer = job.ziplyPrintLayer;
-  const attachmentsList = ziplyPrintLayer?.permitFiles ?? [];
+  const attachmentsList = useMemo(() => {
+    const list: Array<{ name: string; downloadUrl: string; source: string }> = [];
+    if (job.ziplyPrintLayer?.permitFiles) {
+      for (const f of job.ziplyPrintLayer.permitFiles) {
+        if (f.downloadUrl || f.name) {
+          list.push({ name: f.name || "Permit Document", downloadUrl: f.downloadUrl || "#", source: "Smartsheet" });
+        }
+      }
+    }
+    if (job.printOverlay?.sources) {
+      for (const s of job.printOverlay.sources) {
+        if (s.downloadUrl || s.name) {
+          list.push({ name: s.name, downloadUrl: s.downloadUrl || "#", source: "Firestore" });
+        }
+      }
+    }
+    return list;
+  }, [job.ziplyPrintLayer, job.printOverlay]);
+
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploadingDoc(true);
+    try {
+      const docId = `upload-${Date.now()}`;
+      const storagePath = `jobs/${job.jobId}/print-overlay/${docId}/${sanitizeStorageSegment(file.name)}`;
+      const uploadRes = await uploadToStorage(storagePath, file, { contentType: file.type || "application/pdf" });
+
+      const existingDoc: PrintOverlayDoc = job.printOverlay ?? {
+        schemaVersion: 1,
+        jobId: job.jobId,
+        updatedAt: Date.now(),
+        updatedBy: username,
+        sources: [],
+        pages: [],
+        transforms: {},
+        alignments: {},
+      };
+
+      const newSource: PrintOverlaySource = {
+        documentId: docId,
+        name: file.name,
+        origin: "upload",
+        storagePath: uploadRes.storagePath,
+        downloadUrl: uploadRes.downloadUrl,
+        contentType: file.type || "application/pdf",
+        size: file.size,
+        pageCount: null,
+      };
+
+      const nextSources = [...(existingDoc.sources || [])];
+      const existingIdx = nextSources.findIndex((s) => s.name === file.name);
+      if (existingIdx >= 0) {
+        nextSources[existingIdx] = {
+          ...nextSources[existingIdx],
+          storagePath: uploadRes.storagePath,
+          downloadUrl: uploadRes.downloadUrl,
+        };
+      } else {
+        nextSources.push(newSource);
+      }
+
+      const updatedDoc: PrintOverlayDoc = {
+        ...existingDoc,
+        updatedAt: Date.now(),
+        updatedBy: username,
+        sources: nextSources,
+      };
+
+      await api.putPrintOverlay(job.jobId, updatedDoc);
+      job.printOverlay = updatedDoc;
+      setDocsExpanded(true);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+
+      // Open Print Overlay Studio to align the newly uploaded print
+      window.open(`/print-overlay/jobs/${job.jobId}`, "_blank");
+    } catch (err) {
+      console.error("Failed to upload print attachment:", err);
+      alert(err instanceof Error ? err.message : "Failed to upload file to storage.");
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  // Ziply progress states (Hub set, Hub spliced, Daily production editing)
+  const [hubSet, setHubSet] = useState<boolean>(
+    job.ziplyPrintLayer?.mapObjects?.hub?.status === "complete"
+  );
+  const [hubSpliced, setHubSpliced] = useState<boolean>(
+    Boolean((job.ziplyPrintLayer?.mapObjects?.hub as any)?.spliced)
+  );
+  const [editDailyProd, setEditDailyProd] = useState<boolean>(false);
+  const [editFt, setEditFt] = useState<number>(job.completedPlacingFt ?? 0);
+
+  useEffect(() => {
+    setHubSet(job.ziplyPrintLayer?.mapObjects?.hub?.status === "complete");
+    setHubSpliced(Boolean((job.ziplyPrintLayer?.mapObjects?.hub as any)?.spliced));
+    setEditFt(job.completedPlacingFt ?? 0);
+  }, [job.jobId, job.ziplyPrintLayer, job.completedPlacingFt]);
+
+  const toggleHubSet = async (isSet: boolean) => {
+    setHubSet(isSet);
+    try {
+      await api.updateZiplyObjectStatus(job.jobId, {
+        kind: "hub",
+        ref: "hub",
+        status: isSet ? "complete" : "planned",
+      });
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    } catch (err) {
+      console.error("Failed to update Hub Set status:", err);
+    }
+  };
+
+  const toggleHubSpliced = async (isSpliced: boolean) => {
+    setHubSpliced(isSpliced);
+    try {
+      await api.updateZiplyObjectStatus(job.jobId, {
+        kind: "hub",
+        ref: "hub_splice",
+        status: isSpliced ? "complete" : "planned",
+      });
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    } catch (err) {
+      console.error("Failed to update Hub Spliced status:", err);
+    }
+  };
+
+  const saveDailyFootage = async () => {
+    try {
+      await commit("completedPlacingFt", String(editFt));
+      job.completedPlacingFt = editFt;
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+      setEditDailyProd(false);
+    } catch (err) {
+      console.error("Failed to save daily footage:", err);
+    }
+  };
 
   // Plant stats / Running totals
   const stats = computePlantProgress(job);
@@ -626,7 +770,7 @@ export default function JobCard({
               />
             </div>
 
-            {/* Construction Progress (Bore/Terminal progress bars) */}
+            {/* Construction Progress (Path Complete, Hub Set, Splicing Complete & Daily Production) */}
             {isZiplyJob(job) && (
               <>
                 <div style={{ height: 0, borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #ffffff", margin: "14px 0 12px 0" }} />
@@ -635,25 +779,105 @@ export default function JobCard({
                     Ziply Construction Progress
                   </span>
                   
-                  <div style={{ background: "#ffffff", border: "1px solid #cbd5e1", padding: 10, borderRadius: 8, display: "flex", flexDirection: "column", gap: 8, boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)" }}>
+                  <div style={{ background: "#ffffff", border: "1px solid #cbd5e1", padding: 12, borderRadius: 10, display: "flex", flexDirection: "column", gap: 12, boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)" }}>
+                    {/* 1. Path Complete */}
                     <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4 }}>
-                        <span style={{ color: "var(--text-muted)" }}>Bore Complete:</span>
-                        <span style={{ fontWeight: 800, color: "var(--text)" }}>{stats.completeFt} ft / {stats.totalFt} ft</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, marginBottom: 4 }}>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 800 }}>Path Complete:</span>
+                        <span style={{ fontWeight: 800, color: "#0033A0" }}>
+                          {stats.completeFt.toLocaleString()} ft / {stats.totalFt.toLocaleString()} ft ({stats.totalFt > 0 ? Math.round((stats.completeFt / stats.totalFt) * 100) : 0}%)
+                        </span>
                       </div>
-                      <div style={{ width: "100%", height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
-                        <div style={{ width: `${stats.totalFt > 0 ? (stats.completeFt / stats.totalFt) * 100 : 0}%`, height: "100%", background: "#0033A0" }} />
+                      <div style={{ width: "100%", height: 7, background: "#e2e8f0", borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{ width: `${stats.totalFt > 0 ? Math.min(100, Math.round((stats.completeFt / stats.totalFt) * 100)) : 0}%`, height: "100%", background: "#0033A0", transition: "width 0.3s ease" }} />
                       </div>
                     </div>
                     
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4 }}>
-                        <span style={{ color: "var(--text-muted)" }}>Splice Terminals Complete:</span>
-                        <span style={{ fontWeight: 800, color: "var(--text)" }}>{stats.complete} / {stats.total}</span>
+                    {/* 2. Hub Set Checkbox */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc", border: "1px solid #e2e8f0", padding: "8px 10px", borderRadius: 6 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 800, color: "#0f172a", cursor: "pointer", userSelect: "none" }}>
+                        <input
+                          type="checkbox"
+                          checked={hubSet}
+                          onChange={(e) => toggleHubSet(e.target.checked)}
+                          style={{ width: 15, height: 15, accentColor: "#0033A0", cursor: "pointer" }}
+                        />
+                        <span>Hub Set (FDH Equipment)</span>
+                      </label>
+                      <span style={{ fontSize: 9, fontWeight: 800, color: hubSet ? "#16a34a" : "#64748b", textTransform: "uppercase" }}>
+                        {hubSet ? "SET / PLACED" : "PENDING"}
+                      </span>
+                    </div>
+
+                    {/* 3. Splicing Complete (Terminals + Hub Spliced) */}
+                    <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase" }}>Splicing Complete</div>
+                      
+                      {/* Terminals Spliced */}
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4 }}>
+                          <span style={{ color: "#475569", fontWeight: 700 }}>Terminals:</span>
+                          <span style={{ fontWeight: 800, color: "#7c3aed" }}>
+                            {stats.complete} / {stats.total} Terminals ({stats.total > 0 ? Math.round((stats.complete / stats.total) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <div style={{ width: "100%", height: 6, background: "#e2e8f0", borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ width: `${stats.total > 0 ? Math.min(100, Math.round((stats.complete / stats.total) * 100)) : 0}%`, height: "100%", background: "#7c3aed", transition: "width 0.3s ease" }} />
+                        </div>
                       </div>
-                      <div style={{ width: "100%", height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
-                        <div style={{ width: `${stats.total > 0 ? (stats.complete / stats.total) * 100 : 0}%`, height: "100%", background: "#0033A0" }} />
+
+                      {/* Hub Spliced Checkbox */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc", border: "1px solid #e2e8f0", padding: "8px 10px", borderRadius: 6 }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 800, color: "#0f172a", cursor: "pointer", userSelect: "none" }}>
+                          <input
+                            type="checkbox"
+                            checked={hubSpliced}
+                            onChange={(e) => toggleHubSpliced(e.target.checked)}
+                            style={{ width: 15, height: 15, accentColor: "#7c3aed", cursor: "pointer" }}
+                          />
+                          <span>Hub Spliced</span>
+                        </label>
+                        <span style={{ fontSize: 9, fontWeight: 800, color: hubSpliced ? "#16a34a" : "#64748b", textTransform: "uppercase" }}>
+                          {hubSpliced ? "SPLICED" : "NOT SPLICED"}
+                        </span>
                       </div>
+                    </div>
+
+                    {/* 4. Supervisor Daily Production Editing */}
+                    <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 9, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Supervisor Daily Production:</span>
+                        <button
+                          type="button"
+                          style={{ fontSize: 9, fontWeight: 800, color: "#0033A0", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                          onClick={() => setEditDailyProd((v) => !v)}
+                        >
+                          {editDailyProd ? "Close" : "Update Daily Footage"}
+                        </button>
+                      </div>
+
+                      {editDailyProd && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "#f1f5f9", padding: 8, borderRadius: 6 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "#334155" }}>Completed Path Ft:</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <input
+                                type="number"
+                                value={editFt}
+                                onChange={(e) => setEditFt(Number(e.target.value))}
+                                style={{ width: 90, padding: "3px 6px", fontSize: 10, fontWeight: 700, borderRadius: 4, border: "1px solid #cbd5e1" }}
+                              />
+                              <button
+                                type="button"
+                                style={{ padding: "3px 10px", fontSize: 9, fontWeight: 800, background: "#0033A0", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
+                                onClick={saveDailyFootage}
+                              >
+                                Save Live
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -790,11 +1014,11 @@ export default function JobCard({
                       ))}
                     </div>
 
-                    <div style={{ marginTop: 6 }}>
+                    <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                       <button
                         type="button"
                         style={{
-                          width: "100%",
+                          flex: 1,
                           border: "1px solid #c7cdd5",
                           background: "#ffffff",
                           color: "#475569",
@@ -808,6 +1032,30 @@ export default function JobCard({
                         onClick={() => window.open(`/print-overlay/jobs/${job.jobId}`, "_blank")}
                       >
                         Adjust Aligned Sheets ↗
+                      </button>
+                      <button
+                        type="button"
+                        style={{
+                          border: "1px solid #fca5a5",
+                          background: "#fef2f2",
+                          color: "#dc2626",
+                          boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+                          borderRadius: "6px",
+                          padding: "5px 8px",
+                          fontSize: "9px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                        title="Delete print overlay project for this job"
+                        onClick={async () => {
+                          if (window.confirm(`Delete print overlay for ${job.workOrder || job.jobId}? This will remove all placed print sheets.`)) {
+                            await api.putPrintOverlay(job.jobId, null);
+                            job.printOverlay = undefined;
+                            window.dispatchEvent(new Event("nsc:jobs-reload"));
+                          }
+                        }}
+                      >
+                        Delete Overlay
                       </button>
                     </div>
                   </div>
@@ -889,23 +1137,32 @@ export default function JobCard({
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>File Attachments:</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,.pdf,image/*"
+                style={{ display: "none" }}
+                onChange={handleFileUpload}
+              />
               <button
                 type="button"
+                disabled={uploadingDoc}
+                onClick={() => fileInputRef.current?.click()}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 4,
                   border: "1px solid #0033A0",
-                  background: "rgba(0, 51, 160, 0.08)",
+                  background: uploadingDoc ? "#e2e8f0" : "rgba(0, 51, 160, 0.08)",
                   color: "#0033A0",
                   borderRadius: "4px",
                   padding: "3px 8px",
                   fontSize: "9px",
                   fontWeight: 800,
-                  cursor: "pointer",
+                  cursor: uploadingDoc ? "wait" : "pointer",
                 }}
               >
-                <UploadCloud size={10} /> Upload
+                <UploadCloud size={10} /> {uploadingDoc ? "Uploading…" : "Upload Print"}
               </button>
             </div>
             {attachmentsList.length === 0 ? (
