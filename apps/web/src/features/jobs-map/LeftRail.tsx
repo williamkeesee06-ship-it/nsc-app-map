@@ -438,11 +438,6 @@ const STANDARD_TOOL_DEFS: ToolDef[] = [
     iconSvg: basicSvg(`<rect x="4" y="5" width="24" height="16" rx="2" stroke="STROKE" stroke-width="2" fill="none"/>`),
   },
   {
-    tool: "circle",
-    label: "CIRCLE",
-    iconSvg: basicSvg(`<ellipse cx="16" cy="13" rx="12" ry="9" stroke="STROKE" stroke-width="2" fill="none"/>`),
-  },
-  {
     tool: "polygon",
     label: "POLYGON",
     iconSvg: basicSvg(`<polygon points="16,3 28,18 22,23 10,23 4,18" stroke="STROKE" stroke-width="2" fill="none"/>`),
@@ -452,7 +447,11 @@ const STANDARD_TOOL_DEFS: ToolDef[] = [
     label: "FREEHAND",
     iconSvg: basicSvg(`<path d="M4,22 Q8,8 14,14 Q20,20 28,4" stroke="STROKE" stroke-width="2" fill="none" stroke-linecap="round"/>`),
   },
-  // Measure tool moved to topbar (top-of-app ruler button).
+  {
+    tool: "measure",
+    label: "MEASURE",
+    iconSvg: basicSvg(`<path d="M4,24 L24,4 L28,8 L8,28 Z" stroke="STROKE" stroke-width="2" fill="none"/><line x1="9" y1="19" x2="12" y2="16" stroke="STROKE" stroke-width="1.5"/><line x1="13" y1="15" x2="18" y2="10" stroke="STROKE" stroke-width="1.5"/><line x1="17" y1="11" x2="20" y2="8" stroke="STROKE" stroke-width="1.5"/>`),
+  },
   // Select tool exposed via SELECT_TOOL_DEF above for use in both Telecom and Tools tabs.
 ];
 
@@ -668,6 +667,7 @@ function AnnotateTab({ selectedJob }: { selectedJob: Job | null }) {
   const drawingTools: ToolDef[] = [
     findStandard("line"),
     findStandard("freehand"),
+    findStandard("measure"),
     { tool: "highlighter", label: "HIGHLIGHT", iconSvg: basicSvg(`<path d="M4,22 L18,8 L24,14 L10,28 Z" stroke="STROKE" stroke-width="2" fill="none"/><line x1="16" y1="10" x2="22" y2="16" stroke="STROKE" stroke-width="2"/>`) },
     // Construction-themed eraser: a brick-mason trowel / shovel that "clears" markup.
     { tool: "eraser", label: "ERASER", iconSvg: basicSvg(`<path d="M20,4 L28,12 L14,26 L4,16 Z" stroke="STROKE" stroke-width="2" fill="none" stroke-linejoin="round"/><line x1="10" y1="22" x2="4" y2="28" stroke="STROKE" stroke-width="2.5" stroke-linecap="round"/>`) },
