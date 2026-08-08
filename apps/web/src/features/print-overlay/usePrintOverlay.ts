@@ -101,6 +101,16 @@ export function usePrintOverlay(job: Job) {
     };
   }, [jobId, revokeAllObjectUrls]);
 
+  // Sync sourcesRef when job changes
+  useEffect(() => {
+    sourcesRef.current.clear();
+    if (job.printOverlay?.sources) {
+      for (const s of job.printOverlay.sources) {
+        sourcesRef.current.set(s.documentId, s);
+      }
+    }
+  }, [jobId, job.printOverlay?.sources]);
+
   const trackUrl = useCallback((url: string) => {
     objectUrlsRef.current.add(url);
     return url;
@@ -277,11 +287,55 @@ export function usePrintOverlay(job: Job) {
         if (p.transform) transforms[p.id] = p.transform;
         if (p.alignment) alignments[p.id] = p.alignment;
       }
-      const sources = new Map<string, PrintOverlaySource>();
+
+      const activeDocIds = new Set<string>();
       for (const p of pages) {
-        if (!sources.has(p.documentId)) {
+        activeDocIds.add(p.documentId);
+      }
+
+      const mergedSources = new Map<string, PrintOverlaySource>();
+      const mergedPages: PrintOverlayPage[] = [];
+      const mergedTransforms: Record<string, PrintOverlayTransform> = {};
+      const mergedAlignments: Record<string, GeoAlignment> = {};
+
+      const existingDoc = job.printOverlay;
+      if (existingDoc) {
+        if (existingDoc.sources) {
+          for (const s of existingDoc.sources) {
+            if (!activeDocIds.has(s.documentId)) {
+              mergedSources.set(s.documentId, s);
+            }
+          }
+        }
+        if (existingDoc.pages) {
+          for (const p of existingDoc.pages) {
+            if (!activeDocIds.has(p.documentId)) {
+              mergedPages.push(p);
+            }
+          }
+        }
+        if (existingDoc.transforms) {
+          for (const [key, t] of Object.entries(existingDoc.transforms)) {
+            const pageDocId = key.split(":")[0];
+            if (!activeDocIds.has(pageDocId)) {
+              mergedTransforms[key] = t;
+            }
+          }
+        }
+        if (existingDoc.alignments) {
+          for (const [key, a] of Object.entries(existingDoc.alignments)) {
+            const pageDocId = key.split(":")[0];
+            if (!activeDocIds.has(pageDocId)) {
+              mergedAlignments[key] = a;
+            }
+          }
+        }
+      }
+
+      for (const p of pages) {
+        if (!mergedSources.has(p.documentId)) {
           const known = sourcesRef.current.get(p.documentId);
-          sources.set(
+          mergedSources.set(
             p.documentId,
             known ?? {
               documentId: p.documentId,
@@ -296,18 +350,23 @@ export function usePrintOverlay(job: Job) {
           );
         }
       }
+
+      mergedPages.push(...pages.map(stripVM));
+      Object.assign(mergedTransforms, transforms);
+      Object.assign(mergedAlignments, alignments);
+
       return {
         schemaVersion: 1,
         jobId,
         updatedAt: Date.now(),
         updatedBy: username,
-        sources: [...sources.values()],
-        pages: pages.map(stripVM),
-        transforms,
-        alignments,
+        sources: [...mergedSources.values()],
+        pages: mergedPages,
+        transforms: mergedTransforms,
+        alignments: mergedAlignments,
       };
     },
-    [jobId, pages]
+    [jobId, pages, job.printOverlay]
   );
 
   const save = useCallback(

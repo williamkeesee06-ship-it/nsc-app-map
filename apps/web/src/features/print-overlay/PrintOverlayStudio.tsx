@@ -147,7 +147,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       if (!file) return;
       
       const existingSources = job.printOverlay?.sources ?? [];
-      const match = existingSources.find((s) => s.name === file.name || s.documentId.startsWith("upload-"));
+      const match = existingSources.find((s) => s.name === file.name);
       const documentId = match ? match.documentId : `upload-${Date.now()}`;
 
       const src: PrintOverlaySource = {
