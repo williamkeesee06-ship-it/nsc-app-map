@@ -1,14 +1,26 @@
-// Print Overlay Studio (Stages 1–5) — the full georeferencing workspace.
-//
-// Rendered INSIDE the map context (uses useMap()) so the translucent page copy
-// is placed on the real Google Map and the map stays navigable underneath.
-// Chrome (top bar, page carousel, control panel, dialogs) docks at the screen
-// edges; the center is click-through to the map. Nothing here mutates existing
-// map/jobs/Ziply state — the studio only reads the job and writes its own
-// print-overlay doc via the API.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
-import { Layers, X, Crop, Move, MapPin, RotateCw, Undo2, EyeOff, RotateCcw } from "lucide-react";
+import {
+  Layers,
+  X,
+  Crop,
+  Move,
+  MapPin,
+  RotateCw,
+  Undo2,
+  EyeOff,
+  RotateCcw,
+  ChevronUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  FileText,
+  Check,
+  Plus,
+  Play,
+  Scale
+} from "lucide-react";
 import {
   alignmentResidualFt,
   solveGeoSolution,
@@ -25,6 +37,12 @@ import { usePrintOverlay, listJobPdfSources, type PageVM } from "./usePrintOverl
 import { solutionFromTransform } from "./geoPlacement.js";
 import PageOverlay, { type AnchorDot, type OverlayMode } from "./PageOverlay.js";
 import CropEditor from "./CropEditor.js";
+import { SapphireGlassCard, TitaniumHexBolt } from "../../components/HorologyMetalBezel.js";
+import { extractPrintEntities, PLACEABLE_KINDS, type StoredPrintEntity } from "./printParser.js";
+import { surveyPlacements, projectPageToLatLng } from "./printGeoreference.js";
+import { comparePrintRevisions } from "./printRevisionDiff.js";
+import { useDrawing } from "../drawing/drawingContext.js";
+import type { MapImageOverlay } from "./types.js";
 import "./printOverlay.css";
 
 interface Props {
@@ -43,9 +61,6 @@ const DEFAULT_TRANSFORM = (center: LatLng) => ({
   opacity: 0.5,
 });
 
-// Two-point alignments within this residual read as "Good"; above it the UI
-// nudges the user to add/check a third control point. Deliberately generous —
-// the primary UI shows a plain Good / Check indicator, not feet.
 const GOOD_RESIDUAL_FT = 10;
 
 function draftToAlignment(d: AnchorDraft): GeoAlignment | null {
@@ -59,6 +74,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
   const map = useMap();
   const { username } = useAuth();
   const studio = usePrintOverlay(job);
+  const { addObject } = useDrawing();
   const {
     phase,
     pages,
@@ -76,25 +92,32 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     setAlignment,
     setExcluded,
     save,
-    saveDraft,
+    parsedEntities,
+    setParsedEntities,
   } = studio;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const revisionInputRef = useRef<HTMLInputElement | null>(null);
   const [showChooser, setShowChooser] = useState(true);
   const [cropPageId, setCropPageId] = useState<string | null>(null);
   const [overlayMode, setOverlayMode] = useState<OverlayMode>("move");
   const [pendingAnchor, setPendingAnchor] = useState<PendingAnchor>(null);
   const [anchorDraft, setAnchorDraft] = useState<Record<string, AnchorDraft>>({});
   const [savedNote, setSavedNote] = useState<string | null>(null);
-  // Pages whose crop suggestion the user has explicitly accepted or skipped this
-  // session. Opening a not-yet-confirmed page shows the inline crop step first
-  // (decision 5); confirming it flows straight into placement.
   const [cropConfirmed, setCropConfirmed] = useState<Set<string>>(new Set());
 
+  // Left Rail checklist states
+  const [leftTab, setLeftTab] = useState<"PARSER" | "REVISION_DIFF">("PARSER");
+  const [armedEntity, setArmedEntity] = useState<StoredPrintEntity | null>(null);
+  const [diffResult, setDiffResult] = useState<any | null>(null);
+  const [printDataBusy, setPrintDataBusy] = useState(false);
+  const [revisionName, setRevisionName] = useState<string | null>(null);
+
   const sources = useMemo(() => listJobPdfSources(job), [job]);
+  const jobId = job.jobId;
   const jobCenter: LatLng = job.geocode
     ? { lat: job.geocode.lat, lng: job.geocode.lng }
-    : { lat: 0, lng: 0 };
+    : { lat: 47.6062, lng: -122.3321 };
 
   const didInitialFlyRef = useRef(false);
   useEffect(() => {
@@ -114,7 +137,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     if (phase === "ready" || phase === "processing") setShowChooser(false);
   }, [phase]);
 
-  // ── Stage 1 — choose a source ────────────────────────────────────────────
+  // Choose a source
   const chooseExisting = useCallback(
     (s: PrintOverlaySource) => {
       setShowChooser(false);
@@ -154,7 +177,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     [beginSource]
   );
 
-  // ── Stage 4 — select a page and place it (seed transform + anchor draft) ──
+  // Select a page and place it on current viewport center (spawns wherever operator is working)
   const selectAndPlace = useCallback(
     (page: PageVM) => {
       selectPage(page.id);
@@ -176,8 +199,6 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     [selectPage, setTransform, map, jobCenter]
   );
 
-  // Decision 5 — opening a page shows the inline crop step first (once), then
-  // flows into placement. Confirmed pages jump straight to the map.
   const openPage = useCallback(
     (p: PageVM) => {
       if (p.excluded) return;
@@ -191,7 +212,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     [cropConfirmed, selectAndPlace, selectPage]
   );
 
-  // ── Stage 5 — a map click completes the pending anchor ───────────────────
+  // A map click completes the pending anchor
   useEffect(() => {
     if (!map || !activePageId || overlayMode !== "pickPage" || !pendingAnchor) return;
     const listener = map.addListener("click", (e: google.maps.MapMouseEvent) => {
@@ -208,7 +229,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     return () => listener.remove();
   }, [map, activePageId, overlayMode, pendingAnchor]);
 
-  // Persist a valid draft alignment onto the page record (draft is UI truth).
+  // Persist a valid draft alignment onto the page record
   useEffect(() => {
     if (!activePage) return;
     const al = draftToAlignment(curDraft);
@@ -217,30 +238,11 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     }
   }, [curDraft, activePage, setAlignment]);
 
-  // ── Decision 8 — debounced draft auto-save ───────────────────────────────
-  // Any change to crop / position / rotation / opacity / anchors flows into the
-  // `pages` state; persist quietly a short beat later so drafts survive without
-  // an explicit Save. Surfaced subtly via `draftStatus`, never a blocking spinner.
-  const draftTimer = useRef<number | null>(null);
-  useEffect(() => {
-    if (phase !== "ready" || pages.length === 0) return;
-    if (draftTimer.current) window.clearTimeout(draftTimer.current);
-    draftTimer.current = window.setTimeout(() => {
-      void saveDraft(username);
-    }, 1200);
-    return () => {
-      if (draftTimer.current) window.clearTimeout(draftTimer.current);
-    };
-  }, [pages, phase, saveDraft, username]);
-
   const beginAnchor = useCallback((slot: AnchorSlot) => {
     setOverlayMode("pickPage");
     setPendingAnchor({ slot, page: { x: 0, y: 0 } });
   }, []);
 
-  // Decision 9 — pick the page point from the split-view preview: convert a
-  // click in the displayed preview to page-pixel space (independent of preview
-  // display size), then await the matching map click to complete the anchor.
   const onPreviewPick = useCallback(
     (e: React.MouseEvent<HTMLImageElement>) => {
       if (!activePage || overlayMode !== "pickPage") return;
@@ -260,8 +262,6 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
   const alignment = useMemo(() => draftToAlignment(curDraft), [curDraft]);
   const isGeoreferenced = !!alignment;
 
-  // Solution driving overlay placement: georeferenced once A+B exist, else the
-  // free Stage 4 transform.
   const solution: GeoSolution | null = useMemo(() => {
     if (!activePage) return null;
     if (alignment) {
@@ -275,12 +275,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
   }, [activePage, alignment]);
 
   const residual = useMemo(() => (alignment ? alignmentResidualFt(alignment) : null), [alignment]);
-  // Decision 11 — plain Good / Check indicator. Without a 3rd control point the
-  // residual is unmeasurable, so two-point alignments read as Good by default;
-  // the "check accuracy" affordance lets the user add point C to verify.
   const qualityGood = residual == null ? true : residual < GOOD_RESIDUAL_FT;
-  // Decision 10 — third point is optional and only surfaces once the user opts
-  // to check accuracy (or has already set it).
   const anchorSlots: AnchorSlot[] = ["A", "B"];
   if (curDraft.C || pendingAnchor?.slot === "C") anchorSlots.push("C");
 
@@ -324,9 +319,10 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     clearAlignment();
   }, [activePage, map, jobCenter, setTransform, clearAlignment]);
 
+  // Lock & Save to Firestore (only explicitly triggered by operator)
   const doSave = useCallback(async () => {
     const ok = await save(username);
-    setSavedNote(ok ? "Draft saved to job." : null);
+    setSavedNote(ok ? "Draft saved to Firebase." : null);
     if (ok) setTimeout(() => setSavedNote(null), 2500);
   }, [save, username]);
 
@@ -337,6 +333,204 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, cropPageId]);
+
+  // ── Place armed entity on map click ──────────────────────────────────────
+  useEffect(() => {
+    if (!map || !armedEntity) return;
+
+    const mapDiv = map.getDiv();
+    const prevCursor = mapDiv.style.cursor;
+    mapDiv.style.cursor = "crosshair";
+
+    const listener = map.addListener("click", (e: google.maps.MapMouseEvent) => {
+      const ll = e.latLng;
+      if (!ll) return;
+
+      const toolMap: Record<string, string> = {
+        terminal: "ziply_terminal",
+        pole: "ziply_pole",
+        handhole: "ziply_handhole",
+        manhole: "mh_new",
+        pedestal: "ped_new",
+        riser: "ziply_riser",
+        splitter: "ziply_splitter",
+        hub: "ziply_hub"
+      };
+
+      const tool = toolMap[armedEntity.kind] || "ziply_terminal";
+      const objId = `obj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      addObject({
+        id: objId,
+        tool: tool as any,
+        position: { lat: ll.lat(), lng: ll.lng() },
+        style: {
+          strokeColor: "#0284c7",
+          strokeWidth: 2,
+          strokeStyle: "solid",
+          fill: { kind: "none" },
+          opacity: 0.8,
+          userLabel: armedEntity.mapTag || armedEntity.label,
+          description: armedEntity.summary,
+        } as any
+      });
+
+      setParsedEntities((prev) =>
+        prev.map((x) => (x.id === armedEntity.id ? { ...x, placedMarkerId: objId } : x))
+      );
+      setArmedEntity(null);
+    });
+
+    return () => {
+      listener.remove();
+      mapDiv.style.cursor = prevCursor;
+    };
+  }, [map, armedEntity, addObject, setParsedEntities]);
+
+  // ── Place all unplaced structures from the print ─────────────────────────
+  const onPlaceAllFromPrint = useCallback(() => {
+    if (!activePage) return;
+
+    const overlays: MapImageOverlay[] = pages.map((p) => ({
+      id: p.id,
+      mapProjectId: jobId,
+      jobId,
+      title: p.label,
+      imageUri: p.previewUrl || p.objectUrl || "",
+      southWestLat: p.transform?.southWestLat ?? 0,
+      southWestLng: p.transform?.southWestLng ?? 0,
+      northEastLat: p.transform?.northEastLat ?? 0,
+      northEastLng: p.transform?.northEastLng ?? 0,
+      opacity: p.transform?.opacity ?? 0.5,
+      rotationDegrees: p.transform?.rotationDegrees ?? p.transform?.rotationDeg ?? 0,
+      isVisible: !p.excluded,
+      isAnchored: !!p.alignment,
+      pageNumber: p.pageNumber,
+    }));
+
+    const pageEntities = parsedEntities.filter(
+      (e) => e.page === activePage.pageNumber && !e.placedMarkerId
+    );
+
+    const survey = surveyPlacements(pageEntities, overlays, PLACEABLE_KINDS);
+
+    if (survey.plans.length === 0) {
+      alert("No placeable structures found. Ensure the page is georeferenced first.");
+      return;
+    }
+
+    const toolMap: Record<string, string> = {
+      terminal: "ziply_terminal",
+      pole: "ziply_pole",
+      handhole: "ziply_handhole",
+      manhole: "mh_new",
+      pedestal: "ped_new",
+      riser: "ziply_riser",
+      splitter: "ziply_splitter",
+      hub: "ziply_hub"
+    };
+
+    let placedCount = 0;
+    const updatedEntities = [...parsedEntities];
+
+    survey.plans.forEach((plan) => {
+      const tool = toolMap[plan.entity.kind] || "ziply_terminal";
+      const objId = `obj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      addObject({
+        id: objId,
+        tool: tool as any,
+        position: plan.position,
+        style: {
+          strokeColor: "#0284c7",
+          strokeWidth: 2,
+          strokeStyle: "solid",
+          fill: { kind: "none" },
+          opacity: 0.8,
+          userLabel: plan.entity.mapTag || plan.entity.label,
+          description: plan.entity.summary,
+        } as any
+      });
+
+      const idx = updatedEntities.findIndex((x) => x.id === plan.entity.id);
+      if (idx !== -1) {
+        updatedEntities[idx] = { ...updatedEntities[idx], placedMarkerId: objId };
+      }
+      placedCount++;
+    });
+
+    setParsedEntities(updatedEntities);
+    alert(`Placed ${placedCount} structures onto the map successfully.`);
+  }, [activePage, pages, parsedEntities, jobId, addObject, setParsedEntities]);
+
+  // ── Precision Nudging Controls ───────────────────────────────────────────
+  const nudgeCenter = (dir: "N" | "S" | "E" | "W") => {
+    if (!activePage) return;
+    const latOffset = 2.747e-7; // ~0.1 feet
+    const currentCenter = activePage.transform?.center ?? jobCenter;
+    const lngOffset = 2.747e-7 / Math.cos((currentCenter.lat * Math.PI) / 180);
+
+    let { lat, lng } = currentCenter;
+    if (dir === "N") lat += latOffset;
+    if (dir === "S") lat -= latOffset;
+    if (dir === "E") lng += lngOffset;
+    if (dir === "W") lng -= lngOffset;
+
+    setTransform(activePage.id, { center: { lat, lng } });
+
+    // Also nudge Leaflet corners if present
+    const swLat = activePage.transform?.southWestLat;
+    const swLng = activePage.transform?.southWestLng;
+    const neLat = activePage.transform?.northEastLat;
+    const neLng = activePage.transform?.northEastLng;
+    if (swLat !== undefined && swLng !== undefined && neLat !== undefined && neLng !== undefined) {
+      let dLat = 0, dLng = 0;
+      if (dir === "N") dLat = latOffset;
+      if (dir === "S") dLat = -latOffset;
+      if (dir === "E") dLng = lngOffset;
+      if (dir === "W") dLng = -lngOffset;
+
+      setTransform(activePage.id, {
+        southWestLat: swLat + dLat,
+        southWestLng: swLng + dLng,
+        northEastLat: neLat + dLat,
+        northEastLng: neLng + dLng,
+      });
+    }
+  };
+
+  const nudgeRotate = (delta: number) => {
+    if (!activePage) return;
+    const deg = (activePage.transform?.rotationDeg ?? 0) + delta;
+    setTransform(activePage.id, { rotationDeg: deg });
+
+    const currentRotDegrees = activePage.transform?.rotationDegrees ?? 0;
+    setTransform(activePage.id, { rotationDegrees: currentRotDegrees + delta });
+  };
+
+  const nudgeScale = (factor: number) => {
+    if (!activePage) return;
+    const currentScale = activePage.transform?.scale ?? 1;
+    const nextScale = currentScale * factor;
+    setTransform(activePage.id, { scale: Math.max(0.05, Math.min(8, nextScale)) });
+
+    const swLat = activePage.transform?.southWestLat;
+    const swLng = activePage.transform?.southWestLng;
+    const neLat = activePage.transform?.northEastLat;
+    const neLng = activePage.transform?.northEastLng;
+    if (swLat !== undefined && swLng !== undefined && neLat !== undefined && neLng !== undefined) {
+      const cLat = (swLat + neLat) / 2;
+      const cLng = (swLng + neLng) / 2;
+      const dLat = (neLat - swLat) * factor;
+      const dLng = (neLng - swLng) * factor;
+      setTransform(activePage.id, {
+        southWestLat: cLat - dLat / 2,
+        southWestLng: cLng - dLng / 2,
+        northEastLat: cLat + dLat / 2,
+        northEastLng: cLng + dLng / 2,
+      });
+    }
+  };
 
   const overlayImg = activePage?.previewUrl || activePage?.objectUrl || null;
   const cropPage = cropPageId ? pages.find((p) => p.id === cropPageId) ?? null : null;
@@ -377,24 +571,13 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
               Change source
             </button>
           )}
-          {!showChooser && pages.length > 0 && (
-            <span className={`po-draftstatus po-draftstatus--${draftStatus}`}>
-              {draftStatus === "saving"
-                ? "Saving draft…"
-                : draftStatus === "saved"
-                  ? "Draft saved"
-                  : draftStatus === "error"
-                    ? "Auto-save failed"
-                    : ""}
-            </span>
-          )}
           {savedNote && <span className="po-quality">{savedNote}</span>}
           <button
             className="po-btn po-btn--primary"
             onClick={doSave}
             disabled={saving || pages.length === 0}
           >
-            {saving ? "Saving…" : "Save draft"}
+            {saving ? "Saving…" : "Lock / Save"}
           </button>
           <button className="po-btn po-btn--ghost" onClick={onClose} aria-label="Close studio">
             <X size={18} />
@@ -431,6 +614,11 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             onPagePoint={() => {}}
             onScale={() => {}}
             onRotate={() => {}}
+            southWestLat={p.transform?.southWestLat}
+            southWestLng={p.transform?.southWestLng}
+            northEastLat={p.transform?.northEastLat}
+            northEastLng={p.transform?.northEastLng}
+            rotationDegrees={p.transform?.rotationDegrees}
           />
         );
       })}
@@ -454,10 +642,15 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
           onPagePoint={onPagePoint}
           onScale={(s) => setTransform(activePage.id, { scale: s })}
           onRotate={(d) => setTransform(activePage.id, { rotationDeg: d })}
+          southWestLat={activePage.transform?.southWestLat}
+          southWestLng={activePage.transform?.southWestLng}
+          northEastLat={activePage.transform?.northEastLat}
+          northEastLng={activePage.transform?.northEastLng}
+          rotationDegrees={activePage.transform?.rotationDegrees}
         />
       )}
 
-      {/* ── Split-view anchor preview (Stage 5, decision 9) ─────────────── */}
+      {/* ── Split-view anchor preview ──────────────────────────────────── */}
       {activePage && overlayImg && overlayMode === "pickPage" && (
         <div className="po-anchorview" role="region" aria-label="Print preview for anchoring">
           <div className="po-anchorview__head">
@@ -469,7 +662,6 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
               alt={`${activePage.label} preview`}
               draggable={false}
               onClick={onPreviewPick}
-              style={{ clipPath: undefined }}
             />
             {anchorDots
               .filter((d) => d.page.x !== 0 || d.page.y !== 0)
@@ -487,143 +679,368 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
                 </div>
               ))}
           </div>
-          <div className="po-anchorview__hint">
-            Then click the matching real-world spot on the map. The two panels stay in sync.
-          </div>
         </div>
       )}
 
-      {/* ── Control panel (Stage 4/5) ───────────────────────────────────── */}
+      {/* ── Left Rail checklist sidecar panel ─────────────────────────── */}
+      {!showChooser && (
+        <div className="po-leftrail">
+          <SapphireGlassCard headerTitle="INGESTION PARSER">
+            <div className="hud-tab-bar">
+              <button
+                className={`hud-tab ${leftTab === "PARSER" ? "hud-tab--active" : ""}`}
+                onClick={() => setLeftTab("PARSER")}
+              >
+                Parsed list
+              </button>
+              <button
+                className={`hud-tab ${leftTab === "REVISION_DIFF" ? "hud-tab--active" : ""}`}
+                onClick={() => setLeftTab("REVISION_DIFF")}
+              >
+                Compare
+              </button>
+            </div>
+
+            {leftTab === "PARSER" && (
+              <div className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto min-h-[200px]">
+                {parsedEntities.length === 0 ? (
+                  <div className="text-center py-6 px-4 space-y-4">
+                    <FileText className="w-8 h-8 text-slate-500 mx-auto" />
+                    <p className="text-xs text-slate-400">No print data extracted yet.</p>
+                    <label className="po-btn po-btn--primary cursor-pointer w-full text-center">
+                      {printDataBusy ? "Parsing PDF..." : "Read PDF Vector Data"}
+                      <input
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        className="hidden"
+                        disabled={printDataBusy}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!file) return;
+                          setPrintDataBusy(true);
+                          try {
+                            const parsed = await extractPrintEntities(file);
+                            if (parsed.length === 0) {
+                              alert("No build data found. Vector text layers are required.");
+                            } else {
+                              const jobParsed = parsed.map((item) => ({
+                                ...item,
+                                jobId,
+                                sourceFile: file.name,
+                              }));
+                              setParsedEntities(jobParsed);
+                            }
+                          } catch (err) {
+                            console.error("Print parser error", err);
+                            alert("Could not extract entities from PDF.");
+                          } finally {
+                            setPrintDataBusy(false);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                      <span className="text-[10px] uppercase font-bold text-slate-400">
+                        Total extracted structures
+                      </span>
+                      <span className="text-xs font-mono font-bold text-cyan-400">
+                        {parsedEntities.filter((e) => e.placedMarkerId).length} / {parsedEntities.length}
+                      </span>
+                    </div>
+
+                    {activePage && (
+                      <button
+                        onClick={onPlaceAllFromPrint}
+                        className="po-btn po-btn--primary w-full text-xs font-black uppercase flex items-center justify-center gap-1.5"
+                      >
+                        <Sparkles size={13} /> Place page structures
+                      </button>
+                    )}
+
+                    <div className="parser-list space-y-2">
+                      {parsedEntities.map((entity) => {
+                        const isPlaced = !!entity.placedMarkerId;
+                        const isArmed = armedEntity?.id === entity.id;
+                        return (
+                          <div
+                            key={entity.id}
+                            className={`parser-item ${isPlaced ? "parser-item--placed" : ""} ${
+                              isArmed ? "parser-item--armed" : ""
+                            }`}
+                            onClick={() => {
+                              if (isPlaced) return;
+                              setArmedEntity(isArmed ? null : entity);
+                            }}
+                          >
+                            <span className={`parser-tag parser-tag--${entity.kind}`}>
+                              {entity.kind.slice(0, 4)}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-slate-200 truncate leading-none">
+                                {entity.label}
+                              </p>
+                              <p className="text-[10px] text-slate-400 truncate mt-1">
+                                {entity.summary}
+                              </p>
+                            </div>
+                            {isPlaced ? (
+                              <Check size={14} className="text-emerald-400 shrink-0" />
+                            ) : (
+                              <Plus size={14} className="text-cyan-400 shrink-0" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {leftTab === "REVISION_DIFF" && (
+              <div className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto min-h-[200px]">
+                <div className="text-center py-6 px-4 space-y-4">
+                  <Play className="w-8 h-8 text-slate-500 mx-auto" />
+                  <p className="text-xs text-slate-400">Compare against another revision PDF.</p>
+                  <label className="po-btn po-btn--ghost cursor-pointer w-full text-center border border-slate-700">
+                    Upload new revision PDF
+                    <input
+                      ref={revisionInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        setRevisionName(file.name);
+                        try {
+                          const parsed = await extractPrintEntities(file);
+                          const diff = comparePrintRevisions(parsedEntities, parsed);
+                          setDiffResult(diff);
+                        } catch (err) {
+                          alert("Failed comparing print revisions.");
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {diffResult && (
+                  <div className="space-y-2 mt-2 border-t border-slate-700/60 pt-3">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">
+                      Changes detected in {revisionName}
+                    </p>
+                    <div className="space-y-1.5 max-h-[30vh] overflow-y-auto">
+                      {diffResult.changes.map((ch: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="p-2 rounded bg-slate-950/80 border-l-2 border-amber-500 text-[10px] text-slate-300"
+                        >
+                          <span className="font-bold uppercase mr-1">{ch.kind}:</span>
+                          {ch.summary}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </SapphireGlassCard>
+        </div>
+      )}
+
+      {/* ── Right-side locked HUD calibration panel ───────────────────── */}
       {activePage && !showChooser && (
-        <div className="po-panel" role="region" aria-label="Overlay controls">
-          <h3 className="po-panel__section-title">
-            <Move size={14} /> Transform · {activePage.label}
-          </h3>
+        <div className="po-panel--right">
+          <SapphireGlassCard headerTitle="ALIGNMENT & NUDGE">
+            <h3 className="po-panel__section-title mb-2">
+              <Move size={14} className="inline mr-1" /> View settings · p{activePage.pageNumber}
+            </h3>
 
-          <div className="po-field">
-            <label htmlFor="po-scale">
-              Scale <b>{(activePage.transform?.scale ?? 1).toFixed(2)}×</b>
-            </label>
-            <input
-              id="po-scale"
-              type="range"
-              min={0.1}
-              max={4}
-              step={0.05}
-              value={activePage.transform?.scale ?? 1}
-              disabled={isGeoreferenced}
-              onChange={(e) => setTransform(activePage.id, { scale: Number(e.target.value) })}
-            />
-          </div>
-
-          <div className="po-field">
-            <label htmlFor="po-rot">
-              Rotation <b>{Math.round(activePage.transform?.rotationDeg ?? 0)}°</b>
-            </label>
-            <div className="po-field__row">
+            <div className="po-field mb-3">
+              <label htmlFor="po-op-hud">
+                Opacity <b>{Math.round((activePage.transform?.opacity ?? 0.5) * 100)}%</b>
+              </label>
               <input
-                id="po-rot"
+                id="po-op-hud"
                 type="range"
-                min={-180}
-                max={180}
-                step={1}
-                value={activePage.transform?.rotationDeg ?? 0}
-                disabled={isGeoreferenced}
-                onChange={(e) => setTransform(activePage.id, { rotationDeg: Number(e.target.value) })}
-              />
-              <input
-                className="po-field__num"
-                type="number"
-                value={Math.round(activePage.transform?.rotationDeg ?? 0)}
-                disabled={isGeoreferenced}
-                onChange={(e) => setTransform(activePage.id, { rotationDeg: Number(e.target.value) })}
+                min={0.1}
+                max={1}
+                step={0.05}
+                value={activePage.transform?.opacity ?? 0.5}
+                onChange={(e) => setTransform(activePage.id, { opacity: Number(e.target.value) })}
               />
             </div>
-          </div>
 
-          <div className="po-field">
-            <label htmlFor="po-op">
-              Opacity <b>{Math.round((activePage.transform?.opacity ?? 0.5) * 100)}%</b>
-            </label>
-            <input
-              id="po-op"
-              type="range"
-              min={0.1}
-              max={1}
-              step={0.05}
-              value={activePage.transform?.opacity ?? 0.5}
-              onChange={(e) => setTransform(activePage.id, { opacity: Number(e.target.value) })}
-            />
-          </div>
+            <div className="po-field__row mb-3">
+              <button className="po-btn" onClick={() => setCropPageId(activePage.id)} style={{ flex: 1 }}>
+                <Crop size={14} /> Crop margins
+              </button>
+              <button className="po-btn" onClick={resetPage} style={{ flex: 1 }}>
+                <RotateCw size={14} /> Reset all
+              </button>
+            </div>
 
-          <div className="po-field__row">
-            <button className="po-btn" onClick={() => setCropPageId(activePage.id)} style={{ flex: 1 }}>
-              <Crop size={14} /> Crop
-            </button>
-            <button className="po-btn" onClick={resetPage} style={{ flex: 1 }}>
-              <RotateCw size={14} /> Reset
-            </button>
-          </div>
+            <div className="po-divider my-3" />
 
-          <div className="po-divider" />
+            <h3 className="po-panel__section-title mb-3">
+              <Scale size={14} className="inline mr-1" /> Precision Nudge HUD
+            </h3>
 
-          <h3 className="po-panel__section-title">
-            <MapPin size={14} /> Georeference
-          </h3>
-          <div className="po-anchor-list">
-            {anchorSlots.map((slot) => {
-              const done = !!curDraft[slot];
-              const active = pendingAnchor?.slot === slot;
-              return (
+            {/* Translation D-Pad */}
+            <div className="hud-nudge-grid">
+              <div />
+              <button
+                className="hud-nudge-btn"
+                title="Nudge North 0.1ft"
+                onClick={() => nudgeCenter("N")}
+              >
+                <ChevronUp size={18} />
+              </button>
+              <div />
+
+              <button
+                className="hud-nudge-btn"
+                title="Nudge West 0.1ft"
+                onClick={() => nudgeCenter("W")}
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="flex items-center justify-center text-[9px] uppercase tracking-tighter text-slate-500 font-bold">
+                Nudge
+              </div>
+              <button
+                className="hud-nudge-btn"
+                title="Nudge East 0.1ft"
+                onClick={() => nudgeCenter("E")}
+              >
+                <ChevronRight size={18} />
+              </button>
+
+              <div />
+              <button
+                className="hud-nudge-btn"
+                title="Nudge South 0.1ft"
+                onClick={() => nudgeCenter("S")}
+              >
+                <ChevronDown size={18} />
+              </button>
+              <div />
+            </div>
+
+            {/* Fine Rotate Row */}
+            <div className="hud-control-group">
+              <button
+                className="po-btn text-[10px] px-2"
+                onClick={() => nudgeRotate(-1.0)}
+                title="Rotate CCW 1 degree"
+              >
+                <RotateCcw size={12} className="inline" /> -1°
+              </button>
+              <button
+                className="po-btn text-[10px] px-2"
+                onClick={() => nudgeRotate(-0.1)}
+                title="Rotate CCW 0.1 degree"
+              >
+                -0.1°
+              </button>
+              <span className="text-[10px] text-slate-400 font-mono">Rotate</span>
+              <button
+                className="po-btn text-[10px] px-2"
+                onClick={() => nudgeRotate(0.1)}
+                title="Rotate CW 0.1 degree"
+              >
+                +0.1°
+              </button>
+              <button
+                className="po-btn text-[10px] px-2"
+                onClick={() => nudgeRotate(1.0)}
+                title="Rotate CW 1 degree"
+              >
+                <RotateCw size={12} className="inline" /> +1°
+              </button>
+            </div>
+
+            {/* Fine Scale Row */}
+            <div className="hud-control-group">
+              <button
+                className="po-btn text-[10px] px-3 w-1/2"
+                onClick={() => nudgeScale(0.999)}
+                title="Scale down 0.1%"
+              >
+                Scale down -0.1%
+              </button>
+              <button
+                className="po-btn text-[10px] px-3 w-1/2"
+                onClick={() => nudgeScale(1.001)}
+                title="Scale up 0.1%"
+              >
+                Scale up +0.1%
+              </button>
+            </div>
+
+            <div className="po-divider my-3" />
+
+            <h3 className="po-panel__section-title mb-2">
+              <MapPin size={14} className="inline mr-1" /> A/B Anchor Calibration
+            </h3>
+            <div className="po-anchor-list mb-3">
+              {anchorSlots.map((slot) => {
+                const done = !!curDraft[slot];
+                const active = pendingAnchor?.slot === slot;
+                return (
+                  <div
+                    key={slot}
+                    className={`po-anchor ${done ? "po-anchor--done" : ""} ${active ? "po-anchor--active" : ""}`}
+                  >
+                    <span className="po-anchor__label text-slate-300">
+                      Point {slot}
+                      {slot === "C" ? " · check" : ""}
+                    </span>
+                    <button className="po-btn po-btn--ghost text-[10px] py-1" onClick={() => beginAnchor(slot)}>
+                      {done ? "Redo" : "Set"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {isGeoreferenced ? (
+              <>
                 <div
-                  key={slot}
-                  className={`po-anchor ${done ? "po-anchor--done" : ""} ${active ? "po-anchor--active" : ""}`}
+                  className={`po-quality ${qualityGood ? "po-quality--good" : "po-quality--warn"}`}
+                  title={residual != null ? `Residual ≈ ${residual.toFixed(1)} ft` : "Two-point alignment"}
                 >
-                  <span className="po-anchor__label">
-                    Point {slot}
-                    {slot === "C" ? " · check" : ""}
-                  </span>
-                  <span className="po-anchor__state">
-                    {active ? "pick on print, then map…" : done ? "set ✓" : "not set"}
-                  </span>
-                  <button className="po-btn po-btn--ghost" onClick={() => beginAnchor(slot)}>
-                    {done ? "Redo" : "Set"}
+                  {qualityGood ? "Calibration: Good" : "Accuracy warning — adjust anchors"}
+                </div>
+                <div className="po-field__row mt-2">
+                  {!curDraft.C && (
+                    <button className="po-btn" style={{ flex: 1 }} onClick={() => beginAnchor("C")}>
+                      <MapPin size={14} /> Check accuracy
+                    </button>
+                  )}
+                  <button className="po-btn" style={{ flex: 1 }} onClick={clearAlignment}>
+                    <Undo2 size={14} /> Clear Anchors
                   </button>
                 </div>
-              );
-            })}
-          </div>
-
-          {isGeoreferenced ? (
-            <>
-              <div
-                className={`po-quality ${qualityGood ? "po-quality--good" : "po-quality--warn"}`}
-                title={residual != null ? `Residual ≈ ${residual.toFixed(1)} ft` : "Two-point alignment"}
-              >
-                {qualityGood ? "Alignment: Good" : "Check Alignment — adjust anchors"}
+              </>
+            ) : (
+              <div className="po-quality text-[11px] leading-relaxed">
+                A/B Anchoring is required to compute matrix projection. Set A and B on the print, then map.
               </div>
-              <div className="po-field__row">
-                {!curDraft.C && (
-                  <button className="po-btn" style={{ flex: 1 }} onClick={() => beginAnchor("C")}>
-                    <MapPin size={14} /> Check accuracy
-                  </button>
-                )}
-                <button className="po-btn" style={{ flex: 1 }} onClick={clearAlignment}>
-                  <Undo2 size={14} /> Undo alignment
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="po-quality">
-              Set points A and B — click the print preview, then the matching spot on the map.
-            </div>
-          )}
+            )}
 
-          {error && <div className="po-error">{error}</div>}
+            {error && <div className="po-error mt-2">{error}</div>}
+          </SapphireGlassCard>
         </div>
       )}
 
-      {/* ── Bottom carousel (Stage 2) ───────────────────────────────────── */}
+      {/* ── Bottom carousel ─────────────────────────────────────────────── */}
       {pages.length > 0 && !showChooser && (
         <div className="po-carousel" role="list" aria-label="Print pages">
           {pages.map((p) => {
@@ -672,7 +1089,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
           <div className="po-dialog">
             <div>
               <h2 className="po-dialog__title">Print Overlay · choose a source</h2>
-              <p className="po-dialog__subtitle">
+              <p className="po-dialog__subtitle mt-1">
                 Pick a PDF already attached to this job, or upload a new engineering print. The
                 original file stays intact — cropping and alignment are saved as reversible metadata.
               </p>
@@ -683,7 +1100,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
                 {sources.map((s) => (
                   <button
                     key={s.downloadUrl ?? s.documentId}
-                    className="po-source"
+                    className="po-source font-sans"
                     onClick={() => chooseExisting(s)}
                   >
                     <Layers size={18} className="po-title__accent" />
@@ -700,7 +1117,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
               </div>
             )}
 
-            <button className="po-upload" onClick={() => fileInputRef.current?.click()}>
+            <button className="po-upload font-sans" onClick={() => fileInputRef.current?.click()}>
               <Layers size={16} /> Upload a new PDF
             </button>
 
@@ -715,11 +1132,11 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
         </div>
       )}
 
-      {/* ── Processing ──────────────────────────────────────────────────── */}
+      {/* ── Processing spinner ──────────────────────────────────────────── */}
       {phase === "processing" && !showChooser && (
         <div className="po-scrim" role="dialog" aria-modal="true" aria-label="Processing PDF">
           <div className="po-dialog" style={{ maxWidth: 380 }}>
-            <div className="po-progress">
+            <div className="po-progress font-sans">
               <div className="po-spinner" />
               <div className="po-progress__text">
                 {progress ? `Rendering page ${progress.done} of ${progress.total}…` : "Reading PDF…"}
@@ -742,7 +1159,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
         </div>
       )}
 
-      {/* ── Error (fatal) ───────────────────────────────────────────────── */}
+      {/* ── Error dialog ────────────────────────────────────────────────── */}
       {phase === "error" && !showChooser && pages.length === 0 && (
         <div className="po-scrim" role="dialog" aria-modal="true" aria-label="Processing failed">
           <div className="po-dialog" style={{ maxWidth: 420 }}>
@@ -760,7 +1177,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
         </div>
       )}
 
-      {/* ── Stage 3 crop editor ─────────────────────────────────────────── */}
+      {/* ── Crop editor ─────────────────────────────────────────────────── */}
       {cropPage && (
         <CropEditor
           imageUrl={cropPage.previewUrl || cropPage.objectUrl || ""}

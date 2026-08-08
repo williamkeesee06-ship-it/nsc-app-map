@@ -81,6 +81,7 @@ export function usePrintOverlay(job: Job) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [parsedEntities, setParsedEntities] = useState<any[]>(job.printOverlay?.parsedEntities ?? []);
 
   const abortRef = useRef<AbortController | null>(null);
   const objectUrlsRef = useRef<Set<string>>(new Set());
@@ -362,9 +363,10 @@ export function usePrintOverlay(job: Job) {
         pages: mergedPages,
         transforms: mergedTransforms,
         alignments: mergedAlignments,
+        parsedEntities: parsedEntities,
       };
     },
-    [jobId, pages, job.printOverlay]
+    [jobId, pages, job.printOverlay, parsedEntities]
   );
 
   const save = useCallback(
@@ -428,6 +430,8 @@ export function usePrintOverlay(job: Job) {
     setExcluded,
     save,
     saveDraft,
+    parsedEntities,
+    setParsedEntities,
   };
 }
 

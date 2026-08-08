@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { pageToLatLng, type CropRect, type GeoSolution, type LatLng, type PagePoint } from "@nsc/types";
+import { projectPageToLatLng } from "./printGeoreference.js";
 
 export type OverlayMode = "move" | "pickPage" | "idle";
 
@@ -36,6 +37,11 @@ interface Props {
   onPagePoint: (pt: PagePoint) => void;
   onScale: (scale: number) => void;
   onRotate: (deg: number) => void;
+  southWestLat?: number;
+  southWestLng?: number;
+  northEastLat?: number;
+  northEastLng?: number;
+  rotationDegrees?: number;
 }
 
 // clip-path inset from a normalized crop rect (trims plain margins visually
@@ -66,13 +72,18 @@ export default function PageOverlay({
   onPagePoint,
   onScale,
   onRotate,
+  southWestLat,
+  southWestLng,
+  northEastLat,
+  northEastLng,
+  rotationDegrees,
 }: Props) {
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const overlayRef = useRef<google.maps.OverlayView | null>(null);
   const elRef = useRef<HTMLDivElement | null>(null);
   // Latest props for the imperative draw loop (avoids stale closures).
-  const drawRef = useRef({ solution, imgW, imgH });
-  drawRef.current = { solution, imgW, imgH };
+  const drawRef = useRef({ solution, imgW, imgH, southWestLat, southWestLng, northEastLat, northEastLng, rotationDegrees });
+  drawRef.current = { solution, imgW, imgH, southWestLat, southWestLng, northEastLat, northEastLng, rotationDegrees };
   // Current draw matrix, kept for back-projecting overlay clicks → page pixels.
   const matrixRef = useRef<[number, number, number, number, number, number] | null>(null);
 
@@ -97,9 +108,22 @@ export default function PageOverlay({
       draw() {
         const proj = this.getProjection();
         if (!proj) return;
-        const { solution: sol, imgW: w, imgH: h } = drawRef.current;
+        const { solution: sol, imgW: w, imgH: h, southWestLat: swLat, southWestLng: swLng, northEastLat: neLat, northEastLng: neLng, rotationDegrees: rotDeg } = drawRef.current;
         const toPx = (p: PagePoint) => {
-          const ll = pageToLatLng(sol, p);
+          let ll: LatLng;
+          if (swLat !== undefined && swLng !== undefined && neLat !== undefined && neLng !== undefined) {
+            const overlay = {
+              southWestLat: swLat,
+              southWestLng: swLng,
+              northEastLat: neLat,
+              northEastLng: neLng,
+              rotationDegrees: rotDeg ?? 0
+            };
+            const projected = projectPageToLatLng(overlay as any, p.x, p.y, w, h);
+            ll = projected || { lat: 0, lng: 0 };
+          } else {
+            ll = pageToLatLng(sol, p);
+          }
           return proj.fromLatLngToDivPixel(new google.maps.LatLng(ll.lat, ll.lng));
         };
         const tl = toPx({ x: 0, y: 0 });
@@ -138,7 +162,7 @@ export default function PageOverlay({
   // Force a redraw when placement-affecting props change.
   useEffect(() => {
     overlayRef.current?.draw();
-  }, [solution, imgW, imgH]);
+  }, [solution, imgW, imgH, southWestLat, southWestLng, northEastLat, northEastLng, rotationDegrees]);
 
   // ── Drag to reposition (Stage 4, unlocked, "move" mode) ──────────────────
   const dragRef = useRef<{

@@ -95,6 +95,11 @@ export interface PrintOverlayTransform {
   scale: number;
   rotationDeg: number;
   opacity: number;
+  southWestLat?: number;
+  southWestLng?: number;
+  northEastLat?: number;
+  northEastLng?: number;
+  rotationDegrees?: number;
 }
 
 // ── Georeferencing (Stage 5) ──────────────────────────────────────────────────
@@ -161,6 +166,7 @@ export interface PrintOverlayDoc {
   transforms: Record<string, PrintOverlayTransform>;
   /** Draft alignment keyed by page id (Stage 5). */
   alignments: Record<string, GeoAlignment>;
+  parsedEntities?: any[];
 }
 
 // =============================================================================
