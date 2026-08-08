@@ -185,7 +185,7 @@ function parseTerminals(lines: PrintTextLine[]): PrintEntity[] {
   const out: PrintEntity[] = [];
 
   lines.forEach((line, index) => {
-    const anchor = line.text.match(/^FIBER TERM\s+(T\d+)\b/i);
+    const anchor = line.text.match(/^(?:FIBER TERM|@TERMINAL)\s+(T\d+)\b/i) || line.text.match(/\b(MST-\d+)\b/i);
     if (!anchor) return;
 
     const label = anchor[1].toUpperCase();
@@ -206,7 +206,7 @@ function parseTerminals(lines: PrintTextLine[]): PrintEntity[] {
 
     for (let i = 0; i < block.length; i += 1) {
       const text = block[i].text.trim();
-      if (!text || /^FIBER TERM/i.test(text)) break;
+      if (!text || /^(?:FIBER TERM|@TERMINAL|MST-\d+)/i.test(text)) break;
 
       const portMatch = text.match(/^(\d+)\s*PORT\s*(.*)$/i);
       if (portMatch && !ports) {
@@ -394,7 +394,7 @@ function parseLabelledStructures(lines: PrintTextLine[]): PrintEntity[] {
       ? null
       : text.match(new RegExp(`${sizePattern}\\s*(?:HH|HANDHOLE)\\b`, "i")) ||
         text.match(new RegExp(`\\b(?:HH|HANDHOLE)\\s*${sizePattern}`, "i"));
-    const hhBare = !isMeasurement && /^(?:PLACE\s+)?(?:HH|HANDHOLE|HAND\s*HOLE)$/i.test(text);
+    const hhBare = !isMeasurement && /^(?:PLACE\s+|PROPOSED\s+)?(?:HH|HANDHOLE|HAND\s*HOLE|FP|FLOWER\s*POT)$/i.test(text);
 
     if (hhSized || hhBare) {
       const size = hhSized ? normalizeSize(hhSized[1]) : "";
@@ -507,10 +507,10 @@ function parsePoleTags(lines: PrintTextLine[]): PrintEntity[] {
   const out: PrintEntity[] = [];
 
   lines.forEach((line) => {
-    const match = line.text.trim().match(/^P-(\d{1,7})$/);
+    const match = line.text.trim().match(/\bP-(\d{1,7})\b/) || line.text.trim().match(/\bPOLE:([A-Z0-9_-]+)\b/i);
     if (!match) return;
 
-    const label = `P-${match[1]}`;
+    const label = match[1].toUpperCase();
     out.push({
       id: `pole:${label}`,
       kind: "pole",
@@ -521,7 +521,7 @@ function parsePoleTags(lines: PrintTextLine[]): PrintEntity[] {
       x: line.x,
       y: line.y,
       details: { "Pole Tag": match[1], Sheet: String(line.page) },
-      summary: `Pole tag ${match[1]}`,
+      summary: `Pole ${match[1]}`,
     });
   });
 
