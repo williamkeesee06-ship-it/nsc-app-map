@@ -4,12 +4,12 @@
    background, subtle glow, monospace numbers for counts. */
 
 .map-status-filter-pill {
-  position: absolute;
-  top: 12px;
-  left: 12px;
+  position: relative;
   z-index: 40;
   font-family: inherit;
   user-select: none;
+  display: flex;
+  align-items: center;
 }
 
 /* --- Trigger (the pill) ------------------------------------------------- */
@@ -17,16 +17,15 @@
 .msfp-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  min-height: 34px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
   background: rgba(14, 18, 26, 0.78);
   color: #e6ecf5;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   cursor: pointer;
   backdrop-filter: blur(10px) saturate(1.2);
   -webkit-backdrop-filter: blur(10px) saturate(1.2);
