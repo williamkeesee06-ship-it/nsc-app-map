@@ -89,22 +89,24 @@ export default function JobsMap() {
   // viewer sees every customerProject="Ziply" job, regardless of supervisor,
   // crew, foreman, or inspector names.
   const allJobs = useMemo(() => {
+    let filtered = rawJobs;
     if (contract === "Ziply") {
       // Ziply is authoritative from Billy's rolled-up tracker report — rows
       // dropped from that report get flipped to inTracker:false on the API
       // side. Filter here too so the total-jobs count, filter-rail progress
       // ring, and every downstream memo reflect the tracker, not the raw
       // Firestore superset.
-      return rawJobs.filter((j) => isZiplyJob(j) && j.inTracker !== false);
+      filtered = rawJobs.filter((j) => isZiplyJob(j) && j.inTracker !== false);
+    } else {
+      filtered = rawJobs.filter((j) => !isZiplyJob(j));
     }
 
-    let filtered = rawJobs;
     if (!isManager) {
       const u = String(username ?? "").trim().toLowerCase();
       if (!u) return [];
-      // Lumen assignment-based visibility: a supervisor sees a job when they
+      // Assignment-based visibility: a supervisor sees a job when they
       // are named on any of its assignment fields.
-      filtered = rawJobs.filter((j) => {
+      filtered = filtered.filter((j) => {
         const assignees = [
           j.constructionSupervisor,
           j.constructionCrewForeman,
@@ -114,7 +116,8 @@ export default function JobsMap() {
         return assignees.some((a) => String(a ?? "").trim().toLowerCase() === u);
       });
     }
-    return filtered.filter((j) => !isZiplyJob(j));
+
+    return filtered;
   }, [rawJobs, username, isManager, contract]);
   const { filters, setFilters, setJobs: setFiltersJobs } = useFiltersContext();
   // Keep the FiltersContext jobs list in sync with the supervisor-scoped
