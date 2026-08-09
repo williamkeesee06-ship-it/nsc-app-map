@@ -402,17 +402,17 @@ export default function JobCard({
     >
       {/* Header Info: Job Number & Status Pill */}
       <div style={{ padding: "18px 20px 12px 20px", display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 }}>
-        {/* Row 1: Large Job Number Pill + Close button */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        {/* Row 1: Large Job Number Pill (Full Width) */}
+        <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
           <div style={{
-            flexGrow: 1,
+            width: "100%",
             background: "#000000",
-            border: "2px solid #1E5EFF",
+            border: "3px solid #1E5EFF",
             borderRadius: "9999px",
             padding: "8px 20px",
             display: "flex",
             alignItems: "center",
-            boxShadow: "0 0 8px rgba(30, 94, 255, 0.6), inset 0 0 6px rgba(30, 94, 255, 0.3)",
+            boxShadow: "0 0 10px rgba(30, 94, 255, 0.7), inset 0 0 6px rgba(30, 94, 255, 0.4)",
             minWidth: 0
           }}>
             <div style={{
@@ -429,27 +429,6 @@ export default function JobCard({
               {wo}
             </div>
           </div>
-
-          {onClose && (
-            <button 
-              onClick={onClose} 
-              style={{
-                background: "none",
-                border: "none",
-                color: "var(--text-muted)",
-                cursor: "pointer",
-                fontSize: "22px",
-                fontWeight: 700,
-                padding: "6px",
-                lineHeight: 1,
-                transition: "color 0.2s"
-              }}
-              onMouseOver={(e) => e.currentTarget.style.color = "var(--text)"}
-              onMouseOut={(e) => e.currentTarget.style.color = "var(--text-muted)"}
-            >
-              ×
-            </button>
-          )}
         </div>
 
         {/* Row 2: Hub + Status Pill */}
