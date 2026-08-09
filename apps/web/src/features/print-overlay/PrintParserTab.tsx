@@ -3,7 +3,7 @@ import { useMap } from "@vis.gl/react-google-maps";
 import { Sparkles, FileText, Check, Plus, Play, Info } from "lucide-react";
 import { useDrawing, defaultStyleForTool } from "../drawing/drawingContext.js";
 import { api } from "../../lib/api.js";
-import { extractPrintEntities, PLACEABLE_KINDS, type StoredPrintEntity } from "./printParser.js";
+import { extractPrintEntities, PLACEABLE_KINDS, type StoredPrintEntity, type PrintEntity } from "./printParser.js";
 import { surveyPlacements, projectPageToLatLng } from "./printGeoreference.js";
 import { comparePrintRevisions } from "./printRevisionDiff.js";
 import type { Job } from "@nsc/types";
@@ -25,6 +25,16 @@ export default function PrintParserTab({ selectedJob }: Props) {
   const [printDataBusy, setPrintDataBusy] = useState(false);
   const [revisionName, setRevisionName] = useState<string | null>(null);
   const [activePageNumber, setActivePageNumber] = useState<number>(1);
+  const [checkedChanges, setCheckedChanges] = useState<Set<number>>(new Set());
+
+  // Automatically check all revision changes when diff loaded
+  useEffect(() => {
+    if (diffResult?.changes) {
+      setCheckedChanges(new Set(diffResult.changes.map((_: any, idx: number) => idx)));
+    } else {
+      setCheckedChanges(new Set());
+    }
+  }, [diffResult]);
 
   const jobId = selectedJob?.jobId ?? "";
 
@@ -157,6 +167,314 @@ export default function PrintParserTab({ selectedJob }: Props) {
       alert("Successfully removed from local view, but failed to save to cloud.");
     }
   }, [lastPlacedIds, parsedEntities, deleteObjects, selectedJob]);
+
+  // Apply selected revision comparison changes to the map drawings
+  const onApplySelectedChanges = useCallback(async () => {
+    if (!selectedJob || !diffResult) return;
+
+    const overlayDoc = selectedJob.printOverlay;
+    if (!overlayDoc) {
+      alert("No print overlay configuration found for this job.");
+      return;
+    }
+
+    const overlays: MapImageOverlay[] = (overlayDoc.pages || []).map((p) => {
+      const tr = overlayDoc.transforms?.[p.id];
+      return {
+        id: p.id,
+        mapProjectId: selectedJob.jobId,
+        jobId: selectedJob.jobId,
+        title: p.label,
+        imageUri: p.previewUrl || "",
+        southWestLat: tr?.southWestLat ?? 0,
+        southWestLng: tr?.southWestLng ?? 0,
+        northEastLat: tr?.northEastLat ?? 0,
+        northEastLng: tr?.northEastLng ?? 0,
+        opacity: tr?.opacity ?? 0.5,
+        rotationDegrees: tr?.rotationDegrees ?? tr?.rotationDeg ?? 0,
+        isVisible: true,
+        isAnchored: !!overlayDoc.alignments?.[p.id],
+        pageNumber: p.pageNumber,
+      };
+    });
+
+    const toolMap: Record<string, string> = {
+      terminal: "ziply_terminal",
+      pole: "ziply_pole",
+      handhole: "ziply_handhole",
+      manhole: "mh_new",
+      pedestal: "ped_new",
+      riser: "ziply_riser",
+      splitter: "ziply_splitter",
+      hub: "ziply_hub",
+      flowerpot: "ziply_flower_pot",
+    };
+
+    let appliedCount = 0;
+    const updatedEntities = [...parsedEntities];
+    const placedIds: string[] = [];
+
+    const projectEntity = (entity: PrintEntity) => {
+      const pageNum = entity.page;
+      const targetOverlay = overlays.find((o) => o.pageNumber === pageNum);
+      if (!targetOverlay || (!targetOverlay.isAnchored && targetOverlay.southWestLat === 0)) {
+        return null;
+      }
+      return projectPageToLatLng(
+        targetOverlay,
+        entity.x,
+        entity.y,
+        entity.pageWidth || 842,
+        entity.pageHeight || 595
+      );
+    };
+
+    const getProjectedPointsForPage = (pageNum: number) => {
+      const pageOverlay = overlays.find((o) => o.pageNumber === pageNum);
+      if (!pageOverlay || (!pageOverlay.isAnchored && pageOverlay.southWestLat === 0)) return [];
+      
+      return parsedEntities
+        .filter((e) => e.page === pageNum && e.kind !== "cable")
+        .map((e) => {
+          const pos = projectPageToLatLng(
+            pageOverlay,
+            e.x,
+            e.y,
+            e.pageWidth || 842,
+            e.pageHeight || 595
+          );
+          return pos ? { entity: e, pos } : null;
+        })
+        .filter(Boolean) as Array<{ entity: StoredPrintEntity; pos: { lat: number; lng: number } }>;
+    };
+
+    function distanceToSegment(
+      px: number,
+      py: number,
+      ax: number,
+      ay: number,
+      bx: number,
+      by: number
+    ): number {
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      if (len2 === 0) return Math.hypot(px - ax, py - ay);
+      let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    }
+
+    for (let idx = 0; idx < diffResult.changes.length; idx++) {
+      if (!checkedChanges.has(idx)) continue;
+      const change = diffResult.changes[idx];
+
+      if (change.kind === "added" && change.next) {
+        const entity = change.next;
+        if (entity.kind === "cable") {
+          const projectedPoints = getProjectedPointsForPage(entity.page);
+          let bestPair: [typeof projectedPoints[0], typeof projectedPoints[0]] | null = null;
+          let minDistance = Infinity;
+
+          for (let i = 0; i < projectedPoints.length; i++) {
+            for (let j = i + 1; j < projectedPoints.length; j++) {
+              const ptA = projectedPoints[i];
+              const ptB = projectedPoints[j];
+              const d = distanceToSegment(
+                entity.x,
+                entity.y,
+                ptA.entity.x,
+                ptA.entity.y,
+                ptB.entity.x,
+                ptB.entity.y
+              );
+              if (d < minDistance) {
+                minDistance = d;
+                bestPair = [ptA, ptB];
+              }
+            }
+          }
+
+          if (bestPair && minDistance < 350) {
+            let tool = "ziply_distribution";
+            if (/BORE/i.test(entity.summary)) tool = "ziply_bore";
+            else if (/TRENCH/i.test(entity.summary)) tool = "ziply_bore";
+            else if (/FEEDER/i.test(entity.summary)) tool = "ziply_feeder";
+            else if (/DROP/i.test(entity.summary)) tool = "ziply_drop";
+
+            const objId = `obj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            placedIds.push(objId);
+
+            addObject({
+              id: objId,
+              tool: tool as any,
+              vertices: [bestPair[0].pos, bestPair[1].pos],
+              style: {
+                ...defaultStyleForTool(tool as any),
+                userLabel: entity.label,
+                description: entity.summary,
+              } as any,
+            });
+
+            const newEntity: StoredPrintEntity = {
+              ...entity,
+              jobId: selectedJob.jobId,
+              sourceFile: revisionName || "revision_pdf",
+              placedMarkerId: objId,
+            };
+            updatedEntities.push(newEntity);
+            appliedCount++;
+          }
+        } else {
+          const pos = projectEntity(entity);
+          if (pos) {
+            const tool = toolMap[entity.kind] || "ziply_terminal";
+            const objId = `obj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            placedIds.push(objId);
+
+            addObject({
+              id: objId,
+              tool: tool as any,
+              position: pos,
+              style: {
+                ...defaultStyleForTool(tool as any),
+                userLabel: entity.mapTag || entity.label,
+                description: entity.summary,
+              } as any,
+            });
+
+            const newEntity: StoredPrintEntity = {
+              ...entity,
+              jobId: selectedJob.jobId,
+              sourceFile: revisionName || "revision_pdf",
+              placedMarkerId: objId,
+            };
+            updatedEntities.push(newEntity);
+            appliedCount++;
+          }
+        }
+      }
+
+      else if (change.kind === "removed" && change.previous) {
+        const entity = change.previous;
+        const match = updatedEntities.find((e) => e.id === entity.id);
+        if (match?.placedMarkerId) {
+          deleteObjects([match.placedMarkerId]);
+          match.placedMarkerId = undefined;
+        }
+        const idxInList = updatedEntities.findIndex((e) => e.id === entity.id);
+        if (idxInList !== -1) {
+          updatedEntities.splice(idxInList, 1);
+        }
+        appliedCount++;
+      }
+
+      else if (change.kind === "moved" && change.next && change.previous) {
+        const entity = change.next;
+        const prevEntity = change.previous;
+        const match = updatedEntities.find((e) => e.id === prevEntity.id);
+        if (match?.placedMarkerId) {
+          const obj = state.objects.find((o) => o.id === match.placedMarkerId);
+          if (obj) {
+            if ("position" in obj) {
+              const pos = projectEntity(entity);
+              if (pos) {
+                updateObject({
+                  ...obj,
+                  position: pos,
+                  style: {
+                    ...obj.style,
+                    description: entity.summary,
+                  },
+                } as any);
+              }
+            } else if ("vertices" in obj && obj.vertices.length === 2) {
+              const projectedPoints = getProjectedPointsForPage(entity.page);
+              let bestPair: [typeof projectedPoints[0], typeof projectedPoints[0]] | null = null;
+              let minDistance = Infinity;
+
+              for (let i = 0; i < projectedPoints.length; i++) {
+                for (let j = i + 1; j < projectedPoints.length; j++) {
+                  const ptA = projectedPoints[i];
+                  const ptB = projectedPoints[j];
+                  const d = distanceToSegment(
+                    entity.x,
+                    entity.y,
+                    ptA.entity.x,
+                    ptA.entity.y,
+                    ptB.entity.x,
+                    ptB.entity.y
+                  );
+                  if (d < minDistance) {
+                    minDistance = d;
+                    bestPair = [ptA, ptB];
+                  }
+                }
+              }
+
+              if (bestPair && minDistance < 350) {
+                updateObject({
+                  ...obj,
+                  vertices: [bestPair[0].pos, bestPair[1].pos],
+                  style: {
+                    ...obj.style,
+                    description: entity.summary,
+                  },
+                } as any);
+              }
+            }
+          }
+          match.x = entity.x;
+          match.y = entity.y;
+          match.details = entity.details;
+          match.summary = entity.summary;
+        }
+        appliedCount++;
+      }
+
+      else if (change.kind === "changed" && change.next && change.previous) {
+        const entity = change.next;
+        const prevEntity = change.previous;
+        const match = updatedEntities.find((e) => e.id === prevEntity.id);
+        if (match?.placedMarkerId) {
+          const obj = state.objects.find((o) => o.id === match.placedMarkerId);
+          if (obj) {
+            updateObject({
+              ...obj,
+              style: {
+                ...obj.style,
+                userLabel: entity.mapTag || entity.label,
+                description: entity.summary,
+              },
+            } as any);
+          }
+          match.label = entity.label;
+          match.mapTag = entity.mapTag;
+          match.details = entity.details;
+          match.summary = entity.summary;
+        }
+        appliedCount++;
+      }
+    }
+
+    setParsedEntities(updatedEntities);
+    setLastPlacedIds(placedIds);
+
+    try {
+      const existing = await api.getPrintOverlay(selectedJob.jobId);
+      const updatedDoc = {
+        ...existing.printOverlay,
+        parsedEntities: updatedEntities,
+      } as any;
+      await api.putPrintOverlay(selectedJob.jobId, updatedDoc);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+      setDiffResult(null);
+      alert(`Applied ${appliedCount} changes successfully.`);
+    } catch (err) {
+      console.error("Failed to update placed markers in print overlay", err);
+      alert(`Applied ${appliedCount} changes, but failed to save status to cloud.`);
+    }
+  }, [selectedJob, diffResult, parsedEntities, checkedChanges, state.objects, addObject, updateObject, deleteObjects, revisionName]);
 
   // Place all unplaced structures for the active print page
   const onPlaceAllFromPrint = useCallback(async () => {
@@ -620,21 +938,112 @@ export default function PrintParserTab({ selectedJob }: Props) {
           </div>
 
           {diffResult && (
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
-              <p style={{ fontSize: "10px", fontWeight: "bold", textTransform: "uppercase", color: "#94a3b8" }}>
-                CHANGES DETECTED IN {revisionName}
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "180px", overflowY: "auto" }}>
-                {diffResult.changes.map((ch: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="p-2 rounded bg-slate-950/80 border-l-2 border-amber-500 text-[10px] text-slate-300"
-                  >
-                    <span className="font-bold uppercase mr-1">{ch.kind}:</span>
-                    {ch.summary}
-                  </div>
-                ))}
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "10px", fontWeight: 800, textTransform: "uppercase", color: "#94a3b8" }}>
+                  CHANGES DETECTED ({diffResult.changes.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (checkedChanges.size === diffResult.changes.length) {
+                      setCheckedChanges(new Set());
+                    } else {
+                      setCheckedChanges(new Set(diffResult.changes.map((_: any, idx: number) => idx)));
+                    }
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#22d3ee",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    padding: 0
+                  }}
+                >
+                  {checkedChanges.size === diffResult.changes.length ? "Deselect All" : "Select All"}
+                </button>
               </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "240px", overflowY: "auto" }}>
+                {diffResult.changes.map((ch: any, idx: number) => {
+                  const isChecked = checkedChanges.has(idx);
+                  const borderColors = {
+                    added: "rgba(16, 185, 129, 0.4)",
+                    removed: "rgba(239, 68, 68, 0.4)",
+                    moved: "rgba(245, 158, 11, 0.4)",
+                    changed: "rgba(6, 182, 212, 0.4)"
+                  };
+                  const bgColors = {
+                    added: "rgba(16, 185, 129, 0.05)",
+                    removed: "rgba(239, 68, 68, 0.05)",
+                    moved: "rgba(245, 158, 11, 0.05)",
+                    changed: "rgba(6, 182, 212, 0.05)"
+                  };
+                  return (
+                    <label
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "8px",
+                        padding: "8px 10px",
+                        borderRadius: "8px",
+                        background: bgColors[ch.kind as "added" | "removed" | "moved" | "changed"] || "rgba(255,255,255,0.02)",
+                        border: `1px solid ${borderColors[ch.kind as "added" | "removed" | "moved" | "changed"] || "rgba(255,255,255,0.08)"}`,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease"
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          const next = new Set(checkedChanges);
+                          if (next.has(idx)) next.delete(idx);
+                          else next.add(idx);
+                          setCheckedChanges(next);
+                        }}
+                        style={{ marginTop: "2px", accentColor: "#22d3ee" }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{
+                            fontSize: "8px",
+                            fontWeight: 900,
+                            textTransform: "uppercase",
+                            padding: "1px 4px",
+                            borderRadius: "3px",
+                            background: borderColors[ch.kind as "added" | "removed" | "moved" | "changed"],
+                            color: "#fff",
+                          }}>
+                            {ch.kind}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: "10px", color: "#cbd5e1", marginTop: "4px", lineHeight: "1.3" }}>
+                          {ch.summary}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={onApplySelectedChanges}
+                disabled={checkedChanges.size === 0}
+                className="po-btn po-btn--primary w-full text-xs font-black uppercase flex items-center justify-center gap-1.5"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  opacity: checkedChanges.size === 0 ? 0.5 : 1,
+                  cursor: checkedChanges.size === 0 ? "not-allowed" : "pointer",
+                  marginTop: "8px"
+                }}
+              >
+                Apply Selected Changes ({checkedChanges.size})
+              </button>
             </div>
           )}
         </div>
