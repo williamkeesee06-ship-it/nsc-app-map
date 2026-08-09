@@ -89,6 +89,13 @@ export function usePrintOverlay(job: Job) {
   // (an uploaded PDF stays attached to the job and re-appears in the chooser).
   const sourcesRef = useRef<Map<string, PrintOverlaySource>>(new Map());
 
+  const pagesRef = useRef(pages);
+  useEffect(() => {
+    pagesRef.current = pages;
+  }, [pages]);
+
+  const pendingUploadsRef = useRef<Map<string, Promise<any>>>(new Map());
+
   const revokeAllObjectUrls = useCallback(() => {
     for (const url of objectUrlsRef.current) URL.revokeObjectURL(url);
     objectUrlsRef.current.clear();
@@ -196,15 +203,16 @@ export function usePrintOverlay(job: Job) {
 
   const buildDoc = useCallback(
     (username: string | null): PrintOverlayDoc => {
+      const currentPages = pagesRef.current;
       const transforms: Record<string, PrintOverlayTransform> = {};
       const alignments: Record<string, GeoAlignment> = {};
-      for (const p of pages) {
+      for (const p of currentPages) {
         if (p.transform) transforms[p.id] = p.transform;
         if (p.alignment) alignments[p.id] = p.alignment;
       }
 
       const activeDocIds = new Set<string>();
-      for (const p of pages) {
+      for (const p of currentPages) {
         activeDocIds.add(p.documentId);
       }
 
@@ -247,7 +255,7 @@ export function usePrintOverlay(job: Job) {
         }
       }
 
-      for (const p of pages) {
+      for (const p of currentPages) {
         if (!mergedSources.has(p.documentId)) {
           const known = sourcesRef.current.get(p.documentId);
           mergedSources.set(
@@ -266,7 +274,7 @@ export function usePrintOverlay(job: Job) {
         }
       }
 
-      mergedPages.push(...pages.map(stripVM));
+      mergedPages.push(...currentPages.map(stripVM));
       Object.assign(mergedTransforms, transforms);
       Object.assign(mergedAlignments, alignments);
 
@@ -282,7 +290,7 @@ export function usePrintOverlay(job: Job) {
         parsedEntities: parsedEntities,
       };
     },
-    [jobId, pages, job.printOverlay, parsedEntities]
+    [jobId, job.printOverlay, parsedEntities]
   );
 
   const save = useCallback(
@@ -290,6 +298,9 @@ export function usePrintOverlay(job: Job) {
       setSaving(true);
       setError(null);
       try {
+        if (pendingUploadsRef.current.size > 0) {
+          await Promise.all(Array.from(pendingUploadsRef.current.values()));
+        }
         await api.putPrintOverlay(jobId, buildDoc(username));
         window.dispatchEvent(new Event("nsc:jobs-reload"));
         return true;
@@ -331,6 +342,7 @@ export function usePrintOverlay(job: Job) {
     async (source: PrintOverlaySource, file: File | null, username: string | null) => {
       abortRef.current?.abort();
       revokeAllObjectUrls();
+      pendingUploadsRef.current.clear();
       const ac = new AbortController();
       abortRef.current = ac;
       setError(null);
@@ -360,15 +372,20 @@ export function usePrintOverlay(job: Job) {
         // Never blocks rendering.
         if (file && !source.storagePath) {
           const path = `jobs/${jobId}/print-overlay/${documentId}/${sanitizeStorageSegment(file.name)}`;
-          uploadToStorage(path, file, { contentType: file.type || "application/pdf", signal: ac.signal })
+          const sourceUploadPromise = uploadToStorage(path, file, { contentType: file.type || "application/pdf", signal: ac.signal })
             .then((r) => {
               source.storagePath = r.storagePath;
               source.downloadUrl = r.downloadUrl;
               sourcesRef.current.set(documentId, { ...source });
+              pendingUploadsRef.current.delete(documentId);
               // Trigger a save so the database receives the finalized downloadUrl.
               void saveDraft(username);
             })
-            .catch((e) => console.warn("[print-overlay] source PDF upload failed", e));
+            .catch((e) => {
+              console.warn("[print-overlay] source PDF upload failed", e);
+              pendingUploadsRef.current.delete(documentId);
+            });
+          pendingUploadsRef.current.set(documentId, sourceUploadPromise);
         }
 
         const bytes = await loadSourceBytes(source, file);
@@ -382,7 +399,7 @@ export function usePrintOverlay(job: Job) {
             setPages((prev) => [...prev, vm].sort((a, b) => a.pageNumber - b.pageNumber));
             // Best-effort preview upload → replace transient url with a durable ref.
             const previewPath = `jobs/${jobId}/print-overlay/${documentId}/p${rp.pageNumber}.png`;
-            uploadBlob(previewPath, rp.blob, "image/png")
+            const previewUploadPromise = uploadBlob(previewPath, rp.blob, "image/png")
               .then((r) => {
                 setPages((prev) =>
                   prev.map((p) =>
@@ -391,8 +408,13 @@ export function usePrintOverlay(job: Job) {
                       : p
                   )
                 );
+                pendingUploadsRef.current.delete(vm.id);
               })
-              .catch((e) => console.warn("[print-overlay] preview upload failed", e));
+              .catch((e) => {
+                console.warn("[print-overlay] preview upload failed", e);
+                pendingUploadsRef.current.delete(vm.id);
+              });
+            pendingUploadsRef.current.set(vm.id, previewUploadPromise);
           },
           {
             signal: ac.signal,
