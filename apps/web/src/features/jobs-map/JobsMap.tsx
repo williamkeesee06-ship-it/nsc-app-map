@@ -34,7 +34,6 @@ import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
 import { DigPolygonProvider, useDigPolygon } from "../dig-polygon/digPolygonContext.js";
 import JobPrintOverlays from "../print-overlay/JobPrintOverlays.js";
-import AllJobsPrintOverlays from "../print-overlay/AllJobsPrintOverlays.js";
 import DigPolygonOverlay from "../dig-polygon/DigPolygonOverlay.js";
 import SavedDigShapeOverlay from "../dig-polygon/SavedDigShapeOverlay.js";
 import AllDigShapesOverlay from "../dig-polygon/AllDigShapesOverlay.js";
@@ -508,12 +507,7 @@ function JobsMapInner({
                 mapRef={mapRef}
                 onMap={handleMapReady}
               />
-              <AllJobsPrintOverlays
-                jobs={mapped}
-                selectedJobId={selected?.jobId}
-                showGlobal={filters.showPrintOverlays !== false}
-                hiddenJobIds={filters.hiddenOverlayJobIds}
-              />
+              {selected && <JobPrintOverlays job={selected} visible={ziplyPrintLayerVisible} />}
               <StreetViewCone panoRef={panoRef} onActiveChange={setStreetViewActive} />
               <JobMarkers
                 jobs={mapped}

@@ -12,7 +12,6 @@ import LoginScreen from "./features/auth/LoginScreen.js";
 import { FiltersProvider } from "./features/jobs-map/filtersContext.js";
 import MapTypeToggle from "./features/map/MapTypeToggle.js";
 import MapStatusFilterPill from "./features/jobs-map/MapStatusFilterPill.js";
-import MapAllOverlaysPill from "./features/jobs-map/MapAllOverlaysPill.js";
 // JobInfoBoxes removed from topbar — info shown in JobCard detail panel
 import { LuminaProvider } from "./features/lumina/store/luminaStore.js";
 import { useActiveContract } from "./features/workspace/contractStore.js";
@@ -155,7 +154,6 @@ function Shell() {
             <SearchBar />
             <MapTypeToggle />
             <MapStatusFilterPill />
-            <MapAllOverlaysPill />
             {/* Job info boxes removed — detail shown in JobCard panel */}
             {/* Phase 9.6: inline job-info strip when in workspace mode */}
             <InlineJobContext />

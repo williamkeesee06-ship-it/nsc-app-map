@@ -92,6 +92,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     setAlignment,
     setExcluded,
     save,
+    saveDraft,
     parsedEntities,
     setParsedEntities,
   } = studio;
@@ -201,6 +202,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
   const openPage = useCallback(
     (p: PageVM) => {
       if (p.excluded) return;
+      void saveDraft(username);
       if (!cropConfirmed.has(p.id)) {
         selectPage(p.id);
         setCropPageId(p.id);
@@ -208,7 +210,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       }
       selectAndPlace(p);
     },
-    [cropConfirmed, selectAndPlace, selectPage]
+    [cropConfirmed, selectAndPlace, selectPage, saveDraft, username]
   );
 
   // A map click completes the pending anchor
@@ -318,12 +320,15 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     clearAlignment();
   }, [activePage, map, jobCenter, setTransform, clearAlignment]);
 
-  // Lock & Save to Firestore (only explicitly triggered by operator)
+  // Save to Firestore and close the studio (only explicitly triggered by operator)
   const doSave = useCallback(async () => {
     const ok = await save(username);
     setSavedNote(ok ? "Draft saved to Firebase." : null);
-    if (ok) setTimeout(() => setSavedNote(null), 2500);
-  }, [save, username]);
+    if (ok) {
+      setTimeout(() => setSavedNote(null), 2500);
+      onClose();
+    }
+  }, [save, username, onClose]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -578,7 +583,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             onClick={doSave}
             disabled={saving || pages.length === 0}
           >
-            {saving ? "Saving…" : "Lock / Save"}
+            {saving ? "Saving…" : "Complete"}
           </button>
           <button className="po-btn po-btn--ghost" onClick={onClose} aria-label="Close studio">
             <X size={18} />
