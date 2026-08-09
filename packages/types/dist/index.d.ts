@@ -115,6 +115,9 @@ export interface DrawingStyle {
     ziplyServedAddressesList?: string[];
     ziplyFiberCount?: number;
     ziplyAiSuggested?: boolean;
+    ziplyPoleId?: string;
+    ziplyGuyWireNotes?: string;
+    ziplyConduitOrStrand?: string;
 }
 export interface JobLayer {
     id: string;

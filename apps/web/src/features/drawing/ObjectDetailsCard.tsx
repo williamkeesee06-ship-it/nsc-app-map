@@ -1337,6 +1337,77 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
               </>
             )}
 
+            {/* ── POLE SPECIFIC CARD LAYOUT ── */}
+            {(obj.tool === "ziply_pole" || obj.tool.includes("pole")) && (
+              <>
+                {/* PSE Pole ID */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    PSE Pole ID
+                  </label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyPoleId ?? ""}
+                    onChange={(e) => patchStyle({ ziplyPoleId: e.target.value || undefined })}
+                    placeholder="e.g. 226988-169290"
+                    style={{
+                      background: "rgba(0,0,0,0.4)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      color: "#f8fafc",
+                      fontSize: 11,
+                      padding: "5px 8px",
+                      outline: "none",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}
+                  />
+                </div>
+
+                {/* Guy Wire / Make Ready Notes */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Guy Wire / Make Ready Notes
+                  </label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyGuyWireNotes ?? ""}
+                    onChange={(e) => patchStyle({ ziplyGuyWireNotes: e.target.value || undefined })}
+                    placeholder="e.g. OH GUY"
+                    style={{
+                      background: "rgba(0,0,0,0.4)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      color: "#f8fafc",
+                      fontSize: 11,
+                      padding: "5px 8px",
+                      outline: "none",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}
+                  />
+                </div>
+
+                {/* Grid Coordinates */}
+                {"position" in obj && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                      Grid Coordinates
+                    </label>
+                    <div style={{
+                      background: "rgba(0,0,0,0.2)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      borderRadius: 4,
+                      color: "#94a3b8",
+                      fontSize: 9,
+                      padding: "5px 8px",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}>
+                      Lat: {obj.position.lat.toFixed(6)}, Lng: {obj.position.lng.toFixed(6)}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
             {/* ── CABLE SPECIFIC CARD LAYOUT ── */}
             {isCableOrLine && (
               <>
@@ -1421,6 +1492,29 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
                       );
                     })}
                   </div>
+                </div>
+
+                {/* Conduit Size / Strand Type */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Conduit Size / Strand Type
+                  </label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyConduitOrStrand ?? ""}
+                    onChange={(e) => patchStyle({ ziplyConduitOrStrand: e.target.value || undefined })}
+                    placeholder="e.g. 1-2&quot; DUCT or 10MStrand"
+                    style={{
+                      background: "rgba(0,0,0,0.4)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      color: "#f8fafc",
+                      fontSize: 11,
+                      padding: "5px 8px",
+                      outline: "none",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}
+                  />
                 </div>
               </>
             )}

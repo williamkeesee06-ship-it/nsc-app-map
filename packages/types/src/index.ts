@@ -186,6 +186,9 @@ export interface DrawingStyle {
   ziplyServedAddressesList?: string[];
   ziplyFiberCount?: number;
   ziplyAiSuggested?: boolean;
+  ziplyPoleId?: string;
+  ziplyGuyWireNotes?: string;
+  ziplyConduitOrStrand?: string;
 }
 
 // Phase 9+: per-job MyMaps-style layers (elevated for personal desktop use).
