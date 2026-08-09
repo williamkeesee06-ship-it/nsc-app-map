@@ -3,6 +3,7 @@ import admin from "firebase-admin";
 import { getEnv } from "../config/env.js";
 
 let app: admin.app.App | null = null;
+let firestoreDb: admin.firestore.Firestore | null = null;
 
 function getApp(): admin.app.App {
   if (app) return app;
@@ -27,7 +28,11 @@ function getApp(): admin.app.App {
 }
 
 export function db() {
-  return getApp().firestore();
+  if (!firestoreDb) {
+    firestoreDb = getApp().firestore();
+    firestoreDb.settings({ ignoreUndefinedProperties: true });
+  }
+  return firestoreDb;
 }
 
 export function adminAuth() {

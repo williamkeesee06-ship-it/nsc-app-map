@@ -126,6 +126,16 @@ export default function JobsMap() {
     }
   }, [allJobs, setFiltersJobs]);
   const [selected, setSelected] = useState<Job | null>(null);
+  // Keep selected job object reference fresh when allJobs updates (e.g. after nsc:jobs-reload)
+  useEffect(() => {
+    if (selected) {
+      const fresh = allJobs.find((j) => j.jobId === selected.jobId);
+      if (fresh && fresh !== selected) {
+        setSelected(fresh);
+      }
+    }
+  }, [allJobs, selected]);
+
   // Ziply focus: North Metro default + clear selection when leaving Ziply
   useEffect(() => {
     setSelected(null);
@@ -310,6 +320,15 @@ function JobsMapInner({
       setTarget(null, null);
     }
   }, [selected, setTarget]);
+
+  // Keep selected job object reference fresh whenever allJobs updates from backend reloads
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = allJobs.find((j) => j.jobId === selected.jobId);
+    if (fresh && fresh !== selected) {
+      setSelected(fresh);
+    }
+  }, [allJobs, selected, setSelected]);
 
   // Listener for custom pan events
   useEffect(() => {

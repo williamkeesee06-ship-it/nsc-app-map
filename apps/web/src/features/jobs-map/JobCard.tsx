@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, FileText, ChevronRight, ChevronDown, CheckCircle2, Wand2, Calendar, FileDown, UploadCloud, Layers, Paperclip } from "lucide-react";
 import { useMap } from "@vis.gl/react-google-maps";
-import type { DigTicket, Job } from "@nsc/types";
+import type { DigTicket, Job, PrintOverlayDoc, PrintOverlayPage } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
@@ -16,6 +16,7 @@ import { uploadToStorage, sanitizeStorageSegment } from "../../lib/storage.js";
 interface Props {
   job: Job;
   onClose?: () => void;
+  onJobUpdate?: (job: Job) => void;
   variant?: "popup" | "panel";
   theme?: "steel" | "cyberpunk" | "titanium" | "glass";
   onThemeChange?: (theme: "steel" | "cyberpunk" | "titanium" | "glass") => void;
@@ -83,6 +84,7 @@ async function saveField(
 export default function JobCard({
   job,
   onClose,
+  onJobUpdate,
   variant = "popup",
   theme = "steel",
   onThemeChange,
@@ -196,7 +198,12 @@ export default function JobCard({
   // Plant stats / Running totals
   const stats = computePlantProgress(job);
 
-  const overlayPages = job.printOverlay?.pages ?? [];
+  const [localOverlayDoc, setLocalOverlayDoc] = useState<PrintOverlayDoc | null>(job.printOverlay ?? null);
+  useEffect(() => {
+    setLocalOverlayDoc(job.printOverlay ?? null);
+  }, [job.printOverlay]);
+
+  const overlayPages: PrintOverlayPage[] = localOverlayDoc?.pages ?? [];
   const [activePageSelId, setActivePageSelId] = useState<string>("");
 
   useEffect(() => {
@@ -205,19 +212,21 @@ export default function JobCard({
     }
   }, [overlayPages, activePageSelId]);
 
-  const activePageSel = overlayPages.find(p => p.id === activePageSelId);
-  const activePageOpacity = activePageSel ? (job.printOverlay?.transforms?.[activePageSel.id]?.opacity ?? 0.5) : 0.5;
+  const activePageSel = overlayPages.find((p: PrintOverlayPage) => p.id === activePageSelId);
+  const activePageOpacity = activePageSel ? (localOverlayDoc?.transforms?.[activePageSel.id]?.opacity ?? 0.5) : 0.5;
 
   const togglePageExcluded = async (pageId: string) => {
-    if (!job.printOverlay) return;
-    const doc = { ...job.printOverlay };
+    if (!localOverlayDoc) return;
+    const doc = { ...localOverlayDoc };
     doc.pages = doc.pages.map((p) =>
       p.id === pageId ? { ...p, excluded: !p.excluded } : p
     );
     doc.updatedAt = Date.now();
     doc.updatedBy = username || "system";
 
-    job.printOverlay = doc;
+    setLocalOverlayDoc(doc);
+    const updatedJob = { ...job, printOverlay: doc };
+    onJobUpdate?.(updatedJob);
 
     try {
       await api.putPrintOverlay(job.jobId, doc);
@@ -228,10 +237,10 @@ export default function JobCard({
   };
 
   const deleteOverlayPage = async (pageId: string) => {
-    if (!job.printOverlay) return;
+    if (!localOverlayDoc) return;
     if (!window.confirm("Are you sure you want to delete this overlay page?")) return;
 
-    const doc = { ...job.printOverlay };
+    const doc = { ...localOverlayDoc };
     doc.pages = doc.pages.filter((p) => p.id !== pageId);
 
     if (doc.transforms) {
@@ -248,7 +257,12 @@ export default function JobCard({
     doc.updatedAt = Date.now();
     doc.updatedBy = username || "system";
 
-    job.printOverlay = doc;
+    setLocalOverlayDoc(doc);
+    if (activePageSelId === pageId) {
+      setActivePageSelId(doc.pages[0]?.id ?? "");
+    }
+    const updatedJob = { ...job, printOverlay: doc };
+    onJobUpdate?.(updatedJob);
 
     try {
       await api.putPrintOverlay(job.jobId, doc);
@@ -259,8 +273,8 @@ export default function JobCard({
   };
 
   const updatePageOpacity = async (pageId: string, opacity: number) => {
-    if (!job.printOverlay) return;
-    const doc = { ...job.printOverlay };
+    if (!localOverlayDoc) return;
+    const doc = { ...localOverlayDoc };
     const transforms = { ...doc.transforms };
     const base = transforms[pageId] ?? {
       center: job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 0, lng: 0 },
@@ -273,7 +287,9 @@ export default function JobCard({
     doc.updatedAt = Date.now();
     doc.updatedBy = username || "system";
 
-    job.printOverlay = doc;
+    setLocalOverlayDoc(doc);
+    const updatedJob = { ...job, printOverlay: doc };
+    onJobUpdate?.(updatedJob);
 
     try {
       await api.putPrintOverlay(job.jobId, doc);
@@ -424,7 +440,10 @@ export default function JobCard({
               textTransform: "uppercase",
               width: "100%",
               textAlign: "center",
-              textShadow: "0 0 4px rgba(30, 94, 255, 0.8)"
+              textShadow: "0 0 4px rgba(30, 94, 255, 0.8)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}>
               {wo}
             </div>

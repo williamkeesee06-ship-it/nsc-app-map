@@ -77,11 +77,13 @@ export default function LeftRail({
 
   const [collapsed, setCollapsed] = useState<boolean>(true);
   const [selectedJobTab, setSelectedJobTab] = useState<"detail" | "tools">("detail");
+  const prevJobIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (selectedJob) {
+    if (selectedJob?.jobId && selectedJob.jobId !== prevJobIdRef.current) {
       setSelectedJobTab("detail");
     }
-  }, [selectedJob]);
+    prevJobIdRef.current = selectedJob?.jobId ?? null;
+  }, [selectedJob?.jobId]);
 
   // Broadcast active tab + collapse state so JobsMap can mount the Calendar
   // as a full-screen overlay over the map (instead of cramming it in the
@@ -354,6 +356,7 @@ export default function LeftRail({
                         setSelectedJob?.(null);
                         window.dispatchEvent(new Event("nsc:markups-saved"));
                       }}
+                      onJobUpdate={(updatedJob) => setSelectedJob?.(updatedJob)}
                       variant="panel"
                       ziplyPrintLayerVisible={ziplyPrintLayerVisible}
                       setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}

@@ -153,6 +153,7 @@ router.get("/jobs/search", async (req, res, next) => {
               status: "OK",
             };
             await db().collection("jobs").doc(h.jobId).update({ geocode: h.geocode }).catch(() => {});
+            invalidateJobsCache();
           }
         } catch {
           // Best-effort — silent failure leaves geocode null.
@@ -2016,7 +2017,7 @@ router.post("/jobs/:jobId/ziply-control-pin", async (req, res, next) => {
       sheetX: sheetX ?? null,
       sheetY: sheetY ?? null,
       pinnedAt: Date.now(),
-      pinnedBy: (req as { user?: { email?: string } }).user?.email ?? null,
+      pinnedBy: (req as { authUser?: { email?: string }; user?: { email?: string } }).authUser?.email ?? (req as { user?: { email?: string } }).user?.email ?? null,
     });
     // Mirror onto terminal/hub immediately
     if (kind === "hub") {
@@ -2963,7 +2964,7 @@ router.put("/jobs/:jobId/print-overlay", async (req, res, next) => {
       }
     }
 
-    const updatedBy = (req as { user?: { email?: string } }).user?.email ?? null;
+    const updatedBy = (req as { authUser?: { email?: string }; user?: { email?: string } }).authUser?.email ?? (req as { user?: { email?: string } }).user?.email ?? null;
     const saved: PrintOverlayDoc | null = incoming
       ? { ...incoming, jobId, updatedAt: Date.now(), updatedBy }
       : null;
@@ -2979,6 +2980,7 @@ router.put("/jobs/:jobId/print-overlay", async (req, res, next) => {
 // Validate a PrintOverlayDoc at the persistence boundary. Guards against giant
 // base64 previews (Firestore 1 MiB doc limit) and malformed page records.
 function validatePrintOverlayDoc(d: PrintOverlayDoc): string | null {
+  if (!d || typeof d !== "object") return "doc must be an object";
   if (d.schemaVersion !== 1) return "schemaVersion must be 1";
   if (!Array.isArray(d.sources)) return "sources must be an array";
   if (!Array.isArray(d.pages)) return "pages must be an array";
@@ -3000,10 +3002,13 @@ function validatePrintOverlayDoc(d: PrintOverlayDoc): string | null {
     if (p.crop) {
       const c = p.crop;
       const inRange = [c.x, c.y, c.width, c.height].every(
-        (n) => typeof n === "number" && n >= 0 && n <= 1
+        (n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1
       );
       if (!inRange || c.width <= 0 || c.height <= 0) {
         return `page ${p.id}: crop must be normalized (0..1) with positive size`;
+      }
+      if (c.x + c.width > 1.0001 || c.y + c.height > 1.0001) {
+        return `page ${p.id}: crop bounds (x+width, y+height) must not exceed 1`;
       }
     }
   }

@@ -15,6 +15,8 @@ export const emptyAsbuilt = (jobId) => ({
 // Filed/Active tickets (or any ticket that carries an ITIC number) are locked.
 // Enforced server-side (403) and mirrored client-side to hide the delete UI.
 export function canDeleteDigTicket(ticket) {
+    if (ticket.status === "Failed")
+        return true;
     if (ticket.ticketNumber && ticket.ticketNumber.trim() !== "")
         return false;
     return ticket.status !== "Filed" && ticket.status !== "Active";

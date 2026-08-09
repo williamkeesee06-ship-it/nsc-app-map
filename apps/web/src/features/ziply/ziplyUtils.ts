@@ -178,8 +178,14 @@ export function computePlantProgress(
   const stOf = (
     kind: string,
     ref: string,
-    stored?: "planned" | "in_progress" | "complete" | null
-  ) => overrides?.[`${job.jobId}:${kind}:${ref}`] ?? stored ?? "planned";
+    stored?: "planned" | "in_progress" | "complete" | "placed" | "Complete" | null
+  ) => {
+    const raw = overrides?.[`${job.jobId}:${kind}:${ref}`] ?? stored ?? "planned";
+    const s = String(raw).toLowerCase();
+    if (s === "complete" || s === "done") return "complete";
+    if (s === "in_progress" || s === "placed" || s === "conduit" || s === "active") return "in_progress";
+    return "planned";
+  };
 
   const count = (
     kind: string,
@@ -368,11 +374,14 @@ export type ZiplyStatusGroup = "not_started" | "in_progress" | "complete";
 
 export function ziplyStatusGroupForJob(job: Job): ZiplyStatusGroup {
   const s = String(job.jobStatus ?? "").toLowerCase();
+  const ss = String(job.secondaryJobStatus ?? "").toLowerCase();
   if (
     s.includes("complete") ||
     s.includes("billing") ||
     s === "done" ||
-    s.includes("closed")
+    s.includes("closed") ||
+    ss.includes("complete") ||
+    ss.includes("closed")
   ) {
     return "complete";
   }
@@ -380,7 +389,9 @@ export function ziplyStatusGroupForJob(job: Job): ZiplyStatusGroup {
     s.includes("progress") ||
     s.includes("pending") ||
     s.includes("active") ||
-    s.includes("construction")
+    s.includes("construction") ||
+    ss.includes("progress") ||
+    ss.includes("construction")
   ) {
     return "in_progress";
   }

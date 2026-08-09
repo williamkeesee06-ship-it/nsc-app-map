@@ -147,7 +147,14 @@ function _ziplyHubSvgLegacy(color: string): string {
 // Pixel-identical MST terminal port from map-studio-gis:
 // Neon pink rectangle with glowing drop-shadow + "MST" label.
 // Uses 36×24 native viewBox — ignores color override to preserve exact look.
-function ziplyTerminalSvg(_color: string): string {
+// Splice Terminal badge: glowing purple (#A855F7) badge with MST / T1 / T2 label.
+function ziplyTerminalSvg(color?: string, labelText = "MST"): string {
+  const activeColor = (color && color !== DEFAULT_ICON_COLOR) ? color : "#A855F7";
+  const termText = (labelText || "MST").trim();
+  let fontSize = 11;
+  if (termText.length > 5) fontSize = 7.5;
+  else if (termText.length > 3) fontSize = 9;
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 24" width="36" height="24">
     <defs>
       <filter id="mst-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -155,9 +162,9 @@ function ziplyTerminalSvg(_color: string): string {
         <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
       </filter>
     </defs>
-    <rect x="2" y="2" width="32" height="20" rx="4" fill="#090d16" fill-opacity="0.95" stroke="#ff007f" stroke-width="2.5" filter="url(#mst-glow)"/>
+    <rect x="2" y="2" width="32" height="20" rx="4" fill="#090d16" fill-opacity="0.95" stroke="${activeColor}" stroke-width="2.5" filter="url(#mst-glow)"/>
     <rect x="2" y="2" width="32" height="20" rx="4" fill="none" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.5"/>
-    <text x="18" y="15.5" font-size="11" font-weight="900" text-anchor="middle" fill="#ff007f" font-family="'JetBrains Mono', monospace" letter-spacing="0.5">MST</text>
+    <text x="18" y="15.5" font-size="${fontSize}" font-weight="900" text-anchor="middle" fill="${activeColor}" font-family="'JetBrains Mono', monospace, sans-serif" letter-spacing="0.5">${termText}</text>
   </svg>`;
 }
 

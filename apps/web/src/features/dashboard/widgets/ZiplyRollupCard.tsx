@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { DigTicket, Job } from "@nsc/types";
 import { api } from "../../../lib/api.js";
 import Bezel from "../components/Bezel.js";
+import { isZiplyJob } from "../../ziply/ziplyUtils.js";
 
 interface Props {
   jobs: Job[];
@@ -43,7 +44,7 @@ export default function ZiplyRollupCard({ jobs }: Props) {
   }, []);
 
   const ziplyJobs = useMemo(
-    () => jobs.filter((j) => j.customerProject === "Ziply" && j.inTracker !== false),
+    () => jobs.filter((j) => isZiplyJob(j) && j.inTracker !== false),
     [jobs],
   );
   const cityNames = useMemo(() => Array.from(new Set(ziplyJobs.map((j) => (j.city || "Unknown City").trim()))).sort(), [ziplyJobs]);
@@ -71,18 +72,19 @@ export default function ZiplyRollupCard({ jobs }: Props) {
     let unclearedSections = 0;
     hubJobs.forEach((j) => {
       if (j.crewName) crews.add(j.crewName);
+      const hasJobLevelTicket = liveTicketKeys.has(`${j.jobId}:job`);
       const mo = j.ziplyPrintLayer?.mapObjects;
       mo?.terminals?.forEach((t) => {
         sectionCount += 1;
         if (t.crewName) crews.add(t.crewName);
         const key = `${j.jobId}:terminal:${t.label}`;
-        if (!liveTicketKeys.has(key) && !(t.locateExpires && t.locateExpires > Date.now())) unclearedSections += 1;
+        if (!hasJobLevelTicket && !liveTicketKeys.has(key) && !(t.locateExpires && t.locateExpires > Date.now())) unclearedSections += 1;
       });
       mo?.cables?.forEach((c) => {
         sectionCount += 1;
         if (c.crewName) crews.add(c.crewName);
         const key = `${j.jobId}:cable:${c.label}`;
-        if (!liveTicketKeys.has(key) && !(c.locateExpires && c.locateExpires > Date.now())) unclearedSections += 1;
+        if (!hasJobLevelTicket && !liveTicketKeys.has(key) && !(c.locateExpires && c.locateExpires > Date.now())) unclearedSections += 1;
       });
     });
 

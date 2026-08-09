@@ -413,6 +413,8 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
             userLabel: match.label || match.name || label,
             ziplyPrintPage: match.pageRef ?? obj.style.ziplyPrintPage,
             ziplyPortCount: match.portCount ?? obj.style.ziplyPortCount,
+            ziplyTailLengthFt: match.footageFt ?? match.tailLengthFt ?? obj.style.ziplyTailLengthFt,
+            ziplyLashedOrConduitFt: match.lashedFt ?? match.conduitFt ?? obj.style.ziplyLashedOrConduitFt,
             ziplyAddressesServed: Array.isArray(match.addressesServed)
               ? match.addressesServed.join(", ")
               : (match.addressesServed ?? obj.style.ziplyAddressesServed),
@@ -423,10 +425,14 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     } else if (isLine(obj.tool) && "vertices" in obj) {
         const match = findMatchingCable(obj.vertices, mapObjects);
         if (match) {
+          const methodRaw = (match.buildType || "").toLowerCase();
+          const normMethod = methodRaw === "bore" || methodRaw === "trench" ? methodRaw : (methodRaw === "aerial" || methodRaw === "oh" ? "aerial" : obj.style.ziplyInstallMethod);
           patchObjectStyle(obj.id, {
             ziplyCableType: match.cableType ?? obj.style.ziplyCableType,
-            ziplyInstallMethod: match.buildType === "bore" ? "Bore" : (match.buildType === "aerial" ? "Aerial" : obj.style.ziplyInstallMethod),
-            ziplyFootage: Math.round(match.lengthFeet || 0) || obj.style.ziplyFootage,
+            ziplyFiberCount: match.fiberCount ?? match.size ?? (parseInt(match.cableType || "0", 10) || obj.style.ziplyFiberCount),
+            ziplyInstallMethod: normMethod,
+            ziplyFootage: Math.round(match.lengthFeet || match.lengthFt || 0) || obj.style.ziplyFootage,
+            ziplyConduitOrStrand: match.conduitOrStrand ?? match.strandType ?? match.conduitSize ?? obj.style.ziplyConduitOrStrand,
           });
         } else {
           window.alert("No matching AI cable path found nearby.");
@@ -490,9 +496,13 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
       ...obj,
       tool: nextTool,
       style: {
-        ...(nextTool === obj.tool ? obj.style : defaultStyleForTool(nextTool)),
+        ...defaultStyleForTool(nextTool),
+        ...obj.style,
         userLabel: resolvedLabel || undefined,
         description: resolvedDesc || undefined,
+        ziplyInstallMethod: m ? m.toLowerCase() : obj.style.ziplyInstallMethod,
+        ziplyConduitOrStrand: s || obj.style.ziplyConduitOrStrand,
+        ziplyFootage: cleanFootage ? Number(cleanFootage) : obj.style.ziplyFootage,
       }
     } as DrawingObject);
   };
@@ -508,7 +518,7 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
       if (
         finalLabel &&
         contract !== "Ziply" &&
-        (obj.tool === "pole_new" || obj.tool === "pole_removed") &&
+        (obj.tool === "pole_new" || obj.tool === "pole_removed" || obj.tool === "ziply_pole" || obj.tool.includes("pole")) &&
         !/^a-/i.test(finalLabel)
       ) {
         finalLabel = `A-${finalLabel}`;
@@ -1203,7 +1213,7 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
                     Port Count
                   </label>
                   <div style={{ display: "flex", gap: 4 }}>
-                    {[6, 8, 12, 16].map((ports) => {
+                    {[4, 6, 8, 12, 16].map((ports) => {
                       const active = obj.style.ziplyPortCount === ports;
                       return (
                         <button
@@ -1405,6 +1415,55 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
                     </div>
                   </div>
                 )}
+              </>
+            )}
+
+            {/* ── HANDHOLE / VAULT / PEDESTAL SPECIFIC CARD LAYOUT ── */}
+            {(obj.tool.includes("handhole") || obj.tool.includes("hh") || obj.tool.includes("ped") || obj.tool.includes("flower") || obj.tool === "ziply_handhole" || obj.tool === "ziply_flower_pot") && (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Structure / Handhole ID
+                  </label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyStructureId ?? obj.style.ziplyPoleId ?? ""}
+                    onChange={(e) => patchStyle({ ziplyStructureId: e.target.value || undefined })}
+                    placeholder="e.g. HH-102 or VAULT 2436"
+                    style={{
+                      background: "rgba(0,0,0,0.4)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      color: "#f8fafc",
+                      fontSize: 11,
+                      padding: "5px 8px",
+                      outline: "none",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Size / Spec (e.g. 24x36 Tier 22)
+                  </label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyConduitOrStrand ?? obj.style.ziplyHandholeSize ?? ""}
+                    onChange={(e) => patchStyle({ ziplyConduitOrStrand: e.target.value || undefined, ziplyHandholeSize: e.target.value || undefined })}
+                    placeholder="e.g. 24x36x24 Tier 22"
+                    style={{
+                      background: "rgba(0,0,0,0.4)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      color: "#f8fafc",
+                      fontSize: 11,
+                      padding: "5px 8px",
+                      outline: "none",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}
+                  />
+                </div>
               </>
             )}
 

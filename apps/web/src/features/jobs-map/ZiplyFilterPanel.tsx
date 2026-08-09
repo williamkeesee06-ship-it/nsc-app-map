@@ -6,6 +6,7 @@ import { api } from "../../lib/api.js";
 import { useSearchFocus } from "../search/searchContext.js";
 import {
   isNorthMetroJob,
+  isZiplyJob,
   type ZiplyStatusGroup,
   ziplyStatusGroupForJob,
 } from "../ziply/ziplyUtils.js";
@@ -89,15 +90,28 @@ export default function ZiplyFilterPanel({
 
   const counts = useMemo(() => {
     const res: Record<string, number> = {};
-    if (!fc) return res;
-    for (const f of fc.features) {
-      const lay = f.properties?.layer || f.properties?.type || "";
-      if (lay) {
-        res[lay] = (res[lay] || 0) + 1;
+    if (fc?.features) {
+      for (const f of fc.features) {
+        const lay = f.properties?.layer || f.properties?.type || "";
+        if (lay) {
+          res[lay] = (res[lay] || 0) + 1;
+        }
+      }
+    }
+    for (const j of ziplyJobs) {
+      const mo = j.ziplyPrintLayer?.mapObjects;
+      if (!mo) continue;
+      if (mo.hub) res.hub = (res.hub || 0) + 1;
+      if (mo.terminals) res.terminal = (res.terminal || 0) + mo.terminals.length;
+      if (mo.cables) {
+        for (const c of mo.cables) {
+          const role = c.role || "distribution";
+          res[role] = (res[role] || 0) + 1;
+        }
       }
     }
     return res;
-  }, [fc]);
+  }, [fc, ziplyJobs]);
 
   const activeLayers = filters.ziplyActiveLayers ?? new Set(["hub", "feeder", "distribution", "drop", "bore", "terminal", "service_point", "pole", "handhole"]);
 
@@ -205,7 +219,7 @@ export default function ZiplyFilterPanel({
     r.readAsText(file);
   };
   const ziplyJobs = useMemo(
-    () => jobs.filter((j) => j.customerProject === "Ziply" && j.inTracker !== false),
+    () => jobs.filter((j) => isZiplyJob(j) && j.inTracker !== false),
     [jobs]
   );
 

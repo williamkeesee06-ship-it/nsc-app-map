@@ -201,6 +201,20 @@ export function usePrintOverlay(job: Job) {
     [patchPage]
   );
 
+  const deletePage = useCallback(
+    (id: string) => {
+      setPages((prev) => {
+        const next = prev.filter((p) => p.id !== id);
+        pagesRef.current = next;
+        return next;
+      });
+      if (activePageId === id) {
+        setActivePageId(null);
+      }
+    },
+    [activePageId]
+  );
+
   const buildDoc = useCallback(
     (username: string | null): PrintOverlayDoc => {
       const currentPages = pagesRef.current;
@@ -255,22 +269,24 @@ export function usePrintOverlay(job: Job) {
         }
       }
 
+      for (const [docId, source] of sourcesRef.current.entries()) {
+        if (!mergedSources.has(docId)) {
+          mergedSources.set(docId, source);
+        }
+      }
+
       for (const p of currentPages) {
         if (!mergedSources.has(p.documentId)) {
-          const known = sourcesRef.current.get(p.documentId);
-          mergedSources.set(
-            p.documentId,
-            known ?? {
-              documentId: p.documentId,
-              name: p.label.replace(/ · p\d+$/, ""),
-              origin: "upload",
-              storagePath: null,
-              downloadUrl: null,
-              contentType: "application/pdf",
-              size: null,
-              pageCount: null,
-            }
-          );
+          mergedSources.set(p.documentId, {
+            documentId: p.documentId,
+            name: p.label.replace(/ · p\d+$/, ""),
+            origin: "upload",
+            storagePath: null,
+            downloadUrl: null,
+            contentType: "application/pdf",
+            size: null,
+            pageCount: null,
+          });
         }
       }
 
@@ -401,6 +417,11 @@ export function usePrintOverlay(job: Job) {
             const previewPath = `jobs/${jobId}/print-overlay/${documentId}/p${rp.pageNumber}.png`;
             const previewUploadPromise = uploadBlob(previewPath, rp.blob, "image/png")
               .then((r) => {
+                pagesRef.current = pagesRef.current.map((p) =>
+                  p.id === vm.id
+                    ? { ...p, previewStoragePath: r.storagePath, previewUrl: r.downloadUrl }
+                    : p
+                );
                 setPages((prev) =>
                   prev.map((p) =>
                     p.id === vm.id
@@ -409,6 +430,9 @@ export function usePrintOverlay(job: Job) {
                   )
                 );
                 pendingUploadsRef.current.delete(vm.id);
+                if (pendingUploadsRef.current.size === 0) {
+                  void saveDraft(username);
+                }
               })
               .catch((e) => {
                 console.warn("[print-overlay] preview upload failed", e);
@@ -453,6 +477,7 @@ export function usePrintOverlay(job: Job) {
     setTransform,
     setAlignment,
     setExcluded,
+    deletePage,
     save,
     saveDraft,
     parsedEntities,

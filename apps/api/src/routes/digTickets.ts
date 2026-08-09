@@ -6,6 +6,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db } from "../lib/firestore.js";
 import { generateMarkingInstructions } from "../services/markingInstructions.js";
+import { invalidateJobsCache } from "./jobs.js";
 import { normalizeDigShape, canDeleteDigTicket, buildRadiusShape, buildRouteShape } from "@nsc/types";
 import type { DigShape, DigTicket, Job, UtilityStatus, ZiplySectionScope } from "@nsc/types";
 
@@ -164,7 +165,7 @@ router.post("/dig-tickets", async (req, res, next) => {
         startsAt: null,
         expiresAt: null,
       },
-      createdBy: (req.body?.createdBy as string) || job.constructionSupervisor || "William",
+      createdBy: (req.body?.createdBy as string) || req.authUser?.email || job.constructionSupervisor || "William",
     };
 
     await db().collection("digTickets").doc(id).set(ticket);
@@ -188,9 +189,11 @@ router.post("/dig-tickets", async (req, res, next) => {
           ...(scope.kind === "hub" ? { activeTicketId: id } : {}),
           lastSyncedAt: now,
         });
+        invalidateJobsCache();
       }
     } else {
       await db().collection("jobs").doc(body.jobId).update({ activeTicketId: id });
+      invalidateJobsCache();
     }
 
     res.status(201).json({ ticket });
@@ -254,6 +257,7 @@ router.delete("/dig-tickets/:ticketId", async (req, res, next) => {
     const jobDoc = await jobRef.get();
     if (jobDoc.exists && (jobDoc.data() as Job).activeTicketId === ticket.id) {
       await jobRef.update({ activeTicketId: null });
+      invalidateJobsCache();
     }
 
     res.json({ ok: true, id: ticket.id });
@@ -466,7 +470,9 @@ async function mirrorLocateOntoZiplySection(
     }
   } else {
     await jobRef.update({ activeTicketId: ticketId, locateExpires: expiresAt });
+    invalidateJobsCache();
     return;
   }
   await jobRef.update({ ziplyPrintLayer: layer, lastSyncedAt: Date.now() });
+  invalidateJobsCache();
 }
