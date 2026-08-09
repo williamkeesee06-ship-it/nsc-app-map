@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
 import { Sparkles, FileText, Check, Plus, Play, Info } from "lucide-react";
-import { useDrawing } from "../drawing/drawingContext.js";
+import { useDrawing, defaultStyleForTool } from "../drawing/drawingContext.js";
 import { api } from "../../lib/api.js";
 import { extractPrintEntities, PLACEABLE_KINDS, type StoredPrintEntity } from "./printParser.js";
-import { surveyPlacements } from "./printGeoreference.js";
+import { surveyPlacements, projectPageToLatLng } from "./printGeoreference.js";
 import { comparePrintRevisions } from "./printRevisionDiff.js";
 import type { Job } from "@nsc/types";
 import type { MapImageOverlay } from "./types.js";
@@ -15,7 +15,8 @@ interface Props {
 
 export default function PrintParserTab({ selectedJob }: Props) {
   const map = useMap();
-  const { addObject } = useDrawing();
+  const { addObject, updateObject, deleteObjects, state } = useDrawing();
+  const [lastPlacedIds, setLastPlacedIds] = useState<string[]>([]);
 
   const [activeTab, setActiveTab] = useState<"PARSER" | "REVISION_DIFF">("PARSER");
   const [parsedEntities, setParsedEntities] = useState<StoredPrintEntity[]>([]);
@@ -129,6 +130,34 @@ export default function PrintParserTab({ selectedJob }: Props) {
     };
   }, [map, armedEntity, addObject, parsedEntities, selectedJob]);
 
+  // Revert all placed structures and lines from the last auto-placement
+  const onUndoLastAutoPlacement = useCallback(async () => {
+    if (lastPlacedIds.length === 0 || !selectedJob) return;
+    deleteObjects(lastPlacedIds);
+
+    const updatedEntities = parsedEntities.map((x) =>
+      x.placedMarkerId && lastPlacedIds.includes(x.placedMarkerId)
+        ? { ...x, placedMarkerId: undefined }
+        : x
+    );
+    setParsedEntities(updatedEntities);
+    setLastPlacedIds([]);
+
+    try {
+      const existing = await api.getPrintOverlay(selectedJob.jobId);
+      const updatedDoc = {
+        ...existing.printOverlay,
+        parsedEntities: updatedEntities,
+      } as any;
+      await api.putPrintOverlay(selectedJob.jobId, updatedDoc);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+      alert("Undo successful. Placed objects removed from the map.");
+    } catch (err) {
+      console.error("Failed to save undo to cloud", err);
+      alert("Successfully removed from local view, but failed to save to cloud.");
+    }
+  }, [lastPlacedIds, parsedEntities, deleteObjects, selectedJob]);
+
   // Place all unplaced structures for the active print page
   const onPlaceAllFromPrint = useCallback(async () => {
     if (!selectedJob) return;
@@ -172,8 +201,83 @@ export default function PrintParserTab({ selectedJob }: Props) {
 
     const survey = surveyPlacements(pageEntities, overlays, PLACEABLE_KINDS);
 
-    if (survey.plans.length === 0) {
-      alert(`No unplaced structures found for Page ${activePageNumber}.`);
+    // ── Cable span parsing & connection logic ──────────────────────────────
+    const allPointEntities = parsedEntities.filter(
+      (e) => e.page === activePageNumber && e.kind !== "cable"
+    );
+    const unplacedCables = pageEntities.filter((e) => e.kind === "cable");
+
+    // Project all point structures to georeferenced LatLngs
+    const projectedPoints = allPointEntities
+      .map((e) => {
+        const pos = projectPageToLatLng(
+          targetOverlay,
+          e.x,
+          e.y,
+          e.pageWidth || 842,
+          e.pageHeight || 595
+        );
+        return pos ? { entity: e, pos } : null;
+      })
+      .filter(Boolean) as Array<{ entity: StoredPrintEntity; pos: { lat: number; lng: number } }>;
+
+    // Helper: distance to segment
+    function distanceToSegment(
+      px: number,
+      py: number,
+      ax: number,
+      ay: number,
+      bx: number,
+      by: number
+    ): number {
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      if (len2 === 0) return Math.hypot(px - ax, py - ay);
+      let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    }
+
+    const cablePlans: Array<{
+      entity: StoredPrintEntity;
+      vertices: Array<{ lat: number; lng: number }>;
+    }> = [];
+
+    unplacedCables.forEach((cable) => {
+      let bestPair: [typeof projectedPoints[0], typeof projectedPoints[0]] | null = null;
+      let minDistance = Infinity;
+
+      for (let i = 0; i < projectedPoints.length; i++) {
+        for (let j = i + 1; j < projectedPoints.length; j++) {
+          const ptA = projectedPoints[i];
+          const ptB = projectedPoints[j];
+          const d = distanceToSegment(
+            cable.x,
+            cable.y,
+            ptA.entity.x,
+            ptA.entity.y,
+            ptB.entity.x,
+            ptB.entity.y
+          );
+          if (d < minDistance) {
+            minDistance = d;
+            bestPair = [ptA, ptB];
+          }
+        }
+      }
+
+      // Max threshold: 350 PDF points (approx 4.8 inches)
+      if (bestPair && minDistance < 350) {
+        cablePlans.push({
+          entity: cable,
+          vertices: [bestPair[0].pos, bestPair[1].pos],
+        });
+      }
+    });
+
+    if (survey.plans.length === 0 && cablePlans.length === 0) {
+      alert(`No unplaced structures or cables found for Page ${activePageNumber}.`);
       return;
     }
 
@@ -191,24 +295,100 @@ export default function PrintParserTab({ selectedJob }: Props) {
 
     let placedCount = 0;
     const updatedEntities = [...parsedEntities];
+    const placedIds: string[] = [];
 
+    // Place points
     survey.plans.forEach((plan) => {
       const tool = toolMap[plan.entity.kind] || "ziply_terminal";
+      const existingObj = state.objects.find(
+        (obj) =>
+          obj.tool === tool &&
+          ("position" in obj) &&
+          (obj.style.userLabel === plan.entity.mapTag || obj.style.userLabel === plan.entity.label)
+      );
+
+      if (existingObj && "position" in existingObj) {
+        // Update its position and description
+        updateObject({
+          ...existingObj,
+          position: plan.position,
+          style: {
+            ...existingObj.style,
+            description: plan.entity.summary,
+          },
+        } as any);
+
+        const idx = updatedEntities.findIndex((x) => x.id === plan.entity.id);
+        if (idx !== -1) {
+          updatedEntities[idx] = { ...updatedEntities[idx], placedMarkerId: existingObj.id };
+        }
+      } else {
+        const objId = `obj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        placedIds.push(objId);
+
+        const defaultStyle = defaultStyleForTool(tool as any);
+
+        addObject({
+          id: objId,
+          tool: tool as any,
+          position: plan.position,
+          style: {
+            ...defaultStyle,
+            userLabel: plan.entity.mapTag || plan.entity.label,
+            description: plan.entity.summary,
+          } as any,
+        });
+
+        const idx = updatedEntities.findIndex((x) => x.id === plan.entity.id);
+        if (idx !== -1) {
+          updatedEntities[idx] = { ...updatedEntities[idx], placedMarkerId: objId };
+        }
+      }
+      placedCount++;
+    });
+
+    // Place cables
+    cablePlans.forEach((plan) => {
+      let tool = "ziply_distribution";
+      if (/BORE/i.test(plan.entity.summary)) tool = "ziply_bore";
+      else if (/TRENCH/i.test(plan.entity.summary)) tool = "ziply_bore";
+      else if (/FEEDER/i.test(plan.entity.summary)) tool = "ziply_feeder";
+      else if (/DROP/i.test(plan.entity.summary)) tool = "ziply_drop";
+
+      // Check for existing line connecting the same pair of points
+      const hasExistingLine = state.objects.some(
+        (obj) =>
+          obj.tool === tool &&
+          "vertices" in obj &&
+          obj.vertices.length === 2 &&
+          ((Math.abs(obj.vertices[0].lat - plan.vertices[0].lat) < 0.00001 &&
+            Math.abs(obj.vertices[0].lng - plan.vertices[0].lng) < 0.00001 &&
+            Math.abs(obj.vertices[1].lat - plan.vertices[1].lat) < 0.00001 &&
+            Math.abs(obj.vertices[1].lng - plan.vertices[1].lng) < 0.00001) ||
+           (Math.abs(obj.vertices[0].lat - plan.vertices[1].lat) < 0.00001 &&
+            Math.abs(obj.vertices[0].lng - plan.vertices[1].lng) < 0.00001 &&
+            Math.abs(obj.vertices[1].lat - plan.vertices[0].lat) < 0.00001 &&
+            Math.abs(obj.vertices[1].lng - plan.vertices[0].lng) < 0.00001))
+      );
+
+      if (hasExistingLine) {
+        return;
+      }
+
       const objId = `obj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      placedIds.push(objId);
+
+      const defaultStyle = defaultStyleForTool(tool as any);
 
       addObject({
         id: objId,
         tool: tool as any,
-        position: plan.position,
+        vertices: plan.vertices,
         style: {
-          strokeColor: "#0284c7",
-          strokeWidth: 2,
-          strokeStyle: "solid",
-          fill: { kind: "none" },
-          opacity: 0.8,
-          userLabel: plan.entity.mapTag || plan.entity.label,
+          ...defaultStyle,
+          userLabel: plan.entity.label,
           description: plan.entity.summary,
-        } as any
+        } as any,
       });
 
       const idx = updatedEntities.findIndex((x) => x.id === plan.entity.id);
@@ -219,6 +399,7 @@ export default function PrintParserTab({ selectedJob }: Props) {
     });
 
     setParsedEntities(updatedEntities);
+    setLastPlacedIds(placedIds);
 
     // Save back to Firestore
     try {
@@ -229,12 +410,12 @@ export default function PrintParserTab({ selectedJob }: Props) {
       } as any;
       await api.putPrintOverlay(selectedJob.jobId, updatedDoc);
       window.dispatchEvent(new Event("nsc:jobs-reload"));
-      alert(`Placed ${placedCount} structures onto the map successfully.`);
+      alert(`Placed ${placedCount} structures/cables onto the map successfully.`);
     } catch (err) {
       console.error("Failed to update placed markers in print overlay", err);
-      alert(`Placed ${placedCount} structures, but failed to save status to cloud.`);
+      alert(`Placed ${placedCount} items, but failed to save status to cloud.`);
     }
-  }, [selectedJob, activePageNumber, parsedEntities, addObject]);
+  }, [selectedJob, activePageNumber, parsedEntities, addObject, updateObject, state.objects, lastPlacedIds]);
 
   if (!selectedJob) {
     return (
@@ -360,6 +541,15 @@ export default function PrintParserTab({ selectedJob }: Props) {
               >
                 <Sparkles size={13} /> Place Page {activePageNumber} Structures
               </button>
+              {lastPlacedIds.length > 0 && (
+                <button
+                  onClick={onUndoLastAutoPlacement}
+                  className="po-btn po-btn--ghost w-full text-xs font-black uppercase flex items-center justify-center gap-1.5 border border-red-500/30 text-red-400 hover:bg-red-500/10 mt-2"
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                >
+                  Undo Auto-Placement ({lastPlacedIds.length} items)
+                </button>
+              )}
 
               <div className="parser-list" style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "280px" }}>
                 {filteredEntities.map((entity) => {

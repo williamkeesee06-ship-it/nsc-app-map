@@ -88,7 +88,7 @@ export const COLORS = {
   black: "#000000",
 } as const;
 
-function defaultStyleForTool(tool: DrawingTool): DrawingStyle {
+export function defaultStyleForTool(tool: DrawingTool): DrawingStyle {
   // Ziply Draw Tools
   if (tool === "ziply_feeder") {
     return {

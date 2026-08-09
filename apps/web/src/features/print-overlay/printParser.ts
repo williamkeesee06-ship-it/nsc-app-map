@@ -35,7 +35,8 @@ export type PrintEntityKind =
   | "riser"
   | "splitter"
   | "hub"
-  | "flowerpot";
+  | "flowerpot"
+  | "cable";
 
 /**
  * A parsed entity once it belongs to a job and can track its own placement.
@@ -508,6 +509,51 @@ function dedupe(entities: PrintEntity[]): PrintEntity[] {
   return [...best.values()];
 }
 
+function parseCables(lines: PrintTextLine[]): PrintEntity[] {
+  const out: PrintEntity[] = [];
+  lines.forEach((line, index) => {
+    const text = line.text.trim();
+    // Look for patterns like "275' 1-2\" DUCT BORE" or "150' 24F AERIAL" or "300' TRENCH"
+    // Regex matches footage like: 275', 275FT, 275 FT
+    const match = text.match(/\b(\d+)\s*(?:'|FT|FT\.)\b/i);
+    if (!match) return;
+
+    const footage = match[1];
+    
+    // Check if it's a cable span text by ensuring it has common keywords
+    const isCable = /DUCT|BORE|TRENCH|AERIAL|FEEDB|DIST|DROP|FIBER|CABLE|[\d-]+F\b|OH\s+GUY|STRAND/i.test(text) || 
+                    (text.length < 15 && /^\d+[']/i.test(text));
+                    
+    if (!isCable) return;
+
+    // Determine method / medium
+    let method = "";
+    if (/BORE/i.test(text)) method = "BORE";
+    else if (/TRENCH/i.test(text)) method = "TRENCH";
+    else if (/AERIAL|OH/i.test(text)) method = "AERIAL";
+
+    const label = method ? `${footage}' ${method}` : `${footage}'`;
+
+    out.push({
+      id: `cable:${line.page}:${index}`,
+      kind: "cable",
+      label,
+      mapTag: label,
+      iconSymbol: null,
+      page: line.page,
+      x: line.x,
+      y: line.y,
+      details: {
+        Footage: `${footage}'`,
+        Text: text,
+        Sheet: String(line.page)
+      },
+      summary: text
+    });
+  });
+  return out;
+}
+
 function parsePoleTags(lines: PrintTextLine[]): PrintEntity[] {
   const out: PrintEntity[] = [];
 
@@ -546,6 +592,7 @@ export function parsePrintEntities(items: PrintTextItem[]): PrintEntity[] {
     ...parsePoleTags(lines),
     ...parseSplitters(lines),
     ...parseLabelledStructures(lines),
+    ...parseCables(lines),
   ];
 
   const order: PrintEntityKind[] = [
@@ -558,6 +605,7 @@ export function parsePrintEntities(items: PrintTextItem[]): PrintEntity[] {
     "pole",
     "riser",
     "flowerpot",
+    "cable",
   ];
   return entities.sort(
     (a, b) =>
