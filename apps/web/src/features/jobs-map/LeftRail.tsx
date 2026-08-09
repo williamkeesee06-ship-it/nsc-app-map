@@ -76,6 +76,12 @@ export default function LeftRail({
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
 
   const [collapsed, setCollapsed] = useState<boolean>(true);
+  const [selectedJobTab, setSelectedJobTab] = useState<"detail" | "tools">("detail");
+  useEffect(() => {
+    if (selectedJob) {
+      setSelectedJobTab("detail");
+    }
+  }, [selectedJob]);
 
   // Broadcast active tab + collapse state so JobsMap can mount the Calendar
   // as a full-screen overlay over the map (instead of cramming it in the
@@ -292,6 +298,56 @@ export default function LeftRail({
                 
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   {selectedJob && (
+                    <div style={{
+                      display: 'flex',
+                      background: 'rgba(0, 0, 0, 0.03)',
+                      padding: '4px',
+                      borderRadius: '8px',
+                      margin: '4px 8px 8px 8px',
+                      gap: '4px',
+                    }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedJobTab("detail")}
+                        style={{
+                          flex: 1,
+                          background: selectedJobTab === "detail" ? '#0033A0' : 'transparent',
+                          color: selectedJobTab === "detail" ? '#ffffff' : '#475569',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          letterSpacing: '0.05em',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s cubic-bezier(0.32, 0.72, 0, 1)',
+                        }}
+                      >
+                        JOB DETAIL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedJobTab("tools")}
+                        style={{
+                          flex: 1,
+                          background: selectedJobTab === "tools" ? '#0033A0' : 'transparent',
+                          color: selectedJobTab === "tools" ? '#ffffff' : '#475569',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          letterSpacing: '0.05em',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s cubic-bezier(0.32, 0.72, 0, 1)',
+                        }}
+                      >
+                        TOOLS
+                      </button>
+                    </div>
+                  )}
+
+                  {selectedJob && selectedJobTab === "detail" && (
                     <JobCard
                       job={selectedJob}
                       onClose={() => {
@@ -302,6 +358,12 @@ export default function LeftRail({
                       ziplyPrintLayerVisible={ziplyPrintLayerVisible}
                       setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
                     />
+                  )}
+
+                  {selectedJob && selectedJobTab === "tools" && (
+                    <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 16px 8px' }}>
+                      <AnnotateTab selectedJob={selectedJob} />
+                    </div>
                   )}
 
                   {selectedFeature && (
