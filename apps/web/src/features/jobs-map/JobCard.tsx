@@ -11,6 +11,7 @@ import Eight11Section from "./Eight11Section.js";
 import { computePlantProgress, isZiplyJob } from "../ziply/ziplyUtils.js";
 import LayersPanel from "../workspace/LayersPanel.js";
 import { useActiveContract } from "../workspace/contractStore.js";
+import { uploadToStorage, sanitizeStorageSegment } from "../../lib/storage.js";
 
 interface Props {
   job: Job;
@@ -267,6 +268,48 @@ export default function JobCard({
       return { border: "1.5px solid #c44dff", boxShadow: "0 0 8px rgba(196, 77, 255, 0.25)", backgroundColor: "rgba(196, 77, 255, 0.05)", color: "#c44dff" };
     } else {
       return { border: "1.5px solid #94a3b8", boxShadow: "0 0 8px rgba(148, 163, 184, 0.25)", backgroundColor: "rgba(148, 163, 184, 0.05)", color: "#94a3b8" };
+    }
+  };
+
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+
+  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploadingAttachment(true);
+    try {
+      const sanitizedName = sanitizeStorageSegment(file.name);
+      const documentId = `permit-${Date.now()}`;
+      const path = `jobs/${job.jobId}/permits/${documentId}/${sanitizedName}`;
+
+      const uploadResult = await uploadToStorage(path, file, {
+        contentType: file.type || "application/pdf",
+      });
+
+      // Call api.ziplyPermitIngest to record it in the backend database
+      await api.ziplyPermitIngest(job.jobId, {
+        permitType: "other",
+        storageFiles: [
+          {
+            storagePath: uploadResult.storagePath,
+            downloadUrl: uploadResult.downloadUrl,
+            contentType: uploadResult.contentType || file.type || "application/pdf",
+            name: file.name,
+            size: uploadResult.size,
+          },
+        ],
+      });
+
+      // Reload jobs
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    } catch (err) {
+      console.error("[JobCard] Attachment upload failed", err);
+      alert("Failed to upload attachment: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setUploadingAttachment(false);
     }
   };
 
@@ -814,6 +857,8 @@ export default function JobCard({
               <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>File Attachments:</span>
               <button
                 type="button"
+                onClick={() => attachmentInputRef.current?.click()}
+                disabled={uploadingAttachment}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -825,11 +870,19 @@ export default function JobCard({
                   padding: "3px 8px",
                   fontSize: "9px",
                   fontWeight: 800,
-                  cursor: "pointer",
+                  cursor: uploadingAttachment ? "wait" : "pointer",
+                  opacity: uploadingAttachment ? 0.6 : 1,
                 }}
               >
-                <UploadCloud size={10} /> Upload
+                <UploadCloud size={10} /> {uploadingAttachment ? "Uploading..." : "Upload"}
               </button>
+              <input
+                ref={attachmentInputRef}
+                type="file"
+                accept="application/pdf,.pdf,image/*"
+                onChange={handleAttachmentUpload}
+                style={{ display: "none" }}
+              />
             </div>
             {attachmentsList.length === 0 ? (
               <span style={{ fontSize: 10, color: "var(--text-muted)", fontStyle: "italic" }}>No files attached to Smartsheet yet.</span>
