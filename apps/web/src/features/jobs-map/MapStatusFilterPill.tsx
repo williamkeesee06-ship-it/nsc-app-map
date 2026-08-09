@@ -106,7 +106,7 @@ export default function MapStatusFilterPill(props: Props) {
         }
       >
         <span className="msfp-dot" aria-hidden="true" />
-        <span className="msfp-label">Status</span>
+        <span className="msfp-label">FILTERS</span>
         {hiddenCount > 0 && (
           <span className="msfp-badge">−{hiddenCount}</span>
         )}
