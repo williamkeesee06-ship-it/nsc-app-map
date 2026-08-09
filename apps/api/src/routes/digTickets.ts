@@ -255,9 +255,42 @@ router.delete("/dig-tickets/:ticketId", async (req, res, next) => {
     // becomes eligible to file a fresh ticket again. Leaves the dig shape intact.
     const jobRef = db().collection("jobs").doc(ticket.jobId);
     const jobDoc = await jobRef.get();
-    if (jobDoc.exists && (jobDoc.data() as Job).activeTicketId === ticket.id) {
-      await jobRef.update({ activeTicketId: null });
-      invalidateJobsCache();
+    if (jobDoc.exists) {
+      const jobData = jobDoc.data() as Job;
+      let updated = false;
+      const updateData: Record<string, unknown> = {};
+
+      if (jobData.activeTicketId === ticket.id) {
+        updateData.activeTicketId = null;
+        updated = true;
+      }
+
+      if (ticket.scope && jobData.ziplyPrintLayer?.mapObjects) {
+        const layer = JSON.parse(JSON.stringify(jobData.ziplyPrintLayer));
+        const mo = layer.mapObjects;
+        if (ticket.scope.kind === "terminal" && Array.isArray(mo.terminals)) {
+          const t = mo.terminals.find((x: { label: string }) => x.label === ticket.scope!.ref);
+          if (t && t.locateTicketId === ticket.id) {
+            delete t.locateTicketId;
+            delete t.locateExpires;
+            updated = true;
+            updateData.ziplyPrintLayer = layer;
+          }
+        } else if (ticket.scope.kind === "cable" && Array.isArray(mo.cables)) {
+          const c = mo.cables.find((x: { label: string }) => x.label === ticket.scope!.ref);
+          if (c && c.locateTicketId === ticket.id) {
+            delete c.locateTicketId;
+            delete c.locateExpires;
+            updated = true;
+            updateData.ziplyPrintLayer = layer;
+          }
+        }
+      }
+
+      if (updated) {
+        await jobRef.update(updateData);
+        invalidateJobsCache();
+      }
     }
 
     res.json({ ok: true, id: ticket.id });

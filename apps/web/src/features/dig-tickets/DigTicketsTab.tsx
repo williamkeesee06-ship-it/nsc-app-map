@@ -220,7 +220,7 @@ export default function DigTicketsTab({ jobs, onOpenJob }: Props) {
             {t.status}
           </span>
           <span style={{ gridColumn: "1 / -1", fontSize: "11.5px", fontWeight: 700, color: "var(--text)", marginTop: "1px" }}>
-            Job: {job?.workOrder ?? t.jobId}
+            Job #{job?.workOrder ?? t.jobId}
           </span>
           <span className="dt-ticket__meta" style={{ gridColumn: "1 / -1", fontSize: "10.5px", color: "var(--text-muted)", marginTop: "2px" }}>
             {t.scope?.label || t.scope?.terminalRange || t.shape.type} · {Math.round(t.shape.areaSqFt).toLocaleString()} ft²

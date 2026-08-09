@@ -19,5 +19,7 @@ export function canDeleteDigTicket(ticket) {
         return true;
     if (ticket.ticketNumber && ticket.ticketNumber.trim() !== "")
         return false;
-    return ticket.status !== "Filed" && ticket.status !== "Active";
+    return (ticket.status === "Drafting" ||
+        ticket.status === "Review" ||
+        ticket.status === "Filing");
 }
