@@ -30,6 +30,7 @@ import {
   type LatLng,
   type PagePoint,
   type PrintOverlaySource,
+  type PrintOverlayTransform,
 } from "@nsc/types";
 import type { Job } from "@nsc/types";
 import { useAuth } from "../auth/authContext.js";
@@ -148,6 +149,10 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
   );
 
   const autoLoadedRef = useRef(false);
+  useEffect(() => {
+    autoLoadedRef.current = false;
+  }, [jobId]);
+
   useEffect(() => {
     if (autoLoadedRef.current) return;
     if (sources.length > 0 && phase === "choosing") {
@@ -482,9 +487,8 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     if (dir === "E") lng += lngOffset;
     if (dir === "W") lng -= lngOffset;
 
-    setTransform(activePage.id, { center: { lat, lng } });
+    const patch: Partial<PrintOverlayTransform> = { center: { lat, lng } };
 
-    // Also nudge Leaflet corners if present
     const swLat = activePage.transform?.southWestLat;
     const swLng = activePage.transform?.southWestLng;
     const neLat = activePage.transform?.northEastLat;
@@ -496,29 +500,32 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       if (dir === "E") dLng = lngOffset;
       if (dir === "W") dLng = -lngOffset;
 
-      setTransform(activePage.id, {
-        southWestLat: swLat + dLat,
-        southWestLng: swLng + dLng,
-        northEastLat: neLat + dLat,
-        northEastLng: neLng + dLng,
-      });
+      patch.southWestLat = swLat + dLat;
+      patch.southWestLng = swLng + dLng;
+      patch.northEastLat = neLat + dLat;
+      patch.northEastLng = neLng + dLng;
     }
+
+    setTransform(activePage.id, patch);
   };
 
   const nudgeRotate = (delta: number) => {
     if (!activePage) return;
     const deg = (activePage.transform?.rotationDeg ?? 0) + delta;
-    setTransform(activePage.id, { rotationDeg: deg });
-
     const currentRotDegrees = activePage.transform?.rotationDegrees ?? 0;
-    setTransform(activePage.id, { rotationDegrees: currentRotDegrees + delta });
+    setTransform(activePage.id, {
+      rotationDeg: deg,
+      rotationDegrees: currentRotDegrees + delta,
+    });
   };
 
   const nudgeScale = (factor: number) => {
     if (!activePage) return;
     const currentScale = activePage.transform?.scale ?? 1;
     const nextScale = currentScale * factor;
-    setTransform(activePage.id, { scale: Math.max(0.05, Math.min(8, nextScale)) });
+    const patch: Partial<PrintOverlayTransform> = {
+      scale: Math.max(0.05, Math.min(8, nextScale)),
+    };
 
     const swLat = activePage.transform?.southWestLat;
     const swLng = activePage.transform?.southWestLng;
@@ -529,13 +536,12 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       const cLng = (swLng + neLng) / 2;
       const dLat = (neLat - swLat) * factor;
       const dLng = (neLng - swLng) * factor;
-      setTransform(activePage.id, {
-        southWestLat: cLat - dLat / 2,
-        southWestLng: cLng - dLng / 2,
-        northEastLat: cLat + dLat / 2,
-        northEastLng: cLng + dLng / 2,
-      });
+      patch.southWestLat = cLat - dLat / 2;
+      patch.southWestLng = cLng - dLng / 2;
+      patch.northEastLat = cLat + dLat / 2;
+      patch.northEastLng = cLng + dLng / 2;
     }
+    setTransform(activePage.id, patch);
   };
 
   const overlayImg = activePage?.previewUrl || activePage?.objectUrl || null;

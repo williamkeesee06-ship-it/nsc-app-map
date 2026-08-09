@@ -799,10 +799,12 @@ export function DrawingProvider({ children, mapRef }: Props) {
   }, []);
 
   const deleteObjects = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    pushHistory();
     const toDelete = new Set(ids);
     const objects = stateRef.current.objects.filter(o => !toDelete.has(o.id));
     dispatch({ type: "SET_OBJECTS", objects });
-  }, []);
+  }, [pushHistory]);
 
   const alignSelected = useCallback((alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v') => {
     const selected = stateRef.current.selectedIds;

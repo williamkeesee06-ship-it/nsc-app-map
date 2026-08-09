@@ -62,6 +62,8 @@ export interface DrawingStyle {
     description?: string;
     ziplyPortCount?: number;
     ziplyAddressesServed?: string;
+    ziplyStructureId?: string;
+    ziplyHandholeSize?: string;
     photos?: Array<{
         id: string;
         dataUrl: string;
@@ -130,7 +132,7 @@ export interface JobLayer {
 }
 export type DrawingObject = {
     id: string;
-    tool: "placed_cable" | "removed_cable" | "line" | "arrow" | "polygon" | "freehand" | "measure" | "ziply_feeder" | "ziply_distribution" | "ziply_drop" | "ziply_bore";
+    tool: "placed_cable" | "removed_cable" | "line" | "arrow" | "polygon" | "freehand" | "measure" | "highlighter" | "ziply_feeder" | "ziply_distribution" | "ziply_drop" | "ziply_bore";
     vertices: Array<{
         lat: number;
         lng: number;
@@ -177,7 +179,7 @@ export type DrawingObject = {
     style: DrawingStyle;
 } | {
     id: string;
-    tool: "mh_new" | "mh_removed" | "hh_new" | "hh_removed" | "ped_new" | "ped_removed" | "pole_new" | "pole_removed" | "cabinet_new" | "cabinet_removed" | "anchor_new" | "anchor_removed" | "splice" | "ziply_hub" | "ziply_terminal" | "ziply_address" | "ziply_pole" | "ziply_handhole" | "ziply_flower_pot" | "flower_pot_new" | "flower_pot_removed";
+    tool: "mh_new" | "mh_removed" | "hh_new" | "hh_removed" | "ped_new" | "ped_removed" | "pole_new" | "pole_removed" | "cabinet_new" | "cabinet_removed" | "anchor_new" | "anchor_removed" | "splice" | "ziply_hub" | "ziply_terminal" | "ziply_address" | "ziply_pole" | "ziply_handhole" | "ziply_flower_pot" | "ziply_splitter" | "ziply_riser" | "ziply_slack_loop" | "flower_pot_new" | "flower_pot_removed";
     position: {
         lat: number;
         lng: number;

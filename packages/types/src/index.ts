@@ -132,6 +132,8 @@ export interface DrawingStyle {
   description?: string;
   ziplyPortCount?: number;
   ziplyAddressesServed?: string;
+  ziplyStructureId?: string;
+  ziplyHandholeSize?: string;
   photos?: Array<{ id: string; dataUrl: string; name?: string }>;
   layerId?: string;
   
@@ -220,6 +222,7 @@ export type DrawingObject =
         | "polygon"
         | "freehand"
         | "measure"
+        | "highlighter"
         | "ziply_feeder"
         | "ziply_distribution"
         | "ziply_drop"
@@ -274,6 +277,9 @@ export type DrawingObject =
         | "ziply_pole"
         | "ziply_handhole"
         | "ziply_flower_pot"
+        | "ziply_splitter"
+        | "ziply_riser"
+        | "ziply_slack_loop"
         | "flower_pot_new"
         | "flower_pot_removed";
       position: { lat: number; lng: number };
@@ -781,7 +787,11 @@ export function canDeleteDigTicket(
 ): boolean {
   if (ticket.status === "Failed") return true;
   if (ticket.ticketNumber && ticket.ticketNumber.trim() !== "") return false;
-  return ticket.status !== "Filed" && ticket.status !== "Active";
+  return (
+    ticket.status === "Drafting" ||
+    ticket.status === "Review" ||
+    ticket.status === "Filing"
+  );
 }
 
 export interface SyncRun {

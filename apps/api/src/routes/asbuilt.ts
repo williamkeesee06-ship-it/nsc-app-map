@@ -54,7 +54,7 @@ const JobLayerSchema = z.object({
 // ---- Phase 3 schema (AsBuiltDocument — schemaVersion:2) ----
 const DrawingStyleSchema = z.object({
   strokeColor: z.string(),
-  strokeWidth: z.number().min(1).max(10),
+  strokeWidth: z.number().min(1).max(50),
   strokeStyle: z.enum(["solid", "dashed", "dotted"]),
   fill: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("none") }),
@@ -74,7 +74,7 @@ const DrawingStyleSchema = z.object({
   userLabel: z.string().optional(),
   description: z.string().optional(),
   layerId: z.string().optional(),
-});
+}).passthrough();
 
 const VertexSchema = z.object({ lat: z.number(), lng: z.number() });
 const BoundsSchema = z.object({ n: z.number(), s: z.number(), e: z.number(), w: z.number() });
@@ -82,7 +82,20 @@ const BoundsSchema = z.object({ n: z.number(), s: z.number(), e: z.number(), w: 
 const DrawingObjectSchema = z.discriminatedUnion("tool", [
   z.object({
     id: z.string(),
-    tool: z.enum(["placed_cable", "removed_cable", "line", "arrow", "polygon", "freehand", "measure"]),
+    tool: z.enum([
+      "placed_cable",
+      "removed_cable",
+      "line",
+      "arrow",
+      "polygon",
+      "freehand",
+      "measure",
+      "highlighter",
+      "ziply_feeder",
+      "ziply_distribution",
+      "ziply_drop",
+      "ziply_bore",
+    ]),
     vertices: z.array(VertexSchema),
     style: DrawingStyleSchema,
   }),
@@ -117,6 +130,18 @@ const DrawingObjectSchema = z.discriminatedUnion("tool", [
       "pole_new", "pole_removed",
       "cabinet_new", "cabinet_removed",
       "anchor_new", "anchor_removed",
+      "splice",
+      "ziply_hub",
+      "ziply_terminal",
+      "ziply_address",
+      "ziply_pole",
+      "ziply_handhole",
+      "ziply_flower_pot",
+      "ziply_splitter",
+      "ziply_riser",
+      "ziply_slack_loop",
+      "flower_pot_new",
+      "flower_pot_removed",
     ]),
     position: VertexSchema,
     label: z.string().optional(),

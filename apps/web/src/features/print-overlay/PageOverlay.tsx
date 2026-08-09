@@ -173,8 +173,15 @@ export default function PageOverlay({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (mode === "pickPage") {
-      // Element-local offset IS page-pixel space (pre-transform coordinates).
-      onPagePoint({ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY });
+      let px = e.nativeEvent.offsetX;
+      let py = e.nativeEvent.offsetY;
+      if (e.target !== e.currentTarget) {
+        const targetRect = (e.target as HTMLElement).getBoundingClientRect();
+        const currentRect = e.currentTarget.getBoundingClientRect();
+        px = (targetRect.left - currentRect.left) + e.nativeEvent.offsetX;
+        py = (targetRect.top - currentRect.top) + e.nativeEvent.offsetY;
+      }
+      onPagePoint({ x: px, y: py });
       return;
     }
     if (mode !== "move" || locked) return;

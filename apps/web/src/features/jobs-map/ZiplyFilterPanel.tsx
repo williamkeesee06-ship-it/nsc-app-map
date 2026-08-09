@@ -65,7 +65,15 @@ export default function ZiplyFilterPanel({
 }: Props) {
   const [fc, setFc] = useState<any | null>(null);
   const [isImporting, setIsImporting] = useState(false);
-  const { selectedJobId } = useSearchFocus();
+  const ziplyJobs = useMemo(
+    () => jobs.filter((j) => isZiplyJob(j) && j.inTracker !== false),
+    [jobs]
+  );
+
+  const northMetroJobs = useMemo(
+    () => ziplyJobs.filter(isNorthMetroJob),
+    [ziplyJobs]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -218,18 +226,6 @@ export default function ZiplyFilterPanel({
     };
     r.readAsText(file);
   };
-  const ziplyJobs = useMemo(
-    () => jobs.filter((j) => isZiplyJob(j) && j.inTracker !== false),
-    [jobs]
-  );
-
-  const northMetroJobs = useMemo(
-    () => ziplyJobs.filter(isNorthMetroJob),
-    [ziplyJobs]
-  );
-
-
-
   const getStatusCount = (group: ZiplyStatusGroup) =>
     ziplyJobs.filter((j) => ziplyStatusGroupForJob(j) === group).length;
 

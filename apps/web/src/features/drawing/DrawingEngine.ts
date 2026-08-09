@@ -418,7 +418,7 @@ export class DrawingEngine {
     const midVert = verts[Math.floor(verts.length / 2)]!;
     const obj: DrawingObject = {
       id: genId(),
-      tool: "freehand",
+      tool: (this.tool === "highlighter" ? "highlighter" : "freehand") as "freehand" | "highlighter",
       vertices: verts,
       style,
     };

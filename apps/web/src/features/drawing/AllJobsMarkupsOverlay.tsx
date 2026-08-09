@@ -112,12 +112,14 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
   let icons: google.maps.IconSequence[] | undefined = undefined;
 
   if (isZiplyCable) {
-    const status = style.ziplyStatus || "planned";
+    const status = (style.ziplyStatus || "planned").toLowerCase();
     if (status === "planned") {
       opacity = 0.45;
       icons = [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: weight }, offset: "0", repeat: "12px" }];
-    } else if (status === "Complete") {
-      color = "#00ffff";
+    } else if (status === "placed") {
+      opacity = 0.85;
+    } else if (status === "complete" || status === "completed") {
+      opacity = 1.0;
     }
   }
 
@@ -260,21 +262,22 @@ function createReadOnlyOverlay(
       } as unknown as OverlayRef);
     }
 
+    const statusLower = (obj.style.ziplyStatus || "").toLowerCase();
     if (
       (obj.tool === "placed_cable" ||
         obj.tool === "ziply_feeder" ||
         obj.tool === "ziply_distribution" ||
         obj.tool === "ziply_drop" ||
         obj.tool === "ziply_bore") &&
-      obj.style.ziplyStatus === "Complete"
+      (statusLower === "complete" || statusLower === "completed")
     ) {
-      // Glow polyline
-      polyline.setOptions({ strokeColor: "#00ffff" }); // cyan core
+      // Glow polyline matching line color (green PLACED_COLOR default)
+      const glowColor = obj.style.strokeColor || PLACED_COLOR;
       const glow = new google.maps.Polyline({
         path: obj.vertices.map((v) => new google.maps.LatLng(v.lat, v.lng)),
-        strokeColor: "#00ffff",
+        strokeColor: glowColor,
         strokeWeight: obj.style.strokeWidth * 3.5,
-        strokeOpacity: 0.3,
+        strokeOpacity: 0.35,
         zIndex: 3,
         clickable: false,
         map,

@@ -104,14 +104,19 @@ export default function Eight11Section({ job }: { job: Job }) {
   const redrawType: DigShape["type"] = shape?.type ?? "radius";
 
   const handleCopyInstructions = async () => {
+    if (!ticket) return;
     setCopying(true);
     try {
-      const res = await fetch(`/api/jobs/${job.jobId}/marking-instructions`, { method: "POST" });
-      const data = await res.json();
-      if (data.instructions) {
-        await navigator.clipboard.writeText(data.instructions);
-        // Visual feedback could be a toast, for now alert
+      const res = await api.regenerateMarkingInstructions(ticket.id);
+      const inst = res.ticket?.markingInstructions as unknown;
+      const text = typeof inst === "string"
+        ? inst
+        : (inst as { instructions?: string })?.instructions;
+      if (text) {
+        await navigator.clipboard.writeText(text);
         alert("Marking instructions copied to clipboard!");
+      } else {
+        alert("No instructions generated.");
       }
     } catch (err) {
       alert("Failed to copy marking instructions.");

@@ -87,12 +87,14 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
   let icons: google.maps.IconSequence[] | undefined = undefined;
 
   if (isZiplyCable) {
-    const status = style.ziplyStatus || "planned";
+    const status = (style.ziplyStatus || "planned").toLowerCase();
     if (status === "planned") {
       opacity = 0.45;
       icons = [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: weight }, offset: "0", repeat: "12px" }];
-    } else if (status === "Complete") {
-      color = "#00ffff";
+    } else if (status === "placed") {
+      opacity = 0.85;
+    } else if (status === "complete" || status === "completed") {
+      opacity = 1.0;
     }
   }
 
@@ -1009,21 +1011,25 @@ export default function DrawingOverlay() {
       const pulseKey = obj.id + "_ziply_pulse";
       let pulseGlow = overlaysRef.current.get(pulseKey) as google.maps.Polyline | undefined;
       
+      const statusLower = (obj.style.ziplyStatus || "").toLowerCase();
       const isZiplyComplete = (
         obj.tool === "placed_cable" ||
         obj.tool === "ziply_feeder" ||
         obj.tool === "ziply_distribution" ||
         obj.tool === "ziply_drop" ||
         obj.tool === "ziply_bore"
-      ) && obj.style.ziplyStatus === "Complete";
+      ) && (statusLower === "complete" || statusLower === "completed");
+
+      const glowColor = obj.style.strokeColor || PLACED_COLOR;
+
       if (isZiplyComplete && "vertices" in obj) {
         const verts = (obj as any).vertices;
         if (!pulseGlow) {
           pulseGlow = new google.maps.Polyline({
             path: verts.map((v: any) => new google.maps.LatLng(v.lat, v.lng)),
-            strokeColor: obj.style.strokeColor || "#00ffff",
+            strokeColor: glowColor,
             strokeWeight: obj.style.strokeWidth * 3.5,
-            strokeOpacity: 0.3,
+            strokeOpacity: 0.35,
             zIndex: 3,
             clickable: false,
             map,
@@ -1033,7 +1039,7 @@ export default function DrawingOverlay() {
         } else {
           pulseGlow.setPath(verts.map((v: any) => new google.maps.LatLng(v.lat, v.lng)));
           pulseGlow.setOptions({
-            strokeColor: obj.style.strokeColor || "#00ffff",
+            strokeColor: glowColor,
             strokeWeight: obj.style.strokeWidth * 3.5
           });
         }
