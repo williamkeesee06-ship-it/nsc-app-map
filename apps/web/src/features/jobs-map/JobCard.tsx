@@ -227,6 +227,37 @@ export default function JobCard({
     }
   };
 
+  const deleteOverlayPage = async (pageId: string) => {
+    if (!job.printOverlay) return;
+    if (!window.confirm("Are you sure you want to delete this overlay page?")) return;
+
+    const doc = { ...job.printOverlay };
+    doc.pages = doc.pages.filter((p) => p.id !== pageId);
+
+    if (doc.transforms) {
+      const updatedTransforms = { ...doc.transforms };
+      delete updatedTransforms[pageId];
+      doc.transforms = updatedTransforms;
+    }
+    if (doc.alignments) {
+      const updatedAlignments = { ...doc.alignments };
+      delete updatedAlignments[pageId];
+      doc.alignments = updatedAlignments;
+    }
+
+    doc.updatedAt = Date.now();
+    doc.updatedBy = username || "system";
+
+    job.printOverlay = doc;
+    window.dispatchEvent(new Event("nsc:jobs-reload"));
+
+    try {
+      await api.putPrintOverlay(job.jobId, doc);
+    } catch (e) {
+      console.warn("[JobCard] Failed to delete overlay page", e);
+    }
+  };
+
   const updatePageOpacity = async (pageId: string, opacity: number) => {
     if (!job.printOverlay) return;
     const doc = { ...job.printOverlay };
@@ -763,18 +794,44 @@ export default function JobCard({
                     </div>
 
                     {/* Page toggles list */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 2 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2 }}>
                       <span style={{ color: "var(--text-muted)", fontSize: "9px", fontWeight: 700, textTransform: "uppercase" }}>Toggles:</span>
                       {overlayPages.map((p) => (
-                        <label key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "10px", color: p.excluded ? "var(--text-muted)" : "var(--text)", cursor: "pointer" }}>
-                          <span>{p.label}</span>
-                          <input
-                            type="checkbox"
-                            checked={!p.excluded}
-                            onChange={() => void togglePageExcluded(p.id)}
-                            style={{ accentColor: "#0033A0" }}
-                          />
-                        </label>
+                        <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, fontSize: "10px" }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, color: p.excluded ? "var(--text-muted)" : "var(--text)", cursor: "pointer", flex: 1, minWidth: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={!p.excluded}
+                              onChange={() => void togglePageExcluded(p.id)}
+                              style={{ accentColor: "#0033A0", cursor: "pointer" }}
+                            />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.label}</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => void deleteOverlayPage(p.id)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#ef4444",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              padding: "2px 6px",
+                              margin: 0,
+                              borderRadius: "4px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "all 0.15s ease",
+                            }}
+                            title="Delete this overlay page completely"
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239, 68, 68, 0.08)"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+                          >
+                            ✕
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </div>
