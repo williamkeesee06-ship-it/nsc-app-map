@@ -14,8 +14,11 @@ export function useJob(jobId: string): JobState {
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
     setS({ state: "loading" });
+  }, [jobId]);
+
+  useEffect(() => {
+    let cancelled = false;
     api
       .getJob(jobId)
       .then(({ job }) => {
