@@ -283,11 +283,12 @@ export class DrawingEngine {
     const style = this.style!;
 
     // Live preview polyline
+    const isLineTool = this.tool ? this.isPolylineTool(this.tool) : false;
     this.previewLine = new google.maps.Polyline({
       path: [],
-      strokeColor: style.strokeColor,
-      strokeWeight: style.strokeWidth,
-      strokeOpacity: style.opacity,
+      strokeColor: isLineTool ? "#FFFF00" : style.strokeColor,
+      strokeWeight: isLineTool ? 4 : style.strokeWidth,
+      strokeOpacity: isLineTool ? 1.0 : style.opacity,
       strokeDashArray:
         style.strokeStyle === "dashed" ? "8 4"
         : style.strokeStyle === "dotted" ? "2 4"

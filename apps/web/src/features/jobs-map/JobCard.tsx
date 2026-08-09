@@ -545,30 +545,57 @@ export default function JobCard({
             {/* Construction Progress (Bore/Terminal progress bars) */}
             {isZiplyJob(job) && (
               <>
-                <div style={{ height: 0, borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #ffffff", margin: "14px 0 12px 0" }} />
+                <div style={{ height: 0, borderTop: "1px solid rgba(0, 0, 0, 0.08)", borderBottom: "1px solid rgba(255, 255, 255, 0.5)", margin: "14px 0 12px 0" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Ziply Construction Progress
+                  <span style={{ fontSize: 9, color: "#6b7280", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    Plant Progress & Metrics
                   </span>
                   
-                  <div style={{ background: "#ffffff", border: "1px solid #cbd5e1", padding: 10, borderRadius: 8, display: "flex", flexDirection: "column", gap: 8, boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)" }}>
+                  {/* Double-Bezel Nested Card Architecture */}
+                  <div style={{
+                    background: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(6, 182, 212, 0.15)",
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                    boxShadow: "inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 4px 12px rgba(6, 182, 212, 0.04)"
+                  }}>
+                    {/* Fiber Cable Footage Metric */}
                     <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4 }}>
-                        <span style={{ color: "var(--text-muted)" }}>Bore Complete:</span>
-                        <span style={{ fontWeight: 800, color: "var(--text)" }}>{stats.completeFt} ft / {stats.totalFt} ft</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, marginBottom: 4 }}>
+                        <span style={{ color: "#374151", fontWeight: 700 }}>Fiber Cable (Footage)</span>
+                        <span style={{ fontWeight: 800, color: "#0891b2" }}>{stats.completeFt.toLocaleString()} / {stats.totalFt.toLocaleString()} ft</span>
                       </div>
-                      <div style={{ width: "100%", height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
-                        <div style={{ width: `${stats.totalFt > 0 ? (stats.completeFt / stats.totalFt) * 100 : 0}%`, height: "100%", background: "#0033A0" }} />
+                      <div style={{ width: "100%", height: 6, background: "rgba(0, 0, 0, 0.06)", borderRadius: 100, overflow: "hidden", display: "flex" }}>
+                        <div style={{
+                          width: `${stats.totalFt > 0 ? (stats.completeFt / stats.totalFt) * 100 : 0}%`,
+                          height: "100%",
+                          background: "linear-gradient(90deg, #06b6d4 0%, #0891b2 100%)",
+                          boxShadow: "0 0 8px rgba(6, 182, 212, 0.5)",
+                          borderRadius: 100,
+                          transition: "width 0.4s cubic-bezier(0.32, 0.72, 0, 1)"
+                        }} />
                       </div>
                     </div>
                     
+                    {/* Splice Terminals Metric */}
                     <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4 }}>
-                        <span style={{ color: "var(--text-muted)" }}>Splice Terminals Complete:</span>
-                        <span style={{ fontWeight: 800, color: "var(--text)" }}>{stats.complete} / {stats.total}</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, marginBottom: 4 }}>
+                        <span style={{ color: "#374151", fontWeight: 700 }}>Splice Terminals</span>
+                        <span style={{ fontWeight: 800, color: "#0891b2" }}>{stats.complete} / {stats.total} Complete</span>
                       </div>
-                      <div style={{ width: "100%", height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
-                        <div style={{ width: `${stats.total > 0 ? (stats.complete / stats.total) * 100 : 0}%`, height: "100%", background: "#0033A0" }} />
+                      <div style={{ width: "100%", height: 6, background: "rgba(0, 0, 0, 0.06)", borderRadius: 100, overflow: "hidden", display: "flex" }}>
+                        <div style={{
+                          width: `${stats.total > 0 ? (stats.complete / stats.total) * 100 : 0}%`,
+                          height: "100%",
+                          background: "linear-gradient(90deg, #06b6d4 0%, #0891b2 100%)",
+                          boxShadow: "0 0 8px rgba(6, 182, 212, 0.5)",
+                          borderRadius: 100,
+                          transition: "width 0.4s cubic-bezier(0.32, 0.72, 0, 1)"
+                        }} />
                       </div>
                     </div>
                   </div>
