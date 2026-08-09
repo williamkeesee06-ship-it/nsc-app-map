@@ -536,6 +536,15 @@ export default function JobCard({
                 <EditableNotes value={notes} onCommit={(v) => { setNotes(v); void commit("notes", v); }} />
               )}
             </div>
+
+            {/* 811 Locate Section inside Tab */}
+            <div style={{ height: 0, borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #ffffff", margin: "14px 0 12px 0" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <h4 style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", margin: "0 0 2px 0", letterSpacing: "0.05em" }}>
+                811 Locate Shape
+              </h4>
+              <Eight11Section job={job} />
+            </div>
           </>
         )}
 
@@ -646,14 +655,6 @@ export default function JobCard({
               </>
             )}
 
-            {/* 811 Locate Section inside Tab */}
-            <div style={{ height: 0, borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #ffffff", margin: "14px 0 12px 0" }} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <h4 style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", margin: "0 0 2px 0", letterSpacing: "0.05em" }}>
-                811 Locate Shape
-              </h4>
-              <Eight11Section job={job} />
-            </div>
           </>
         )}
 
