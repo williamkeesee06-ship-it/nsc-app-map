@@ -779,6 +779,7 @@ export interface DigTicket {
 export function canDeleteDigTicket(
   ticket: Pick<DigTicket, "status" | "ticketNumber">
 ): boolean {
+  if (ticket.status === "Failed") return true;
   if (ticket.ticketNumber && ticket.ticketNumber.trim() !== "") return false;
   return ticket.status !== "Filed" && ticket.status !== "Active";
 }
