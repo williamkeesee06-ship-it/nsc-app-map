@@ -344,6 +344,25 @@ export default function JobCard({
     }
   };
 
+  const getStatusBorderColor = (statusStr: string) => {
+    const s = statusStr.toLowerCase();
+    if (s.includes("ready") || s.includes("rts") || s.includes("clear")) {
+      return "#00C853";
+    } else if (s.includes("progress") || s.includes("active") || s.includes("sched") || s.includes("route")) {
+      return "#1E5EFF";
+    } else if (s.includes("pending")) {
+      return "#ff8a1f";
+    } else if (s.includes("complete") || s.includes("done")) {
+      return "#00C853";
+    } else if (s.includes("hold")) {
+      return "#ff2d4a";
+    } else if (s.includes("fielding")) {
+      return "#c44dff";
+    } else {
+      return "#94a3b8";
+    }
+  };
+
   const isPanel = variant === "panel";
 
   if (!isPanel) {
@@ -382,22 +401,35 @@ export default function JobCard({
       }}
     >
       {/* Header Info: Job Number & Status Pill */}
-      <div style={{ padding: "18px 20px 12px 20px", display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+      <div style={{ padding: "18px 20px 12px 20px", display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 }}>
+        {/* Row 1: Large Job Number Pill + Close button */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <div style={{
+            flexGrow: 1,
+            background: "#000000",
+            border: "2px solid #1E5EFF",
+            borderRadius: "9999px",
+            padding: "8px 20px",
+            display: "flex",
+            alignItems: "center",
+            boxShadow: "0 0 8px rgba(30, 94, 255, 0.6), inset 0 0 6px rgba(30, 94, 255, 0.3)",
+            minWidth: 0
+          }}>
             <div style={{
-              fontSize: "26px",
+              fontSize: "20px",
               fontWeight: 900,
-              color: "#0033A0",
+              color: "#ffffff",
               fontFamily: "'Space Grotesk', 'Rajdhani', sans-serif",
-              letterSpacing: "-0.02em",
-              lineHeight: 1.1,
-              textShadow: "0 0 1px rgba(0, 51, 160, 0.05)"
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              width: "100%",
+              textAlign: "center",
+              textShadow: "0 0 4px rgba(30, 94, 255, 0.8)"
             }}>
               {wo}
             </div>
-            {job.hubNumber && <HubOctagonBadge hub={job.hubNumber} />}
           </div>
+
           {onClose && (
             <button 
               onClick={onClose} 
@@ -406,8 +438,9 @@ export default function JobCard({
                 border: "none",
                 color: "var(--text-muted)",
                 cursor: "pointer",
-                fontSize: "18px",
-                padding: "4px",
+                fontSize: "22px",
+                fontWeight: 700,
+                padding: "6px",
                 lineHeight: 1,
                 transition: "color 0.2s"
               }}
@@ -419,21 +452,30 @@ export default function JobCard({
           )}
         </div>
 
-        {/* Status and other pills row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+        {/* Row 2: Hub + Status Pill */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {job.hubNumber && <HubOctagonBadge hub={job.hubNumber} />}
+
+          {/* Status in a matching pill style next to it */}
           <div style={{
-            display: "inline-block",
+            background: "#000000",
+            border: `2.2px solid ${getStatusBorderColor(secondary || status)}`,
             borderRadius: "9999px",
-            padding: "3px 10px",
-            fontSize: "9px",
-            fontWeight: 800,
+            padding: "0 14px",
+            fontSize: "9.5px",
+            fontWeight: 900,
+            color: "#ffffff",
             letterSpacing: "0.06em",
             textTransform: "uppercase",
-            ...getStatusStyles(secondary || status)
+            boxShadow: `0 0 8px ${getStatusBorderColor(secondary || status)}88`,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "32px",
           }}>
             {secondary || status}
           </div>
-          
+
           {!job.inTracker && (
             <span style={{
               background: "rgba(239, 68, 68, 0.1)",
