@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { DrawingObject, DrawingStyle } from "@nsc/types";
-import { useDrawing } from "./drawingContext.js";
+import { useDrawing, defaultStyleForTool } from "./drawingContext.js";
 import { railSvgForTool } from "./icons/telecomIcons.js";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -18,6 +18,25 @@ import { api } from "../../lib/api.js";
 import { findMatchingTerminal, findMatchingCable } from "../ziply/SpatialMatcher.js";
 import { useActiveContract } from "../workspace/contractStore.js";
 import { useJobsContext } from "../jobs-map/jobsContext.js";
+
+function parseLineProps(label: string, desc: string) {
+  const footageMatch = label.match(/^(\d+)/);
+  const footage = footageMatch ? footageMatch[1] : "";
+  
+  let method = "";
+  if (/BORE/i.test(label) || /BORE/i.test(desc)) method = "BORE";
+  else if (/TRENCH/i.test(label) || /TRENCH/i.test(desc)) method = "TRENCH";
+  else if (/AERIAL|OH/i.test(label) || /AERIAL|OH/i.test(desc)) method = "AERIAL";
+  
+  let size = "";
+  if (/1-2"\s*DUCT/i.test(desc)) size = "1-2\" DUCT";
+  else if (/10MStrand/i.test(desc)) size = "10MStrand";
+  else if (/144F/i.test(desc)) size = "144F";
+  else if (/72F/i.test(desc)) size = "72F";
+  else if (/24F/i.test(desc)) size = "24F";
+  
+  return { footage, method, size };
+}
 // IconPicker / IconKey imports removed — Billy 6/10: no per-object icon swap.
 // Icons are still bound to each object's style at draw time; we just don't
 // expose a way to change them after the fact.
@@ -425,6 +444,17 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     return lbl;
   };
 
+  const isLineObj = isLine(obj.tool);
+  const lineProps = isLineObj ? parseLineProps(obj.style.userLabel ?? "", obj.style.description ?? "") : null;
+  const [footage, setFootage] = useState(lineProps?.footage ?? "");
+  const [method, setMethod] = useState(lineProps?.method ?? "");
+  const [size, setSize] = useState(lineProps?.size ?? "");
+  const [sizeOption, setSizeOption] = useState(() => {
+    if (!lineProps?.size) return "";
+    const common = ["1-2\" DUCT", "10MStrand", "144F", "72F", "24F"];
+    return common.includes(lineProps.size) ? lineProps.size : "custom";
+  });
+
   const [label, setLabel] = useState(cleanLabel(obj.style.userLabel ?? ""));
   const [description, setDescription] = useState(obj.style.description ?? "");
   const labelRef = useRef<HTMLInputElement>(null);
@@ -433,7 +463,39 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
   useEffect(() => {
     setLabel(cleanLabel(obj.style.userLabel ?? ""));
     setDescription(obj.style.description ?? "");
-  }, [obj.id, obj.style.userLabel, obj.style.description, contract]);
+
+    if (isLineObj) {
+      const p = parseLineProps(obj.style.userLabel ?? "", obj.style.description ?? "");
+      setFootage(p.footage);
+      setMethod(p.method);
+      setSize(p.size);
+      const common = ["1-2\" DUCT", "10MStrand", "144F", "72F", "24F"];
+      setSizeOption(!p.size ? "" : (common.includes(p.size) ? p.size : "custom"));
+    }
+  }, [obj.id, obj.style.userLabel, obj.style.description, contract, isLineObj]);
+
+  const commitLineChanges = (f: string, m: string, s: string) => {
+    const cleanFootage = f.replace(/['\s]/g, "").trim();
+    const resolvedLabel = cleanFootage ? `${cleanFootage}' ${m}`.trim() : "";
+    const resolvedDesc = [s, m].filter(Boolean).join(" ");
+    
+    let nextTool = obj.tool;
+    if (m === "BORE" || m === "TRENCH") {
+      nextTool = "ziply_bore";
+    } else if (m === "AERIAL") {
+      nextTool = "ziply_distribution";
+    }
+    
+    updateObject({
+      ...obj,
+      tool: nextTool,
+      style: {
+        ...(nextTool === obj.tool ? obj.style : defaultStyleForTool(nextTool)),
+        userLabel: resolvedLabel || undefined,
+        description: resolvedDesc || undefined,
+      }
+    } as DrawingObject);
+  };
 
   // Commit label change to context (debounced 300ms)
   const labelDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -680,42 +742,168 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
       {/* ── Body (scrollable) ──────────────────────────────────────── */}
       <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", maxHeight: "70vh" }}>
 
-        {/* Title field */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
-            {isPoint ? "A-TAG #" : "Title"}
-          </label>
-          <input
-            ref={labelRef}
-            type="text"
-            value={label}
-            onChange={(e) => handleLabelChange(e.target.value)}
-            placeholder={isPoint ? "A-TAG # (optional)" : "Name this object…"}
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(200,208,218,0.18)",
-              borderRadius: 5,
-              color: "#f4f8ff",
-              fontFamily: "inherit",
-              fontSize: 12,
-              fontWeight: 700,
-              padding: "6px 8px",
-              outline: "none",
-              letterSpacing: "0.04em",
-            }}
-          />
-        </div>
+        {isLineObj ? (
+          <>
+            {/* Footage Field */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                Footage
+              </label>
+              <input
+                type="text"
+                value={footage}
+                onChange={(e) => {
+                  setFootage(e.target.value);
+                  commitLineChanges(e.target.value, method, size);
+                }}
+                placeholder="e.g. 275"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(200,208,218,0.18)",
+                  borderRadius: 5,
+                  color: "#f4f8ff",
+                  fontFamily: "inherit",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 8px",
+                  outline: "none",
+                  letterSpacing: "0.04em",
+                }}
+              />
+            </div>
 
-        {/* Description */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
-            Description / Notes
-          </label>
-          <RichTextEditor
-            content={description}
-            onChange={handleDescChange}
-          />
-        </div>
+            {/* Placement Method Field */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                Placement Method
+              </label>
+              <select
+                value={method}
+                onChange={(e) => {
+                  setMethod(e.target.value);
+                  commitLineChanges(footage, e.target.value, size);
+                }}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(200,208,218,0.18)",
+                  borderRadius: 5,
+                  color: "#f4f8ff",
+                  fontFamily: "inherit",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 8px",
+                  outline: "none",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                <option value="">-- Select Method --</option>
+                <option value="BORE">BORE (Underground)</option>
+                <option value="TRENCH">TRENCH (Underground)</option>
+                <option value="AERIAL">AERIAL (Overhead)</option>
+              </select>
+            </div>
+
+            {/* Size Selector */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                Size / Spec
+              </label>
+              <select
+                value={sizeOption}
+                onChange={(e) => {
+                  setSizeOption(e.target.value);
+                  if (e.target.value !== "custom") {
+                    setSize(e.target.value);
+                    commitLineChanges(footage, method, e.target.value);
+                  }
+                }}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(200,208,218,0.18)",
+                  borderRadius: 5,
+                  color: "#f4f8ff",
+                  fontFamily: "inherit",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 8px",
+                  outline: "none",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                <option value="">-- Select Size --</option>
+                <option value="1-2&quot; DUCT">1-2&quot; DUCT</option>
+                <option value="10MStrand">10MStrand</option>
+                <option value="144F">144F</option>
+                <option value="72F">72F</option>
+                <option value="24F">24F</option>
+                <option value="custom">Other / Custom...</option>
+              </select>
+              {sizeOption === "custom" && (
+                <input
+                  type="text"
+                  value={size}
+                  onChange={(e) => {
+                    setSize(e.target.value);
+                    commitLineChanges(footage, method, e.target.value);
+                  }}
+                  placeholder="Enter custom size..."
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(200,208,218,0.18)",
+                    borderRadius: 5,
+                    color: "#f4f8ff",
+                    fontFamily: "inherit",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: "6px 8px",
+                    outline: "none",
+                    letterSpacing: "0.04em",
+                    marginTop: 4,
+                  }}
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Title field */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                {isPoint ? "A-TAG #" : "Title"}
+              </label>
+              <input
+                ref={labelRef}
+                type="text"
+                value={label}
+                onChange={(e) => handleLabelChange(e.target.value)}
+                placeholder={isPoint ? "A-TAG # (optional)" : "Name this object…"}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(200,208,218,0.18)",
+                  borderRadius: 5,
+                  color: "#f4f8ff",
+                  fontFamily: "inherit",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 8px",
+                  outline: "none",
+                  letterSpacing: "0.04em",
+                }}
+              />
+            </div>
+
+            {/* Description */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                Description / Notes
+              </label>
+              <RichTextEditor
+                content={description}
+                onChange={handleDescChange}
+              />
+            </div>
+          </>
+        )}
 
         {/* ── Style controls ──────────────────────────── */}
         <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>

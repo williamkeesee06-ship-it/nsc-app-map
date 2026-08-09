@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
 import type { DrawingObject } from "@nsc/types";
-import { useDrawing } from "./drawingContext.js";
+import { useDrawing, defaultStyleForTool } from "./drawingContext.js";
 import { DrawingEngine } from "./DrawingEngine.js";
 import { iconForTool } from "./icons/telecomIcons.js";
 import ObjectDetailsPopup from "./ObjectDetailsPopup.js";
@@ -454,6 +454,7 @@ export default function DrawingOverlay() {
   const [pendingObject, setPendingObject] = useState<{
     obj: DrawingObject;
     screenPos: { x: number; y: number };
+    initialLabel?: string;
   } | null>(null);
 
   // Phase 5.3: selected card state (for ObjectDetailsCard)
@@ -543,7 +544,12 @@ export default function DrawingOverlay() {
         addObject(obj);
         return;
       }
-      setPendingObject({ obj, screenPos });
+      let initialLabel = "";
+      if ("vertices" in obj) {
+        const len = distanceFeet(obj.vertices);
+        initialLabel = len > 0 ? `${Math.round(len)}'` : "";
+      }
+      setPendingObject({ obj, screenPos, initialLabel });
     };
 
     // Phase 9: provide live snap targets (Pole / MH / HH / PED point objects)
@@ -1194,21 +1200,40 @@ export default function DrawingOverlay() {
 
   // ─── Details popup save/cancel ────────────────────────────────────────────
 
-  function handlePopupSave(label: string, description: string) {
+  function handlePopupSave(label: string, description: string, method?: string, size?: string) {
     if (!pendingObject) return;
     const { obj } = pendingObject;
-    let finalObj: DrawingObject;
-    if (obj.tool === "text" || obj.tool === "callout") {
+    let finalObj = { ...obj } as DrawingObject;
+
+    if (method && ("vertices" in finalObj)) {
+      let nextTool: DrawingObject["tool"] = "ziply_distribution";
+      if (method === "BORE" || method === "TRENCH") {
+        nextTool = "ziply_bore";
+      } else if (method === "AERIAL") {
+        nextTool = "ziply_distribution";
+      }
       finalObj = {
-        ...obj,
-        text: label || "",
-        style: { ...obj.style, userLabel: label || undefined, description: description || undefined },
-      };
+        ...finalObj,
+        tool: nextTool,
+        style: {
+          ...defaultStyleForTool(nextTool),
+          userLabel: label || undefined,
+          description: description || undefined,
+        }
+      } as DrawingObject;
     } else {
-      finalObj = {
-        ...obj,
-        style: { ...obj.style, userLabel: label || undefined, description: description || undefined },
-      };
+      if (finalObj.tool === "text" || finalObj.tool === "callout") {
+        finalObj = {
+          ...finalObj,
+          text: label || "",
+          style: { ...finalObj.style, userLabel: label || undefined, description: description || undefined },
+        } as DrawingObject;
+      } else {
+        finalObj = {
+          ...finalObj,
+          style: { ...finalObj.style, userLabel: label || undefined, description: description || undefined },
+        } as DrawingObject;
+      }
     }
     addObject(finalObj);
     setPendingObject(null);
@@ -1226,6 +1251,7 @@ export default function DrawingOverlay() {
         <ObjectDetailsPopup
           screenPos={pendingObject.screenPos}
           tool={pendingObject.obj.tool}
+          initialLabel={pendingObject.initialLabel}
           onSave={handlePopupSave}
           onCancel={handlePopupCancel}
         />
