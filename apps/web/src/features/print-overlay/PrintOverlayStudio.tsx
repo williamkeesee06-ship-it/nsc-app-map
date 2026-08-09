@@ -141,20 +141,19 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
   const chooseExisting = useCallback(
     (s: PrintOverlaySource) => {
       setShowChooser(false);
-      void beginSource(s, null);
+      void beginSource(s, null, username);
     },
-    [beginSource]
+    [beginSource, username]
   );
 
   const autoLoadedRef = useRef(false);
   useEffect(() => {
     if (autoLoadedRef.current) return;
-    const existingSources = job.printOverlay?.sources ?? [];
-    if (existingSources.length > 0 && phase === "choosing") {
+    if (sources.length > 0 && phase === "choosing") {
       autoLoadedRef.current = true;
-      chooseExisting(existingSources[0]);
+      chooseExisting(sources[0]);
     }
-  }, [job.printOverlay, phase, chooseExisting]);
+  }, [sources, phase, chooseExisting]);
 
   const onUploadPick = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,9 +171,9 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
         pageCount: null,
       };
       setShowChooser(false);
-      void beginSource(src, file);
+      void beginSource(src, file, username);
     },
-    [beginSource]
+    [beginSource, username]
   );
 
   // Select a page and place it on current viewport center (spawns wherever operator is working)

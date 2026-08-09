@@ -129,90 +129,6 @@ export function usePrintOverlay(job: Job) {
     []
   );
 
-  /**
-   * Stage 1→2: begin processing a chosen source. `file` is set for uploads.
-   * Renders pages, seeds auto-crop suggestions, and (best-effort) uploads the
-   * original PDF + page previews to Storage.
-   */
-  const beginSource = useCallback(
-    async (source: PrintOverlaySource, file: File | null) => {
-      abortRef.current?.abort();
-      revokeAllObjectUrls();
-      const ac = new AbortController();
-      abortRef.current = ac;
-      setError(null);
-      setPages([]);
-      setActivePageId(null);
-      setProgress(null);
-
-      if (file) {
-        if (!isPdf(file.name, file.type)) {
-          setError("Please choose a PDF file.");
-          setPhase("error");
-          return;
-        }
-        if (file.size > MAX_PDF_BYTES) {
-          setError(`PDF is too large (max ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB).`);
-          setPhase("error");
-          return;
-        }
-      }
-
-      setPhase("processing");
-      const documentId = source.documentId;
-      sourcesRef.current.set(documentId, source);
-      try {
-        // Best-effort: upload a freshly-chosen file to Storage so the original
-        // stays attached to the job (durable job attachment / "Documents").
-        // Never blocks rendering.
-        if (file && !source.storagePath) {
-          const path = `jobs/${jobId}/print-overlay/${documentId}/${sanitizeStorageSegment(file.name)}`;
-          uploadToStorage(path, file, { contentType: file.type || "application/pdf", signal: ac.signal })
-            .then((r) => {
-              source.storagePath = r.storagePath;
-              source.downloadUrl = r.downloadUrl;
-              sourcesRef.current.set(documentId, { ...source });
-            })
-            .catch((e) => console.warn("[print-overlay] source PDF upload failed", e));
-        }
-
-        const bytes = await loadSourceBytes(source, file);
-        // pdf.js transfers the buffer to the worker; keep a copy for page count.
-        source.pageCount = await countPdfPages(bytes.slice(0));
-
-        await splitPdf(
-          bytes,
-          (rp: RenderedPage) => {
-            const vm = buildPageVM(jobId, source, rp, trackUrl, job.printOverlay);
-            setPages((prev) => [...prev, vm].sort((a, b) => a.pageNumber - b.pageNumber));
-            // Best-effort preview upload → replace transient url with a durable ref.
-            const previewPath = `jobs/${jobId}/print-overlay/${documentId}/p${rp.pageNumber}.png`;
-            uploadBlob(previewPath, rp.blob, "image/png")
-              .then((r) => {
-                setPages((prev) =>
-                  prev.map((p) =>
-                    p.id === vm.id
-                      ? { ...p, previewStoragePath: r.storagePath, previewUrl: r.downloadUrl }
-                      : p
-                  )
-                );
-              })
-              .catch((e) => console.warn("[print-overlay] preview upload failed", e));
-          },
-          {
-            signal: ac.signal,
-            onProgress: (p) => setProgress({ done: p.done, total: p.total }),
-          }
-        );
-        setPhase("ready");
-      } catch (e) {
-        if (e instanceof CancelledError) return;
-        setError(e instanceof Error ? e.message : String(e));
-        setPhase("error");
-      }
-    },
-    [jobId, loadSourceBytes, revokeAllObjectUrls, trackUrl]
-  );
 
   const cancelProcessing = useCallback(() => {
     abortRef.current?.abort();
@@ -404,6 +320,93 @@ export function usePrintOverlay(job: Job) {
       }
     },
     [jobId, buildDoc]
+  );
+
+  /**
+   * Stage 1→2: begin processing a chosen source. `file` is set for uploads.
+   * Renders pages, seeds auto-crop suggestions, and (best-effort) uploads the
+   * original PDF + page previews to Storage.
+   */
+  const beginSource = useCallback(
+    async (source: PrintOverlaySource, file: File | null, username: string | null) => {
+      abortRef.current?.abort();
+      revokeAllObjectUrls();
+      const ac = new AbortController();
+      abortRef.current = ac;
+      setError(null);
+      setPages([]);
+      setActivePageId(null);
+      setProgress(null);
+
+      if (file) {
+        if (!isPdf(file.name, file.type)) {
+          setError("Please choose a PDF file.");
+          setPhase("error");
+          return;
+        }
+        if (file.size > MAX_PDF_BYTES) {
+          setError(`PDF is too large (max ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB).`);
+          setPhase("error");
+          return;
+        }
+      }
+
+      setPhase("processing");
+      const documentId = source.documentId;
+      sourcesRef.current.set(documentId, source);
+      try {
+        // Best-effort: upload a freshly-chosen file to Storage so the original
+        // stays attached to the job (durable job attachment / "Documents").
+        // Never blocks rendering.
+        if (file && !source.storagePath) {
+          const path = `jobs/${jobId}/print-overlay/${documentId}/${sanitizeStorageSegment(file.name)}`;
+          uploadToStorage(path, file, { contentType: file.type || "application/pdf", signal: ac.signal })
+            .then((r) => {
+              source.storagePath = r.storagePath;
+              source.downloadUrl = r.downloadUrl;
+              sourcesRef.current.set(documentId, { ...source });
+              // Trigger a save so the database receives the finalized downloadUrl.
+              void saveDraft(username);
+            })
+            .catch((e) => console.warn("[print-overlay] source PDF upload failed", e));
+        }
+
+        const bytes = await loadSourceBytes(source, file);
+        // pdf.js transfers the buffer to the worker; keep a copy for page count.
+        source.pageCount = await countPdfPages(bytes.slice(0));
+
+        await splitPdf(
+          bytes,
+          (rp: RenderedPage) => {
+            const vm = buildPageVM(jobId, source, rp, trackUrl, job.printOverlay);
+            setPages((prev) => [...prev, vm].sort((a, b) => a.pageNumber - b.pageNumber));
+            // Best-effort preview upload → replace transient url with a durable ref.
+            const previewPath = `jobs/${jobId}/print-overlay/${documentId}/p${rp.pageNumber}.png`;
+            uploadBlob(previewPath, rp.blob, "image/png")
+              .then((r) => {
+                setPages((prev) =>
+                  prev.map((p) =>
+                    p.id === vm.id
+                      ? { ...p, previewStoragePath: r.storagePath, previewUrl: r.downloadUrl }
+                      : p
+                  )
+                );
+              })
+              .catch((e) => console.warn("[print-overlay] preview upload failed", e));
+          },
+          {
+            signal: ac.signal,
+            onProgress: (p) => setProgress({ done: p.done, total: p.total }),
+          }
+        );
+        setPhase("ready");
+      } catch (e) {
+        if (e instanceof CancelledError) return;
+        setError(e instanceof Error ? e.message : String(e));
+        setPhase("error");
+      }
+    },
+    [jobId, loadSourceBytes, revokeAllObjectUrls, trackUrl, saveDraft]
   );
 
   const activePage = useMemo(
