@@ -218,10 +218,10 @@ export default function JobCard({
     doc.updatedBy = username || "system";
 
     job.printOverlay = doc;
-    window.dispatchEvent(new Event("nsc:jobs-reload"));
 
     try {
       await api.putPrintOverlay(job.jobId, doc);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
     } catch (e) {
       console.warn("[JobCard] Failed to toggle page visibility", e);
     }
@@ -249,10 +249,10 @@ export default function JobCard({
     doc.updatedBy = username || "system";
 
     job.printOverlay = doc;
-    window.dispatchEvent(new Event("nsc:jobs-reload"));
 
     try {
       await api.putPrintOverlay(job.jobId, doc);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
     } catch (e) {
       console.warn("[JobCard] Failed to delete overlay page", e);
     }
@@ -274,10 +274,10 @@ export default function JobCard({
     doc.updatedBy = username || "system";
 
     job.printOverlay = doc;
-    window.dispatchEvent(new Event("nsc:jobs-reload"));
 
     try {
       await api.putPrintOverlay(job.jobId, doc);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
     } catch (e) {
       console.warn("[JobCard] Failed to update page opacity", e);
     }
