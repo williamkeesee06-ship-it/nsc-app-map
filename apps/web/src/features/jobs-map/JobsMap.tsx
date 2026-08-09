@@ -119,10 +119,12 @@ export default function JobsMap() {
     return filtered;
   }, [rawJobs, username, isManager, contract]);
   const { filters, setFilters, setJobs: setFiltersJobs } = useFiltersContext();
-  // Keep the FiltersContext jobs list in sync with the supervisor-scoped
-  // allJobs so the topbar StatusFilterPills show accurate per-bucket counts.
+  const prevAllJobsLenRef = useRef<number>(-1);
   useEffect(() => {
-    setFiltersJobs(allJobs);
+    if (prevAllJobsLenRef.current !== allJobs.length) {
+      prevAllJobsLenRef.current = allJobs.length;
+      setFiltersJobs(allJobs);
+    }
   }, [allJobs, setFiltersJobs]);
   const [selected, setSelected] = useState<Job | null>(null);
   // Ziply focus: North Metro default + clear selection when leaving Ziply

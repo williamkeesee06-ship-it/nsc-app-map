@@ -18,6 +18,7 @@ import JobCard from "./JobCard.js";
 import { useActiveContract } from "../workspace/contractStore.js";
 import FeatureDetailSheet, { type PlatformFeature } from "../ziply/FeatureDetailSheet.js";
 import { api } from "../../lib/api.js";
+import PrintParserTab from "../print-overlay/PrintParserTab.js";
 
 // Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
 // the left while keeping plenty of room for tool tiles to the right.
@@ -27,7 +28,7 @@ const MAX_WIDTH = 380;
 const LS_KEY = "nsc.leftRailWidth";
 
 // Only tabs that are actually mounted in the rail or as full-screen overlays.
-type TabId = "dashboard" | "jobs" | "filters" | "tools" | "calendar" | "811-tickets";
+type TabId = "dashboard" | "jobs" | "filters" | "tools" | "calendar" | "811-tickets" | "parser";
 
 interface Props {
   jobs: Job[];
@@ -217,6 +218,7 @@ export default function LeftRail({
         { id: 'filters', label: 'MAP' },
         { id: 'calendar', label: 'CALENDAR' },
         { id: '811-tickets', label: '811 TICKETS' },
+        { id: 'parser', label: 'PARSER' },
       ]
     : [
         { id: 'dashboard', label: 'DASHBOARD' },
@@ -284,7 +286,7 @@ export default function LeftRail({
                      onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.08)'}
                      onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
                    >
-                     ← Back to {activeTab === 'filters' ? 'Map Filters' : 'Menu'}
+                     ← Back to {activeTab === 'filters' ? 'Map Filters' : activeTab === 'parser' ? 'Print Parser' : 'Menu'}
                    </button>
                 </div>
                 
@@ -341,6 +343,7 @@ export default function LeftRail({
               /* Tab Content */
               <div className="left-rail-tab-content">
                   {activeTab === 'filters' && <AnnotateTab selectedJob={selectedJob ?? null} />}
+                  {activeTab === 'parser' && <PrintParserTab selectedJob={selectedJob ?? null} />}
                   {/* Calendar, Jobs (Ziply), and Dashboard (Lumen & Ziply) tabs have no rail content — 
                       they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
                       on entry so there's nothing visible here. */}
