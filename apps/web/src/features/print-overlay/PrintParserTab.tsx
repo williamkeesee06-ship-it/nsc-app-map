@@ -4,9 +4,10 @@ import { Sparkles, FileText, Check, Plus, Play, Info } from "lucide-react";
 import { useDrawing, defaultStyleForTool } from "../drawing/drawingContext.js";
 import { api } from "../../lib/api.js";
 import { extractPrintEntities, PLACEABLE_KINDS, type StoredPrintEntity, type PrintEntity } from "./printParser.js";
-import { surveyPlacements, projectPageToLatLng } from "./printGeoreference.js";
-import { comparePrintRevisions } from "./printRevisionDiff.js";
+import { pageToLatLng, solveGeoSolution } from "@nsc/types";
 import type { Job } from "@nsc/types";
+import { solutionFromTransform } from "./geoPlacement.js";
+import { comparePrintRevisions } from "./printRevisionDiff.js";
 import type { MapImageOverlay } from "./types.js";
 
 interface Props {
@@ -214,35 +215,37 @@ export default function PrintParserTab({ selectedJob }: Props) {
     const updatedEntities = [...parsedEntities];
     const placedIds: string[] = [];
 
-    const projectEntity = (entity: PrintEntity) => {
-      const pageNum = entity.page;
-      const targetOverlay = overlays.find((o) => o.pageNumber === pageNum);
-      if (!targetOverlay || (!targetOverlay.isAnchored && targetOverlay.southWestLat === 0)) {
-        return null;
+    const getGeoSolutionForPage = (pageNum: number) => {
+      const page = overlayDoc?.pages?.find((p) => p.pageNumber === pageNum);
+      if (!page) return null;
+      const transform = overlayDoc?.transforms?.[page.id];
+      const alignment = overlayDoc?.alignments?.[page.id];
+      if (alignment && alignment.anchorA && alignment.anchorB) {
+        try {
+          const sol = solveGeoSolution(alignment);
+          if (sol) return sol;
+        } catch { /* ignore */ }
       }
-      return projectPageToLatLng(
-        targetOverlay,
-        entity.x,
-        entity.y,
-        entity.pageWidth || 842,
-        entity.pageHeight || 595
-      );
+      if (transform) {
+        return solutionFromTransform(transform, page.pageWidth, page.pageHeight);
+      }
+      return null;
+    };
+
+    const projectEntity = (entity: PrintEntity) => {
+      const sol = getGeoSolutionForPage(entity.page);
+      if (!sol) return null;
+      return pageToLatLng(sol, { x: entity.x, y: entity.y });
     };
 
     const getProjectedPointsForPage = (pageNum: number) => {
-      const pageOverlay = overlays.find((o) => o.pageNumber === pageNum);
-      if (!pageOverlay || (!pageOverlay.isAnchored && pageOverlay.southWestLat === 0)) return [];
+      const sol = getGeoSolutionForPage(pageNum);
+      if (!sol) return [];
       
       return parsedEntities
         .filter((e) => e.page === pageNum && e.kind !== "cable")
         .map((e) => {
-          const pos = projectPageToLatLng(
-            pageOverlay,
-            e.x,
-            e.y,
-            e.pageWidth || 842,
-            e.pageHeight || 595
-          );
+          const pos = pageToLatLng(sol, { x: e.x, y: e.y });
           return pos ? { entity: e, pos } : null;
         })
         .filter(Boolean) as Array<{ entity: StoredPrintEntity; pos: { lat: number; lng: number } }>;
@@ -507,17 +510,22 @@ export default function PrintParserTab({ selectedJob }: Props) {
       };
     });
 
-    const targetOverlay = overlays.find((o) => o.pageNumber === activePageNumber);
-    if (!targetOverlay || (!targetOverlay.isAnchored && targetOverlay.southWestLat === 0)) {
-      alert(`Page ${activePageNumber} is not georeferenced/calibrated yet. Align it in the Studio first.`);
+    const activePageObj = overlayDoc.pages?.find((p) => p.pageNumber === activePageNumber);
+    const activeTransform = activePageObj ? overlayDoc.transforms?.[activePageObj.id] : null;
+    const activeAlignment = activePageObj ? overlayDoc.alignments?.[activePageObj.id] : null;
+
+    const targetSol = activeAlignment && activeAlignment.anchorA && activeAlignment.anchorB
+      ? (() => { try { return solveGeoSolution(activeAlignment); } catch { return null; } })()
+      : (activeTransform && activePageObj ? solutionFromTransform(activeTransform, activePageObj.pageWidth, activePageObj.pageHeight) : null);
+
+    if (!targetSol) {
+      alert(`Page ${activePageNumber} is not placed on the map yet. Place or align it in the Studio first.`);
       return;
     }
 
     const pageEntities = parsedEntities.filter(
       (e) => e.page === activePageNumber && !e.placedMarkerId
     );
-
-    const survey = surveyPlacements(pageEntities, overlays, PLACEABLE_KINDS);
 
     // ── Cable span parsing & connection logic ──────────────────────────────
     const allPointEntities = parsedEntities.filter(
@@ -528,13 +536,7 @@ export default function PrintParserTab({ selectedJob }: Props) {
     // Project all point structures to georeferenced LatLngs
     const projectedPoints = allPointEntities
       .map((e) => {
-        const pos = projectPageToLatLng(
-          targetOverlay,
-          e.x,
-          e.y,
-          e.pageWidth || 842,
-          e.pageHeight || 595
-        );
+        const pos = pageToLatLng(targetSol, { x: e.x, y: e.y });
         return pos ? { entity: e, pos } : null;
       })
       .filter(Boolean) as Array<{ entity: StoredPrintEntity; pos: { lat: number; lng: number } }>;
@@ -594,7 +596,7 @@ export default function PrintParserTab({ selectedJob }: Props) {
       }
     });
 
-    if (survey.plans.length === 0 && cablePlans.length === 0) {
+    if (projectedPoints.length === 0 && cablePlans.length === 0) {
       alert(`No unplaced structures or cables found for Page ${activePageNumber}.`);
       return;
     }
@@ -616,27 +618,27 @@ export default function PrintParserTab({ selectedJob }: Props) {
     const placedIds: string[] = [];
 
     // Place points
-    survey.plans.forEach((plan) => {
-      const tool = toolMap[plan.entity.kind] || "ziply_terminal";
+    projectedPoints.forEach(({ entity, pos }) => {
+      const tool = toolMap[entity.kind] || "ziply_terminal";
       const existingObj = state.objects.find(
         (obj) =>
           obj.tool === tool &&
           ("position" in obj) &&
-          (obj.style.userLabel === plan.entity.mapTag || obj.style.userLabel === plan.entity.label)
+          (obj.style.userLabel === entity.mapTag || obj.style.userLabel === entity.label)
       );
 
       if (existingObj && "position" in existingObj) {
         // Update its position and description
         updateObject({
           ...existingObj,
-          position: plan.position,
+          position: pos,
           style: {
             ...existingObj.style,
-            description: plan.entity.summary,
+            description: entity.summary,
           },
         } as any);
 
-        const idx = updatedEntities.findIndex((x) => x.id === plan.entity.id);
+        const idx = updatedEntities.findIndex((x) => x.id === entity.id);
         if (idx !== -1) {
           updatedEntities[idx] = { ...updatedEntities[idx], placedMarkerId: existingObj.id };
         }
@@ -649,15 +651,15 @@ export default function PrintParserTab({ selectedJob }: Props) {
         addObject({
           id: objId,
           tool: tool as any,
-          position: plan.position,
+          position: pos,
           style: {
             ...defaultStyle,
-            userLabel: plan.entity.mapTag || plan.entity.label,
-            description: plan.entity.summary,
+            userLabel: entity.mapTag || entity.label,
+            description: entity.summary,
           } as any,
         });
 
-        const idx = updatedEntities.findIndex((x) => x.id === plan.entity.id);
+        const idx = updatedEntities.findIndex((x) => x.id === entity.id);
         if (idx !== -1) {
           updatedEntities[idx] = { ...updatedEntities[idx], placedMarkerId: objId };
         }

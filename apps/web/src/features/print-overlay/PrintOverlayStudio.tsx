@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import {
   alignmentResidualFt,
+  pageToLatLng,
   solveGeoSolution,
   type GeoAlignment,
   type GeoAnchor,
@@ -417,31 +418,21 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
   const onPlaceAllFromPrint = useCallback(() => {
     if (!activePage) return;
 
-    const overlays: MapImageOverlay[] = pages.map((p) => ({
-      id: p.id,
-      mapProjectId: jobId,
-      jobId,
-      title: p.label,
-      imageUri: p.previewUrl || p.dataUrl || p.objectUrl || "",
-      southWestLat: p.transform?.southWestLat ?? 0,
-      southWestLng: p.transform?.southWestLng ?? 0,
-      northEastLat: p.transform?.northEastLat ?? 0,
-      northEastLng: p.transform?.northEastLng ?? 0,
-      opacity: p.transform?.opacity ?? 0.5,
-      rotationDegrees: p.transform?.rotationDegrees ?? p.transform?.rotationDeg ?? 0,
-      isVisible: !p.excluded,
-      isAnchored: !!p.alignment,
-      pageNumber: p.pageNumber,
-    }));
+    const sol = activePage.alignment && activePage.alignment.anchorA && activePage.alignment.anchorB
+      ? (() => { try { return solveGeoSolution(activePage.alignment); } catch { return null; } })()
+      : (activePage.transform ? solutionFromTransform(activePage.transform, activePage.pageWidth, activePage.pageHeight) : null);
+
+    if (!sol) {
+      alert("Page is not placed on the map yet. Place or align it in the Studio first.");
+      return;
+    }
 
     const pageEntities = parsedEntities.filter(
       (e) => e.page === activePage.pageNumber && !e.placedMarkerId
     );
 
-    const survey = surveyPlacements(pageEntities, overlays, PLACEABLE_KINDS);
-
-    if (survey.plans.length === 0) {
-      alert("No placeable structures found. Ensure the page is georeferenced first.");
+    if (pageEntities.length === 0) {
+      alert(`No unplaced structures found on page ${activePage.pageNumber}.`);
       return;
     }
 
@@ -455,31 +446,35 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       splitter: "ziply_splitter",
       hub: "ziply_hub",
       flowerpot: "ziply_flower_pot",
+      cable: "ziply_distribution",
     };
 
     let placedCount = 0;
     const updatedEntities = [...parsedEntities];
 
-    survey.plans.forEach((plan) => {
-      const tool = toolMap[plan.entity.kind] || "ziply_terminal";
+    pageEntities.forEach((entity) => {
+      const pos = pageToLatLng(sol, { x: entity.x, y: entity.y });
+      if (!pos || isNaN(pos.lat) || isNaN(pos.lng)) return;
+
+      const tool = toolMap[entity.kind] || "ziply_terminal";
       const objId = `obj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
       addObject({
         id: objId,
         tool: tool as any,
-        position: plan.position,
+        position: pos,
         style: {
           strokeColor: "#0284c7",
           strokeWidth: 2,
           strokeStyle: "solid",
           fill: { kind: "none" },
           opacity: 0.8,
-          userLabel: plan.entity.mapTag || plan.entity.label,
-          description: plan.entity.summary,
-        } as any
+          userLabel: entity.mapTag || entity.label,
+          description: entity.summary,
+        } as any,
       });
 
-      const idx = updatedEntities.findIndex((x) => x.id === plan.entity.id);
+      const idx = updatedEntities.findIndex((x) => x.id === entity.id);
       if (idx !== -1) {
         updatedEntities[idx] = { ...updatedEntities[idx], placedMarkerId: objId };
       }
@@ -488,7 +483,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
 
     setParsedEntities(updatedEntities);
     alert(`Placed ${placedCount} structures onto the map successfully.`);
-  }, [activePage, pages, parsedEntities, jobId, addObject, setParsedEntities]);
+  }, [activePage, parsedEntities, addObject, setParsedEntities]);
 
   // ── Precision Nudging Controls ───────────────────────────────────────────
   const nudgeCenter = (dir: "N" | "S" | "E" | "W") => {
