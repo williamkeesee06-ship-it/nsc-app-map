@@ -1,8 +1,5 @@
-import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore
 import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 export interface PdfPageImage {
   pageNumber: number;
@@ -25,6 +22,9 @@ export async function renderPdfPagesToImages(
     } else {
       arrayBuffer = fileOrBuffer;
     }
+
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;

@@ -2,7 +2,6 @@ import { Routes, Route, Navigate, useMatch } from "react-router-dom";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import JobsMap from "./features/jobs-map/JobsMap.js";
 import JobWorkspace from "./features/workspace/JobWorkspace.js";
-import SyncAdmin from "./features/sync-admin/SyncAdmin.js";
 import { SearchFocusProvider } from "./features/search/searchContext.js";
 import SearchBar from "./features/search/SearchBar.js";
 import TopbarActions from "./features/drawing/TopbarActions.js";
@@ -15,11 +14,13 @@ import MapStatusFilterPill from "./features/jobs-map/MapStatusFilterPill.js";
 // JobInfoBoxes removed from topbar — info shown in JobCard detail panel
 import { LuminaProvider } from "./features/lumina/store/luminaStore.js";
 import { useActiveContract } from "./features/workspace/contractStore.js";
-import PrintOverlayStandalone from "./features/print-overlay/PrintOverlayStandalone.js";
 import "./features/lumina/lumina.css";
 import "./features/lumina/pegmanTint.css";
 
-import React, { Component, type ReactNode } from "react";
+import React, { Component, type ReactNode, lazy, Suspense } from "react";
+
+const SyncAdmin = lazy(() => import("./features/sync-admin/SyncAdmin.js"));
+const PrintOverlayStandalone = lazy(() => import("./features/print-overlay/PrintOverlayStandalone.js"));
 
 interface EBProps { children: ReactNode }
 interface EBState { error: Error | null; errorInfo: React.ErrorInfo | null }
@@ -160,12 +161,14 @@ function Shell() {
             <TopbarActions />
             <UserChip />
           </header>
-          <Routes>
-            <Route path="/" element={<JobsMap />} />
-            <Route path="/jobs/:jobId" element={<JobWorkspace />} />
-            <Route path="/sync" element={<SyncAdmin />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="/" element={<JobsMap />} />
+              <Route path="/jobs/:jobId" element={<JobWorkspace />} />
+              <Route path="/sync" element={<SyncAdmin />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </div>
       </div>
     </div>

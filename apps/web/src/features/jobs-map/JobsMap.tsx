@@ -16,8 +16,6 @@ import MapStatusFilterPill from "./MapStatusFilterPill.js";
 import StructureDetailCard from "./StructureDetailCard.js";
 import MeasuringOverlay from "./MeasuringOverlay.js";
 import LeftRail from "./LeftRail.js";
-import CalendarTab from "./CalendarTab.js";
-import DashboardPage from "../dashboard/DashboardPage.js";
 import type { StatusBucket } from "./markerStyle.js";
 import JobCard from "./JobCard.js";
 import Eight11Section from "./Eight11Section.js";
@@ -25,8 +23,11 @@ import LayersPanel from "../workspace/LayersPanel.js";
 import type { Job } from "@nsc/types";
 import { normalizeDigShape } from "@nsc/types";
 import type { PlatformFeature } from "../ziply/FeatureDetailSheet.js";
-import DigTicketsTab from "../dig-tickets/DigTicketsTab.js";
 import { useSearchFocus } from "../search/searchContext.js";
+
+const CalendarTab = lazy(() => import("./CalendarTab.js"));
+const DashboardPage = lazy(() => import("../dashboard/DashboardPage.js"));
+const DigTicketsTab = lazy(() => import("../dig-tickets/DigTicketsTab.js"));
 import { useActiveContract } from "../workspace/contractStore.js";
 import { MARKER_COLORS, colorKeyForJob, isJobCompleted, neonPinDataUrl } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
@@ -620,7 +621,9 @@ function JobsMapInner({
                 background: "#0b1118",
               }}
             >
-              <CalendarTab />
+              <Suspense fallback={null}>
+                <CalendarTab />
+              </Suspense>
             </div>
           )}
 
@@ -632,13 +635,15 @@ function JobsMapInner({
               className="dashboard-fullscreen-overlay"
               style={{ position: "absolute", inset: 0, zIndex: 50 }}
             >
-              <DashboardPage
-                jobs={allJobs}
-                onFilterStatus={onDashboardFilterStatus}
-                onOpenMap={() => requestTab("filters")}
-                onOpenCalendar={() => requestTab("calendar")}
-                onOpenJob={onDashboardOpenJob}
-              />
+              <Suspense fallback={null}>
+                <DashboardPage
+                  jobs={allJobs}
+                  onFilterStatus={onDashboardFilterStatus}
+                  onOpenMap={() => requestTab("filters")}
+                  onOpenCalendar={() => requestTab("calendar")}
+                  onOpenJob={onDashboardOpenJob}
+                />
+              </Suspense>
             </div>
           )}
 
@@ -649,10 +654,12 @@ function JobsMapInner({
               className="tickets-fullscreen-overlay"
               style={{ position: "absolute", inset: 0, zIndex: 50, background: "#f8fafc" }}
             >
-              <DigTicketsTab
-                jobs={allJobs}
-                onOpenJob={(job) => onDashboardOpenJob(job.jobId)}
-              />
+              <Suspense fallback={null}>
+                <DigTicketsTab
+                  jobs={allJobs}
+                  onOpenJob={(job) => onDashboardOpenJob(job.jobId)}
+                />
+              </Suspense>
             </div>
           )}
 
