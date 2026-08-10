@@ -120,7 +120,7 @@ export default function PageOverlay({
               rotationDegrees: rotDeg ?? 0
             };
             const projected = projectPageToLatLng(overlay as any, p.x, p.y, w, h);
-            ll = projected || { lat: 0, lng: 0 };
+            ll = projected || pageToLatLng(sol, p);
           } else {
             ll = pageToLatLng(sol, p);
           }

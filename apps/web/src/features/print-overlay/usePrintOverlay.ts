@@ -422,25 +422,25 @@ export function usePrintOverlay(job: Job) {
             }
           }
         }
+        const activePageIds = new Set(currentPages.map((p) => p.id));
+
         if (existingDoc.pages) {
           for (const p of existingDoc.pages) {
-            if (!activeDocIds.has(p.documentId)) {
+            if (!activePageIds.has(p.id)) {
               mergedPages.push(p);
             }
           }
         }
         if (existingDoc.transforms) {
           for (const [key, t] of Object.entries(existingDoc.transforms)) {
-            const pageDocId = key.split(":")[0];
-            if (!activeDocIds.has(pageDocId)) {
+            if (!activePageIds.has(key)) {
               mergedTransforms[key] = t;
             }
           }
         }
         if (existingDoc.alignments) {
           for (const [key, a] of Object.entries(existingDoc.alignments)) {
-            const pageDocId = key.split(":")[0];
-            if (!activeDocIds.has(pageDocId)) {
+            if (!activePageIds.has(key)) {
               mergedAlignments[key] = a;
             }
           }
