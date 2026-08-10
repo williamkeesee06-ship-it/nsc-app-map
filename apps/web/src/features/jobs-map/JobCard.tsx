@@ -12,6 +12,7 @@ import { computePlantProgress, isZiplyJob } from "../ziply/ziplyUtils.js";
 import LayersPanel from "../workspace/LayersPanel.js";
 import { useActiveContract } from "../workspace/contractStore.js";
 import { uploadToStorage, sanitizeStorageSegment } from "../../lib/storage.js";
+import { deleteBlueprintImage } from "../print-overlay/blueprintImageStore.js";
 
 interface Props {
   job: Job;
@@ -216,9 +217,10 @@ export default function JobCard({
   const activePageOpacity = activePageSel ? (localOverlayDoc?.transforms?.[activePageSel.id]?.opacity ?? 0.5) : 0.5;
 
   const togglePageExcluded = async (pageId: string) => {
-    if (!localOverlayDoc) return;
-    const doc = { ...localOverlayDoc };
-    doc.pages = doc.pages.map((p) =>
+    const currentDoc = localOverlayDoc ?? job.printOverlay;
+    if (!currentDoc) return;
+    const doc = { ...currentDoc };
+    doc.pages = (doc.pages ?? []).map((p) =>
       p.id === pageId ? { ...p, excluded: !p.excluded } : p
     );
     doc.updatedAt = Date.now();
@@ -237,11 +239,14 @@ export default function JobCard({
   };
 
   const deleteOverlayPage = async (pageId: string) => {
-    if (!localOverlayDoc) return;
+    const currentDoc = localOverlayDoc ?? job.printOverlay;
+    if (!currentDoc) return;
     if (!window.confirm("Are you sure you want to delete this overlay page?")) return;
 
-    const doc = { ...localOverlayDoc };
-    doc.pages = doc.pages.filter((p) => p.id !== pageId);
+    void deleteBlueprintImage(pageId);
+
+    const doc = { ...currentDoc };
+    doc.pages = (doc.pages ?? []).filter((p) => p.id !== pageId);
 
     if (doc.transforms) {
       const updatedTransforms = { ...doc.transforms };
@@ -273,8 +278,9 @@ export default function JobCard({
   };
 
   const updatePageOpacity = async (pageId: string, opacity: number) => {
-    if (!localOverlayDoc) return;
-    const doc = { ...localOverlayDoc };
+    const currentDoc = localOverlayDoc ?? job.printOverlay;
+    if (!currentDoc) return;
+    const doc = { ...currentDoc };
     const transforms = { ...doc.transforms };
     const base = transforms[pageId] ?? {
       center: job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 0, lng: 0 },
