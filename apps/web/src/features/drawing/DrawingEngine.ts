@@ -349,7 +349,7 @@ export class DrawingEngine {
     const style = this.style!;
     const verts = [...this.vertices];
 
-    if (verts.length < 2) {
+    if (verts.length < 2 || (tool === "polygon" && verts.length < 3)) {
       this.deactivate();
       return;
     }
