@@ -243,7 +243,9 @@ export class DrawingEngine {
       "text", "callout",
       // Ziply point tools
       "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole", "ziply_flower_pot",
-      "ziply_splitter", "ziply_riser", "ziply_slack_loop"
+      "ziply_splitter", "ziply_riser", "ziply_slack_loop",
+      // Ziply cable line tools
+      "ziply_feeder", "ziply_distribution", "ziply_drop", "ziply_bore"
     ].includes(tool);
   }
 
