@@ -568,9 +568,11 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 
 /** Strip transient VM fields before persisting a page record. */
 function stripVM(p: PageVM): PrintOverlayPage {
-  let url = p.previewUrl || p.objectUrl || "";
-  if (url.startsWith("blob:") && p.dataUrl) {
-    url = p.dataUrl;
+  let url = p.previewUrl || "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) {
+    url = p.previewStoragePath && p.previewUrl && !p.previewUrl.startsWith("data:") && !p.previewUrl.startsWith("blob:")
+      ? p.previewUrl
+      : "";
   }
   return {
     id: p.id,
@@ -581,7 +583,7 @@ function stripVM(p: PageVM): PrintOverlayPage {
     status: p.status,
     pageWidth: p.pageWidth,
     pageHeight: p.pageHeight,
-    previewStoragePath: p.previewStoragePath,
+    previewStoragePath: p.previewStoragePath ?? null,
     previewUrl: url,
     crop: p.crop,
     cropSource: p.cropSource,
