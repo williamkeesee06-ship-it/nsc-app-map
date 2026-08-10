@@ -80,6 +80,23 @@ export async function restoreBlueprintImages(
   return recovered;
 }
 
+export async function getBlueprintImage(id: string): Promise<string | null> {
+  if (!id) return null;
+  try {
+    const db = await openDb();
+    const result = await new Promise<string | undefined>((resolve, reject) => {
+      const tx = db.transaction(STORE, "readonly");
+      const req = tx.objectStore(STORE).get(id);
+      req.onsuccess = () => resolve(req.result as string | undefined);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return result ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function putBlueprintImage(id: string, dataUrl: string): Promise<void> {
   if (!id || !dataUrl) return;
   try {

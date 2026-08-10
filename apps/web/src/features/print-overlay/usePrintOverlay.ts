@@ -19,6 +19,8 @@ import { suggestCropRect, clampCropRect } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { uploadToStorage, uploadBlob, sanitizeStorageSegment } from "../../lib/storage.js";
 import { splitPdf, countPdfPages, CancelledError, type RenderedPage } from "./pdfSplit.js";
+import { putPrintDocument, backupPrintDocument } from "./printDocumentStore.js";
+import { putBlueprintImage } from "./blueprintImageStore.js";
 
 export interface PageVM extends PrintOverlayPage {
   /** Transient blob URL for immediate preview (revoked on cleanup). */
@@ -425,6 +427,7 @@ export function usePrintOverlay(job: Job) {
         }
 
         const bytes = await loadSourceBytes(source, file);
+        void putPrintDocument(documentId, bytes.slice(0));
         source.pageCount = await countPdfPages(bytes.slice(0));
 
         await splitPdf(
@@ -435,6 +438,7 @@ export function usePrintOverlay(job: Job) {
             pagesRef.current = [...pagesRef.current, vm].sort((a, b) => a.pageNumber - b.pageNumber);
 
             void blobToDataUrl(rp.blob).then((dUrl) => {
+              void putBlueprintImage(vm.id, dUrl);
               pagesRef.current = pagesRef.current.map((p) =>
                 p.id === vm.id ? { ...p, dataUrl: dUrl } : p
               );
