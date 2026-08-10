@@ -19,7 +19,9 @@ import {
   Check,
   Plus,
   Play,
-  Scale
+  Scale,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import {
   alignmentResidualFt,
@@ -803,6 +805,23 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
               </button>
             </div>
 
+            <div className="mb-3">
+              <button
+                className={`po-btn w-full ${isGeoreferenced || activePage.transform?.isLocked ? "po-btn--locked" : "po-btn--primary"}`}
+                onClick={() => setTransform(activePage.id, { isLocked: !(activePage.transform?.isLocked ?? false) })}
+              >
+                {isGeoreferenced || activePage.transform?.isLocked ? (
+                  <>
+                    <Lock size={14} className="inline mr-1 text-red-400" /> LOCKED IN (PAGE SAVED)
+                  </>
+                ) : (
+                  <>
+                    <Unlock size={14} className="inline mr-1" /> LOCK IN PAGE
+                  </>
+                )}
+              </button>
+            </div>
+
             <div className="po-divider my-3" />
 
             <h3 className="po-panel__section-title mb-3">
@@ -1012,22 +1031,27 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
           {pages.map((p) => {
             const thumb = p.previewUrl || p.dataUrl || p.objectUrl || "";
             const excluded = p.excluded ?? false;
+            const isPageLocked = !!p.alignment || !!p.transform?.isLocked;
             return (
               <div
                 key={p.id}
                 role="listitem"
-                className={`po-thumb ${p.id === activePageId ? "po-thumb--active" : ""} ${excluded ? "po-thumb--excluded" : ""}`}
+                className={`po-thumb ${p.id === activePageId ? "po-thumb--active" : ""} ${excluded ? "po-thumb--excluded" : ""} ${isPageLocked ? "po-thumb--locked" : ""}`}
               >
                 <button
                   type="button"
                   className="po-thumb__hit"
                   onClick={() => (excluded ? toggleExcluded(p) : openPage(p))}
                   aria-pressed={p.id === activePageId}
-                  aria-label={`${p.label}${p.crop ? ", cropped" : ""}${excluded ? ", removed" : ""}`}
+                  aria-label={`${p.label}${p.crop ? ", cropped" : ""}${excluded ? ", removed" : ""}${isPageLocked ? ", locked" : ""}`}
                 >
                   {thumb ? <img src={thumb} alt="" /> : null}
                   <span className="po-thumb__label">{p.label}</span>
-                  {p.cropSource === "skipped" ? (
+                  {isPageLocked ? (
+                    <span className="po-thumb__badge po-thumb__badge--lock">
+                      <Lock size={9} className="inline mr-0.5" /> LOCKED
+                    </span>
+                  ) : p.cropSource === "skipped" ? (
                     <span className="po-thumb__badge po-thumb__badge--skip">skip</span>
                   ) : p.crop ? (
                     <span className="po-thumb__badge po-thumb__badge--crop">crop</span>
