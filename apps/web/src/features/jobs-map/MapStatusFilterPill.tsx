@@ -14,7 +14,7 @@
 // This component is presentational — actual filtering happens in
 // `FilterRail.applyFilters` via the `hiddenStatusBuckets` field.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, memo } from "react";
 import type { Job } from "@nsc/types";
 import type { Filters } from "./FilterRail.js";
 import { useFiltersContext } from "./filtersContext.js";
@@ -33,7 +33,7 @@ interface Props {
   setFilters?: (f: Filters) => void;
 }
 
-export default function MapStatusFilterPill(props: Props) {
+function MapStatusFilterPill(props: Props) {
   const ctx = useFiltersContext();
   const filters = props.filters ?? ctx.filters;
   const setFilters = props.setFilters ?? ctx.setFilters;
@@ -163,3 +163,5 @@ export default function MapStatusFilterPill(props: Props) {
     </div>
   );
 }
+
+export default memo(MapStatusFilterPill);

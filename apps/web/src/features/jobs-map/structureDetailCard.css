@@ -24,6 +24,9 @@
   backdrop-filter: blur(14px) saturate(1.25);
   -webkit-backdrop-filter: blur(14px) saturate(1.25);
   animation: sdc-in 0.14s ease-out both;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
   outline: none;
 }
 

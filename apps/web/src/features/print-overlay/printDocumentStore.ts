@@ -29,18 +29,34 @@ interface StoredRecord {
   bytes: ArrayBuffer;
 }
 
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: "id" });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+// In-memory cache for loaded PDF ArrayBuffers to eliminate IndexedDB IPC overhead
+const documentMemoryCache = new Map<string, ArrayBuffer>();
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function getDb(): Promise<IDBDatabase> {
+  if (!dbPromise) {
+    dbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE)) {
+          db.createObjectStore(STORE, { keyPath: "id" });
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onclose = () => { dbPromise = null; };
+        db.onerror = () => { dbPromise = null; };
+        resolve(db);
+      };
+      request.onerror = () => {
+        dbPromise = null;
+        reject(request.error);
+      };
+    });
+  }
+  return dbPromise;
 }
 
 export function printDocumentPath(uid: string, documentId: string): string {
@@ -48,30 +64,35 @@ export function printDocumentPath(uid: string, documentId: string): string {
 }
 
 export async function putPrintDocument(id: string, bytes: ArrayBuffer): Promise<void> {
+  documentMemoryCache.set(id, bytes);
   try {
-    const db = await openDb();
+    const db = await getDb();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE, "readwrite");
       tx.objectStore(STORE).put({ id, bytes } satisfies StoredRecord);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-    db.close();
   } catch (err) {
     console.warn("[NSC] Could not cache the source print locally.", err);
   }
 }
 
 export async function getPrintDocument(id: string): Promise<ArrayBuffer | null> {
+  if (documentMemoryCache.has(id)) {
+    return documentMemoryCache.get(id)!;
+  }
   try {
-    const db = await openDb();
+    const db = await getDb();
     const record = await new Promise<StoredRecord | undefined>((resolve, reject) => {
       const tx = db.transaction(STORE, "readonly");
       const req = tx.objectStore(STORE).get(id);
       req.onsuccess = () => resolve(req.result as StoredRecord | undefined);
       req.onerror = () => reject(req.error);
     });
-    db.close();
+    if (record?.bytes) {
+      documentMemoryCache.set(id, record.bytes);
+    }
     return record?.bytes ?? null;
   } catch {
     return null;
@@ -79,15 +100,15 @@ export async function getPrintDocument(id: string): Promise<ArrayBuffer | null> 
 }
 
 export async function deletePrintDocument(id: string): Promise<void> {
+  documentMemoryCache.delete(id);
   try {
-    const db = await openDb();
+    const db = await getDb();
     await new Promise<void>((resolve) => {
       const tx = db.transaction(STORE, "readwrite");
       tx.objectStore(STORE).delete(id);
       tx.oncomplete = () => resolve();
       tx.onerror = () => resolve();
     });
-    db.close();
   } catch {
     // harmless
   }

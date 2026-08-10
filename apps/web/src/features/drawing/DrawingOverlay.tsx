@@ -609,7 +609,8 @@ export default function DrawingOverlay() {
 
     function handleZoomChange() {
       const zoom = map!.getZoom() ?? ZOOM_REF;
-      state.objects.forEach((obj) => {
+      const objs = objectsForSnapRef.current;
+      objs.forEach((obj) => {
         if (!isPointTool(obj.tool) || obj.style.hidden) return;
         const marker = overlaysRef.current.get(obj.id);
         if (!(marker instanceof google.maps.Marker)) return;
@@ -627,7 +628,7 @@ export default function DrawingOverlay() {
       // arrow disappears in step with the label. They'll be recreated by the
       // next render pass when the user zooms back in.
       if (zoom < MIN_LABEL_ZOOM) {
-        state.objects.forEach((obj) => {
+        objs.forEach((obj) => {
           if (obj.tool !== "callout") return;
           const key = obj.id + "_callout_leader";
           const existing = overlaysRef.current.get(key);
@@ -639,12 +640,12 @@ export default function DrawingOverlay() {
       }
       rebuildAllLabels(
         map!,
-        state.objects,
+        objs,
         overlaysRef.current,
         calloutLinesRef.current,
         (obj, screen) => {
           // Click on a label opens the same details card the markup opens.
-          const live = state.objects.find((o) => o.id === obj.id) || obj;
+          const live = objectsForSnapRef.current.find((o) => o.id === obj.id) || obj;
           select([obj.id], false);
           setCardObj(live);
           setCardAnchor(screen);
@@ -659,8 +660,7 @@ export default function DrawingOverlay() {
         else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(listener);
       } catch { /* ignore */ }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, state.objects]);
+  }, [map, select]);
 
   // ─── Phase 5.3: editable/draggable state for selected objects ────────────
   // We attach path mutation listeners here, keyed by objId.

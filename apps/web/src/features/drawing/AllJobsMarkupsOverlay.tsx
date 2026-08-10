@@ -856,13 +856,48 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick, onFeatureClick }:
     }
   }
 
+  function updateZoom() {
+    if (!map) return;
+    const zoom = map.getZoom() ?? ZOOM_REF;
+    const activeJobId = state.targetJobId;
+    for (const doc of docsRef.current) {
+      if (activeJobId && doc.jobId === activeJobId) continue;
+      for (const obj of doc.objects) {
+        if (!isPointTool(obj.tool) || obj.style.hidden) continue;
+        const marker = overlaysRef.current.get(`${doc.jobId}:${obj.id}`);
+        if (marker && marker instanceof google.maps.Marker) {
+          const pointSize = obj.style.pointSize ?? 1.0;
+          const px = computeSymbolPx(zoom, pointSize);
+          const icon = iconForTool(obj.tool, obj.style.strokeColor, pointSize, obj.style.ziplyStatus);
+          marker.setIcon({
+            ...icon,
+            size: new google.maps.Size(px, px),
+            scaledSize: new google.maps.Size(px, px),
+            anchor: new google.maps.Point(px / 2, px / 2),
+          });
+        }
+      }
+      const labelBag = labelsByJobRef.current.get(doc.jobId);
+      const calloutBag = calloutLinesByJobRef.current.get(doc.jobId);
+      if (labelBag && calloutBag) {
+        const labelHandler = onMarkupClick
+          ? () => {
+              if (document.querySelector(".po-root")) return;
+              onMarkupClick(doc.jobId);
+            }
+          : undefined;
+        sharedRebuildAllLabels(map, doc.objects, labelBag, calloutBag, labelHandler);
+      }
+    }
+  }
+
   // Initial fetch + periodic refresh
   useEffect(() => {
     if (!map) return;
     void fetchAll();
     const t = setInterval(() => void fetchAll(), REFRESH_INTERVAL_MS);
-    // Re-render on zoom change so labels appear/disappear with zoom
-    const zoomListener = map.addListener("zoom_changed", () => renderAll());
+    // Re-scale icons + labels on zoom change without destroying base polylines
+    const zoomListener = map.addListener("zoom_changed", updateZoom);
     return () => {
       clearInterval(t);
       google.maps.event.removeListener(zoomListener);

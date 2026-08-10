@@ -18,7 +18,7 @@
  * passing a `feature`. All hard styling lives in structureDetailCard.css so
  * theming (Network View vs Light) can override cleanly.
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, memo } from "react";
 import type { PlatformFeature } from "../ziply/FeatureDetailSheet.js";
 import type { Job } from "@nsc/types";
 import "./structureDetailCard.css";
@@ -92,7 +92,7 @@ const CARD_W = 280;
 const CARD_H_APPROX = 200;
 const GUTTER = 12;
 
-export default function StructureDetailCard({
+function StructureDetailCard({
   feature,
   anchor,
   allJobs,
@@ -269,3 +269,5 @@ export default function StructureDetailCard({
     </div>
   );
 }
+
+export default memo(StructureDetailCard);

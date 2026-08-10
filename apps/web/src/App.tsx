@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate, useMatch } from "react-router-dom";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import JobsMap from "./features/jobs-map/JobsMap.js";
-import JobWorkspace from "./features/workspace/JobWorkspace.js";
 import { SearchFocusProvider } from "./features/search/searchContext.js";
 import SearchBar from "./features/search/SearchBar.js";
 import TopbarActions from "./features/drawing/TopbarActions.js";
@@ -19,6 +18,7 @@ import "./features/lumina/pegmanTint.css";
 
 import React, { Component, type ReactNode, lazy, Suspense } from "react";
 
+const JobWorkspace = lazy(() => import("./features/workspace/JobWorkspace.js"));
 const SyncAdmin = lazy(() => import("./features/sync-admin/SyncAdmin.js"));
 const PrintOverlayStandalone = lazy(() => import("./features/print-overlay/PrintOverlayStandalone.js"));
 
@@ -83,10 +83,12 @@ function AppRoutes() {
 
   return (
     <>
-      <Routes>
-        <Route path="/print-overlay/jobs/:jobId" element={<PrintOverlayStandalone />} />
-        <Route path="/*" element={<Shell />} />
-      </Routes>
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/print-overlay/jobs/:jobId" element={<PrintOverlayStandalone />} />
+          <Route path="/*" element={<Shell />} />
+        </Routes>
+      </Suspense>
 
       {!authReady && !import.meta.env.DEV && (
         <div
