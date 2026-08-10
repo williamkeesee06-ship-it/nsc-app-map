@@ -520,12 +520,7 @@ export function usePrintOverlay(job: Job) {
         // If we already have saved pages in printOverlay, load them into pages state directly
         const loadedVMs: PageVM[] = savedForSource.map((sp) => {
           const defaultCenter = job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 };
-          const transform = job.printOverlay?.transforms?.[sp.id] ?? {
-            center: defaultCenter,
-            scale: 1,
-            rotationDeg: 0,
-            opacity: 0.5,
-          };
+          const transform = job.printOverlay?.transforms?.[sp.id] ?? null;
           const alignment = job.printOverlay?.alignments?.[sp.id] ?? null;
           return {
             ...sp,

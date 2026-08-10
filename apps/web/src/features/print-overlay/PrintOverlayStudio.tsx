@@ -188,11 +188,27 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       selectPage(page.id);
       setOverlayMode("move");
       setPendingAnchor(null);
-      if (!page.transform) {
-        const c = map?.getCenter();
-        const currentCenter = c ? { lat: c.lat(), lng: c.lng() } : jobCenter;
-        setTransform(page.id, DEFAULT_TRANSFORM(currentCenter));
+
+      const mapCenter = map?.getCenter();
+      const currentWorkingCenter = mapCenter
+        ? { lat: mapCenter.lat(), lng: mapCenter.lng() }
+        : activePage?.transform?.center ?? jobCenter;
+
+      const isUnplaced = !page.transform || (!page.alignment && sameLatLng(page.transform.center, jobCenter));
+
+      if (isUnplaced) {
+        const prevTransform = activePage?.transform;
+        const newTransform: PrintOverlayTransform = {
+          center: currentWorkingCenter,
+          scale: prevTransform?.scale ?? 1,
+          rotationDeg: prevTransform?.rotationDeg ?? 0,
+          opacity: prevTransform?.opacity ?? 0.5,
+        };
+        setTransform(page.id, newTransform);
+      } else if (map && page.transform?.center) {
+        map.panTo({ lat: page.transform.center.lat, lng: page.transform.center.lng });
       }
+
       setAnchorDraft((prev) => {
         if (prev[page.id]) return prev;
         const seed: AnchorDraft = page.alignment
@@ -201,7 +217,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
         return { ...prev, [page.id]: seed };
       });
     },
-    [selectPage, setTransform, map, jobCenter]
+    [selectPage, setTransform, map, jobCenter, activePage]
   );
 
   const openPage = useCallback(
@@ -1046,4 +1062,8 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
 
 function samePoint(a: PagePoint, b: PagePoint): boolean {
   return Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6;
+}
+
+function sameLatLng(a: LatLng, b: LatLng): boolean {
+  return Math.abs(a.lat - b.lat) < 1e-6 && Math.abs(a.lng - b.lng) < 1e-6;
 }
