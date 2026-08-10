@@ -53,7 +53,20 @@ export function useJobs(): JobsState & { reload: () => void } {
       setNonce((n) => n + 1);
     }
     window.addEventListener("nsc:jobs-reload", onReload);
-    return () => window.removeEventListener("nsc:jobs-reload", onReload);
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("nsc_jobs_channel");
+      bc.onmessage = (e) => {
+        if (e.data === "nsc:jobs-reload") {
+          setNonce((n) => n + 1);
+        }
+      };
+    } catch {}
+
+    return () => {
+      window.removeEventListener("nsc:jobs-reload", onReload);
+      if (bc) bc.close();
+    };
   }, []);
 
   // Auto-poll if any job is currently in "processing" state (e.g. ziplyIngest)

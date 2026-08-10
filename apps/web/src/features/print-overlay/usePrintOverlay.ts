@@ -23,6 +23,8 @@ import { splitPdf, countPdfPages, CancelledError, type RenderedPage } from "./pd
 export interface PageVM extends PrintOverlayPage {
   /** Transient blob URL for immediate preview (revoked on cleanup). */
   objectUrl: string | null;
+  /** Durable Base64 Data URL fallback if Storage upload is pending or fails. */
+  dataUrl?: string | null;
   /** Original auto-crop suggestion, retained so Reset can restore it. */
   autoCrop: CropRect | null;
   transform: PrintOverlayTransform | null;
@@ -325,6 +327,11 @@ export function usePrintOverlay(job: Job) {
         }
         await api.putPrintOverlay(jobId, buildDoc(username));
         window.dispatchEvent(new Event("nsc:jobs-reload"));
+        try {
+          const bc = new BroadcastChannel("nsc_jobs_channel");
+          bc.postMessage("nsc:jobs-reload");
+          bc.close();
+        } catch {}
         return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -345,6 +352,11 @@ export function usePrintOverlay(job: Job) {
         await api.putPrintOverlay(jobId, buildDoc(username));
         setDraftStatus("saved");
         window.dispatchEvent(new Event("nsc:jobs-reload"));
+        try {
+          const bc = new BroadcastChannel("nsc_jobs_channel");
+          bc.postMessage("nsc:jobs-reload");
+          bc.close();
+        } catch {}
         return true;
       } catch (e) {
         console.warn("[print-overlay] draft auto-save failed", e);
@@ -421,6 +433,15 @@ export function usePrintOverlay(job: Job) {
             const vm = buildPageVM(jobId, job, source, rp, trackUrl, job.printOverlay);
             setPages((prev) => [...prev, vm].sort((a, b) => a.pageNumber - b.pageNumber));
             pagesRef.current = [...pagesRef.current, vm].sort((a, b) => a.pageNumber - b.pageNumber);
+
+            void blobToDataUrl(rp.blob).then((dUrl) => {
+              pagesRef.current = pagesRef.current.map((p) =>
+                p.id === vm.id ? { ...p, dataUrl: dUrl } : p
+              );
+              setPages((prev) =>
+                prev.map((p) => (p.id === vm.id ? { ...p, dataUrl: dUrl } : p))
+              );
+            });
 
             const previewPath = `jobs/${jobId}/print-overlay/${documentId}/p${rp.pageNumber}.png`;
             const previewUploadPromise = uploadBlob(previewPath, rp.blob, "image/png")
@@ -527,8 +548,20 @@ function buildPageVM(
   };
 }
 
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.readAsDataURL(blob);
+  });
+}
+
 /** Strip transient VM fields before persisting a page record. */
 function stripVM(p: PageVM): PrintOverlayPage {
+  let url = p.previewUrl || p.objectUrl || "";
+  if (url.startsWith("blob:") && p.dataUrl) {
+    url = p.dataUrl;
+  }
   return {
     id: p.id,
     jobId: p.jobId,
@@ -539,7 +572,7 @@ function stripVM(p: PageVM): PrintOverlayPage {
     pageWidth: p.pageWidth,
     pageHeight: p.pageHeight,
     previewStoragePath: p.previewStoragePath,
-    previewUrl: p.previewUrl || p.objectUrl || "",
+    previewUrl: url,
     crop: p.crop,
     cropSource: p.cropSource,
     excluded: p.excluded ?? false,
