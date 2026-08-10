@@ -100,6 +100,7 @@ export interface PrintOverlayTransform {
   northEastLat?: number;
   northEastLng?: number;
   rotationDegrees?: number;
+  blendMode?: 'normal' | 'multiply' | 'screen' | 'difference';
 }
 
 // ── Georeferencing (Stage 5) ──────────────────────────────────────────────────

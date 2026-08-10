@@ -29,25 +29,38 @@ export function projectPageToLatLng(
   pageHeight: number
 ): LatLng | null {
   if (!pageWidth || !pageHeight) return null;
+  if (overlay.southWestLat === undefined || overlay.southWestLng === undefined || overlay.northEastLat === undefined || overlay.northEastLng === undefined) return null;
+  if (overlay.southWestLat === 0 && overlay.southWestLng === 0 && overlay.northEastLat === 0 && overlay.northEastLng === 0) return null;
 
   const centreLat = (overlay.northEastLat + overlay.southWestLat) / 2;
   const centreLng = (overlay.northEastLng + overlay.southWestLng) / 2;
-  const latSpan = overlay.northEastLat - overlay.southWestLat;
-  const lngSpan = overlay.northEastLng - overlay.southWestLng;
 
-  const dx = x / pageWidth - 0.5;
-  const dy = y / pageHeight - 0.5;
+  const radLat = (centreLat * Math.PI) / 180;
+  const metersPerDegLat = 111139;
+  const metersPerDegLng = 111139 * Math.cos(radLat);
 
-  const theta = ((overlay.rotationDegrees || 0) * Math.PI) / 180;
-  const cos = Math.cos(theta);
-  const sin = Math.sin(theta);
+  const latSpanMeters = (overlay.northEastLat - overlay.southWestLat) * metersPerDegLat;
+  const lngSpanMeters = (overlay.northEastLng - overlay.southWestLng) * metersPerDegLng;
 
-  const rx = dx * cos - dy * sin;
-  const ry = dx * sin + dy * cos;
+  const dx = x - pageWidth / 2;
+  const dy = -(y - pageHeight / 2); // North is +y
+
+  const mppX = lngSpanMeters / pageWidth;
+  const mppY = latSpanMeters / pageHeight;
+
+  const thetaRad = -((overlay.rotationDegrees || 0) * Math.PI) / 180;
+  const cos = Math.cos(thetaRad);
+  const sin = Math.sin(thetaRad);
+
+  const eastMeters = (dx * cos - dy * sin) * mppX;
+  const northMeters = (dx * sin + dy * cos) * mppY;
+
+  const dLat = northMeters / metersPerDegLat;
+  const dLng = metersPerDegLng !== 0 ? eastMeters / metersPerDegLng : 0;
 
   return {
-    lat: centreLat - ry * latSpan,
-    lng: centreLng + rx * lngSpan,
+    lat: centreLat + dLat,
+    lng: centreLng + dLng,
   };
 }
 

@@ -42,6 +42,9 @@ interface Props {
   northEastLat?: number;
   northEastLng?: number;
   rotationDegrees?: number;
+  blendMode?: 'normal' | 'multiply' | 'screen' | 'difference';
+  structureBadges?: Array<{ id: string; x: number; y: number; kind: string; label: string; placed: boolean }>;
+  onSelectStructure?: (id: string) => void;
 }
 
 // clip-path inset from a normalized crop rect (trims plain margins visually
@@ -77,6 +80,9 @@ export default function PageOverlay({
   northEastLat,
   northEastLng,
   rotationDegrees,
+  blendMode = "multiply",
+  structureBadges = [],
+  onSelectStructure,
 }: Props) {
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const overlayRef = useRef<google.maps.OverlayView | null>(null);
@@ -326,7 +332,11 @@ export default function PageOverlay({
         src={imageUrl}
         alt="Print overlay page"
         draggable={false}
-        style={{ clipPath: cropClip(crop), WebkitClipPath: cropClip(crop) }}
+        style={{
+          clipPath: cropClip(crop),
+          WebkitClipPath: cropClip(crop),
+          mixBlendMode: blendMode,
+        }}
       />
       {anchors.map((an) => (
         <div
@@ -336,6 +346,22 @@ export default function PageOverlay({
           aria-hidden
         >
           {an.label}
+        </div>
+      ))}
+      {structureBadges.map((badge) => (
+        <div
+          key={badge.id}
+          className={`po-structure-badge ${badge.placed ? "po-structure-badge--placed" : "po-structure-badge--unplaced"}`}
+          style={{ left: badge.x, top: badge.y }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectStructure?.(badge.id);
+          }}
+          title={`${badge.label} (${badge.placed ? "Placed" : "Click to Place"})`}
+        >
+          <span className="po-badge-kind">{badge.kind[0].toUpperCase()}</span>
+          <span className="po-badge-label">{badge.label}</span>
+          {!badge.placed && <span className="po-badge-action">+ Place</span>}
         </div>
       ))}
       {showHandles && (

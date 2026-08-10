@@ -109,12 +109,74 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [cropConfirmed, setCropConfirmed] = useState<Set<string>>(new Set());
 
+  // Visual Design & Telecom Workflow state
+  const [blendMode, setBlendModeState] = useState<"normal" | "multiply" | "screen" | "difference">("multiply");
+  const [gridSnapEnabled, setGridSnapEnabled] = useState(true);
+  const [showStructureOverlay, setShowStructureOverlay] = useState(true);
+
   // Left Rail checklist states
   const [leftTab, setLeftTab] = useState<"PARSER" | "REVISION_DIFF">("PARSER");
   const [armedEntity, setArmedEntity] = useState<StoredPrintEntity | null>(null);
   const [diffResult, setDiffResult] = useState<any | null>(null);
   const [printDataBusy, setPrintDataBusy] = useState(false);
   const [revisionName, setRevisionName] = useState<string | null>(null);
+
+  const updateBlendMode = (mode: "normal" | "multiply" | "screen" | "difference") => {
+    setBlendModeState(mode);
+    if (activePage) {
+      setTransform(activePage.id, { blendMode: mode });
+    }
+  };
+
+  const structureBadges = useMemo(() => {
+    if (!showStructureOverlay || !parsedEntities || !activePage) return [];
+    const pageEntities = parsedEntities.filter((e) => e.pageNumber === activePage.pageNumber);
+    return pageEntities.map((e) => ({
+      id: e.id,
+      x: e.bbox.x + e.bbox.w / 2,
+      y: e.bbox.y + e.bbox.h / 2,
+      kind: e.kind,
+      label: e.label,
+      placed: e.placed,
+    }));
+  }, [showStructureOverlay, parsedEntities, activePage]);
+
+  const handleSelectStructure = useCallback(
+    (id: string) => {
+      const entity = parsedEntities.find((e) => e.id === id);
+      if (entity) {
+        setArmedEntity(entity);
+        setLeftTab("PARSER");
+      }
+    },
+    [parsedEntities]
+  );
+
+  const stitchAdjacentSeam = useCallback(() => {
+    if (!activePage || pages.length < 2) return;
+    const prevPage = pages.find((p) => p.pageNumber === activePage.pageNumber - 1 && p.alignment);
+    if (!prevPage || !prevPage.alignment) return;
+    const prevAlg = prevPage.alignment;
+    const newAlignment: GeoAlignment = {
+      anchorA: {
+        page: { x: 0, y: activePage.pageHeight / 2 },
+        map: prevAlg.anchorB.map,
+      },
+      anchorB: {
+        page: { x: activePage.pageWidth, y: activePage.pageHeight / 2 },
+        map: {
+          lat: prevAlg.anchorB.map.lat + 0.0005,
+          lng: prevAlg.anchorB.map.lng + 0.0005,
+        },
+      },
+      control: null,
+    };
+    setAlignment(activePage.id, newAlignment);
+    setAnchorDraft((prev) => ({
+      ...prev,
+      [activePage.id]: { A: newAlignment.anchorA, B: newAlignment.anchorB },
+    }));
+  }, [activePage, pages, setAlignment]);
 
   const sources = useMemo(() => listJobPdfSources(job), [job]);
   const jobId = job.jobId;
@@ -670,6 +732,9 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
           northEastLat={isGeoreferenced ? undefined : activePage.transform?.northEastLat}
           northEastLng={isGeoreferenced ? undefined : activePage.transform?.northEastLng}
           rotationDegrees={isGeoreferenced ? undefined : activePage.transform?.rotationDegrees}
+          blendMode={blendMode}
+          structureBadges={structureBadges}
+          onSelectStructure={handleSelectStructure}
         />
       )}
 
@@ -833,6 +898,55 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
                 title="Scale up 0.1%"
               >
                 Scale up +0.1%
+              </button>
+            </div>
+
+            <div className="po-divider my-3" />
+
+            {/* Print Blend Mode Selector */}
+            <div className="mb-3">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                Print Blend Mode
+              </span>
+              <div className="grid grid-cols-4 gap-1">
+                {(["multiply", "screen", "normal", "difference"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    className={`po-btn text-[9px] py-1 capitalize ${blendMode === mode ? "po-btn--primary" : ""}`}
+                    onClick={() => updateBlendMode(mode)}
+                    title={mode === "multiply" ? "Removes white paper background completely over satellite map" : undefined}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid Snap & Seam Stitch Row */}
+            <div className="flex gap-2 mb-3">
+              <button
+                className={`po-btn text-[10px] py-1 flex-1 ${gridSnapEnabled ? "po-btn--primary" : ""}`}
+                onClick={() => setGridSnapEnabled((v) => !v)}
+                title="Toggle magnetic grid snapping"
+              >
+                Grid Snap: {gridSnapEnabled ? "ON" : "OFF"}
+              </button>
+              <button
+                className="po-btn po-btn--ghost text-[10px] py-1 flex-1"
+                onClick={stitchAdjacentSeam}
+                title="Stitch seam to previous sheet match line"
+              >
+                Auto-Stitch Seam
+              </button>
+            </div>
+
+            {/* Structure Badges Toggle */}
+            <div className="mb-3">
+              <button
+                className={`po-btn text-[10px] py-1 w-full ${showStructureOverlay ? "po-btn--primary" : "po-btn--ghost"}`}
+                onClick={() => setShowStructureOverlay((v) => !v)}
+              >
+                Structure Badges: {showStructureOverlay ? "VISIBLE" : "HIDDEN"} ({structureBadges.length})
               </button>
             </div>
 

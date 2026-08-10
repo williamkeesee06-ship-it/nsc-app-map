@@ -27,7 +27,7 @@ export function solutionFromTransform(
     pageOrigin: { x: imgW / 2, y: imgH / 2 },
     origin: { lat: t.center.lat, lng: t.center.lng },
     metersPerPixel: baseMpp / (t.scale || 1),
-    rotationRad: (t.rotationDeg * Math.PI) / 180,
+    rotationRad: -((t.rotationDeg ?? 0) * Math.PI) / 180,
     refLatDeg: t.center.lat,
   };
 }

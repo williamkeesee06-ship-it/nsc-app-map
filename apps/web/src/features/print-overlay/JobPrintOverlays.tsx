@@ -156,6 +156,7 @@ export default function JobPrintOverlays({ job, visible = true }: JobPrintOverla
             northEastLat={isAnchored ? undefined : transform?.northEastLat}
             northEastLng={isAnchored ? undefined : transform?.northEastLng}
             rotationDegrees={isAnchored ? undefined : transform?.rotationDegrees}
+            blendMode={transform?.blendMode ?? "multiply"}
           />
         );
       })}
