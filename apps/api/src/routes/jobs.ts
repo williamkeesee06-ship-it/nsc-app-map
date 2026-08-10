@@ -2995,9 +2995,8 @@ function validatePrintOverlayDoc(d: PrintOverlayDoc): string | null {
     if (typeof p.pageNumber !== "number" || p.pageNumber < 1) {
       return `page ${p.id}: pageNumber must be a positive number`;
     }
-    // Reject inline data URLs — previews belong in object storage.
-    if (typeof p.previewUrl === "string" && p.previewUrl.startsWith("data:")) {
-      return `page ${p.id}: previewUrl must be a Storage URL, not an inline data URL`;
+    if (typeof p.previewUrl === "string" && p.previewUrl.length > 5000000) {
+      return `page ${p.id}: previewUrl exceeds maximum allowed length`;
     }
     if (p.crop) {
       const c = p.crop;

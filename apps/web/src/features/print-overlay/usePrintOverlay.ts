@@ -220,8 +220,14 @@ export function usePrintOverlay(job: Job) {
       const currentPages = pagesRef.current;
       const transforms: Record<string, PrintOverlayTransform> = {};
       const alignments: Record<string, GeoAlignment> = {};
+      const defaultCenter = job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 };
       for (const p of currentPages) {
-        if (p.transform) transforms[p.id] = p.transform;
+        transforms[p.id] = p.transform ?? {
+          center: defaultCenter,
+          scale: 1,
+          rotationDeg: 0,
+          opacity: 0.5,
+        };
         if (p.alignment) alignments[p.id] = p.alignment;
       }
 
@@ -306,7 +312,7 @@ export function usePrintOverlay(job: Job) {
         parsedEntities: parsedEntities,
       };
     },
-    [jobId, job.printOverlay, parsedEntities]
+    [jobId, job.printOverlay, job.geocode, parsedEntities]
   );
 
   const save = useCallback(
@@ -349,43 +355,46 @@ export function usePrintOverlay(job: Job) {
     [jobId, buildDoc]
   );
 
-  /**
-   * Stage 1→2: begin processing a chosen source. `file` is set for uploads.
-   * Renders pages, seeds auto-crop suggestions, and (best-effort) uploads the
-   * original PDF + page previews to Storage.
-   */
-  const beginSource = useCallback(
+  const startProcessingSource = useCallback(
     async (source: PrintOverlaySource, file: File | null, username: string | null) => {
-      abortRef.current?.abort();
-      revokeAllObjectUrls();
-      pendingUploadsRef.current.clear();
       const ac = new AbortController();
       abortRef.current = ac;
       setError(null);
-      setPages([]);
-      setActivePageId(null);
-      setProgress(null);
 
-      if (file) {
-        if (!isPdf(file.name, file.type)) {
-          setError("Please choose a PDF file.");
-          setPhase("error");
-          return;
+      // Check for previously saved pages for this source
+      const savedForSource = job.printOverlay?.pages?.filter((x) => x.documentId === source.documentId) ?? [];
+      if (savedForSource.length > 0) {
+        // If we already have saved pages in printOverlay, load them into pages state directly
+        const loadedVMs: PageVM[] = savedForSource.map((sp) => {
+          const defaultCenter = job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 };
+          const transform = job.printOverlay?.transforms?.[sp.id] ?? {
+            center: defaultCenter,
+            scale: 1,
+            rotationDeg: 0,
+            opacity: 0.5,
+          };
+          const alignment = job.printOverlay?.alignments?.[sp.id] ?? null;
+          return {
+            ...sp,
+            objectUrl: sp.previewUrl ?? null,
+            autoCrop: sp.crop ?? null,
+            transform,
+            alignment,
+          };
+        });
+        setPages(loadedVMs);
+        pagesRef.current = loadedVMs;
+        if (loadedVMs.length > 0) {
+          setActivePageId(loadedVMs[0].id);
         }
-        if (file.size > MAX_PDF_BYTES) {
-          setError(`PDF is too large (max ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB).`);
-          setPhase("error");
-          return;
-        }
+        setPhase("ready");
+        return;
       }
 
       setPhase("processing");
       const documentId = source.documentId;
       sourcesRef.current.set(documentId, source);
       try {
-        // Best-effort: upload a freshly-chosen file to Storage so the original
-        // stays attached to the job (durable job attachment / "Documents").
-        // Never blocks rendering.
         if (file && !source.storagePath) {
           const path = `jobs/${jobId}/print-overlay/${documentId}/${sanitizeStorageSegment(file.name)}`;
           const sourceUploadPromise = uploadToStorage(path, file, { contentType: file.type || "application/pdf", signal: ac.signal })
@@ -394,7 +403,6 @@ export function usePrintOverlay(job: Job) {
               source.downloadUrl = r.downloadUrl;
               sourcesRef.current.set(documentId, { ...source });
               pendingUploadsRef.current.delete(documentId);
-              // Trigger a save so the database receives the finalized downloadUrl.
               void saveDraft(username);
             })
             .catch((e) => {
@@ -405,15 +413,15 @@ export function usePrintOverlay(job: Job) {
         }
 
         const bytes = await loadSourceBytes(source, file);
-        // pdf.js transfers the buffer to the worker; keep a copy for page count.
         source.pageCount = await countPdfPages(bytes.slice(0));
 
         await splitPdf(
           bytes,
           (rp: RenderedPage) => {
-            const vm = buildPageVM(jobId, source, rp, trackUrl, job.printOverlay);
+            const vm = buildPageVM(jobId, job, source, rp, trackUrl, job.printOverlay);
             setPages((prev) => [...prev, vm].sort((a, b) => a.pageNumber - b.pageNumber));
-            // Best-effort preview upload → replace transient url with a durable ref.
+            pagesRef.current = [...pagesRef.current, vm].sort((a, b) => a.pageNumber - b.pageNumber);
+
             const previewPath = `jobs/${jobId}/print-overlay/${documentId}/p${rp.pageNumber}.png`;
             const previewUploadPromise = uploadBlob(previewPath, rp.blob, "image/png")
               .then((r) => {
@@ -448,28 +456,25 @@ export function usePrintOverlay(job: Job) {
         setPhase("ready");
       } catch (e) {
         if (e instanceof CancelledError) return;
+        console.error("[print-overlay] split failed", e);
         setError(e instanceof Error ? e.message : String(e));
         setPhase("error");
       }
     },
-    [jobId, loadSourceBytes, revokeAllObjectUrls, trackUrl, saveDraft]
-  );
-
-  const activePage = useMemo(
-    () => pages.find((p) => p.id === activePageId) ?? null,
-    [pages, activePageId]
+    [jobId, job, loadSourceBytes, saveDraft, trackUrl]
   );
 
   return {
     phase,
     pages,
-    activePage,
     activePageId,
+    activePage: pages.find((p) => p.id === activePageId) ?? null,
     progress,
     error,
     saving,
     draftStatus,
-    beginSource,
+    parsedEntities,
+    setParsedEntities,
     cancelProcessing,
     selectPage,
     setCrop,
@@ -478,15 +483,16 @@ export function usePrintOverlay(job: Job) {
     setAlignment,
     setExcluded,
     deletePage,
+    beginSource: startProcessingSource,
+    startProcessingSource,
     save,
     saveDraft,
-    parsedEntities,
-    setParsedEntities,
   };
 }
 
 function buildPageVM(
   jobId: string,
+  job: Job,
   source: PrintOverlaySource,
   rp: RenderedPage,
   trackUrl: (url: string) => string,
@@ -497,7 +503,13 @@ function buildPageVM(
   const autoCrop = suggestCropRect(rp.contentBounds, rp.rasterWidth, rp.rasterHeight);
 
   const savedPage = existingDoc?.pages?.find((x) => x.id === pageId);
-  const savedTransform = existingDoc?.transforms?.[pageId] ?? null;
+  const defaultCenter = job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 };
+  const savedTransform = existingDoc?.transforms?.[pageId] ?? {
+    center: defaultCenter,
+    scale: 1,
+    rotationDeg: 0,
+    opacity: 0.5,
+  };
   const savedAlignment = existingDoc?.alignments?.[pageId] ?? null;
 
   return {
@@ -510,7 +522,7 @@ function buildPageVM(
     pageWidth: rp.pageWidth,
     pageHeight: rp.pageHeight,
     previewStoragePath: savedPage?.previewStoragePath ?? null,
-    previewUrl: savedPage?.previewUrl ?? null,
+    previewUrl: savedPage?.previewUrl ?? objectUrl,
     crop: savedPage ? savedPage.crop : autoCrop,
     cropSource: savedPage ? savedPage.cropSource : (autoCrop ? "auto" : null),
     excluded: savedPage?.excluded ?? false,
@@ -533,7 +545,7 @@ function stripVM(p: PageVM): PrintOverlayPage {
     pageWidth: p.pageWidth,
     pageHeight: p.pageHeight,
     previewStoragePath: p.previewStoragePath,
-    previewUrl: p.previewUrl,
+    previewUrl: p.previewUrl || p.objectUrl || "",
     crop: p.crop,
     cropSource: p.cropSource,
     excluded: p.excluded ?? false,

@@ -24,12 +24,18 @@ export default function JobPrintOverlays({ job, visible = true }: JobPrintOverla
         const img = p.previewUrl || (p as any).objectUrl;
         if (!img) return null;
 
-        const transform = doc.transforms?.[p.id] ?? null;
+        const defaultCenter = job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 };
+        const transform = doc.transforms?.[p.id] ?? {
+          center: defaultCenter,
+          scale: 1,
+          rotationDeg: 0,
+          opacity: 0.5,
+        };
         const alignment = doc.alignments?.[p.id] ?? null;
 
         const sol = alignment && alignment.anchorA && alignment.anchorB
-          ? (() => { try { return solveGeoSolution(alignment); } catch { return null; } })()
-          : (transform ? solutionFromTransform(transform, p.pageWidth, p.pageHeight) : null);
+          ? (() => { try { return solveGeoSolution(alignment); } catch { return solutionFromTransform(transform, p.pageWidth, p.pageHeight); } })()
+          : solutionFromTransform(transform, p.pageWidth, p.pageHeight);
         if (!sol) return null;
 
         return (
