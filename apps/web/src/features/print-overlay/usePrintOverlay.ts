@@ -150,7 +150,11 @@ export function usePrintOverlay(job: Job) {
   const selectPage = useCallback((id: string | null) => setActivePageId(id), []);
 
   const patchPage = useCallback((id: string, patch: Partial<PageVM>) => {
-    setPages((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setPages((prev) => {
+      const next = prev.map((p) => (p.id === id ? { ...p, ...patch } : p));
+      pagesRef.current = next;
+      return next;
+    });
   }, []);
 
   // ── Stage 3: crop ─────────────────────────────────────────────────────────
@@ -176,8 +180,8 @@ export function usePrintOverlay(job: Job) {
   // ── Stage 4: transform ──────────────────────────────────────────────────────
   const setTransform = useCallback(
     (id: string, patch: Partial<PrintOverlayTransform>) => {
-      setPages((prev) =>
-        prev.map((p) => {
+      setPages((prev) => {
+        const next = prev.map((p) => {
           if (p.id !== id) return p;
           const base: PrintOverlayTransform = p.transform ?? {
             center: job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 0, lng: 0 },
@@ -186,8 +190,10 @@ export function usePrintOverlay(job: Job) {
             opacity: 0.5,
           };
           return { ...p, transform: { ...base, ...patch } };
-        })
-      );
+        });
+        pagesRef.current = next;
+        return next;
+      });
     },
     [job.geocode]
   );

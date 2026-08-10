@@ -188,12 +188,10 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       selectPage(page.id);
       setOverlayMode("move");
       setPendingAnchor(null);
-      const c = map?.getCenter();
-      const currentCenter = c ? { lat: c.lat(), lng: c.lng() } : jobCenter;
       if (!page.transform) {
+        const c = map?.getCenter();
+        const currentCenter = c ? { lat: c.lat(), lng: c.lng() } : jobCenter;
         setTransform(page.id, DEFAULT_TRANSFORM(currentCenter));
-      } else if (!page.alignment) {
-        setTransform(page.id, { ...page.transform, center: currentCenter });
       }
       setAnchorDraft((prev) => {
         if (prev[page.id]) return prev;
