@@ -265,12 +265,41 @@ export function usePrintOverlay(job: Job) {
   const loadSourceBytes = useCallback(
     async (source: PrintOverlaySource, file: File | null): Promise<ArrayBuffer> => {
       if (file) return file.arrayBuffer();
-      if (!source.downloadUrl) throw new Error("Source has no download URL");
-      const res = await fetch(source.downloadUrl);
+
+      // Tier 1: Check IndexedDB local document cache
+      const meta: PrintDocumentMeta = {
+        id: source.documentId,
+        jobId,
+        fileName: source.name,
+        pageCount: source.pageCount ?? 1,
+        byteSize: source.size ?? 0,
+        uploadedAt: new Date().toISOString(),
+        cloudUrl: source.downloadUrl ?? undefined,
+      };
+
+      const cachedBytes = await resolvePrintDocument(meta);
+      if (cachedBytes) return cachedBytes;
+
+      let downloadUrl = source.downloadUrl;
+      if (!downloadUrl && source.storagePath) {
+        try {
+          const { getStorage, ref, getDownloadURL } = await import("firebase/storage");
+          const storage = getStorage();
+          downloadUrl = await getDownloadURL(ref(storage, source.storagePath));
+          source.downloadUrl = downloadUrl;
+        } catch (err) {
+          console.warn("[print-overlay] Could not get download URL from storage path", err);
+        }
+      }
+
+      if (!downloadUrl) throw new Error("Source has no download URL or cached copy on this device.");
+      const res = await fetch(downloadUrl);
       if (!res.ok) throw new Error(`Could not fetch source PDF (${res.status})`);
-      return res.arrayBuffer();
+      const bytes = await res.arrayBuffer();
+      void putPrintDocument(source.documentId, bytes);
+      return bytes;
     },
-    []
+    [jobId]
   );
 
 
