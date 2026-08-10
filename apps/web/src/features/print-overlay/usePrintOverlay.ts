@@ -503,13 +503,7 @@ function buildPageVM(
   const autoCrop = suggestCropRect(rp.contentBounds, rp.rasterWidth, rp.rasterHeight);
 
   const savedPage = existingDoc?.pages?.find((x) => x.id === pageId);
-  const defaultCenter = job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 };
-  const savedTransform = existingDoc?.transforms?.[pageId] ?? {
-    center: defaultCenter,
-    scale: 1,
-    rotationDeg: 0,
-    opacity: 0.5,
-  };
+  const savedTransform = existingDoc?.transforms?.[pageId] ?? null;
   const savedAlignment = existingDoc?.alignments?.[pageId] ?? null;
 
   return {
