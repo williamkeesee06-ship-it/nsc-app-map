@@ -184,7 +184,7 @@ export function usePrintOverlay(job: Job) {
         const next = prev.map((p) => {
           if (p.id !== id) return p;
           const base: PrintOverlayTransform = p.transform ?? {
-            center: job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 0, lng: 0 },
+            center: job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 },
             scale: 1,
             rotationDeg: 0,
             opacity: 0.5,

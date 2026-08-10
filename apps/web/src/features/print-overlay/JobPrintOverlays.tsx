@@ -150,6 +150,11 @@ export default function JobPrintOverlays({ job, visible = true }: JobPrintOverla
             onPagePoint={() => {}}
             onScale={() => {}}
             onRotate={() => {}}
+            southWestLat={transform?.southWestLat}
+            southWestLng={transform?.southWestLng}
+            northEastLat={transform?.northEastLat}
+            northEastLng={transform?.northEastLng}
+            rotationDegrees={transform?.rotationDegrees}
           />
         );
       })}
