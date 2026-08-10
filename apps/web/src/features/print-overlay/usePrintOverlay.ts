@@ -19,8 +19,8 @@ import { suggestCropRect, clampCropRect } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { uploadToStorage, uploadBlob, sanitizeStorageSegment } from "../../lib/storage.js";
 import { splitPdf, countPdfPages, CancelledError, type RenderedPage } from "./pdfSplit.js";
-import { putPrintDocument, backupPrintDocument } from "./printDocumentStore.js";
-import { putBlueprintImage } from "./blueprintImageStore.js";
+import { putPrintDocument, backupPrintDocument, resolvePrintDocument, renderPagesFromDocument, type PrintDocumentMeta } from "./printDocumentStore.js";
+import { putBlueprintImage, getBlueprintImage } from "./blueprintImageStore.js";
 
 export interface PageVM extends PrintOverlayPage {
   /** Transient blob URL for immediate preview (revoked on cleanup). */
@@ -51,19 +51,20 @@ export function listJobPdfSources(job: Job): PrintOverlaySource[] {
   const out: PrintOverlaySource[] = [];
   const seen = new Set<string>();
   const push = (s: PrintOverlaySource) => {
-    if (s.downloadUrl && !seen.has(s.downloadUrl)) {
-      seen.add(s.downloadUrl);
+    const key = s.documentId || s.downloadUrl;
+    if (key && !seen.has(key)) {
+      seen.add(key);
       out.push(s);
     }
   };
   for (const f of job.ziplyPrintLayer?.permitFiles ?? []) {
-    if (f.downloadUrl && isPdf(f.name, f.contentType)) {
+    if (isPdf(f.name, f.contentType)) {
       push({
         documentId: f.id,
         name: f.name,
         origin: "attachment",
         storagePath: f.storagePath ?? null,
-        downloadUrl: f.downloadUrl,
+        downloadUrl: f.downloadUrl ?? null,
         contentType: f.contentType ?? "application/pdf",
         size: f.size ?? null,
         pageCount: null,
@@ -71,7 +72,7 @@ export function listJobPdfSources(job: Job): PrintOverlaySource[] {
     }
   }
   for (const s of job.printOverlay?.sources ?? []) {
-    if (s.downloadUrl) push(s);
+    push(s);
   }
   return out;
 }
@@ -122,6 +123,138 @@ export function usePrintOverlay(job: Job) {
       }
     }
   }, [jobId, job.printOverlay?.sources]);
+
+  // Synchronize saved pages from job.printOverlay on mount / update
+  useEffect(() => {
+    const existingPages = job.printOverlay?.pages;
+    if (!existingPages || existingPages.length === 0) return;
+
+    const defaultCenter = job.geocode
+      ? { lat: job.geocode.lat, lng: job.geocode.lng }
+      : { lat: 47.6062, lng: -122.3321 };
+
+    setPages((prev) => {
+      const loadedVMs: PageVM[] = existingPages.map((sp) => {
+        const transform = job.printOverlay?.transforms?.[sp.id] ?? {
+          center: defaultCenter,
+          scale: 1,
+          rotationDeg: 0,
+          opacity: 0.5,
+        };
+        const alignment = job.printOverlay?.alignments?.[sp.id] ?? null;
+        const prevVM = prev.find((p) => p.id === sp.id);
+
+        return {
+          ...sp,
+          objectUrl: prevVM?.objectUrl ?? null,
+          dataUrl: prevVM?.dataUrl ?? null,
+          previewUrl: sp.previewUrl && !sp.previewUrl.startsWith("blob:") ? sp.previewUrl : (prevVM?.previewUrl ?? null),
+          autoCrop: sp.crop ?? null,
+          transform,
+          alignment,
+        };
+      });
+
+      const combined = [...loadedVMs];
+      for (const p of prev) {
+        if (!combined.some((c) => c.id === p.id)) {
+          combined.push(p);
+        }
+      }
+      pagesRef.current = combined;
+      return combined;
+    });
+
+    setPhase((currentPhase) => (currentPhase === "choosing" ? "ready" : currentPhase));
+
+    setActivePageId((currentId) => {
+      if (currentId) return currentId;
+      return existingPages.length > 0 ? existingPages[0].id : null;
+    });
+  }, [jobId, job.printOverlay, job.geocode]);
+
+  // Resolve missing preview images for loaded pages (Tier 1 IndexedDB -> Tier 3 PDF Re-render)
+  useEffect(() => {
+    const missingPages = pages.filter(
+      (p) => !p.dataUrl && (!p.previewUrl || p.previewUrl.startsWith("blob:")) && !p.objectUrl
+    );
+    if (missingPages.length === 0) return;
+
+    let cancelled = false;
+
+    async function resolvePageImages() {
+      const resolvedFromDb: Record<string, string> = {};
+      const stillMissing: PageVM[] = [];
+
+      for (const p of missingPages) {
+        const cached = await getBlueprintImage(p.id);
+        if (cached) {
+          resolvedFromDb[p.id] = cached;
+        } else {
+          stillMissing.push(p);
+        }
+      }
+
+      if (cancelled) return;
+
+      if (Object.keys(resolvedFromDb).length > 0) {
+        setPages((prev) =>
+          prev.map((p) =>
+            resolvedFromDb[p.id] ? { ...p, dataUrl: resolvedFromDb[p.id] } : p
+          )
+        );
+      }
+
+      if (stillMissing.length > 0) {
+        const byDoc = new Map<string, PageVM[]>();
+        for (const p of stillMissing) {
+          const arr = byDoc.get(p.documentId) ?? [];
+          arr.push(p);
+          byDoc.set(p.documentId, arr);
+        }
+
+        const docSources = job.printOverlay?.sources ?? [];
+
+        for (const [docId, docPages] of byDoc.entries()) {
+          if (cancelled) break;
+          const src: PrintOverlaySource | undefined =
+            sourcesRef.current.get(docId) ?? docSources.find((s) => s.documentId === docId);
+
+          const meta: PrintDocumentMeta = {
+            id: docId,
+            jobId: jobId,
+            fileName: src?.name ?? `${docId}.pdf`,
+            pageCount: src?.pageCount ?? 1,
+            byteSize: src?.size ?? 0,
+            uploadedAt: new Date().toISOString(),
+            cloudUrl: src?.downloadUrl ?? undefined,
+          };
+
+          const bytes = await resolvePrintDocument(meta);
+          if (!bytes || cancelled) continue;
+
+          const pageNumbers = Array.from(new Set(docPages.map((p) => p.pageNumber)));
+          const rendered = await renderPagesFromDocument(bytes.slice(0), pageNumbers, 2.0);
+
+          for (const p of docPages) {
+            const dataUrl = rendered.get(p.pageNumber);
+            if (dataUrl && !cancelled) {
+              await putBlueprintImage(p.id, dataUrl);
+              setPages((prev) =>
+                prev.map((item) => (item.id === p.id ? { ...item, dataUrl } : item))
+              );
+            }
+          }
+        }
+      }
+    }
+
+    void resolvePageImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pages, jobId, job.printOverlay?.sources]);
 
   const trackUrl = useCallback((url: string) => {
     objectUrlsRef.current.add(url);

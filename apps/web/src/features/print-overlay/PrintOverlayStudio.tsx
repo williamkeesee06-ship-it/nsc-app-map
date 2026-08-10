@@ -406,7 +406,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       mapProjectId: jobId,
       jobId,
       title: p.label,
-      imageUri: p.previewUrl || p.objectUrl || "",
+      imageUri: p.previewUrl || p.dataUrl || p.objectUrl || "",
       southWestLat: p.transform?.southWestLat ?? 0,
       southWestLng: p.transform?.southWestLng ?? 0,
       northEastLat: p.transform?.northEastLat ?? 0,
@@ -544,7 +544,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     setTransform(activePage.id, patch);
   };
 
-  const overlayImg = activePage?.previewUrl || activePage?.objectUrl || null;
+  const overlayImg = activePage?.previewUrl || activePage?.dataUrl || activePage?.objectUrl || null;
   const cropPage = cropPageId ? pages.find((p) => p.id === cropPageId) ?? null : null;
 
   const phaseHint = showChooser
@@ -600,7 +600,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       {/* ── Background read-only overlays (already aligned pages) ──────── */}
       {map && pages.map((p) => {
         if (p.id === activePageId || p.excluded) return null;
-        const img = p.previewUrl || p.objectUrl;
+        const img = p.previewUrl || p.dataUrl || p.objectUrl;
         if (!img) return null;
         const sol = p.alignment && p.alignment.anchorA && p.alignment.anchorB
           ? (() => { try { return solveGeoSolution(p.alignment); } catch { return null; } })()
@@ -885,7 +885,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       {pages.length > 0 && !showChooser && (
         <div className="po-carousel" role="list" aria-label="Print pages">
           {pages.map((p) => {
-            const thumb = p.previewUrl || p.objectUrl || "";
+            const thumb = p.previewUrl || p.dataUrl || p.objectUrl || "";
             const excluded = p.excluded ?? false;
             return (
               <div
@@ -1021,7 +1021,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       {/* ── Crop editor ─────────────────────────────────────────────────── */}
       {cropPage && (
         <CropEditor
-          imageUrl={cropPage.previewUrl || cropPage.objectUrl || ""}
+          imageUrl={cropPage.previewUrl || cropPage.dataUrl || cropPage.objectUrl || ""}
           label={cropPage.label}
           initial={cropPage.crop}
           auto={cropPage.autoCrop}
