@@ -544,6 +544,7 @@ export default function DrawingOverlay() {
     engine.onPendingObject = (obj, screenPos) => {
       if (!LABEL_REQUIRED_TOOLS.has(obj.tool as string)) {
         addObject(obj);
+        setTool("select");
         return;
       }
       let initialLabel = "";
@@ -552,6 +553,12 @@ export default function DrawingOverlay() {
         initialLabel = len > 0 ? `${Math.round(len)}'` : "";
       }
       setPendingObject({ obj, screenPos, initialLabel });
+    };
+
+    engine.onDrawEnd = () => {
+      if (state.activeTool && state.activeTool !== "select") {
+        setTool("select");
+      }
     };
 
     // Phase 9: provide live snap targets (Pole / MH / HH / PED point objects)
@@ -576,11 +583,13 @@ export default function DrawingOverlay() {
     };
 
     if (state.activeTool && state.activeTool !== "select") {
+      map.setOptions({ disableDoubleClickZoom: true });
       engine.activate(state.activeTool, state.style);
     } else {
+      map.setOptions({ disableDoubleClickZoom: false });
       engine.deactivate();
     }
-  }, [map, state.activeTool, state.style, addObject]);
+  }, [map, state.activeTool, state.style, addObject, setTool]);
 
   // ─── clickable state per active tool ───────────────────────────────────
   useEffect(() => {
@@ -1229,10 +1238,11 @@ export default function DrawingOverlay() {
       } as DrawingObject;
     } else {
       if (finalObj.tool === "text" || finalObj.tool === "callout") {
+        const textVal = label?.trim() || (finalObj.tool === "text" ? "Text" : "Callout");
         finalObj = {
           ...finalObj,
-          text: label || "",
-          style: { ...finalObj.style, userLabel: label || undefined, description: description || undefined },
+          text: textVal,
+          style: { ...finalObj.style, userLabel: textVal, description: description || undefined },
         } as DrawingObject;
       } else {
         finalObj = {
@@ -1243,10 +1253,12 @@ export default function DrawingOverlay() {
     }
     addObject(finalObj);
     setPendingObject(null);
+    setTool("select");
   }
 
   function handlePopupCancel() {
     setPendingObject(null);
+    setTool("select");
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
