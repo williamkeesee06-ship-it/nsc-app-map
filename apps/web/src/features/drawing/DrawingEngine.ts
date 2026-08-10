@@ -83,7 +83,7 @@ export class DrawingEngine {
   }
 
   activate(tool: DrawingTool, style: DrawingStyle): void {
-    this.deactivate();
+    this.clearState();
     this.tool = tool;
     this.style = style;
     this.map.setOptions({ draggableCursor: this.cursorFor(tool) });
@@ -107,7 +107,7 @@ export class DrawingEngine {
     }
   }
 
-  deactivate(): void {
+  private clearState(): void {
     this.listeners.forEach((l) => {
       try {
         if (typeof l?.remove === "function") l.remove();
@@ -132,6 +132,10 @@ export class DrawingEngine {
     this.tool = null;
     this.style = null;
     this.map.setOptions({ draggableCursor: null, draggable: true });
+  }
+
+  deactivate(): void {
+    this.clearState();
     this.onDrawEnd?.();
   }
 
