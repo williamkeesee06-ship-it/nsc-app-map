@@ -637,11 +637,11 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             onPagePoint={() => {}}
             onScale={() => {}}
             onRotate={() => {}}
-            southWestLat={p.transform?.southWestLat}
-            southWestLng={p.transform?.southWestLng}
-            northEastLat={p.transform?.northEastLat}
-            northEastLng={p.transform?.northEastLng}
-            rotationDegrees={p.transform?.rotationDegrees}
+            southWestLat={p.alignment ? undefined : p.transform?.southWestLat}
+            southWestLng={p.alignment ? undefined : p.transform?.southWestLng}
+            northEastLat={p.alignment ? undefined : p.transform?.northEastLat}
+            northEastLng={p.alignment ? undefined : p.transform?.northEastLng}
+            rotationDegrees={p.alignment ? undefined : p.transform?.rotationDegrees}
           />
         );
       })}
@@ -665,11 +665,11 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
           onPagePoint={onPagePoint}
           onScale={(s) => setTransform(activePage.id, { scale: s })}
           onRotate={(d) => setTransform(activePage.id, { rotationDeg: d })}
-          southWestLat={activePage.transform?.southWestLat}
-          southWestLng={activePage.transform?.southWestLng}
-          northEastLat={activePage.transform?.northEastLat}
-          northEastLng={activePage.transform?.northEastLng}
-          rotationDegrees={activePage.transform?.rotationDegrees}
+          southWestLat={isGeoreferenced ? undefined : activePage.transform?.southWestLat}
+          southWestLng={isGeoreferenced ? undefined : activePage.transform?.southWestLng}
+          northEastLat={isGeoreferenced ? undefined : activePage.transform?.northEastLat}
+          northEastLng={isGeoreferenced ? undefined : activePage.transform?.northEastLng}
+          rotationDegrees={isGeoreferenced ? undefined : activePage.transform?.rotationDegrees}
         />
       )}
 

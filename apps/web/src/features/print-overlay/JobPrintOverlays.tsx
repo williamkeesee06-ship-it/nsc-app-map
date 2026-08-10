@@ -125,8 +125,9 @@ export default function JobPrintOverlays({ job, visible = true }: JobPrintOverla
           opacity: 0.5,
         };
         const alignment = doc.alignments?.[p.id] ?? null;
+        const isAnchored = !!(alignment && alignment.anchorA && alignment.anchorB);
 
-        const sol = alignment && alignment.anchorA && alignment.anchorB
+        const sol = isAnchored
           ? (() => { try { return solveGeoSolution(alignment); } catch { return solutionFromTransform(transform, p.pageWidth, p.pageHeight); } })()
           : solutionFromTransform(transform, p.pageWidth, p.pageHeight);
         if (!sol) return null;
@@ -150,11 +151,11 @@ export default function JobPrintOverlays({ job, visible = true }: JobPrintOverla
             onPagePoint={() => {}}
             onScale={() => {}}
             onRotate={() => {}}
-            southWestLat={transform?.southWestLat}
-            southWestLng={transform?.southWestLng}
-            northEastLat={transform?.northEastLat}
-            northEastLng={transform?.northEastLng}
-            rotationDegrees={transform?.rotationDegrees}
+            southWestLat={isAnchored ? undefined : transform?.southWestLat}
+            southWestLng={isAnchored ? undefined : transform?.southWestLng}
+            northEastLat={isAnchored ? undefined : transform?.northEastLat}
+            northEastLng={isAnchored ? undefined : transform?.northEastLng}
+            rotationDegrees={isAnchored ? undefined : transform?.rotationDegrees}
           />
         );
       })}
