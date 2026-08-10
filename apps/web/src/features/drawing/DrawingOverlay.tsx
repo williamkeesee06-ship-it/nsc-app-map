@@ -594,11 +594,10 @@ export default function DrawingOverlay() {
   // ─── clickable state per active tool ───────────────────────────────────
   useEffect(() => {
     if (!map) return;
-    // Finished overlays stay clickable in every tool so the user can re-select
-    // and edit them. The click handler switches back to Select automatically.
+    const isSelectMode = state.activeTool === "select" || state.activeTool === null;
     overlaysRef.current.forEach((overlay, key) => {
       if (key.endsWith("_label")) return;
-      overlay.setOptions({ clickable: true });
+      overlay.setOptions({ clickable: isSelectMode });
     });
   }, [map, state.activeTool]);
 
