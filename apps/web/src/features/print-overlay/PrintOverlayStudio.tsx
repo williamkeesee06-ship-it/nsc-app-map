@@ -22,6 +22,7 @@ import {
   Scale,
   Lock,
   Unlock,
+  Trash2,
 } from "lucide-react";
 import {
   alignmentResidualFt,
@@ -95,6 +96,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     setTransform,
     setAlignment,
     setExcluded,
+    deletePage,
     save,
     saveDraft,
     parsedEntities,
@@ -391,6 +393,27 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     [setExcluded, activePageId, selectPage]
   );
 
+  // Hard-delete: permanently remove a page from the overlay project.
+  // Unlike toggleExcluded (which just hides), this drops the page from the
+  // in-memory list AND from the persisted PrintOverlayDoc on the next save
+  // (buildDoc's merge only re-adds pages that were in existingDoc AND aren't
+  // in the current active set — since we're deleting mid-session, the
+  // subsequent saveDraft/save omits it entirely). The original PDF stays
+  // untouched in storage — only the page's overlay slot is removed.
+  const hardDeletePage = useCallback(
+    (p: PageVM) => {
+      const label = p.label || `page ${p.pageNumber}`;
+      const confirmed = window.confirm(
+        `Permanently remove "${label}" from this overlay?\n\nThe original PDF stays intact, but this page will no longer be part of the job's print overlay. This cannot be undone from the studio.`
+      );
+      if (!confirmed) return;
+      deletePage(p.id);
+      // Persist immediately so the deletion survives a reload / other devices.
+      void saveDraft(username);
+    },
+    [deletePage, saveDraft, username]
+  );
+
   const clearAlignment = useCallback(() => {
     if (!activePageId) return;
     setAnchorDraft((prev) => ({ ...prev, [activePageId]: {} }));
@@ -406,15 +429,27 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     clearAlignment();
   }, [activePage, map, jobCenter, setTransform, clearAlignment]);
 
-  // Save to Firestore and close the studio (only explicitly triggered by operator)
+  // Save to Firestore and close the studio (only explicitly triggered by operator).
+  //
+  // We flush every pending anchor draft into the corresponding page's
+  // alignment BEFORE calling save(). The useEffect at line ~320 that mirrors
+  // curDraft → activePage.alignment is async — if the operator clicks the
+  // final anchor and immediately hits Complete, that effect hasn't run yet
+  // and buildDoc() would read stale alignment. Calling setAlignment here
+  // is synchronous with respect to pagesRef.current (patchPage writes to
+  // the ref inside its state updater), so save() picks up the fresh values.
   const doSave = useCallback(async () => {
+    for (const [pageId, draft] of Object.entries(anchorDraft)) {
+      const al = draftToAlignment(draft);
+      if (al) setAlignment(pageId, al);
+    }
     const ok = await save(username);
     setSavedNote(ok ? "Draft saved to Firebase." : null);
     if (ok) {
       setTimeout(() => setSavedNote(null), 2500);
       onClose();
     }
-  }, [save, username, onClose]);
+  }, [save, username, onClose, anchorDraft, setAlignment]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -701,11 +736,11 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             onPagePoint={() => {}}
             onScale={() => {}}
             onRotate={() => {}}
-            southWestLat={p.alignment ? undefined : p.transform?.southWestLat}
-            southWestLng={p.alignment ? undefined : p.transform?.southWestLng}
-            northEastLat={p.alignment ? undefined : p.transform?.northEastLat}
-            northEastLng={p.alignment ? undefined : p.transform?.northEastLng}
-            rotationDegrees={p.alignment ? undefined : p.transform?.rotationDegrees}
+            southWestLat={undefined}
+            southWestLng={undefined}
+            northEastLat={undefined}
+            northEastLng={undefined}
+            rotationDegrees={undefined}
           />
         );
       })}
@@ -729,11 +764,11 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
           onPagePoint={onPagePoint}
           onScale={(s) => setTransform(activePage.id, { scale: s })}
           onRotate={(d) => setTransform(activePage.id, { rotationDeg: d })}
-          southWestLat={isGeoreferenced ? undefined : activePage.transform?.southWestLat}
-          southWestLng={isGeoreferenced ? undefined : activePage.transform?.southWestLng}
-          northEastLat={isGeoreferenced ? undefined : activePage.transform?.northEastLat}
-          northEastLng={isGeoreferenced ? undefined : activePage.transform?.northEastLng}
-          rotationDegrees={isGeoreferenced ? undefined : activePage.transform?.rotationDegrees}
+          southWestLat={undefined}
+          southWestLng={undefined}
+          northEastLat={undefined}
+          northEastLng={undefined}
+          rotationDegrees={undefined}
           blendMode={blendMode}
           structureBadges={structureBadges}
           onSelectStructure={handleSelectStructure}
@@ -1061,11 +1096,20 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
                 <button
                   type="button"
                   className="po-thumb__action"
-                  title={excluded ? "Restore page to overlay" : "Remove page from overlay"}
-                  aria-label={excluded ? `Restore ${p.label}` : `Remove ${p.label}`}
+                  title={excluded ? "Restore page to overlay" : "Hide page from overlay (reversible)"}
+                  aria-label={excluded ? `Restore ${p.label}` : `Hide ${p.label}`}
                   onClick={() => toggleExcluded(p)}
                 >
                   {excluded ? <RotateCcw size={13} /> : <EyeOff size={13} />}
+                </button>
+                <button
+                  type="button"
+                  className="po-thumb__action po-thumb__action--danger"
+                  title="Permanently delete this page from the overlay"
+                  aria-label={`Delete ${p.label}`}
+                  onClick={() => hardDeletePage(p)}
+                >
+                  <Trash2 size={13} />
                 </button>
               </div>
             );

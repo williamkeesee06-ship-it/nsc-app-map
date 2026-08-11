@@ -151,11 +151,13 @@ export default function JobPrintOverlays({ job, visible = true }: JobPrintOverla
             onPagePoint={() => {}}
             onScale={() => {}}
             onRotate={() => {}}
-            southWestLat={isAnchored ? undefined : transform?.southWestLat}
-            southWestLng={isAnchored ? undefined : transform?.southWestLng}
-            northEastLat={isAnchored ? undefined : transform?.northEastLat}
-            northEastLng={isAnchored ? undefined : transform?.northEastLng}
-            rotationDegrees={isAnchored ? undefined : transform?.rotationDegrees}
+            // Legacy rectangular-bounds path retired — pass undefined to
+            // disable the override branch inside PageOverlay entirely.
+            southWestLat={undefined}
+            southWestLng={undefined}
+            northEastLat={undefined}
+            northEastLng={undefined}
+            rotationDegrees={undefined}
             blendMode={transform?.blendMode ?? "multiply"}
           />
         );

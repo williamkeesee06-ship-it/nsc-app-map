@@ -10,6 +10,7 @@ import type {
   CropRect,
   GeoAlignment,
   Job,
+  LatLng,
   PrintOverlayDoc,
   PrintOverlayPage,
   PrintOverlaySource,
@@ -98,6 +99,13 @@ export function usePrintOverlay(job: Job) {
   useEffect(() => {
     pagesRef.current = pages;
   }, [pages]);
+
+  // Tombstones for pages the operator explicitly hard-deleted this session.
+  // buildDoc must respect these so it does NOT resurrect them from
+  // existingDoc.pages during the merge (which is what created "stuck"
+  // overlays that the red X couldn't remove). The set survives across
+  // renders and is checked on every save.
+  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   const pendingUploadsRef = useRef<Map<string, Promise<any>>>(new Map());
 
@@ -340,6 +348,11 @@ export function usePrintOverlay(job: Job) {
   );
 
   // ── Stage 4: transform ──────────────────────────────────────────────────────
+  // In-memory setTransform scrubs the legacy rectangular-bounds fields
+  // (southWestLat/Lng, northEastLat/Lng, rotationDegrees) from the merged
+  // result. Together with buildDoc's sanitizer, this means every placement
+  // update permanently retires the parallel bounds system — so the main-map
+  // renderer can never fall through to the stale-bounds override path.
   const setTransform = useCallback(
     (id: string, patch: Partial<PrintOverlayTransform>) => {
       setPages((prev) => {
@@ -351,7 +364,14 @@ export function usePrintOverlay(job: Job) {
             rotationDeg: 0,
             opacity: 0.5,
           };
-          return { ...p, transform: { ...base, ...patch } };
+          const merged = { ...base, ...patch };
+          // Strip retired legacy fields regardless of what merged in.
+          delete (merged as any).southWestLat;
+          delete (merged as any).southWestLng;
+          delete (merged as any).northEastLat;
+          delete (merged as any).northEastLng;
+          delete (merged as any).rotationDegrees;
+          return { ...p, transform: merged };
         });
         pagesRef.current = next;
         return next;
@@ -375,6 +395,9 @@ export function usePrintOverlay(job: Job) {
 
   const deletePage = useCallback(
     (id: string) => {
+      // Mark as tombstoned so buildDoc's merge step can't resurrect it from
+      // existingDoc.pages on the next save.
+      deletedIdsRef.current.add(id);
       setPages((prev) => {
         const next = prev.filter((p) => p.id !== id);
         pagesRef.current = next;
@@ -387,6 +410,31 @@ export function usePrintOverlay(job: Job) {
     [activePageId]
   );
 
+  // Sanitizer: strip legacy rectangular-bounds fields (southWestLat/Lng,
+  // northEastLat/Lng, rotationDegrees) from every transform on save. These
+  // fields are the leftover from an old placement system and, if left in
+  // place, silently override the canonical (center/scale/rotationDeg) or
+  // anchor-based placement inside PageOverlay. Killing them at write time
+  // permanently retires that parallel data track for both current and
+  // pre-existing merged transforms.
+  function sanitizeTransform(t: PrintOverlayTransform | undefined, fallbackCenter: LatLng): PrintOverlayTransform {
+    const base = t ?? {
+      center: fallbackCenter,
+      scale: 1,
+      rotationDeg: 0,
+      opacity: 0.5,
+    };
+    return {
+      center: base.center,
+      scale: base.scale,
+      rotationDeg: base.rotationDeg,
+      opacity: base.opacity,
+      ...(base.blendMode !== undefined ? { blendMode: base.blendMode } : {}),
+      ...(base.isLocked !== undefined ? { isLocked: base.isLocked } : {}),
+      // Deliberately omit: southWestLat/Lng, northEastLat/Lng, rotationDegrees.
+    };
+  }
+
   const buildDoc = useCallback(
     (username: string | null): PrintOverlayDoc => {
       const currentPages = pagesRef.current;
@@ -394,12 +442,7 @@ export function usePrintOverlay(job: Job) {
       const alignments: Record<string, GeoAlignment> = {};
       const defaultCenter = job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 };
       for (const p of currentPages) {
-        transforms[p.id] = p.transform ?? {
-          center: defaultCenter,
-          scale: 1,
-          rotationDeg: 0,
-          opacity: 0.5,
-        };
+        transforms[p.id] = sanitizeTransform(p.transform, defaultCenter);
         if (p.alignment) alignments[p.id] = p.alignment;
       }
 
@@ -424,23 +467,27 @@ export function usePrintOverlay(job: Job) {
         }
         const activePageIds = new Set(currentPages.map((p) => p.id));
 
+        const tombstoned = deletedIdsRef.current;
         if (existingDoc.pages) {
           for (const p of existingDoc.pages) {
-            if (!activePageIds.has(p.id)) {
+            if (!activePageIds.has(p.id) && !tombstoned.has(p.id)) {
               mergedPages.push(p);
             }
           }
         }
         if (existingDoc.transforms) {
           for (const [key, t] of Object.entries(existingDoc.transforms)) {
-            if (!activePageIds.has(key)) {
-              mergedTransforms[key] = t;
+            if (!activePageIds.has(key) && !tombstoned.has(key)) {
+              // Also sanitize legacy fields off inactive/merged transforms so a
+              // multi-source save permanently retires stale bounds everywhere,
+              // not just the pages currently open in the studio.
+              mergedTransforms[key] = sanitizeTransform(t, defaultCenter);
             }
           }
         }
         if (existingDoc.alignments) {
           for (const [key, a] of Object.entries(existingDoc.alignments)) {
-            if (!activePageIds.has(key)) {
+            if (!activePageIds.has(key) && !tombstoned.has(key)) {
               mergedAlignments[key] = a;
             }
           }

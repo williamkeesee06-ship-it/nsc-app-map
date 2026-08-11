@@ -238,14 +238,27 @@ export default function JobCard({
     }
   };
 
+  // Hard-delete an overlay page from the job's PrintOverlayDoc.
+  //
+  // Previous behavior optimistically updated local state, then PUT, then
+  // dispatched reload. If the PUT failed silently (auth expired, network
+  // dropped, 4xx from validation) the local card looked cleared but the
+  // next jobs-reload restored the doc from the server — the "stuck overlay"
+  // symptom Billy reported.
+  //
+  // New order:
+  //   1. Build the trimmed doc — also purge orphan sources whose only pages
+  //      just got removed, so no zombie source rehydrates on next load.
+  //   2. PUT to the server FIRST and await success.
+  //   3. Only then update local state, notify the parent (setSelectedJob),
+  //      dispatch nsc:jobs-reload, and drop the cached blueprint image.
+  //   4. On failure, surface a real error (no silent success).
   const deleteOverlayPage = async (pageId: string) => {
     const currentDoc = localOverlayDoc ?? job.printOverlay;
     if (!currentDoc) return;
     if (!window.confirm("Are you sure you want to delete this overlay page?")) return;
 
-    void deleteBlueprintImage(pageId);
-
-    const doc = { ...currentDoc };
+    const doc: PrintOverlayDoc = { ...currentDoc };
     doc.pages = (doc.pages ?? []).filter((p) => p.id !== pageId);
 
     if (doc.transforms) {
@@ -259,21 +272,44 @@ export default function JobCard({
       doc.alignments = updatedAlignments;
     }
 
+    // Purge sources whose only referencing pages just got removed. Without
+    // this, a stale source keeps the download URL alive and any future "re-
+    // add pages from source" path could resurrect the deleted page.
+    if (doc.sources) {
+      const stillReferencedDocIds = new Set((doc.pages ?? []).map((p) => p.documentId));
+      doc.sources = doc.sources.filter((s) => stillReferencedDocIds.has(s.documentId));
+    }
+
     doc.updatedAt = Date.now();
     doc.updatedBy = username || "system";
 
-    setLocalOverlayDoc(doc);
-    if (activePageSelId === pageId) {
-      setActivePageSelId(doc.pages[0]?.id ?? "");
-    }
-    const updatedJob = { ...job, printOverlay: doc };
-    onJobUpdate?.(updatedJob);
-
     try {
+      // 1) Persist first — if this fails, local state stays truthful.
       await api.putPrintOverlay(job.jobId, doc);
+
+      // 2) Then reflect in local state.
+      setLocalOverlayDoc(doc);
+      if (activePageSelId === pageId) {
+        setActivePageSelId(doc.pages[0]?.id ?? "");
+      }
+      onJobUpdate?.({ ...job, printOverlay: doc });
+
+      // 3) Drop the cached preview image (fire-and-forget).
+      void deleteBlueprintImage(pageId);
+
+      // 4) Fan out to every subscriber so AllJobsPrintOverlays refetches.
       window.dispatchEvent(new Event("nsc:jobs-reload"));
+      try {
+        const bc = new BroadcastChannel("nsc_jobs_channel");
+        bc.postMessage("nsc:jobs-reload");
+        bc.close();
+      } catch {}
     } catch (e) {
-      console.warn("[JobCard] Failed to delete overlay page", e);
+      console.error("[JobCard] Failed to delete overlay page", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      window.alert(
+        `Could not delete overlay page. The map may still show it until the next refresh.\n\nDetails: ${msg}`
+      );
     }
   };
 
