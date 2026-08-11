@@ -320,11 +320,19 @@ export function usePrintOverlay(job: Job) {
   const selectPage = useCallback((id: string | null) => setActivePageId(id), []);
 
   const patchPage = useCallback((id: string, patch: Partial<PageVM>) => {
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === id ? { ...p, ...patch } : p));
-      pagesRef.current = next;
-      return next;
-    });
+    // Update the ref SYNCHRONOUSLY so that immediate follow-up reads of
+    // pagesRef.current (e.g. Complete-button flow: setAlignment(...) then
+    // save() which calls buildDoc which reads pagesRef.current) see the
+    // latest patch. Previously we mutated pagesRef.current inside the
+    // setPages updater callback, which React may defer past the awaited
+    // save() call → buildDoc read a stale ref → the anchor data Studio
+    // displayed was NOT what got persisted. Symptom: Studio renders the
+    // page correctly anchored, but on Complete the map render uses stale
+    // (or default) alignment and the print appears shifted.
+    const prev = pagesRef.current;
+    const next = prev.map((p) => (p.id === id ? { ...p, ...patch } : p));
+    pagesRef.current = next;
+    setPages(next);
   }, []);
 
   // ── Stage 3: crop ─────────────────────────────────────────────────────────
