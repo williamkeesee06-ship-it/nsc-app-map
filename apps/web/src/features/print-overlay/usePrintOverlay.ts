@@ -142,30 +142,38 @@ export function usePrintOverlay(job: Job) {
       : { lat: 47.6062, lng: -122.3321 };
 
     setPages((prev) => {
-      const loadedVMs: PageVM[] = existingPages.map((sp) => {
-        const transform = job.printOverlay?.transforms?.[sp.id] ?? {
-          center: defaultCenter,
-          scale: 1,
-          rotationDeg: 0,
-          opacity: 0.5,
-        };
-        const alignment = job.printOverlay?.alignments?.[sp.id] ?? null;
-        const prevVM = prev.find((p) => p.id === sp.id);
+      const tombstoned = deletedIdsRef.current;
+      if (existingPages.filter((sp) => !tombstoned.has(sp.id)).length === 0 && prev.length === 0) {
+        pagesRef.current = [];
+        return [];
+      }
 
-        return {
-          ...sp,
-          objectUrl: prevVM?.objectUrl ?? null,
-          dataUrl: prevVM?.dataUrl ?? null,
-          previewUrl: sp.previewUrl && !sp.previewUrl.startsWith("blob:") ? sp.previewUrl : (prevVM?.previewUrl ?? null),
-          autoCrop: sp.crop ?? null,
-          transform,
-          alignment,
-        };
-      });
+      const loadedVMs: PageVM[] = existingPages
+        .filter((sp) => !tombstoned.has(sp.id))
+        .map((sp) => {
+          const prevVM = prev.find((p) => p.id === sp.id);
+          const transform = prevVM?.transform ?? job.printOverlay?.transforms?.[sp.id] ?? {
+            center: defaultCenter,
+            scale: 1,
+            rotationDeg: 0,
+            opacity: 0.5,
+          };
+          const alignment = prevVM?.alignment ?? job.printOverlay?.alignments?.[sp.id] ?? null;
+
+          return {
+            ...sp,
+            objectUrl: prevVM?.objectUrl ?? null,
+            dataUrl: prevVM?.dataUrl ?? null,
+            previewUrl: sp.previewUrl && !sp.previewUrl.startsWith("blob:") ? sp.previewUrl : (prevVM?.previewUrl ?? null),
+            autoCrop: sp.crop ?? null,
+            transform,
+            alignment,
+          };
+        });
 
       const combined = [...loadedVMs];
       for (const p of prev) {
-        if (!combined.some((c) => c.id === p.id)) {
+        if (!tombstoned.has(p.id) && !combined.some((c) => c.id === p.id)) {
           combined.push(p);
         }
       }
@@ -176,8 +184,10 @@ export function usePrintOverlay(job: Job) {
     setPhase((currentPhase) => (currentPhase === "choosing" ? "ready" : currentPhase));
 
     setActivePageId((currentId) => {
-      if (currentId) return currentId;
-      return existingPages.length > 0 ? existingPages[0].id : null;
+      if (currentId && !deletedIdsRef.current.has(currentId)) return currentId;
+      const tombstoned = deletedIdsRef.current;
+      const validPages = existingPages.filter((sp) => !tombstoned.has(sp.id));
+      return validPages.length > 0 ? validPages[0].id : null;
     });
   }, [jobId, job.printOverlay, job.geocode]);
 
@@ -344,13 +354,15 @@ export function usePrintOverlay(job: Job) {
   );
   const resetCropToAuto = useCallback(
     (id: string) => {
-      setPages((prev) =>
-        prev.map((p) => {
-          if (p.id !== id) return p;
-          const auto = p.autoCrop ?? null;
-          return { ...p, crop: auto, cropSource: auto ? "auto" : null };
-        })
-      );
+      const prev = pagesRef.current;
+      const next: PageVM[] = prev.map((p) => {
+        if (p.id !== id) return p;
+        const auto = p.autoCrop ?? null;
+        const cropSource: PrintOverlayPage["cropSource"] = auto ? "auto" : null;
+        return { ...p, crop: auto, cropSource };
+      });
+      pagesRef.current = next;
+      setPages(next);
     },
     []
   );
@@ -363,27 +375,26 @@ export function usePrintOverlay(job: Job) {
   // renderer can never fall through to the stale-bounds override path.
   const setTransform = useCallback(
     (id: string, patch: Partial<PrintOverlayTransform>) => {
-      setPages((prev) => {
-        const next = prev.map((p) => {
-          if (p.id !== id) return p;
-          const base: PrintOverlayTransform = p.transform ?? {
-            center: job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 },
-            scale: 1,
-            rotationDeg: 0,
-            opacity: 0.5,
-          };
-          const merged = { ...base, ...patch };
-          // Strip retired legacy fields regardless of what merged in.
-          delete (merged as any).southWestLat;
-          delete (merged as any).southWestLng;
-          delete (merged as any).northEastLat;
-          delete (merged as any).northEastLng;
-          delete (merged as any).rotationDegrees;
-          return { ...p, transform: merged };
-        });
-        pagesRef.current = next;
-        return next;
+      const prev = pagesRef.current;
+      const next = prev.map((p) => {
+        if (p.id !== id) return p;
+        const base: PrintOverlayTransform = p.transform ?? {
+          center: job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 },
+          scale: 1,
+          rotationDeg: 0,
+          opacity: 0.5,
+        };
+        const merged = { ...base, ...patch };
+        // Strip retired legacy fields regardless of what merged in.
+        delete (merged as any).southWestLat;
+        delete (merged as any).southWestLng;
+        delete (merged as any).northEastLat;
+        delete (merged as any).northEastLng;
+        delete (merged as any).rotationDegrees;
+        return { ...p, transform: merged };
       });
+      pagesRef.current = next;
+      setPages(next);
     },
     [job.geocode]
   );
@@ -406,11 +417,10 @@ export function usePrintOverlay(job: Job) {
       // Mark as tombstoned so buildDoc's merge step can't resurrect it from
       // existingDoc.pages on the next save.
       deletedIdsRef.current.add(id);
-      setPages((prev) => {
-        const next = prev.filter((p) => p.id !== id);
-        pagesRef.current = next;
-        return next;
-      });
+      const prev = pagesRef.current;
+      const next = prev.filter((p) => p.id !== id);
+      pagesRef.current = next;
+      setPages(next);
       if (activePageId === id) {
         setActivePageId(null);
       }
@@ -445,7 +455,8 @@ export function usePrintOverlay(job: Job) {
 
   const buildDoc = useCallback(
     (username: string | null): PrintOverlayDoc => {
-      const currentPages = pagesRef.current;
+      const tombstoned = deletedIdsRef.current;
+      const currentPages = pagesRef.current.filter((p) => !tombstoned.has(p.id));
       const transforms: Record<string, PrintOverlayTransform> = {};
       const alignments: Record<string, GeoAlignment> = {};
       const defaultCenter = job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 47.6062, lng: -122.3321 };
@@ -599,7 +610,9 @@ export function usePrintOverlay(job: Job) {
       setError(null);
 
       // Check for previously saved pages for this source
-      const savedForSource = job.printOverlay?.pages?.filter((x) => x.documentId === source.documentId) ?? [];
+      const savedForSource = job.printOverlay?.pages?.filter(
+        (x) => x.documentId === source.documentId && !deletedIdsRef.current.has(x.id)
+      ) ?? [];
       if (savedForSource.length > 0) {
         // If we already have saved pages in printOverlay, load them into pages state directly
         const loadedVMs: PageVM[] = savedForSource.map((sp) => {
@@ -652,8 +665,10 @@ export function usePrintOverlay(job: Job) {
           bytes,
           (rp: RenderedPage) => {
             const vm = buildPageVM(jobId, job, source, rp, trackUrl, job.printOverlay);
-            setPages((prev) => [...prev, vm].sort((a, b) => a.pageNumber - b.pageNumber));
-            pagesRef.current = [...pagesRef.current, vm].sort((a, b) => a.pageNumber - b.pageNumber);
+            if (deletedIdsRef.current.has(vm.id)) return;
+            const next = [...pagesRef.current, vm].sort((a, b) => a.pageNumber - b.pageNumber);
+            pagesRef.current = next;
+            setPages(next);
 
             void blobToDataUrl(rp.blob).then((dUrl) => {
               void putBlueprintImage(vm.id, dUrl);

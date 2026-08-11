@@ -231,6 +231,10 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       }
       setPurgingDocId(documentId);
       try {
+        const pagesToDelete = pages.filter((p) => p.documentId === documentId);
+        for (const p of pagesToDelete) {
+          deletePage(p.id);
+        }
         const keptSources = (doc.sources ?? []).filter((s) => s.documentId !== documentId);
         const keptPages = (doc.pages ?? []).filter((p) => p.documentId !== documentId);
         const keptPageIds = new Set(keptPages.map((p) => p.id));
@@ -261,7 +265,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
         setPurgingDocId(null);
       }
     },
-    [job.printOverlay, jobId]
+    [job.printOverlay, jobId, pages, deletePage]
   );
   const jobCenter: LatLng = job.geocode
     ? { lat: job.geocode.lat, lng: job.geocode.lng }
@@ -417,7 +421,10 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       const r = e.currentTarget.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) return;
 
-      const pageAspect = activePage.pageWidth / activePage.pageHeight;
+      const imgEl = e.currentTarget;
+      const naturalW = imgEl.naturalWidth || activePage.pageWidth;
+      const naturalH = imgEl.naturalHeight || activePage.pageHeight;
+      const pageAspect = naturalW / naturalH;
       const containerAspect = r.width / r.height;
 
       let renderedW = r.width;
@@ -507,7 +514,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
   // subsequent saveDraft/save omits it entirely). The original PDF stays
   // untouched in storage — only the page's overlay slot is removed.
   const hardDeletePage = useCallback(
-    (p: PageVM) => {
+    async (p: PageVM) => {
       const label = p.label || `page ${p.pageNumber}`;
       const confirmed = window.confirm(
         `Permanently remove "${label}" from this overlay?\n\nThe original PDF stays intact, but this page will no longer be part of the job's print overlay. This cannot be undone from the studio.`
@@ -515,9 +522,9 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       if (!confirmed) return;
       deletePage(p.id);
       // Persist immediately so the deletion survives a reload / other devices.
-      void saveDraft(username);
+      await save(username);
     },
-    [deletePage, saveDraft, username]
+    [deletePage, save, username]
   );
 
   const clearAlignment = useCallback(() => {
@@ -913,30 +920,33 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             {anchorDots
               .filter((d) => d.page.x !== 0 || d.page.y !== 0)
               .map((d) => {
+                const stageRect = stageRef.current?.getBoundingClientRect();
                 const imgEl = stageRef.current?.querySelector("img");
-                const r = imgEl?.getBoundingClientRect();
+                const imgRect = imgEl?.getBoundingClientRect();
                 let leftPct = (d.page.x / activePage.pageWidth) * 100;
                 let topPct = (d.page.y / activePage.pageHeight) * 100;
-                if (r && r.width > 0 && r.height > 0) {
-                  const pageAspect = activePage.pageWidth / activePage.pageHeight;
-                  const containerAspect = r.width / r.height;
-                  let renderedW = r.width;
-                  let renderedH = r.height;
-                  let offsetX = 0;
-                  let offsetY = 0;
+                if (stageRect && stageRect.width > 0 && imgRect && imgRect.width > 0 && imgEl) {
+                  const naturalW = imgEl.naturalWidth || activePage.pageWidth;
+                  const naturalH = imgEl.naturalHeight || activePage.pageHeight;
+                  const pageAspect = naturalW / naturalH;
+                  const containerAspect = imgRect.width / imgRect.height;
+                  let renderedW = imgRect.width;
+                  let renderedH = imgRect.height;
+                  let offsetX = imgRect.left - stageRect.left;
+                  let offsetY = imgRect.top - stageRect.top;
                   if (pageAspect > containerAspect) {
-                    renderedW = r.width;
-                    renderedH = r.width / pageAspect;
-                    offsetY = (r.height - renderedH) / 2;
+                    renderedW = imgRect.width;
+                    renderedH = imgRect.width / pageAspect;
+                    offsetY += (imgRect.height - renderedH) / 2;
                   } else {
-                    renderedH = r.height;
-                    renderedW = r.height * pageAspect;
-                    offsetX = (r.width - renderedW) / 2;
+                    renderedH = imgRect.height;
+                    renderedW = imgRect.height * pageAspect;
+                    offsetX += (imgRect.width - renderedW) / 2;
                   }
                   const leftPx = offsetX + (d.page.x / activePage.pageWidth) * renderedW;
                   const topPx = offsetY + (d.page.y / activePage.pageHeight) * renderedH;
-                  leftPct = (leftPx / r.width) * 100;
-                  topPct = (topPx / r.height) * 100;
+                  leftPct = (leftPx / stageRect.width) * 100;
+                  topPct = (topPx / stageRect.height) * 100;
                 }
                 return (
                   <div

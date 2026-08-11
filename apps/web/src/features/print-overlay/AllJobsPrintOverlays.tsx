@@ -19,24 +19,13 @@ export default function AllJobsPrintOverlays({
   hiddenJobIds,
 }: Props) {
   const map = useMap();
-  if (!map) return null;
+  if (!map || !showGlobal) return null;
 
   return (
     <>
       {jobs.map((job) => {
         if (!job.printOverlay) return null;
-
-        const isSelected = Boolean(selectedJobId && selectedJobId === job.jobId);
-        const isHiddenIndividually = hiddenJobIds?.has(job.jobId) ?? false;
-
-        // Selection Isolation:
-        // Currently selected job overlay is driven EXCLUSIVELY by its own per-job toggle (!isHiddenIndividually).
-        // Non-selected jobs overlay requires showGlobal === true AND !isHiddenIndividually.
-        const shouldShow = isSelected
-          ? !isHiddenIndividually
-          : showGlobal && !isHiddenIndividually;
-
-        if (!shouldShow) return null;
+        if (hiddenJobIds?.has(job.jobId)) return null;
 
         return <JobPrintOverlays key={job.jobId} job={job} visible={true} />;
       })}

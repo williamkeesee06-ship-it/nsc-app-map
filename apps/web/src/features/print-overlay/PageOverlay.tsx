@@ -183,15 +183,41 @@ export default function PageOverlay({
       const mapDiv = map?.getDiv();
       if (proj && mapDiv) {
         const mapRect = mapDiv.getBoundingClientRect();
-        const clickDivX = e.clientX - mapRect.left;
-        const clickDivY = e.clientY - mapRect.top;
-        const mat = matrixRef.current;
-        if (mat) {
-          const [a, b, c, d, tlx, tly] = mat;
+        const clickX = e.clientX - mapRect.left;
+        const clickY = e.clientY - mapRect.top;
+
+        const toContainerPx = (p: PagePoint) => {
+          let ll: LatLng;
+          const { solution: sol, imgW: w, imgH: h, southWestLat: swLat, southWestLng: swLng, northEastLat: neLat, northEastLng: neLng, rotationDegrees: rotDeg } = drawRef.current;
+          if (swLat !== undefined && swLng !== undefined && neLat !== undefined && neLng !== undefined) {
+            const overlay = {
+              southWestLat: swLat,
+              southWestLng: swLng,
+              northEastLat: neLat,
+              northEastLng: neLng,
+              rotationDegrees: rotDeg ?? 0,
+            };
+            const projected = projectPageToLatLng(overlay as any, p.x, p.y, w, h);
+            ll = projected || pageToLatLng(sol, p);
+          } else {
+            ll = pageToLatLng(sol, p);
+          }
+          return proj.fromLatLngToContainerPixel(new google.maps.LatLng(ll.lat, ll.lng));
+        };
+
+        const tl = toContainerPx({ x: 0, y: 0 });
+        const tr = toContainerPx({ x: imgW, y: 0 });
+        const bl = toContainerPx({ x: 0, y: imgH });
+
+        if (tl && tr && bl) {
+          const a = (tr.x - tl.x) / imgW;
+          const b = (tr.y - tl.y) / imgW;
+          const c = (bl.x - tl.x) / imgH;
+          const d = (bl.y - tl.y) / imgH;
           const det = a * d - b * c;
           if (Math.abs(det) > 1e-9) {
-            const dx = clickDivX - tlx;
-            const dy = clickDivY - tly;
+            const dx = clickX - tl.x;
+            const dy = clickY - tl.y;
             const px = (d * dx - c * dy) / det;
             const py = (-b * dx + a * dy) / det;
             onPagePoint({
