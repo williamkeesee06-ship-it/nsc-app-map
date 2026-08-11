@@ -127,29 +127,25 @@ export default function JobPrintOverlays({ job, visible = true }: JobPrintOverla
         const alignment = doc.alignments?.[p.id] ?? null;
         const isAnchored = !!(alignment && alignment.anchorA && alignment.anchorB);
 
+        // Skip pages the user never actually placed. A page is "placed" when
+        // it either has both anchors set (georeferenced) OR its free-
+        // transform was moved off the defaults (center/scale/rot changed).
+        // Without this, every untouched page in a multi-page PDF renders on
+        // top of every other one at the job's default center — the exact
+        // "stacked ghost pages" symptom on job 6023337.
+        const tCenter = transform?.center;
+        const isAtDefault =
+          !!tCenter &&
+          Math.abs(tCenter.lat - defaultCenter.lat) < 1e-9 &&
+          Math.abs(tCenter.lng - defaultCenter.lng) < 1e-9 &&
+          (transform?.scale ?? 1) === 1 &&
+          (transform?.rotationDeg ?? 0) === 0;
+        if (!isAnchored && isAtDefault) return null;
+
         const sol = isAnchored
           ? (() => { try { return solveGeoSolution(alignment); } catch { return solutionFromTransform(transform, p.pageWidth, p.pageHeight); } })()
           : solutionFromTransform(transform, p.pageWidth, p.pageHeight);
         if (!sol) return null;
-
-        // TEMP DIAGNOSTIC: dump per-page render inputs so we can compare Studio vs Map.
-        // Remove after root-cause is confirmed.
-        if (typeof window !== "undefined") {
-          // eslint-disable-next-line no-console
-          console.log("[po-diag map]", {
-            pageId: p.id,
-            pageNumber: p.pageNumber,
-            pageWidth: p.pageWidth,
-            pageHeight: p.pageHeight,
-            center: transform?.center,
-            scale: transform?.scale,
-            rotationDeg: transform?.rotationDeg,
-            isAnchored,
-            solOrigin: sol.origin,
-            solMpp: sol.metersPerPixel,
-            solRotationRad: sol.rotationRad,
-          });
-        }
 
         return (
           <PageOverlay

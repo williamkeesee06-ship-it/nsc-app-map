@@ -441,25 +441,6 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     return null;
   }, [activePage, alignment]);
 
-  // TEMP DIAGNOSTIC: log the active page's render inputs so we can compare
-  // Studio vs Map placements. Remove once drift root cause is confirmed.
-  useEffect(() => {
-    if (!activePage || !solution) return;
-    // eslint-disable-next-line no-console
-    console.log("[po-diag studio-active]", {
-      pageId: activePage.id,
-      pageNumber: activePage.pageNumber,
-      pageWidth: activePage.pageWidth,
-      pageHeight: activePage.pageHeight,
-      center: activePage.transform?.center,
-      scale: activePage.transform?.scale,
-      rotationDeg: activePage.transform?.rotationDeg,
-      isAnchored: !!alignment,
-      solOrigin: solution.origin,
-      solMpp: solution.metersPerPixel,
-      solRotationRad: solution.rotationRad,
-    });
-  }, [activePage, solution, alignment]);
 
   const residual = useMemo(() => (alignment ? alignmentResidualFt(alignment) : null), [alignment]);
   const qualityGood = residual == null ? true : residual < GOOD_RESIDUAL_FT;
@@ -810,28 +791,26 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
         if (p.id === activePageId || p.excluded) return null;
         const img = p.previewUrl || p.dataUrl || p.objectUrl;
         if (!img) return null;
-        const sol = p.alignment && p.alignment.anchorA && p.alignment.anchorB
-          ? (() => { try { return solveGeoSolution(p.alignment); } catch { return null; } })()
+        // Skip pages the user hasn't placed yet — no anchors AND transform
+        // still at defaults. Prevents a pile of ghost rectangles at job
+        // center in the studio background.
+        const isAnchoredBg = !!(p.alignment?.anchorA && p.alignment?.anchorB);
+        const bgDefaultCenter = job.geocode
+          ? { lat: job.geocode.lat, lng: job.geocode.lng }
+          : { lat: 47.6062, lng: -122.3321 };
+        const bgCenter = p.transform?.center;
+        const bgAtDefault =
+          !!bgCenter &&
+          Math.abs(bgCenter.lat - bgDefaultCenter.lat) < 1e-9 &&
+          Math.abs(bgCenter.lng - bgDefaultCenter.lng) < 1e-9 &&
+          (p.transform?.scale ?? 1) === 1 &&
+          (p.transform?.rotationDeg ?? 0) === 0;
+        if (!isAnchoredBg && bgAtDefault) return null;
+
+        const sol = isAnchoredBg
+          ? (() => { try { return solveGeoSolution(p.alignment!); } catch { return null; } })()
           : (p.transform ? solutionFromTransform(p.transform, p.pageWidth, p.pageHeight) : null);
         if (!sol) return null;
-
-        // TEMP DIAGNOSTIC: dump per-page inputs so we can compare Studio vs Map.
-        if (typeof window !== "undefined") {
-          // eslint-disable-next-line no-console
-          console.log("[po-diag studio-bg]", {
-            pageId: p.id,
-            pageNumber: p.pageNumber,
-            pageWidth: p.pageWidth,
-            pageHeight: p.pageHeight,
-            center: p.transform?.center,
-            scale: p.transform?.scale,
-            rotationDeg: p.transform?.rotationDeg,
-            isAnchored: !!(p.alignment?.anchorA && p.alignment?.anchorB),
-            solOrigin: sol.origin,
-            solMpp: sol.metersPerPixel,
-            solRotationRad: sol.rotationRad,
-          });
-        }
 
         return (
           <PageOverlay
