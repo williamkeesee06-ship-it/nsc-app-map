@@ -38,6 +38,7 @@ import {
 } from "@nsc/types";
 import type { Job } from "@nsc/types";
 import { useAuth } from "../auth/authContext.js";
+import { api } from "../../lib/api.js";
 import { usePrintOverlay, listJobPdfSources, type PageVM } from "./usePrintOverlay.js";
 import { solutionFromTransform } from "./geoPlacement.js";
 import PageOverlay, { type AnchorDot, type OverlayMode } from "./PageOverlay.js";
@@ -184,6 +185,83 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
 
   const sources = useMemo(() => listJobPdfSources(job), [job]);
   const jobId = job.jobId;
+
+  // Track saved-print documentIds that are actually persisted on this job's
+  // printOverlay (pages array). This is the authoritative list for the
+  // "Manage saved prints" cleanup UI: orphan uploads that never got registered
+  // in `.sources` still show up here so Billy can wipe them.
+  const savedPrintDocs = useMemo(() => {
+    const po = job.printOverlay;
+    if (!po) return [] as Array<{ documentId: string; pageCount: number; name: string | null }>;
+    const counts = new Map<string, { pageCount: number; name: string | null }>();
+    for (const p of po.pages ?? []) {
+      const id = p.documentId;
+      if (!id) continue;
+      const prev = counts.get(id);
+      if (prev) prev.pageCount += 1;
+      else counts.set(id, { pageCount: 1, name: null });
+    }
+    for (const s of po.sources ?? []) {
+      const id = s.documentId;
+      if (!id) continue;
+      const prev = counts.get(id);
+      if (prev) prev.name = s.name ?? prev.name;
+      else counts.set(id, { pageCount: 0, name: s.name ?? null });
+    }
+    return Array.from(counts.entries()).map(([documentId, v]) => ({
+      documentId,
+      pageCount: v.pageCount,
+      name: v.name,
+    }));
+  }, [job.printOverlay]);
+
+  const [purgingDocId, setPurgingDocId] = useState<string | null>(null);
+
+  // Delete every page/transform/alignment/source belonging to a single
+  // documentId. Uses the standard authenticated PUT so no admin-key exposure.
+  const purgeSavedPrint = useCallback(
+    async (documentId: string) => {
+      const doc = job.printOverlay;
+      if (!doc) return;
+      if (!window.confirm(
+        `Delete this saved print (${documentId}) and all its pages from job ${jobId}? This cannot be undone.`
+      )) {
+        return;
+      }
+      setPurgingDocId(documentId);
+      try {
+        const keptSources = (doc.sources ?? []).filter((s) => s.documentId !== documentId);
+        const keptPages = (doc.pages ?? []).filter((p) => p.documentId !== documentId);
+        const keptPageIds = new Set(keptPages.map((p) => p.id));
+        const keptTransforms: Record<string, PrintOverlayTransform> = {};
+        for (const [k, v] of Object.entries(doc.transforms ?? {})) {
+          if (keptPageIds.has(k)) keptTransforms[k] = v as PrintOverlayTransform;
+        }
+        const keptAlignments: Record<string, GeoAlignment> = {};
+        for (const [k, v] of Object.entries(doc.alignments ?? {})) {
+          if (keptPageIds.has(k)) keptAlignments[k] = v as GeoAlignment;
+        }
+        const nextDoc = {
+          ...doc,
+          sources: keptSources,
+          pages: keptPages,
+          transforms: keptTransforms,
+          alignments: keptAlignments,
+        };
+        await api.putPrintOverlay(jobId, nextDoc);
+        // Force the jobs store to reload so the chooser reflects the change.
+        window.dispatchEvent(new CustomEvent("nsc:jobs-reload"));
+      } catch (err) {
+        console.error("[print-overlay] purgeSavedPrint failed", err);
+        window.alert(
+          `Failed to delete print ${documentId}: ${(err as Error)?.message ?? err}`
+        );
+      } finally {
+        setPurgingDocId(null);
+      }
+    },
+    [job.printOverlay, jobId]
+  );
   const jobCenter: LatLng = job.geocode
     ? { lat: job.geocode.lat, lng: job.geocode.lng }
     : { lat: 47.6062, lng: -122.3321 };
@@ -1192,6 +1270,64 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             <button className="po-upload font-sans" onClick={() => fileInputRef.current?.click()}>
               <Layers size={16} /> Upload a new PDF
             </button>
+
+            {savedPrintDocs.length > 0 && (
+              <div className="po-source-list" style={{ marginTop: 12 }}>
+                <div
+                  className="po-source__meta"
+                  style={{ padding: "4px 8px", opacity: 0.8 }}
+                >
+                  Saved prints on this job ({savedPrintDocs.length}) — delete any
+                  orphaned uploads so they stop rendering on the map.
+                </div>
+                {savedPrintDocs.map((d) => {
+                  const isBusy = purgingDocId === d.documentId;
+                  return (
+                    <div
+                      key={d.documentId}
+                      className="po-source font-sans"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                        <FileText size={16} className="po-title__accent" />
+                        <span style={{ minWidth: 0 }}>
+                          <span
+                            className="po-source__name"
+                            style={{
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              display: "block",
+                            }}
+                          >
+                            {d.name ?? d.documentId}
+                          </span>
+                          <span className="po-source__meta">
+                            {d.pageCount} page{d.pageCount === 1 ? "" : "s"} · {d.documentId}
+                          </span>
+                        </span>
+                      </span>
+                      <button
+                        className="po-btn po-btn--ghost"
+                        onClick={() => void purgeSavedPrint(d.documentId)}
+                        disabled={isBusy}
+                        title="Delete this saved print and all its pages"
+                        aria-label={`Delete saved print ${d.name ?? d.documentId}`}
+                        style={{ flexShrink: 0 }}
+                      >
+                        <Trash2 size={16} />
+                        {isBusy ? " Deleting…" : " Delete"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {error && <div className="po-error">{error}</div>}
 

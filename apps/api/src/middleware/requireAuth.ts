@@ -41,7 +41,8 @@ export function isPublicApiPath(path: string): boolean {
     p === "/lumina/stale-tasks" ||
     p === "/sync/diag" ||
     p === "/sync/admin" ||
-    p === "/sync/reconcile-tracker"
+    p === "/sync/reconcile-tracker" ||
+    p === "/sync/purge-print-overlay-docs"
   );
 }
 

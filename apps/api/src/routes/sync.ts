@@ -472,4 +472,152 @@ router.get("/sync/diag", async (_req, res, next) => {
   }
 });
 
+// POST /api/sync/purge-print-overlay-docs?key=<SYNC_ADMIN_KEY>
+// Body: { jobId: string, keepDocumentIds: string[] }
+//
+// Wipes every page/transform/alignment/source on the job's printOverlay
+// whose documentId is NOT in keepDocumentIds. Used to clean up orphan
+// prints that accumulated on a job over multiple upload sessions.
+// Guarded by SYNC_ADMIN_KEY. Registered in isPublicApiPath so it skips
+// the Firebase auth gate — the shared secret is the auth boundary.
+const purgePrintOverlayDocsHandler: import("express").RequestHandler = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const env = getEnv();
+    const configuredKey = (env.SYNC_ADMIN_KEY ?? "").trim();
+    if (!configuredKey) {
+      res.status(503).json({ error: "Admin sync disabled (no SYNC_ADMIN_KEY)." });
+      return;
+    }
+    const bearer =
+      req.header("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? "";
+    const providedKey = String(
+      req.query.key ?? (req.body as { key?: unknown })?.key ?? bearer
+    ).trim();
+    if (providedKey !== configuredKey) {
+      res.status(403).json({ error: "Invalid admin key" });
+      return;
+    }
+
+    const body = (req.body ?? {}) as {
+      jobId?: unknown;
+      keepDocumentIds?: unknown;
+      removeDocumentIds?: unknown;
+    };
+    const jobId = typeof body.jobId === "string" ? body.jobId.trim() : "";
+    if (!jobId) {
+      res.status(400).json({ error: "Missing jobId" });
+      return;
+    }
+    const hasKeep = Array.isArray(body.keepDocumentIds);
+    const hasRemove = Array.isArray(body.removeDocumentIds);
+    if (!hasKeep && !hasRemove) {
+      res
+        .status(400)
+        .json({ error: "Provide keepDocumentIds or removeDocumentIds" });
+      return;
+    }
+    const keepIdsInput = hasKeep
+      ? new Set<string>(
+          (body.keepDocumentIds as unknown[])
+            .filter((v): v is string => typeof v === "string")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        )
+      : null;
+    const removeIds = new Set<string>(
+      hasRemove
+        ? (body.removeDocumentIds as unknown[])
+            .filter((v): v is string => typeof v === "string")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : []
+    );
+
+    const ref = db().collection("jobs").doc(jobId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).json({ error: `Job ${jobId} not found` });
+      return;
+    }
+    const data = snap.data() as {
+      printOverlay?: {
+        sources?: Array<{ documentId?: string }>;
+        pages?: Array<{ id?: string; documentId?: string }>;
+        transforms?: Record<string, unknown>;
+        alignments?: Record<string, unknown>;
+      } | null;
+    };
+    const po = data.printOverlay;
+    if (!po) {
+      res.json({ jobId, printOverlay: null, removed: null });
+      return;
+    }
+
+    const oldSources = Array.isArray(po.sources) ? po.sources : [];
+    const oldPages = Array.isArray(po.pages) ? po.pages : [];
+    const oldTransforms = (po.transforms ?? {}) as Record<string, unknown>;
+    const oldAlignments = (po.alignments ?? {}) as Record<string, unknown>;
+
+    const shouldKeep = (docId: unknown): boolean => {
+      if (typeof docId !== "string") return false;
+      if (keepIdsInput) return keepIdsInput.has(docId);
+      return !removeIds.has(docId);
+    };
+    const keptSources = oldSources.filter((s) => shouldKeep(s.documentId));
+    const keptPages = oldPages.filter((p) => shouldKeep(p.documentId));
+    const keptPageIds = new Set(
+      keptPages
+        .map((p) => (typeof p.id === "string" ? p.id : null))
+        .filter((v): v is string => Boolean(v))
+    );
+    const keptTransforms: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(oldTransforms)) {
+      if (keptPageIds.has(k)) keptTransforms[k] = v;
+    }
+    const keptAlignments: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(oldAlignments)) {
+      if (keptPageIds.has(k)) keptAlignments[k] = v;
+    }
+
+    const nextPO = {
+      ...po,
+      sources: keptSources,
+      pages: keptPages,
+      transforms: keptTransforms,
+      alignments: keptAlignments,
+    };
+
+    await ref.update({ printOverlay: nextPO });
+
+    res.json({
+      jobId,
+      mode: hasKeep ? "keep" : "remove",
+      keepDocumentIds: keepIdsInput ? Array.from(keepIdsInput) : null,
+      removeDocumentIds: hasRemove ? Array.from(removeIds) : null,
+      removed: {
+        sources: oldSources.length - keptSources.length,
+        pages: oldPages.length - keptPages.length,
+        transforms:
+          Object.keys(oldTransforms).length - Object.keys(keptTransforms).length,
+        alignments:
+          Object.keys(oldAlignments).length - Object.keys(keptAlignments).length,
+      },
+      kept: {
+        sources: keptSources.length,
+        pages: keptPages.length,
+        transforms: Object.keys(keptTransforms).length,
+        alignments: Object.keys(keptAlignments).length,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+router.post("/sync/purge-print-overlay-docs", purgePrintOverlayDocsHandler);
+router.get("/sync/purge-print-overlay-docs", purgePrintOverlayDocsHandler);
+
 export default router;
