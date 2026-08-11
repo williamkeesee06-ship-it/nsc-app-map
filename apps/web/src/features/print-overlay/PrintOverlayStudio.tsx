@@ -363,6 +363,26 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     return null;
   }, [activePage, alignment]);
 
+  // TEMP DIAGNOSTIC: log the active page's render inputs so we can compare
+  // Studio vs Map placements. Remove once drift root cause is confirmed.
+  useEffect(() => {
+    if (!activePage || !solution) return;
+    // eslint-disable-next-line no-console
+    console.log("[po-diag studio-active]", {
+      pageId: activePage.id,
+      pageNumber: activePage.pageNumber,
+      pageWidth: activePage.pageWidth,
+      pageHeight: activePage.pageHeight,
+      center: activePage.transform?.center,
+      scale: activePage.transform?.scale,
+      rotationDeg: activePage.transform?.rotationDeg,
+      isAnchored: !!alignment,
+      solOrigin: solution.origin,
+      solMpp: solution.metersPerPixel,
+      solRotationRad: solution.rotationRad,
+    });
+  }, [activePage, solution, alignment]);
+
   const residual = useMemo(() => (alignment ? alignmentResidualFt(alignment) : null), [alignment]);
   const qualityGood = residual == null ? true : residual < GOOD_RESIDUAL_FT;
   const anchorSlots: AnchorSlot[] = ["A", "B"];
@@ -716,6 +736,24 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
           ? (() => { try { return solveGeoSolution(p.alignment); } catch { return null; } })()
           : (p.transform ? solutionFromTransform(p.transform, p.pageWidth, p.pageHeight) : null);
         if (!sol) return null;
+
+        // TEMP DIAGNOSTIC: dump per-page inputs so we can compare Studio vs Map.
+        if (typeof window !== "undefined") {
+          // eslint-disable-next-line no-console
+          console.log("[po-diag studio-bg]", {
+            pageId: p.id,
+            pageNumber: p.pageNumber,
+            pageWidth: p.pageWidth,
+            pageHeight: p.pageHeight,
+            center: p.transform?.center,
+            scale: p.transform?.scale,
+            rotationDeg: p.transform?.rotationDeg,
+            isAnchored: !!(p.alignment?.anchorA && p.alignment?.anchorB),
+            solOrigin: sol.origin,
+            solMpp: sol.metersPerPixel,
+            solRotationRad: sol.rotationRad,
+          });
+        }
 
         return (
           <PageOverlay

@@ -132,6 +132,25 @@ export default function JobPrintOverlays({ job, visible = true }: JobPrintOverla
           : solutionFromTransform(transform, p.pageWidth, p.pageHeight);
         if (!sol) return null;
 
+        // TEMP DIAGNOSTIC: dump per-page render inputs so we can compare Studio vs Map.
+        // Remove after root-cause is confirmed.
+        if (typeof window !== "undefined") {
+          // eslint-disable-next-line no-console
+          console.log("[po-diag map]", {
+            pageId: p.id,
+            pageNumber: p.pageNumber,
+            pageWidth: p.pageWidth,
+            pageHeight: p.pageHeight,
+            center: transform?.center,
+            scale: transform?.scale,
+            rotationDeg: transform?.rotationDeg,
+            isAnchored,
+            solOrigin: sol.origin,
+            solMpp: sol.metersPerPixel,
+            solRotationRad: sol.rotationRad,
+          });
+        }
+
         return (
           <PageOverlay
             key={p.id}
