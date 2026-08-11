@@ -833,88 +833,133 @@ export default function JobCard({
                       />
                     </div>
 
-                    {/* Active page opacity slider */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ color: "var(--text-muted)", fontSize: "9px", fontWeight: 700, textTransform: "uppercase" }}>Opacity:</span>
-                        <select
-                          value={activePageSelId}
-                          onChange={(e) => setActivePageSelId(e.target.value)}
-                          style={{
-                            background: "var(--surface)",
-                            border: "1px solid var(--border)",
-                            color: "var(--text)",
-                            fontSize: 9,
-                            padding: "1px 4px",
-                            borderRadius: 4,
-                            outline: "none"
-                          }}
-                        >
-                          {overlayPages.map(p => (
-                            <option key={p.id} value={p.id}>Page {p.pageNumber}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={activePageOpacity}
-                          onChange={(e) => {
-                            if (activePageSelId) {
-                              void updatePageOpacity(activePageSelId, parseFloat(e.target.value));
-                            }
-                          }}
-                          style={{ flexGrow: 1, height: 4, accentColor: "#0033A0" }}
-                        />
-                        <span style={{ fontSize: 9, color: "#0033A0", fontWeight: 800, width: 26, textAlign: "right" }}>
-                          {Math.round(activePageOpacity * 100)}%
-                        </span>
-                      </div>
-                    </div>
+                    {/* Visual Page Carousel in Left Rail */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                      <span style={{ color: "var(--text-muted)", fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Print Pages Carousel ({overlayPages.length})
+                      </span>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          overflowX: "auto",
+                          paddingBottom: 6,
+                          scrollbarWidth: "thin",
+                        }}
+                      >
+                        {overlayPages.map((p) => {
+                          const isSel = activePageSelId === p.id;
+                          const transform = job.printOverlay?.transforms?.[p.id];
+                          const isLocked = transform?.isLocked ?? false;
+                          const thumbUrl = p.previewUrl || (p as any).objectUrl || (p as any).dataUrl;
 
-                    {/* Page toggles list */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2 }}>
-                      <span style={{ color: "var(--text-muted)", fontSize: "9px", fontWeight: 700, textTransform: "uppercase" }}>Toggles:</span>
-                      {overlayPages.map((p) => (
-                        <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, fontSize: "10px" }}>
-                          <label style={{ display: "flex", alignItems: "center", gap: 6, color: p.excluded ? "var(--text-muted)" : "var(--text)", cursor: "pointer", flex: 1, minWidth: 0 }}>
-                            <input
-                              type="checkbox"
-                              checked={!p.excluded}
-                              onChange={() => void togglePageExcluded(p.id)}
-                              style={{ accentColor: "#0033A0", cursor: "pointer" }}
-                            />
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.label}</span>
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => void deleteOverlayPage(p.id)}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              color: "#ef4444",
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              cursor: "pointer",
-                              padding: "2px 6px",
-                              margin: 0,
-                              borderRadius: "4px",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              transition: "all 0.15s ease",
-                            }}
-                            title="Delete this overlay page completely"
-                            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239, 68, 68, 0.08)"; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => setActivePageSelId(p.id)}
+                              style={{
+                                flex: "0 0 110px",
+                                background: isSel ? "#eff6ff" : "#ffffff",
+                                border: isSel ? "2px solid #0033A0" : "1px solid #cbd5e1",
+                                borderRadius: 8,
+                                padding: 6,
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                                cursor: "pointer",
+                                boxShadow: isSel ? "0 2px 8px rgba(0, 51, 160, 0.15)" : "0 1px 3px rgba(0,0,0,0.05)",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: "100%",
+                                  height: 60,
+                                  background: "#f1f5f9",
+                                  borderRadius: 4,
+                                  overflow: "hidden",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  position: "relative",
+                                }}
+                              >
+                                {thumbUrl ? (
+                                  <img src={thumbUrl} alt={p.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                ) : (
+                                  <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700 }}>Page {p.pageNumber}</div>
+                                )}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                                  {p.label || `Page ${p.pageNumber}`}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void deleteOverlayPage(p.id);
+                                  }}
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    color: "#ef4444",
+                                    fontSize: 12,
+                                    cursor: "pointer",
+                                    padding: "0 2px",
+                                  }}
+                                  title="Delete page"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "var(--text-muted)", cursor: "pointer" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={!p.excluded}
+                                    onChange={() => void togglePageExcluded(p.id)}
+                                    style={{ accentColor: "#0033A0", cursor: "pointer" }}
+                                  />
+                                  Show
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (!job.printOverlay) return;
+                                    const nextTransforms = {
+                                      ...(job.printOverlay.transforms ?? {}),
+                                      [p.id]: {
+                                        ...(job.printOverlay.transforms?.[p.id] ?? { center: { lat: 0, lng: 0 }, scale: 1, rotationDeg: 0, opacity: 0.5 }),
+                                        isLocked: !isLocked,
+                                      },
+                                    };
+                                    try {
+                                      await api.putPrintOverlay(job.jobId, { ...job.printOverlay, transforms: nextTransforms });
+                                      window.dispatchEvent(new Event("nsc:jobs-reload"));
+                                    } catch (err) {
+                                      console.error("Lock toggle failed", err);
+                                    }
+                                  }}
+                                  style={{
+                                    background: isLocked ? "#64748b" : "#0284c7",
+                                    color: "#ffffff",
+                                    border: "none",
+                                    borderRadius: 4,
+                                    fontSize: 8,
+                                    fontWeight: 700,
+                                    padding: "2px 5px",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  {isLocked ? "Locked" : "Unlocked"}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}

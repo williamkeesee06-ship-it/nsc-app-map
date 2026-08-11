@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { pageToLatLng, type CropRect, type GeoSolution, type LatLng, type PagePoint } from "@nsc/types";
 import { projectPageToLatLng } from "./printGeoreference.js";
+import { Lock, Unlock, Trash2 } from "lucide-react";
 
 export type OverlayMode = "move" | "pickPage" | "idle";
 
@@ -37,6 +38,8 @@ interface Props {
   onPagePoint: (pt: PagePoint) => void;
   onScale: (scale: number) => void;
   onRotate: (deg: number) => void;
+  onToggleLock?: () => void;
+  onDeletePage?: () => void;
   southWestLat?: number;
   southWestLng?: number;
   northEastLat?: number;
@@ -83,6 +86,8 @@ export default function PageOverlay({
   blendMode = "multiply",
   structureBadges = [],
   onSelectStructure,
+  onToggleLock,
+  onDeletePage,
 }: Props) {
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const overlayRef = useRef<google.maps.OverlayView | null>(null);
@@ -377,6 +382,77 @@ export default function PageOverlay({
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
     >
+      {(onToggleLock || onDeletePage) && (
+        <div
+          className="po-map-overlay-badge"
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 40,
+            display: "flex",
+            gap: 6,
+            pointerEvents: "auto",
+          }}
+        >
+          {onToggleLock && (
+            <button
+              type="button"
+              className="po-map-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleLock();
+              }}
+              title={locked ? "Overlay is Locked (Click to Unlock & Move)" : "Overlay is Unlocked (Click to Lock in Place)"}
+              style={{
+                background: locked ? "rgba(15, 23, 42, 0.85)" : "#0284c7",
+                color: "#ffffff",
+                border: "1px solid rgba(255, 255, 255, 0.4)",
+                borderRadius: "9999px",
+                padding: "4px 8px",
+                fontSize: "10px",
+                fontWeight: 700,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+              }}
+            >
+              {locked ? <Lock size={12} /> : <Unlock size={12} />}
+              {locked ? "Locked" : "Unlocked"}
+            </button>
+          )}
+          {onDeletePage && (
+            <button
+              type="button"
+              className="po-map-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeletePage();
+              }}
+              title="Delete this overlay page from the map"
+              style={{
+                background: "rgba(225, 29, 72, 0.85)",
+                color: "#ffffff",
+                border: "1px solid rgba(255, 255, 255, 0.4)",
+                borderRadius: "9999px",
+                padding: "4px 8px",
+                fontSize: "10px",
+                fontWeight: 700,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+              }}
+            >
+              <Trash2 size={12} />
+              Delete
+            </button>
+          )}
+        </div>
+      )}
       <img
         src={imageUrl}
         alt="Print overlay page"

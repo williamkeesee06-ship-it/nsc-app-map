@@ -102,6 +102,7 @@ export interface PrintOverlayTransform {
   rotationDegrees?: number;
   blendMode?: 'normal' | 'multiply' | 'screen' | 'difference';
   isLocked?: boolean;
+  isPlaced?: boolean;
 }
 
 // ── Georeferencing (Stage 5) ──────────────────────────────────────────────────
