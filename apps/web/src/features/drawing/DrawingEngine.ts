@@ -233,23 +233,7 @@ export class DrawingEngine {
   /** Tools that need user-supplied label/description on creation. */
   private needsLabelPopup(tool: DrawingTool): boolean {
     return [
-      // Telecom
-      "placed_cable", "removed_cable",
-      "mh_new", "mh_removed",
-      "hh_new", "hh_removed",
-      "ped_new", "ped_removed",
-      "pole_new", "pole_removed",
-      "cabinet_new", "cabinet_removed",
-      "anchor_new", "anchor_removed",
-      "splice",
-      "flower_pot_new", "flower_pot_removed",
-      // Text-bearing markups also use the popup to capture the user's typed text/notes
-      "text", "callout",
-      // Ziply point tools
-      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole", "ziply_flower_pot",
-      "ziply_splitter", "ziply_riser", "ziply_slack_loop",
-      // Ziply cable line tools
-      "ziply_feeder", "ziply_distribution", "ziply_drop", "ziply_bore"
+      "text", "callout"
     ].includes(tool);
   }
 

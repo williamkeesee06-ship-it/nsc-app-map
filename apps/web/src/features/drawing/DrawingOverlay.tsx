@@ -33,29 +33,7 @@ const FEET_PER_METER = 3.28084;
 // Billy 6/5: tools where the user ALWAYS types a label (atag / #) — popup
 // must always open. Everything else commits instantly with no popup.
 const LABEL_REQUIRED_TOOLS = new Set<string>([
-  "mh_new", "mh_removed",
-  "hh_new", "hh_removed",
-  "ped_new", "ped_removed",
-  "pole_new", "pole_removed",
-  "cabinet_new", "cabinet_removed",
-  "placed_cable", "removed_cable",
   "text", "callout",
-  "splice",
-  "ziply_hub",
-  "ziply_terminal",
-  "ziply_address",
-  "ziply_pole",
-  "ziply_handhole",
-  "ziply_feeder",
-  "ziply_distribution",
-  "ziply_drop",
-  "ziply_bore",
-  "ziply_flower_pot",
-  "ziply_splitter",
-  "ziply_riser",
-  "ziply_slack_loop",
-  "flower_pot_new",
-  "flower_pot_removed",
 ]);
 
 // ── Cable line rendering ──────────────────────────────────────────────────────
@@ -1220,17 +1198,16 @@ export default function DrawingOverlay() {
     let finalObj = { ...obj } as DrawingObject;
 
     if (method && ("vertices" in finalObj)) {
-      let nextTool: DrawingObject["tool"] = "ziply_distribution";
+      let nextTool: DrawingObject["tool"] = finalObj.tool;
       if (method === "BORE" || method === "TRENCH") {
         nextTool = "ziply_bore";
-      } else if (method === "AERIAL") {
-        nextTool = "ziply_distribution";
       }
       finalObj = {
         ...finalObj,
         tool: nextTool,
         style: {
           ...defaultStyleForTool(nextTool),
+          ...finalObj.style,
           userLabel: label || undefined,
           description: description || undefined,
         }
