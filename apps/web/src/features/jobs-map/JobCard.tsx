@@ -833,7 +833,7 @@ export default function JobCard({
                       />
                     </div>
 
-                    {/* Visual Page Carousel in Left Rail */}
+                    {/* Visual Vertical Page Carousel in Left Rail */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
                       <span style={{ color: "var(--text-muted)", fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         Print Pages Carousel ({overlayPages.length})
@@ -841,9 +841,11 @@ export default function JobCard({
                       <div
                         style={{
                           display: "flex",
+                          flexDirection: "column",
                           gap: 8,
-                          overflowX: "auto",
-                          paddingBottom: 6,
+                          maxHeight: 360,
+                          overflowY: "auto",
+                          paddingRight: 4,
                           scrollbarWidth: "thin",
                         }}
                       >
@@ -852,17 +854,18 @@ export default function JobCard({
                           const transform = job.printOverlay?.transforms?.[p.id];
                           const isLocked = transform?.isLocked ?? false;
                           const thumbUrl = p.previewUrl || (p as any).objectUrl || (p as any).dataUrl;
+                          const pageOpacity = transform?.opacity ?? 0.5;
 
                           return (
                             <div
                               key={p.id}
                               onClick={() => setActivePageSelId(p.id)}
                               style={{
-                                flex: "0 0 110px",
+                                width: "100%",
                                 background: isSel ? "#eff6ff" : "#ffffff",
                                 border: isSel ? "2px solid #0033A0" : "1px solid #cbd5e1",
                                 borderRadius: 8,
-                                padding: 6,
+                                padding: 8,
                                 display: "flex",
                                 flexDirection: "column",
                                 gap: 6,
@@ -871,90 +874,121 @@ export default function JobCard({
                                 transition: "all 0.15s ease",
                               }}
                             >
-                              <div
-                                style={{
-                                  width: "100%",
-                                  height: 60,
-                                  background: "#f1f5f9",
-                                  borderRadius: 4,
-                                  overflow: "hidden",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  position: "relative",
-                                }}
-                              >
-                                {thumbUrl ? (
-                                  <img src={thumbUrl} alt={p.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                ) : (
-                                  <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700 }}>Page {p.pageNumber}</div>
-                                )}
-                              </div>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                                  {p.label || `Page ${p.pageNumber}`}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void deleteOverlayPage(p.id);
-                                  }}
+                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <div
                                   style={{
-                                    background: "none",
-                                    border: "none",
-                                    color: "#ef4444",
-                                    fontSize: 12,
-                                    cursor: "pointer",
-                                    padding: "0 2px",
-                                  }}
-                                  title="Delete page"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
-                                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "var(--text-muted)", cursor: "pointer" }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={!p.excluded}
-                                    onChange={() => void togglePageExcluded(p.id)}
-                                    style={{ accentColor: "#0033A0", cursor: "pointer" }}
-                                  />
-                                  Show
-                                </label>
-                                <button
-                                  type="button"
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if (!job.printOverlay) return;
-                                    const nextTransforms = {
-                                      ...(job.printOverlay.transforms ?? {}),
-                                      [p.id]: {
-                                        ...(job.printOverlay.transforms?.[p.id] ?? { center: { lat: 0, lng: 0 }, scale: 1, rotationDeg: 0, opacity: 0.5 }),
-                                        isLocked: !isLocked,
-                                      },
-                                    };
-                                    try {
-                                      await api.putPrintOverlay(job.jobId, { ...job.printOverlay, transforms: nextTransforms });
-                                      window.dispatchEvent(new Event("nsc:jobs-reload"));
-                                    } catch (err) {
-                                      console.error("Lock toggle failed", err);
-                                    }
-                                  }}
-                                  style={{
-                                    background: isLocked ? "#64748b" : "#0284c7",
-                                    color: "#ffffff",
-                                    border: "none",
+                                    width: 60,
+                                    height: 48,
+                                    background: "#f1f5f9",
                                     borderRadius: 4,
-                                    fontSize: 8,
-                                    fontWeight: 700,
-                                    padding: "2px 5px",
-                                    cursor: "pointer",
+                                    overflow: "hidden",
+                                    flexShrink: 0,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
                                   }}
                                 >
-                                  {isLocked ? "Locked" : "Unlocked"}
-                                </button>
+                                  {thumbUrl ? (
+                                    <img src={thumbUrl} alt={p.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                  ) : (
+                                    <div style={{ fontSize: 9, color: "#64748b", fontWeight: 700 }}>Page {p.pageNumber}</div>
+                                  )}
+                                </div>
+
+                                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {p.label || `Page ${p.pageNumber}`}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void deleteOverlayPage(p.id);
+                                      }}
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        color: "#ef4444",
+                                        fontSize: 12,
+                                        fontWeight: 800,
+                                        cursor: "pointer",
+                                        padding: "0 4px",
+                                      }}
+                                      title="Delete page"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+
+                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "var(--text-muted)", cursor: "pointer", fontWeight: 700 }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={!p.excluded}
+                                        onChange={() => void togglePageExcluded(p.id)}
+                                        style={{ accentColor: "#0033A0", cursor: "pointer" }}
+                                      />
+                                      Show
+                                    </label>
+
+                                    <button
+                                      type="button"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (!job.printOverlay) return;
+                                        const nextTransforms = {
+                                          ...(job.printOverlay.transforms ?? {}),
+                                          [p.id]: {
+                                            ...(job.printOverlay.transforms?.[p.id] ?? { center: { lat: 0, lng: 0 }, scale: 1, rotationDeg: 0, opacity: 0.5 }),
+                                            isLocked: !isLocked,
+                                          },
+                                        };
+                                        try {
+                                          await api.putPrintOverlay(job.jobId, { ...job.printOverlay, transforms: nextTransforms });
+                                          window.dispatchEvent(new Event("nsc:jobs-reload"));
+                                        } catch (err) {
+                                          console.error("Lock toggle failed", err);
+                                        }
+                                      }}
+                                      style={{
+                                        background: isLocked ? "#64748b" : "#0284c7",
+                                        color: "#ffffff",
+                                        border: "none",
+                                        borderRadius: 4,
+                                        fontSize: 9,
+                                        fontWeight: 800,
+                                        padding: "3px 7px",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 3,
+                                      }}
+                                    >
+                                      {isLocked ? "Locked" : "Unlocked"}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Opacity slider */}
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                                <span style={{ color: "var(--text-muted)", fontSize: "8px", fontWeight: 800, textTransform: "uppercase" }}>Opacity:</span>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="1"
+                                  step="0.05"
+                                  value={pageOpacity}
+                                  onChange={(e) => {
+                                    void updatePageOpacity(p.id, parseFloat(e.target.value));
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ flexGrow: 1, height: 4, accentColor: "#0033A0" }}
+                                />
+                                <span style={{ fontSize: 8, color: "#0033A0", fontWeight: 800, width: 24, textAlign: "right" }}>
+                                  {Math.round(pageOpacity * 100)}%
+                                </span>
                               </div>
                             </div>
                           );

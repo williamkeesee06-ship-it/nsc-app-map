@@ -529,7 +529,10 @@
 .po-map-overlay--locked {
   cursor: default;
   outline: none !important;
-  pointer-events: none !important;
+  pointer-events: none;
+}
+.po-map-overlay--locked .po-map-overlay-badge {
+  pointer-events: auto !important;
 }
 .po-map-overlay img {
   display: block;
