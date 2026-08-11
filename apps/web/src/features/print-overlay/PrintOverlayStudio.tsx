@@ -106,6 +106,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const revisionInputRef = useRef<HTMLInputElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const [showChooser, setShowChooser] = useState(true);
   const [cropPageId, setCropPageId] = useState<string | null>(null);
   const [overlayMode, setOverlayMode] = useState<OverlayMode>("move");
@@ -415,8 +416,34 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
       if (!activePage || overlayMode !== "pickPage") return;
       const r = e.currentTarget.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) return;
-      const px = ((e.clientX - r.left) / r.width) * activePage.pageWidth;
-      const py = ((e.clientY - r.top) / r.height) * activePage.pageHeight;
+
+      const pageAspect = activePage.pageWidth / activePage.pageHeight;
+      const containerAspect = r.width / r.height;
+
+      let renderedW = r.width;
+      let renderedH = r.height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (pageAspect > containerAspect) {
+        renderedW = r.width;
+        renderedH = r.width / pageAspect;
+        offsetY = (r.height - renderedH) / 2;
+      } else {
+        renderedH = r.height;
+        renderedW = r.height * pageAspect;
+        offsetX = (r.width - renderedW) / 2;
+      }
+
+      const clickX = e.clientX - r.left;
+      const clickY = e.clientY - r.top;
+
+      const relX = Math.max(0, Math.min(renderedW, clickX - offsetX));
+      const relY = Math.max(0, Math.min(renderedH, clickY - offsetY));
+
+      const px = (relX / renderedW) * activePage.pageWidth;
+      const py = (relY / renderedH) * activePage.pageHeight;
+
       onPagePoint({ x: px, y: py });
     },
     [activePage, overlayMode]
@@ -876,7 +903,7 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
           <div className="po-anchorview__head">
             <MapPin size={14} /> Click point {pendingAnchor?.slot ?? ""} on the print
           </div>
-          <div className="po-anchorview__stage">
+          <div className="po-anchorview__stage" ref={stageRef}>
             <img
               src={overlayImg}
               alt={`${activePage.label} preview`}
@@ -885,19 +912,46 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             />
             {anchorDots
               .filter((d) => d.page.x !== 0 || d.page.y !== 0)
-              .map((d) => (
-                <div
-                  key={d.key}
-                  className={`po-anchor-dot po-anchor-dot--${d.kind}`}
-                  style={{
-                    left: `${(d.page.x / activePage.pageWidth) * 100}%`,
-                    top: `${(d.page.y / activePage.pageHeight) * 100}%`,
-                  }}
-                  aria-hidden
-                >
-                  {d.label}
-                </div>
-              ))}
+              .map((d) => {
+                const imgEl = stageRef.current?.querySelector("img");
+                const r = imgEl?.getBoundingClientRect();
+                let leftPct = (d.page.x / activePage.pageWidth) * 100;
+                let topPct = (d.page.y / activePage.pageHeight) * 100;
+                if (r && r.width > 0 && r.height > 0) {
+                  const pageAspect = activePage.pageWidth / activePage.pageHeight;
+                  const containerAspect = r.width / r.height;
+                  let renderedW = r.width;
+                  let renderedH = r.height;
+                  let offsetX = 0;
+                  let offsetY = 0;
+                  if (pageAspect > containerAspect) {
+                    renderedW = r.width;
+                    renderedH = r.width / pageAspect;
+                    offsetY = (r.height - renderedH) / 2;
+                  } else {
+                    renderedH = r.height;
+                    renderedW = r.height * pageAspect;
+                    offsetX = (r.width - renderedW) / 2;
+                  }
+                  const leftPx = offsetX + (d.page.x / activePage.pageWidth) * renderedW;
+                  const topPx = offsetY + (d.page.y / activePage.pageHeight) * renderedH;
+                  leftPct = (leftPx / r.width) * 100;
+                  topPct = (topPx / r.height) * 100;
+                }
+                return (
+                  <div
+                    key={d.key}
+                    className={`po-anchor-dot po-anchor-dot--${d.kind}`}
+                    style={{
+                      left: `${leftPct}%`,
+                      top: `${topPct}%`,
+                    }}
+                    aria-hidden
+                  >
+                    {d.label}
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

@@ -179,6 +179,29 @@ export default function PageOverlay({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (mode === "pickPage") {
+      const proj = overlayRef.current?.getProjection();
+      const mapDiv = map?.getDiv();
+      if (proj && mapDiv) {
+        const mapRect = mapDiv.getBoundingClientRect();
+        const clickDivX = e.clientX - mapRect.left;
+        const clickDivY = e.clientY - mapRect.top;
+        const mat = matrixRef.current;
+        if (mat) {
+          const [a, b, c, d, tlx, tly] = mat;
+          const det = a * d - b * c;
+          if (Math.abs(det) > 1e-9) {
+            const dx = clickDivX - tlx;
+            const dy = clickDivY - tly;
+            const px = (d * dx - c * dy) / det;
+            const py = (-b * dx + a * dy) / det;
+            onPagePoint({
+              x: Math.max(0, Math.min(imgW, px)),
+              y: Math.max(0, Math.min(imgH, py)),
+            });
+            return;
+          }
+        }
+      }
       let px = e.nativeEvent.offsetX;
       let py = e.nativeEvent.offsetY;
       if (e.target !== e.currentTarget) {
