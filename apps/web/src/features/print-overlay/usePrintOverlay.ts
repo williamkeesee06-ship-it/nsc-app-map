@@ -417,7 +417,7 @@ export function usePrintOverlay(job: Job) {
   // anchor-based placement inside PageOverlay. Killing them at write time
   // permanently retires that parallel data track for both current and
   // pre-existing merged transforms.
-  function sanitizeTransform(t: PrintOverlayTransform | undefined, fallbackCenter: LatLng): PrintOverlayTransform {
+  function sanitizeTransform(t: PrintOverlayTransform | null | undefined, fallbackCenter: LatLng): PrintOverlayTransform {
     const base = t ?? {
       center: fallbackCenter,
       scale: 1,
