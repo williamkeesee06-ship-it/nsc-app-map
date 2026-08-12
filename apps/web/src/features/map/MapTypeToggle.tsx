@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import type { MapTheme } from "./mapStyles.js";
+import { Layers } from "lucide-react";
+import { useFiltersContext } from "../jobs-map/filtersContext.js";
 
 export type MapType = "roadmap" | "satellite" | "hybrid";
 
@@ -68,6 +70,9 @@ export default function MapTypeToggle() {
   const [prefs, setPrefs] = useState<MapPreferences>(loadPrefs);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const { filters, setFilters } = useFiltersContext();
+  const isGlobalOverlaysOn = filters.showPrintOverlays !== false;
 
   const { mapType, theme } = prefs;
 
@@ -221,6 +226,56 @@ export default function MapTypeToggle() {
               </div>
             </>
           )}
+
+          <div style={dividerStyle} />
+
+          {/* OVERLAYS TOGGLE */}
+          <div>
+            <div style={sectionHeaderStyle}>OVERLAYS</div>
+            <div style={{ marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilters({
+                    ...filters,
+                    showPrintOverlays: !isGlobalOverlaysOn,
+                  });
+                }}
+                style={{
+                  width: "100%",
+                  padding: "6px 10px",
+                  borderRadius: 6,
+                  background: isGlobalOverlaysOn ? "rgba(6, 182, 212, 0.15)" : "transparent",
+                  border: isGlobalOverlaysOn ? "1px solid rgba(6, 182, 212, 0.4)" : "1px solid transparent",
+                  color: isGlobalOverlaysOn ? "#06B6D4" : "#94a3b8",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Layers size={13} style={{ color: isGlobalOverlaysOn ? "#06B6D4" : "#94a3b8" }} />
+                  <span>Print Overlays</span>
+                </div>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 900,
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    background: isGlobalOverlaysOn ? "#06B6D4" : "#475569",
+                    color: "#ffffff",
+                  }}
+                >
+                  {isGlobalOverlaysOn ? "ON" : "OFF"}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
