@@ -92,42 +92,17 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
   const tool = obj.tool as string;
   const style = obj.style;
 
-  const isZiplyCable = [
-    "placed_cable",
-    "ziply_feeder",
-    "ziply_distribution",
-    "ziply_drop",
-    "ziply_bore"
-  ].includes(tool);
-
-  let color = style.strokeColor || "#1ea7ff";
-  if (tool === "placed_cable") {
-    color = PLACED_COLOR;
-  } else if (tool === "removed_cable") {
-    color = REMOVED_COLOR;
-  }
-
-  let opacity = style.opacity ?? 0.9;
-  let weight = style.strokeWidth ?? 3;
+  // NSMS Binding Rule: Line always renders with exact saved user style
+  const color = style.strokeColor || "#1ea7ff";
+  const opacity = style.opacity ?? 0.9;
+  const weight = style.strokeWidth ?? 3;
   let icons: google.maps.IconSequence[] | undefined = undefined;
 
-  if (isZiplyCable) {
-    const status = (style.ziplyStatus || "planned").toLowerCase();
-    if (status === "planned") {
-      opacity = 0.45;
-      icons = [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: weight }, offset: "0", repeat: "12px" }];
-    } else if (status === "placed") {
-      opacity = 0.85;
-    } else if (status === "complete" || status === "completed") {
-      opacity = 1.0;
-    }
-  }
-
-  if (style.animateFlow && (tool === "placed_cable" || tool === "line" || tool === "arrow")) {
+  if (style.animateFlow && (tool === "placed_cable" || tool === "line" || tool === "arrow" || tool.startsWith("ziply_"))) {
     return {
       strokeColor: color,
       strokeWeight: weight,
-      strokeOpacity: 0.35,
+      strokeOpacity: opacity,
       icons: [{
         icon: {
           path: "M 0,-1.5 0,1.5",
@@ -156,12 +131,10 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
     };
   }
 
-  if (!icons) {
-    if (style.strokeStyle === "dashed") {
-      icons = [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: weight }, offset: "0", repeat: "12px" }];
-    } else if (style.strokeStyle === "dotted") {
-      icons = [{ icon: { path: "M 0,0 0,0.01", strokeOpacity: 1, scale: weight }, offset: "0", repeat: "6px" }];
-    }
+  if (style.strokeStyle === "dashed") {
+    icons = [{ icon: { path: "M 0,-1 0,1", strokeOpacity: opacity, scale: weight }, offset: "0", repeat: "12px" }];
+  } else if (style.strokeStyle === "dotted") {
+    icons = [{ icon: { path: "M 0,0 0,0.01", strokeOpacity: opacity, scale: weight }, offset: "0", repeat: "6px" }];
   }
 
   return {

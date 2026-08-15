@@ -56,6 +56,13 @@ const Schema = z.object({
   CRON_SECRET: z.string().default(""),
   // Solo operator profile used after Firebase login (Smartsheet / drawings owner).
   AUTH_OPERATOR_NAME: z.string().default("Billy Keesee"),
+  // Google Drive provisioning (optional / fallback server-side credentials)
+  GOOGLE_DRIVE_CLIENT_EMAIL: z.string().optional(),
+  GOOGLE_DRIVE_PRIVATE_KEY: z.string().optional(),
+  GOOGLE_DRIVE_ROOT_FOLDER_ID: z.string().optional(),
+  // Earth Bridge & KML signed feed token secrets
+  EARTH_FEED_TOKEN_SECRET: z.string().default("nsms-earth-feed-secret-key-default"),
+  KML_INGESTION_SIGNING_SECRET: z.string().default("nsms-kml-ingestion-secret-key-default"),
   NODE_ENV: z.string().default("development"),
 });
 

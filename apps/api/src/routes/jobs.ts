@@ -3014,4 +3014,129 @@ function validatePrintOverlayDoc(d: PrintOverlayDoc): string | null {
   return null;
 }
 
+// ─── Phase 1: NSMS Job Control Endpoints ─────────────────────────────────────
+
+// POST /api/jobs/:jobId/provision — Idempotently provision Google Drive hierarchy
+router.post("/jobs/:jobId/provision", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const { provisionJobDriveHierarchy } = await import("../services/driveProvisioner.js");
+    const hierarchy = await provisionJobDriveHierarchy(jobId, job.workOrder, job.buildReference);
+    res.json({ ok: true, hierarchy });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/:jobId/timeline — Retrieve immutable audit activity ledger
+router.get("/jobs/:jobId/timeline", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { listJobAuditEvents } = await import("../services/auditEventService.js");
+    const events = await listJobAuditEvents(jobId);
+    res.json({ ok: true, events });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Phase 2: Earth Bridge KML & Review Console Endpoints ────────────────────
+
+// GET /api/earth/network-link/:jobId.kml — Live Network Link manifest
+router.get("/earth/network-link/:jobId.kml", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const host = req.get("host") || "nsc-app-map.vercel.app";
+    const token = (req.query.token as string) || "feed_token_default";
+    const { generateJobNetworkLinkKml } = await import("../services/kmlService.js");
+    const kml = generateJobNetworkLinkKml(jobId, host, token);
+    res.setHeader("Content-Type", "application/vnd.google-earth.kml+xml");
+    res.setHeader("Content-Disposition", `inline; filename="job_${jobId}_network_link.kml"`);
+    res.send(kml);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/earth/layers/:jobId/all.kml — Dynamic Layer KML feed
+router.get("/earth/layers/:jobId/all.kml", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).send("Job not found");
+      return;
+    }
+    const job = doc.data() as Job;
+
+    // Fetch active markups / geometry
+    const asbuiltSnap = await db().collection("jobs").doc(jobId).collection("asbuilt").doc("current").get();
+    const markups = (asbuiltSnap.exists ? asbuiltSnap.data()?.objects : []) || [];
+
+    const { generateJobLayersKml } = await import("../services/kmlService.js");
+    const kml = generateJobLayersKml(job, markups, "all");
+    res.setHeader("Content-Type", "application/vnd.google-earth.kml+xml");
+    res.setHeader("Content-Disposition", `inline; filename="job_${jobId}_layers.kml"`);
+    res.send(kml);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/earth/submissions — Upload KML candidate submission
+router.post("/jobs/:jobId/earth/submissions", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { kmlText, submittedBy } = req.body as { kmlText: string; submittedBy?: string };
+    if (!kmlText) {
+      res.status(400).json({ error: "kmlText is required" });
+      return;
+    }
+    const { createCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const revision = await createCandidateRevision(jobId, kmlText, submittedBy || "Google Earth User");
+    res.json({ ok: true, revision });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/:jobId/earth/revisions — List candidate design revisions
+router.get("/jobs/:jobId/earth/revisions", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const snap = await db()
+      .collection("jobs")
+      .doc(jobId)
+      .collection("earthRevisions")
+      .orderBy("submittedAt", "desc")
+      .limit(50)
+      .get();
+    const revisions = snap.docs.map((d) => d.data());
+    res.json({ ok: true, revisions });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/earth/revisions/:revisionId/approve — Transactional approval
+router.post("/jobs/:jobId/earth/revisions/:revisionId/approve", async (req, res, next) => {
+  try {
+    const { jobId, revisionId } = req.params;
+    const { approvedBy } = req.body as { approvedBy?: string };
+    const { approveCandidateRevision } = await import("../services/kmlIngestionService.js");
+    await approveCandidateRevision(jobId, revisionId, approvedBy || "Billy Keesee");
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

@@ -141,6 +141,15 @@ export interface DrawingStyle {
   /** PDF editor style grouping */
   groupId?: string;
 
+  // ── Soft-delete & footage override metadata (NSMS Standard) ─────────
+  isDeleted?: boolean;
+  deletedAt?: number;
+  deletedBy?: string;
+  deletedSource?: string;
+  calculatedFootage?: number;
+  footageOverride?: number;
+  ziplyFootageOverride?: boolean; // alias for footageOverride
+
   // ── Text formatting (text + callout tools) ───────────────────────────
   /** Font family for text/callout tools. */
   fontFamily?: string;
@@ -191,6 +200,129 @@ export interface DrawingStyle {
   ziplyPoleId?: string;
   ziplyGuyWireNotes?: string;
   ziplyConduitOrStrand?: string;
+}
+
+// ── Dark Fiber Network Viewer Preferences (Presentation-only) ───────────────
+export interface DarkFiberViewerPreferences {
+  illuminationEnabled: boolean;
+  glowOpacity: number;
+  glowWidthMultiplier: number;
+  directionalFlowEnabled: boolean;
+}
+
+// ── Canonical Job Identity (NSMS Standard) ──────────────────────────────────
+export type BuildReferenceType = "hub" | "splitter" | "route" | "backbone" | "custom";
+
+export interface JobIdentity {
+  id: string;                               // Firestore doc id (e.g. "wo_6023337")
+  organizationId: string;                   // Multitenancy anchor
+  jobNumber: string;                        // Permanent immutable key (e.g. "6023337")
+  buildReference: string;                   // Flexible build ref (e.g. "H2102", "S4101", "RTE 2")
+  buildReferenceType: BuildReferenceType;   // Explicit enum
+  displayName: string;                      // Derived "{jobNumber} — {buildReference}"
+  customerId?: string;
+  smartsheetRowId?: string;
+  smartsheetSheetId?: string;
+  driveFolderId?: string;
+  status: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ── Canonical GeoFeature & Revision Model (NSMS Standard) ───────────────────
+export type GeometrySource =
+  | "manual-map"
+  | "google-earth"
+  | "pdf-markup"
+  | "import"
+  | "field-capture"
+  | "asbuilt";
+
+export type GeometryLifecycle =
+  | "draft"
+  | "pending_review"
+  | "approved"
+  | "rejected"
+  | "superseded"
+  | "archived";
+
+export interface GeoFeature {
+  id: string;                               // Neutral stable ID (UUID)
+  organizationId: string;
+  jobId: string;
+  layerId: string;
+  featureType: "route" | "point" | "polygon" | "asset" | "annotation";
+  source: GeometrySource;
+  lifecycle: GeometryLifecycle;
+  geometry: {
+    type: string;
+    coordinates: unknown;
+  };
+  properties: DrawingStyle;
+  activeRevisionId: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface GeoFeatureRevision {
+  id: string;
+  featureId: string;
+  jobId: string;
+  sourceFileId?: string;
+  source: GeometrySource;
+  lifecycle: GeometryLifecycle;
+  geometry: {
+    type: string;
+    coordinates: unknown;
+  };
+  geometryHash: string;
+  parentRevisionId?: string;
+  delta?: {
+    addedFootage?: number;
+    removedFootage?: number;
+    geometryChanged?: boolean;
+    propertyChanges?: Record<string, { old: unknown; new: unknown }>;
+  };
+  submittedBy: string;
+  submittedAt: number;
+  approvedBy?: string;
+  approvedAt?: number;
+  reviewComment?: string;
+}
+
+// ── Sheet Registration (PDF Affine Georeferencing) ──────────────────────────
+export interface SheetRegistration {
+  id: string;
+  jobId: string;
+  documentId: string;
+  pageNumber: number;
+  method: "corner" | "control-point" | "warp";
+  controlPoints: Array<{
+    sheet: { x: number; y: number };          // Normalized 0-1 PDF page coordinate
+    geographic: { lat: number; lng: number }; // WGS84 Lat/Lng
+  }>;
+  transform: {
+    scale: number;
+    rotationRad: number;
+    tx: number;
+    ty: number;
+  };
+  rmsError?: number;
+  confidence: "low" | "medium" | "high";
+  createdBy: string;
+  createdAt: number;
+}
+
+// ── Google Earth Sync State ──────────────────────────────────────────────────
+export interface EarthSyncState {
+  status: "idle" | "saving" | "syncing" | "synced" | "failed" | "conflict";
+  lastSyncedAt?: number | null;
+  lastAttemptAt?: number | null;
+  errorMessage?: string | null;
+  pendingCount?: number | null;
+  importedFeatureCount?: number | null;
+  kmlSyncToken?: string | null;
+  googleEarthProjectUrl?: string | null;
 }
 
 // Phase 9+: per-job MyMaps-style layers (elevated for personal desktop use).
@@ -358,6 +490,17 @@ export interface Job {
   jobId: string; // sanitized version of Work Order (used as Firestore doc id)
   workOrder: string; // original Work Order string
   smartsheetRowId: number;
+
+  // ── Canonical Job Identity (NSMS Standard) ──────────────────────────────────
+  organizationId?: string;
+  buildReference?: string | null;
+  buildReferenceType?: BuildReferenceType | null;
+  displayName?: string | null;
+  driveFolderId?: string | null;
+
+  // ── Google Earth Sync State ──────────────────────────────────────────────────
+  earthSync?: EarthSyncState | null;
+
   // Tracker presence: true if the row is still on Billy's tracker.
   // We never delete jobs once added — we just flip this to false.
   inTracker: boolean;

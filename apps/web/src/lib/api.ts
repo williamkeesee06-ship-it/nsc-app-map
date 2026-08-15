@@ -89,6 +89,38 @@ async function callFunction<T>(name: string, data: Record<string, unknown>): Pro
 export const api = {
   health: () => request<{ ok: boolean; time: string }>("/api/health"),
 
+  // Phase 1 & 2: NSMS Job Control, Drive & Earth Bridge
+  provisionJobDrive: (jobId: string) =>
+    request<{ ok: boolean; hierarchy: unknown }>(`/api/jobs/${encodeURIComponent(jobId)}/provision`, {
+      method: "POST",
+    }),
+  getJobTimeline: (jobId: string) =>
+    request<{
+      ok: boolean;
+      events: Array<{
+        id: string;
+        eventType: string;
+        summary: string;
+        timestamp: number;
+        metadata?: Record<string, unknown>;
+      }>;
+    }>(`/api/jobs/${encodeURIComponent(jobId)}/timeline`),
+  submitEarthKml: (jobId: string, kmlText: string, submittedBy?: string) =>
+    request<{ ok: boolean; revision: unknown }>(`/api/jobs/${encodeURIComponent(jobId)}/earth/submissions`, {
+      method: "POST",
+      body: JSON.stringify({ kmlText, submittedBy }),
+    }),
+  listEarthRevisions: (jobId: string) =>
+    request<{ ok: boolean; revisions: Array<any> }>(`/api/jobs/${encodeURIComponent(jobId)}/earth/revisions`),
+  approveEarthRevision: (jobId: string, revisionId: string, approvedBy?: string) =>
+    request<{ ok: boolean }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/earth/revisions/${encodeURIComponent(revisionId)}/approve`,
+      {
+        method: "POST",
+        body: JSON.stringify({ approvedBy }),
+      }
+    ),
+
   // Legacy Phase 1/2 asbuilt (schemaVersion:1)
   getAsbuilt: (jobId: string) =>
     request<AsbuiltDoc>(`/api/asbuilt/${encodeURIComponent(jobId)}`),

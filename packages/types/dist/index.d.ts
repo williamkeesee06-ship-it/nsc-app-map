@@ -72,6 +72,13 @@ export interface DrawingStyle {
     layerId?: string;
     /** PDF editor style grouping */
     groupId?: string;
+    isDeleted?: boolean;
+    deletedAt?: number;
+    deletedBy?: string;
+    deletedSource?: string;
+    calculatedFootage?: number;
+    footageOverride?: number;
+    ziplyFootageOverride?: boolean;
     /** Font family for text/callout tools. */
     fontFamily?: string;
     /** Font size in px for text/callout tools. */
@@ -120,6 +127,112 @@ export interface DrawingStyle {
     ziplyPoleId?: string;
     ziplyGuyWireNotes?: string;
     ziplyConduitOrStrand?: string;
+}
+export interface DarkFiberViewerPreferences {
+    illuminationEnabled: boolean;
+    glowOpacity: number;
+    glowWidthMultiplier: number;
+    directionalFlowEnabled: boolean;
+}
+export type BuildReferenceType = "hub" | "splitter" | "route" | "backbone" | "custom";
+export interface JobIdentity {
+    id: string;
+    organizationId: string;
+    jobNumber: string;
+    buildReference: string;
+    buildReferenceType: BuildReferenceType;
+    displayName: string;
+    customerId?: string;
+    smartsheetRowId?: string;
+    smartsheetSheetId?: string;
+    driveFolderId?: string;
+    status: string;
+    createdAt: number;
+    updatedAt: number;
+}
+export type GeometrySource = "manual-map" | "google-earth" | "pdf-markup" | "import" | "field-capture" | "asbuilt";
+export type GeometryLifecycle = "draft" | "pending_review" | "approved" | "rejected" | "superseded" | "archived";
+export interface GeoFeature {
+    id: string;
+    organizationId: string;
+    jobId: string;
+    layerId: string;
+    featureType: "route" | "point" | "polygon" | "asset" | "annotation";
+    source: GeometrySource;
+    lifecycle: GeometryLifecycle;
+    geometry: {
+        type: string;
+        coordinates: unknown;
+    };
+    properties: DrawingStyle;
+    activeRevisionId: string;
+    createdAt: number;
+    updatedAt: number;
+}
+export interface GeoFeatureRevision {
+    id: string;
+    featureId: string;
+    jobId: string;
+    sourceFileId?: string;
+    source: GeometrySource;
+    lifecycle: GeometryLifecycle;
+    geometry: {
+        type: string;
+        coordinates: unknown;
+    };
+    geometryHash: string;
+    parentRevisionId?: string;
+    delta?: {
+        addedFootage?: number;
+        removedFootage?: number;
+        geometryChanged?: boolean;
+        propertyChanges?: Record<string, {
+            old: unknown;
+            new: unknown;
+        }>;
+    };
+    submittedBy: string;
+    submittedAt: number;
+    approvedBy?: string;
+    approvedAt?: number;
+    reviewComment?: string;
+}
+export interface SheetRegistration {
+    id: string;
+    jobId: string;
+    documentId: string;
+    pageNumber: number;
+    method: "corner" | "control-point" | "warp";
+    controlPoints: Array<{
+        sheet: {
+            x: number;
+            y: number;
+        };
+        geographic: {
+            lat: number;
+            lng: number;
+        };
+    }>;
+    transform: {
+        scale: number;
+        rotationRad: number;
+        tx: number;
+        ty: number;
+    };
+    rmsError?: number;
+    confidence: "low" | "medium" | "high";
+    createdBy: string;
+    createdAt: number;
+}
+export interface EarthSyncState {
+    status: "idle" | "saving" | "syncing" | "synced" | "failed" | "conflict";
+    lastSyncedAt?: number | null;
+    lastAttemptAt?: number | null;
+    errorMessage?: string | null;
+    pendingCount?: number | null;
+    importedFeatureCount?: number | null;
+    kmlSyncToken?: string | null;
+    googleEarthProjectUrl?: string | null;
 }
 export interface JobLayer {
     id: string;
@@ -264,6 +377,12 @@ export interface Job {
     jobId: string;
     workOrder: string;
     smartsheetRowId: number;
+    organizationId?: string;
+    buildReference?: string | null;
+    buildReferenceType?: BuildReferenceType | null;
+    displayName?: string | null;
+    driveFolderId?: string | null;
+    earthSync?: EarthSyncState | null;
     inTracker: boolean;
     jobStatus: string | null;
     secondaryJobStatus: string | null;

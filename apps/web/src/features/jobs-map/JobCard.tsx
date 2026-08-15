@@ -474,7 +474,7 @@ export default function JobCard({
             minWidth: 0
           }}>
             <div style={{
-              fontSize: "20px",
+              fontSize: "18px",
               fontWeight: 900,
               color: "#ffffff",
               fontFamily: "'Space Grotesk', 'Rajdhani', sans-serif",
@@ -487,7 +487,7 @@ export default function JobCard({
               overflow: "hidden",
               textOverflow: "ellipsis",
             }}>
-              {wo}
+              {job.displayName || (job.buildReference ? `${wo} — ${job.buildReference}` : wo)}
             </div>
           </div>
         </div>
