@@ -12,7 +12,7 @@
     "dev:web": "npm run dev -w apps/web",
     "dev:api": "npm run dev -w apps/api",
     "build": "npm run build -w packages/types && npm run build -w apps/web && npm run build -w apps/api",
-    "typecheck": "npm run typecheck -w packages/types && npm run typecheck -w apps/web && npm run typecheck -w apps/api",
+    "typecheck": "npm run build -w packages/types && npm run typecheck -w packages/types && npm run typecheck -w apps/web && npm run typecheck -w apps/api",
     "test:storage-rules": "firebase emulators:exec --only storage --project demo-nsc-app-map \"node --test test/storage.rules.test.mjs\""
   },
   "devDependencies": {

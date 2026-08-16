@@ -49,6 +49,10 @@ import { surveyPlacements, projectPageToLatLng } from "./printGeoreference.js";
 import { comparePrintRevisions } from "./printRevisionDiff.js";
 import { useDrawing } from "../drawing/drawingContext.js";
 import type { MapImageOverlay } from "./types.js";
+import {
+  promoteMarkupToEarthRevision,
+  type PromotableGeometry,
+} from "./promoteToEarthRevision.js";
 import "./printOverlay.css";
 
 interface Props {
@@ -697,6 +701,92 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
     alert(`Placed ${placedCount} structures onto the map successfully.`);
   }, [activePage, parsedEntities, addObject, setParsedEntities]);
 
+  // ── Promote to Earth Revision (NSMS Phase 3 bridge) ──────────────────────
+  // Projects every parsed structure on the currently-active page to WGS84 via
+  // the same GeoSolution used by "Place All", then submits the batch as a
+  // pending_review Earth revision with source="pdf-markup". The revision flows
+  // through the standard RevisionReviewConsole → canonical geoFeatures
+  // approval path — nothing writes to the live map until a reviewer approves.
+  const [promoting, setPromoting] = useState(false);
+  const promotePageToEarthRevision = useCallback(async () => {
+    if (!activePage) {
+      alert("Select a page first.");
+      return;
+    }
+
+    const sol =
+      activePage.alignment && activePage.alignment.anchorA && activePage.alignment.anchorB
+        ? (() => {
+            try {
+              return solveGeoSolution(activePage.alignment);
+            } catch {
+              return null;
+            }
+          })()
+        : activePage.transform
+        ? solutionFromTransform(activePage.transform, activePage.pageWidth, activePage.pageHeight)
+        : null;
+
+    if (!sol) {
+      alert("Place or align this page on the map before promoting.");
+      return;
+    }
+
+    const pageEntities = parsedEntities.filter((e) => e.page === activePage.pageNumber);
+    if (pageEntities.length === 0) {
+      alert(`No parsed structures on page ${activePage.pageNumber} to promote.`);
+      return;
+    }
+
+    // Project each entity to WGS84. Points become KML Points. The current
+    // parser emits point-like structures only; if line/route entities are
+    // added later they should be paired into coordinates[] before promotion.
+    const geometries: PromotableGeometry[] = [];
+    for (const entity of pageEntities) {
+      const pos = pageToLatLng(sol, { x: entity.x, y: entity.y });
+      if (!pos || !Number.isFinite(pos.lat) || !Number.isFinite(pos.lng)) continue;
+      geometries.push({
+        kind: "point",
+        name: entity.mapTag || entity.label || entity.kind,
+        coordinates: pos,
+        description: entity.summary,
+        strokeStyle: entity.kind,
+      });
+    }
+
+    if (geometries.length === 0) {
+      alert("Could not project any structures to WGS84. Verify the page placement.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Submit ${geometries.length} structures from page ${activePage.pageNumber} to Earth Bridge for review?\n\n` +
+          `This creates a pending_review revision (source=pdf-markup). It will NOT modify the live map until an approver accepts it.`
+      )
+    ) {
+      return;
+    }
+
+    setPromoting(true);
+    try {
+      const documentId = (activePage as unknown as { documentId?: string })?.documentId;
+      const { revision } = await promoteMarkupToEarthRevision(job.jobId, {
+        geometries,
+        documentId,
+      });
+      setSavedNote(
+        `✓ Submitted ${geometries.length} features to Earth Bridge (revision ${revision.id})`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      alert(`Promote failed: ${msg}`);
+    } finally {
+      setPromoting(false);
+      setTimeout(() => setSavedNote(null), 6000);
+    }
+  }, [activePage, parsedEntities, job.jobId]);
+
   // ── Precision Nudging Controls ───────────────────────────────────────────
   const nudgeCenter = (dir: "N" | "S" | "E" | "W") => {
     if (!activePage) return;
@@ -807,6 +897,14 @@ export default function PrintOverlayStudio({ job, onClose }: Props) {
             </button>
           )}
           {savedNote && <span className="po-quality">{savedNote}</span>}
+          <button
+            className="po-btn"
+            onClick={promotePageToEarthRevision}
+            disabled={promoting || !activePage || parsedEntities.length === 0}
+            title="Submit parsed structures on this page as a pending_review Earth revision"
+          >
+            {promoting ? "Promoting…" : "Promote to Earth Revision"}
+          </button>
           <button
             className="po-btn po-btn--primary"
             onClick={doSave}
