@@ -21,6 +21,9 @@ import { useJob } from "./useJob.js";
 import JobPrintOverlays from "../print-overlay/JobPrintOverlays.js";
 import EarthDesignPanel from "../earth/EarthDesignPanel.js";
 import AsBuiltStudio from "../as-built/AsBuiltStudio.js";
+import { SapphireGlassCard, TitaniumHexBolt } from "../../components/HorologyMetalBezel.js";
+import { Globe2, Wrench, X as XIcon } from "lucide-react";
+import type { CSSProperties, ReactNode } from "react";
 
 const WORKSPACE_ZOOM = 19; // street-level, ready for placing physical infrastructure
 
@@ -130,7 +133,11 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
 
           {/* NSMS drawer overlay */}
           {drawer && job && (
-            <NsmsDrawer title={drawer === "earth" ? "Google Earth Bridge" : "As-Built Studio"} onClose={() => setDrawer(null)}>
+            <NsmsDrawer
+              title={drawer === "earth" ? "Google Earth Bridge" : "As-Built Studio"}
+              accent={drawer}
+              onClose={() => setDrawer(null)}
+            >
               {drawer === "earth" ? (
                 <EarthDesignPanel job={job} />
               ) : (
@@ -147,7 +154,10 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
   );
 }
 
-// ── NSMS drawer chrome ──────────────────────────────────────────────────
+// ── NSMS drawer chrome ────────────────────────────────────
+// Sapphire-glass chrome to match the rest of the app. The toggle strip is
+// framed in a titanium-riveted card and the drawer uses a mirror-bezel edge
+// with laser-blue accent when Earth Bridge is open, teal accent for As-Built.
 
 interface DrawerToggleProps {
   active: null | "earth" | "asbuilt";
@@ -155,47 +165,44 @@ interface DrawerToggleProps {
 }
 
 function NsmsDrawerToggles({ active, onSelect }: DrawerToggleProps) {
-  const btn = (key: "earth" | "asbuilt", label: string, bg: string): React.CSSProperties => ({
-    background: active === key ? bg : "rgba(15, 23, 42, 0.85)",
-    border: `1px solid ${active === key ? bg : "rgba(148, 163, 184, 0.35)"}`,
-    color: "#f8fafc",
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: "0.04em",
-    padding: "8px 12px",
-    borderRadius: 6,
-    cursor: "pointer",
-    textTransform: "uppercase",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.35)",
-  });
   return (
     <div
-      style={{
-        position: "absolute",
-        top: 96,
-        right: 12,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        zIndex: 20,
-      }}
+      className="absolute z-20 flex flex-col items-stretch gap-2"
+      style={{ top: 96, right: 12, width: 96 } as CSSProperties}
     >
-      <button
-        type="button"
-        onClick={() => onSelect(active === "earth" ? null : "earth")}
-        style={btn("earth", "Earth", "#0284c7")}
-        title="Google Earth Bridge — Network Link + KML review"
-      >
-        Earth
-      </button>
-      <button
-        type="button"
-        onClick={() => onSelect(active === "asbuilt" ? null : "asbuilt")}
-        style={btn("asbuilt", "As-Built", "#0d9488")}
-        title="As-Built Studio"
-      >
-        As-Built
-      </button>
+      <SapphireGlassCard glow={active === "earth"} className="!p-2">
+        <button
+          type="button"
+          onClick={() => onSelect(active === "earth" ? null : "earth")}
+          title="Google Earth Bridge — Network Link + KML review"
+          className={`w-full flex flex-col items-center justify-center gap-1 py-2 rounded-lg font-['Audiowide'] text-[10px] font-black uppercase tracking-widest transition-all duration-200 ${
+            active === "earth"
+              ? "text-white bg-blue-600/40 shadow-[0_0_14px_rgba(37,99,235,0.6)]"
+              : "text-slate-200 hover:text-white hover:bg-blue-500/15"
+          }`}
+        >
+          <Globe2 size={20} className={active === "earth" ? "text-sky-300" : "text-slate-300"} />
+          <span>Earth</span>
+          <span className="text-[8px] text-slate-400 tracking-normal normal-case font-sans">Bridge</span>
+        </button>
+      </SapphireGlassCard>
+
+      <SapphireGlassCard glow={active === "asbuilt"} className="!p-2">
+        <button
+          type="button"
+          onClick={() => onSelect(active === "asbuilt" ? null : "asbuilt")}
+          title="As-Built Studio"
+          className={`w-full flex flex-col items-center justify-center gap-1 py-2 rounded-lg font-['Audiowide'] text-[10px] font-black uppercase tracking-widest transition-all duration-200 ${
+            active === "asbuilt"
+              ? "text-white bg-teal-600/40 shadow-[0_0_14px_rgba(13,148,136,0.6)]"
+              : "text-slate-200 hover:text-white hover:bg-teal-500/15"
+          }`}
+        >
+          <Wrench size={20} className={active === "asbuilt" ? "text-teal-300" : "text-slate-300"} />
+          <span>As-Built</span>
+          <span className="text-[8px] text-slate-400 tracking-normal normal-case font-sans">Studio</span>
+        </button>
+      </SapphireGlassCard>
     </div>
   );
 }
@@ -203,57 +210,51 @@ function NsmsDrawerToggles({ active, onSelect }: DrawerToggleProps) {
 interface DrawerProps {
   title: string;
   onClose: () => void;
-  children: React.ReactNode;
+  accent?: "earth" | "asbuilt";
+  children: ReactNode;
 }
 
-function NsmsDrawer({ title, onClose, children }: DrawerProps) {
+function NsmsDrawer({ title, onClose, accent = "earth", children }: DrawerProps) {
+  const accentClass =
+    accent === "asbuilt"
+      ? "border-teal-500/60 shadow-[-12px_0_32px_rgba(13,148,136,0.35),inset_1px_0_0_rgba(45,212,191,0.35)]"
+      : "border-blue-500/60 shadow-[-12px_0_32px_rgba(37,99,235,0.35),inset_1px_0_0_rgba(96,165,250,0.35)]";
+  const badgeClass =
+    accent === "asbuilt"
+      ? "bg-teal-600/30 text-teal-300 border-teal-500/50 shadow-[0_0_8px_rgba(13,148,136,0.5)]"
+      : "bg-blue-600/30 text-blue-300 border-blue-500/50 shadow-[0_0_8px_rgba(37,99,235,0.5)]";
+
   return (
     <div
-      style={{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: 460,
-        maxWidth: "90vw",
-        background: "rgba(3, 7, 18, 0.96)",
-        borderLeft: "1px solid rgba(148, 163, 184, 0.25)",
-        boxShadow: "-8px 0 24px rgba(0, 0, 0, 0.45)",
-        display: "flex",
-        flexDirection: "column",
-        zIndex: 30,
-      }}
+      className={`absolute top-0 right-0 bottom-0 z-30 flex flex-col backdrop-blur-lg bg-slate-950/95 border-l-2 ${accentClass}`}
+      style={{ width: 480, maxWidth: "92vw" } as CSSProperties}
+      role="dialog"
+      aria-label={title}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "12px 16px",
-          borderBottom: "1px solid rgba(148, 163, 184, 0.2)",
-        }}
-      >
-        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.06em", color: "#f8fafc", textTransform: "uppercase" }}>
-          {title}
+      {/* Titanium-riveted header bar */}
+      <div className="relative flex items-center justify-between px-5 py-3 border-b border-slate-700/80 bg-gradient-to-b from-slate-900/95 to-slate-950/95">
+        <TitaniumHexBolt size={11} className="absolute top-2 left-2 opacity-70" />
+        <TitaniumHexBolt size={11} className="absolute top-2 right-2 opacity-70" />
+        <div className="flex items-center gap-3 pl-4">
+          <span className={`px-2 py-0.5 rounded text-[9px] font-bold tracking-widest border ${badgeClass}`}>
+            NSMS
+          </span>
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-100 font-['Audiowide']">
+            {title}
+          </h2>
         </div>
         <button
           type="button"
           onClick={onClose}
-          style={{
-            background: "transparent",
-            border: "1px solid rgba(148, 163, 184, 0.35)",
-            color: "#e2e8f0",
-            fontSize: 11,
-            fontWeight: 800,
-            padding: "4px 10px",
-            borderRadius: 6,
-            cursor: "pointer",
-          }}
+          aria-label="Close drawer"
+          className="flex items-center justify-center w-7 h-7 rounded-md border border-slate-600/70 bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-700/80 hover:border-slate-400/70 transition-colors"
         >
-          Close
+          <XIcon size={14} />
         </button>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>{children}</div>
+
+      {/* Scroll region */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">{children}</div>
     </div>
   );
 }
