@@ -105,20 +105,31 @@ export const api = {
         metadata?: Record<string, unknown>;
       }>;
     }>(`/api/jobs/${encodeURIComponent(jobId)}/timeline`),
-  submitEarthKml: (jobId: string, kmlText: string, submittedBy?: string) =>
+  submitEarthKml: (
+    jobId: string,
+    payload: { kmlText?: string; kmzBase64?: string },
+    submittedBy?: string
+  ) =>
     request<{ ok: boolean; revision: unknown }>(`/api/jobs/${encodeURIComponent(jobId)}/earth/submissions`, {
       method: "POST",
-      body: JSON.stringify({ kmlText, submittedBy }),
+      body: JSON.stringify({ ...payload, submittedBy }),
     }),
   listEarthRevisions: (jobId: string) =>
     request<{ ok: boolean; revisions: Array<any> }>(`/api/jobs/${encodeURIComponent(jobId)}/earth/revisions`),
-  approveEarthRevision: (jobId: string, revisionId: string, approvedBy?: string) =>
-    request<{ ok: boolean }>(
+  approveEarthRevision: (jobId: string, revisionId: string) =>
+    request<{ ok: true; approvedFeatureCount: number }>(
       `/api/jobs/${encodeURIComponent(jobId)}/earth/revisions/${encodeURIComponent(revisionId)}/approve`,
-      {
-        method: "POST",
-        body: JSON.stringify({ approvedBy }),
-      }
+      { method: "POST", body: JSON.stringify({}) }
+    ),
+  rejectEarthRevision: (jobId: string, revisionId: string, reason: string) =>
+    request<{ ok: true }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/earth/revisions/${encodeURIComponent(revisionId)}/reject`,
+      { method: "POST", body: JSON.stringify({ reason }) }
+    ),
+  mintEarthNetworkLink: (jobId: string, ttlDays?: number) =>
+    request<{ ok: true; networkLinkUrl: string; token: string; expiresAt: number }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/earth/network-link`,
+      { method: "POST", body: JSON.stringify({ ttlDays }) }
     ),
 
   // Legacy Phase 1/2 asbuilt (schemaVersion:1)

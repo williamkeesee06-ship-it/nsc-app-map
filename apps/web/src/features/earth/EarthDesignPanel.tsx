@@ -28,8 +28,22 @@ export default function EarthDesignPanel({ job, onGeometryUpdated }: Props) {
   const [kmlInput, setKmlInput] = useState("");
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  // Network Link URL must be minted server-side so it carries a signed HMAC
+  // token — Google Earth cannot send Authorization headers, so the token in
+  // the query string is the ONLY thing gating the feed. Never build this URL
+  // client-side without a token.
+  const [networkLinkUrl, setNetworkLinkUrl] = useState<string>("");
+  const [mintError, setMintError] = useState<string | null>(null);
 
-  const networkLinkUrl = `${window.location.origin}/api/earth/network-link/${encodeURIComponent(job.jobId)}.kml`;
+  const mintNetworkLink = useCallback(async () => {
+    setMintError(null);
+    try {
+      const res = await api.mintEarthNetworkLink(job.jobId, 30);
+      setNetworkLinkUrl(res.networkLinkUrl);
+    } catch (err: any) {
+      setMintError(err?.message || "Failed to mint Network Link URL");
+    }
+  }, [job.jobId]);
 
   const loadRevisions = useCallback(async () => {
     setLoading(true);
@@ -47,9 +61,11 @@ export default function EarthDesignPanel({ job, onGeometryUpdated }: Props) {
 
   useEffect(() => {
     loadRevisions();
-  }, [loadRevisions]);
+    mintNetworkLink();
+  }, [loadRevisions, mintNetworkLink]);
 
   const handleCopyLink = () => {
+    if (!networkLinkUrl) return;
     navigator.clipboard.writeText(networkLinkUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -63,7 +79,7 @@ export default function EarthDesignPanel({ job, onGeometryUpdated }: Props) {
     if (!kmlInput.trim()) return;
     setUploading(true);
     try {
-      await api.submitEarthKml(job.jobId, kmlInput.trim());
+      await api.submitEarthKml(job.jobId, { kmlText: kmlInput.trim() });
       setKmlInput("");
       setShowUploadModal(false);
       setActionMessage("✓ Candidate KML submitted for review");
@@ -72,20 +88,61 @@ export default function EarthDesignPanel({ job, onGeometryUpdated }: Props) {
       setActionMessage(`Upload failed: ${err?.message || "Error"}`);
     } finally {
       setUploading(false);
-      setTimeout(() => setActionMessage(null), 4000);
+      setTimeout(() => setActionMessage(null), 6000);
+    }
+  };
+
+  const handleUploadFile = async (file: File) => {
+    setUploading(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const isKmz = file.name.toLowerCase().endsWith(".kmz") ||
+        (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b);
+      // Convert to base64 without blowing the call stack on large buffers.
+      let binary = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)));
+      }
+      const base64 = btoa(binary);
+      const payload = isKmz ? { kmzBase64: base64 } : { kmlText: new TextDecoder().decode(bytes) };
+      await api.submitEarthKml(job.jobId, payload);
+      setShowUploadModal(false);
+      setActionMessage(`✓ ${file.name} submitted for review`);
+      loadRevisions();
+    } catch (err: any) {
+      setActionMessage(`Upload failed: ${err?.message || "Error"}`);
+    } finally {
+      setUploading(false);
+      setTimeout(() => setActionMessage(null), 6000);
     }
   };
 
   const handleApproveRevision = async (revisionId: string) => {
     try {
-      await api.approveEarthRevision(job.jobId, revisionId);
-      setActionMessage("✓ Revision approved and promoted to canonical geometry");
+      const res = await api.approveEarthRevision(job.jobId, revisionId);
+      setActionMessage(`✓ Approved — ${res.approvedFeatureCount} features promoted`);
       loadRevisions();
       onGeometryUpdated?.();
     } catch (err: any) {
       setActionMessage(`Approval failed: ${err?.message || "Error"}`);
     } finally {
-      setTimeout(() => setActionMessage(null), 4000);
+      setTimeout(() => setActionMessage(null), 6000);
+    }
+  };
+
+  const handleRejectRevision = async (revisionId: string) => {
+    const reason = window.prompt("Reason for rejecting this revision (required):");
+    if (!reason || !reason.trim()) return;
+    try {
+      await api.rejectEarthRevision(job.jobId, revisionId, reason.trim());
+      setActionMessage("✓ Revision rejected");
+      loadRevisions();
+    } catch (err: any) {
+      setActionMessage(`Reject failed: ${err?.message || "Error"}`);
+    } finally {
+      setTimeout(() => setActionMessage(null), 6000);
     }
   };
 
@@ -129,6 +186,12 @@ export default function EarthDesignPanel({ job, onGeometryUpdated }: Props) {
         </div>
       )}
 
+      {mintError && (
+        <div style={{ background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.35)", color: "#fca5a5", padding: "8px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+          Network Link disabled: {mintError}
+        </div>
+      )}
+
       {/* Network Link Feed Box */}
       <div style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(255, 255, 255, 0.1)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>
@@ -138,8 +201,8 @@ export default function EarthDesignPanel({ job, onGeometryUpdated }: Props) {
           <input
             type="text"
             readOnly
-            value={networkLinkUrl}
-            style={{ flex: 1, background: "rgba(0, 0, 0, 0.5)", border: "1px solid rgba(255, 255, 255, 0.1)", borderRadius: 6, padding: "6px 8px", color: "#38bdf8", fontSize: 11, fontFamily: "monospace" }}
+            value={networkLinkUrl || "(minting signed URL...)"}
+            style={{ flex: 1, background: "rgba(0, 0, 0, 0.5)", border: "1px solid rgba(255, 255, 255, 0.1)", borderRadius: 6, padding: "6px 8px", color: networkLinkUrl ? "#38bdf8" : "#64748b", fontSize: 11, fontFamily: "monospace" }}
           />
           <button
             type="button"
@@ -208,6 +271,19 @@ export default function EarthDesignPanel({ job, onGeometryUpdated }: Props) {
       {/* Upload Modal Drawer */}
       {showUploadModal && (
         <div style={{ background: "rgba(0, 0, 0, 0.4)", border: "1px solid rgba(56, 189, 248, 0.3)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#38bdf8" }}>Upload .kml or .kmz file:</div>
+          <input
+            type="file"
+            accept=".kml,.kmz,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz"
+            disabled={uploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleUploadFile(file);
+              e.target.value = "";
+            }}
+            style={{ fontSize: 11, color: "#e2e8f0" }}
+          />
+          <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", marginTop: 4 }}>— or —</div>
           <div style={{ fontSize: 11, fontWeight: 800, color: "#38bdf8" }}>Paste Raw KML Payload:</div>
           <textarea
             value={kmlInput}
@@ -305,22 +381,40 @@ export default function EarthDesignPanel({ job, onGeometryUpdated }: Props) {
                   </button>
 
                   {isPending && (
-                    <button
-                      type="button"
-                      onClick={() => handleApproveRevision(rev.id)}
-                      style={{
-                        background: "#10b981",
-                        border: "none",
-                        color: "#ffffff",
-                        fontSize: 10,
-                        fontWeight: 800,
-                        padding: "5px 10px",
-                        borderRadius: 6,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Approve
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleRejectRevision(rev.id)}
+                        style={{
+                          background: "rgba(239, 68, 68, 0.15)",
+                          border: "1px solid rgba(239, 68, 68, 0.4)",
+                          color: "#fca5a5",
+                          fontSize: 10,
+                          fontWeight: 800,
+                          padding: "5px 10px",
+                          borderRadius: 6,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Reject
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApproveRevision(rev.id)}
+                        style={{
+                          background: "#10b981",
+                          border: "none",
+                          color: "#ffffff",
+                          fontSize: 10,
+                          fontWeight: 800,
+                          padding: "5px 10px",
+                          borderRadius: 6,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Approve
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
