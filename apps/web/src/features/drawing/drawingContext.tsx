@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AsBuiltDocument, DrawingObject, DrawingStyle, DrawingTool, JobLayer } from "@nsc/types";
+import { pathLengthFt } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
 
@@ -471,6 +472,10 @@ interface DrawingContextValue {
   ungroupSelected: () => void;
   alignSelected: (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v') => void;
   deleteObjects: (ids: string[]) => void;
+  splitPolyline: (id: string, splitIndex: number, splitCoord?: { lat: number; lng: number }) => void;
+  overrideFootage: (id: string, footage?: number) => void;
+  softDeleteSelected: (deletedBy?: string) => void;
+  restoreObjects: (ids: string[]) => void;
 
   /** Optional `expectedTargetJobId` lets callers pin which job they expect to be saving for.
    *  If the live target moved (job switch in flight), the save is aborted. */
@@ -887,9 +892,109 @@ export function DrawingProvider({ children, mapRef }: Props) {
   const updateObjectGeometry = useCallback((id: string, vertices: Array<{ lat: number; lng: number }>) => {
     const obj = objectsRef.current.find((o) => o.id === id);
     if (!obj || !("vertices" in obj)) return;
-    // No pushHistory — geometry drags are continuous; caller handles undo granularity
-    dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, vertices } });
+    // Calculate new geodesic footage via pathLengthFt
+    const calculatedFootage = Math.round(pathLengthFt(vertices));
+    const style: DrawingStyle = {
+      ...obj.style,
+      calculatedFootage,
+      ziplyFootage: obj.style.footageOverride ?? calculatedFootage,
+    };
+    dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, vertices, style } });
   }, []);
+
+  const overrideFootage = useCallback((id: string, footage?: number) => {
+    const obj = objectsRef.current.find((o) => o.id === id);
+    if (!obj) return;
+    pushHistory();
+    const style: DrawingStyle = {
+      ...obj.style,
+      footageOverride: footage,
+      ziplyFootageOverride: footage !== undefined,
+      ziplyFootage: footage ?? obj.style.calculatedFootage,
+    };
+    dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, style } });
+  }, [pushHistory]);
+
+  const splitPolyline = useCallback((id: string, splitIndex: number, splitCoord?: { lat: number; lng: number }) => {
+    const obj = objectsRef.current.find((o) => o.id === id);
+    if (!obj || !("vertices" in obj) || !Array.isArray(obj.vertices)) return;
+
+    const verts = obj.vertices;
+    if (splitIndex <= 0 || splitIndex >= verts.length) return;
+
+    pushHistory();
+
+    const part1Verts = verts.slice(0, splitIndex + 1);
+    const part2Verts = verts.slice(splitIndex);
+
+    if (splitCoord) {
+      part1Verts[part1Verts.length - 1] = splitCoord;
+      part2Verts[0] = splitCoord;
+    }
+
+    const ft1 = Math.round(pathLengthFt(part1Verts));
+    const ft2 = Math.round(pathLengthFt(part2Verts));
+
+    const seg1: DrawingObject = {
+      ...obj,
+      id: `${obj.id}_seg1`,
+      vertices: part1Verts,
+      style: { ...obj.style, calculatedFootage: ft1, ziplyFootage: ft1 },
+    };
+
+    const seg2: DrawingObject = {
+      ...obj,
+      id: `${obj.id}_seg2`,
+      vertices: part2Verts,
+      style: { ...obj.style, calculatedFootage: ft2, ziplyFootage: ft2 },
+    };
+
+    const nextObjects = objectsRef.current.filter((o) => o.id !== id).concat([seg1, seg2]);
+    dispatch({ type: "SET_OBJECTS", objects: nextObjects });
+  }, [pushHistory]);
+
+  const softDeleteSelected = useCallback((deletedBy?: string) => {
+    if (stateRef.current.selectedIds.size === 0) return;
+    pushHistory();
+    const now = Date.now();
+    const user = deletedBy || ownerRef.current || "user";
+    const nextObjects = objectsRef.current.map((o) => {
+      if (stateRef.current.selectedIds.has(o.id)) {
+        return {
+          ...o,
+          style: {
+            ...o.style,
+            isDeleted: true,
+            deletedAt: now,
+            deletedBy: user,
+            deletedSource: "nsms_map",
+          },
+        };
+      }
+      return o;
+    });
+    dispatch({ type: "SET_OBJECTS", objects: nextObjects });
+    dispatch({ type: "CLEAR_SELECTION" });
+  }, [pushHistory]);
+
+  const restoreObjects = useCallback((ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    pushHistory();
+    const idSet = new Set(ids);
+    const nextObjects = objectsRef.current.map((o) => {
+      if (idSet.has(o.id)) {
+        return {
+          ...o,
+          style: {
+            ...o.style,
+            isDeleted: false,
+          },
+        };
+      }
+      return o;
+    });
+    dispatch({ type: "SET_OBJECTS", objects: nextObjects });
+  }, [pushHistory]);
 
   const updateObjectPosition = useCallback((id: string, position: { lat: number; lng: number }) => {
     const obj = objectsRef.current.find((o) => o.id === id);
@@ -1135,6 +1240,10 @@ export function DrawingProvider({ children, mapRef }: Props) {
     ungroupSelected,
     alignSelected,
     deleteObjects,
+    splitPolyline,
+    overrideFootage,
+    softDeleteSelected,
+    restoreObjects,
     save,
     clearDraft,
     mapRef,

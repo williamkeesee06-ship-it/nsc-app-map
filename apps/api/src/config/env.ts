@@ -56,6 +56,17 @@ const Schema = z.object({
   CRON_SECRET: z.string().default(""),
   // Solo operator profile used after Firebase login (Smartsheet / drawings owner).
   AUTH_OPERATOR_NAME: z.string().default("Billy Keesee"),
+  // Google Drive provisioning (optional / fallback server-side credentials)
+  GOOGLE_DRIVE_CLIENT_EMAIL: z.string().optional(),
+  GOOGLE_DRIVE_PRIVATE_KEY: z.string().optional(),
+  GOOGLE_DRIVE_ROOT_FOLDER_ID: z.string().optional(),
+  // Earth Bridge KML signing secret. Optional in the schema so dev boots without
+  // it, but the KML service refuses to sign or verify in production when it's
+  // absent — fail-loud at the call site, never fake it.
+  EARTH_FEED_TOKEN_SECRET: z.string().min(32).optional(),
+  // Reserved for future signed KMZ upload URLs (candidate revision webhook).
+  // Not consumed by any code path yet; leave optional.
+  KML_INGESTION_SIGNING_SECRET: z.string().min(32).optional(),
   NODE_ENV: z.string().default("development"),
 });
 

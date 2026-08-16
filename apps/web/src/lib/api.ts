@@ -89,6 +89,92 @@ async function callFunction<T>(name: string, data: Record<string, unknown>): Pro
 export const api = {
   health: () => request<{ ok: boolean; time: string }>("/api/health"),
 
+  // Phase 1 & 2: NSMS Job Control, Drive & Earth Bridge
+  provisionJobDrive: (jobId: string) =>
+    request<{ ok: boolean; hierarchy: unknown }>(`/api/jobs/${encodeURIComponent(jobId)}/provision`, {
+      method: "POST",
+    }),
+  getJobTimeline: (jobId: string) =>
+    request<{
+      ok: boolean;
+      events: Array<{
+        id: string;
+        eventType: string;
+        summary: string;
+        timestamp: number;
+        metadata?: Record<string, unknown>;
+      }>;
+    }>(`/api/jobs/${encodeURIComponent(jobId)}/timeline`),
+  submitEarthKml: (
+    jobId: string,
+    payload: { kmlText?: string; kmzBase64?: string },
+    submittedBy?: string
+  ) =>
+    request<{ ok: boolean; revision: unknown }>(`/api/jobs/${encodeURIComponent(jobId)}/earth/submissions`, {
+      method: "POST",
+      body: JSON.stringify({ ...payload, submittedBy }),
+    }),
+  listEarthRevisions: (jobId: string) =>
+    request<{ ok: boolean; revisions: Array<any> }>(`/api/jobs/${encodeURIComponent(jobId)}/earth/revisions`),
+  approveEarthRevision: (jobId: string, revisionId: string) =>
+    request<{ ok: true; approvedFeatureCount: number }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/earth/revisions/${encodeURIComponent(revisionId)}/approve`,
+      { method: "POST", body: JSON.stringify({}) }
+    ),
+  rejectEarthRevision: (jobId: string, revisionId: string, reason: string) =>
+    request<{ ok: true }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/earth/revisions/${encodeURIComponent(revisionId)}/reject`,
+      { method: "POST", body: JSON.stringify({ reason }) }
+    ),
+  mintEarthNetworkLink: (jobId: string, ttlDays?: number) =>
+    request<{ ok: true; networkLinkUrl: string; token: string; expiresAt: number }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/earth/network-link`,
+      { method: "POST", body: JSON.stringify({ ttlDays }) }
+    ),
+
+  // Phase 3: NSMS sheet registrations
+  listSheetRegistrations: (
+    jobId: string,
+    filter?: { documentId?: string; pageNumber?: number }
+  ) => {
+    const params = new URLSearchParams();
+    if (filter?.documentId) params.set("documentId", filter.documentId);
+    if (filter?.pageNumber !== undefined) params.set("pageNumber", String(filter.pageNumber));
+    const qs = params.toString();
+    return request<{ ok: true; registrations: Array<any> }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/sheet-registrations${qs ? `?${qs}` : ""}`
+    );
+  },
+  createSheetRegistration: (
+    jobId: string,
+    reg: {
+      documentId: string;
+      pageNumber: number;
+      method: "corner" | "control-point" | "warp";
+      controlPoints: Array<{ sheet: { x: number; y: number }; geographic: { lat: number; lng: number } }>;
+      transform: { scale: number; rotationRad: number; tx: number; ty: number };
+      rmsError?: number;
+      confidence: "low" | "medium" | "high";
+    }
+  ) =>
+    request<{ ok: true; registration: any }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/sheet-registrations`,
+      { method: "POST", body: JSON.stringify(reg) }
+    ),
+  deleteSheetRegistration: (jobId: string, registrationId: string) =>
+    request<{ ok: true }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/sheet-registrations/${encodeURIComponent(registrationId)}`,
+      { method: "DELETE" }
+    ),
+  promotePrintOverlayToEarthRevision: (
+    jobId: string,
+    payload: { kmlText: string; documentId?: string; sheetRegistrationId?: string }
+  ) =>
+    request<{ ok: true; revision: any }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/print-overlay/promote-to-earth-revision`,
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
+
   // Legacy Phase 1/2 asbuilt (schemaVersion:1)
   getAsbuilt: (jobId: string) =>
     request<AsbuiltDoc>(`/api/asbuilt/${encodeURIComponent(jobId)}`),

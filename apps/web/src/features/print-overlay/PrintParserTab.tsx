@@ -4,7 +4,7 @@ import { Sparkles, FileText, Check, Plus, Play, Info } from "lucide-react";
 import { useDrawing, defaultStyleForTool } from "../drawing/drawingContext.js";
 import { api } from "../../lib/api.js";
 import { extractPrintEntities, PLACEABLE_KINDS, type StoredPrintEntity, type PrintEntity } from "./printParser.js";
-import { pageToLatLng, solveGeoSolution } from "@nsc/types";
+import { pageToLatLng, solveGeoSolution, pathLengthFt } from "@nsc/types";
 import type { Job } from "@nsc/types";
 import { solutionFromTransform } from "./geoPlacement.js";
 import { comparePrintRevisions } from "./printRevisionDiff.js";
@@ -699,6 +699,7 @@ export default function PrintParserTab({ selectedJob }: Props) {
       placedIds.push(objId);
 
       const defaultStyle = defaultStyleForTool(tool as any);
+      const calculatedFootage = Math.round(pathLengthFt(plan.vertices));
 
       addObject({
         id: objId,
@@ -708,6 +709,8 @@ export default function PrintParserTab({ selectedJob }: Props) {
           ...defaultStyle,
           userLabel: plan.entity.label,
           description: plan.entity.summary,
+          calculatedFootage,
+          ziplyFootage: calculatedFootage,
         } as any,
       });
 

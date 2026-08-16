@@ -25,6 +25,7 @@ import {
   findRowByWorkOrder,
 } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
+import { recordAuditEvent } from "../services/auditEventService.js";
 import { getEnv } from "../config/env.js";
 import {
   parseZiplyPrint,
@@ -3013,5 +3014,346 @@ function validatePrintOverlayDoc(d: PrintOverlayDoc): string | null {
   }
   return null;
 }
+
+// ─── Phase 1: NSMS Job Control Endpoints ─────────────────────────────────────
+
+// POST /api/jobs/:jobId/provision — Idempotently provision Google Drive hierarchy
+router.post("/jobs/:jobId/provision", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const { provisionJobDriveHierarchy } = await import("../services/driveProvisioner.js");
+    const hierarchy = await provisionJobDriveHierarchy(
+      jobId,
+      job.workOrder,
+      job.buildReference ?? null
+    );
+    // Never persist a fake driveFolderId. The no-op provisioner returns
+    // provisioned:false; callers that treat that as success would silently
+    // corrupt Job records.
+    res.json({ ok: true, hierarchy });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/:jobId/timeline — Retrieve immutable audit activity ledger
+router.get("/jobs/:jobId/timeline", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { listJobAuditEvents } = await import("../services/auditEventService.js");
+    const events = await listJobAuditEvents(jobId);
+    res.json({ ok: true, events });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Phase 2: Earth Bridge KML & Review Console Endpoints ────────────────────
+//
+// The two GET /earth/... .kml routes are public paths (see isPublicApiPath)
+// because Google Earth cannot send Authorization headers on Network Link
+// fetches. They authenticate themselves via a signed HMAC token in the query
+// string, verified inline before any data is read. Every other Earth route
+// still requires a Firebase Bearer token through the standard middleware.
+
+/** Read all currently active drawing objects for a job. Unions the legacy
+ *  `asbuilt/current` doc with any per-user `asbuilt/{ownerSlug}` docs so the
+ *  Earth feed sees everything the map sees. */
+async function loadActiveJobObjects(jobId: string): Promise<any[]> {
+  const asbuiltSnaps = await db().collection("jobs").doc(jobId).collection("asbuilt").get();
+  const merged: any[] = [];
+  asbuiltSnaps.forEach((d) => {
+    const data = d.data();
+    const objs = Array.isArray(data?.objects) ? (data.objects as any[]) : [];
+    for (const o of objs) merged.push(o);
+  });
+  return merged;
+}
+
+// POST /api/jobs/:jobId/earth/network-link — Mint a signed KML Network Link URL
+//
+// Called by the EarthDesignPanel to hand the operator the URL to paste into
+// Google Earth Desktop or open via earth.google.com. The URL contains a signed
+// HMAC token so Earth's periodic refresh keeps working for `ttlDays` days.
+router.post("/jobs/:jobId/earth/network-link", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { ttlDays } = (req.body ?? {}) as { ttlDays?: number };
+    const ref = db().collection("jobs").doc(jobId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const { signFeedToken } = await import("../services/kmlService.js");
+    const ttlMs = Math.max(1, Math.min(365, ttlDays ?? 30)) * 24 * 60 * 60 * 1000;
+    const token = signFeedToken(jobId, ttlMs);
+    const host = req.get("host") || "nsc-app-map.vercel.app";
+    const networkLinkUrl = `https://${host}/api/earth/network-link/${encodeURIComponent(jobId)}.kml?token=${encodeURIComponent(token)}`;
+    res.json({ ok: true, networkLinkUrl, token, expiresAt: Date.now() + ttlMs });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/earth/network-link/:jobId.kml — Live Network Link manifest (public)
+router.get("/earth/network-link/:jobId.kml", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const token = String(req.query.token ?? "");
+    const { verifyFeedToken, generateJobNetworkLinkKml, signFeedToken } = await import(
+      "../services/kmlService.js"
+    );
+    if (!verifyFeedToken(token, jobId)) {
+      res.status(401).send("Invalid or expired feed token");
+      return;
+    }
+    const ref = db().collection("jobs").doc(jobId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).send("Job not found");
+      return;
+    }
+    const job = snap.data() as Job;
+    // Re-sign so the embedded layer URL doesn't inherit the manifest's short
+    // remaining TTL — it always gets a fresh 30-day signed URL.
+    const layerToken = signFeedToken(jobId);
+    const host = req.get("host") || "nsc-app-map.vercel.app";
+    const kml = generateJobNetworkLinkKml(job, host, layerToken);
+    res.setHeader("Content-Type", "application/vnd.google-earth.kml+xml");
+    res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
+    res.setHeader("Content-Disposition", `inline; filename="job_${jobId}_network_link.kml"`);
+    res.send(kml);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/earth/layers/:jobId/all.kml — Dynamic Layer KML feed (public)
+router.get("/earth/layers/:jobId/all.kml", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const token = String(req.query.token ?? "");
+    const layerParam = String(req.query.layer ?? "all");
+    const layerCode = (["all", "earth_design", "asbuilt", "pdf_markup", "other"] as const)
+      .includes(layerParam as any)
+      ? (layerParam as any)
+      : "all";
+
+    const { verifyFeedToken, generateJobLayersKml } = await import("../services/kmlService.js");
+    if (!verifyFeedToken(token, jobId)) {
+      res.status(401).send("Invalid or expired feed token");
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).send("Job not found");
+      return;
+    }
+    const job = snap.data() as Job;
+
+    const markups = await loadActiveJobObjects(jobId);
+    const kml = generateJobLayersKml(job, markups, layerCode);
+    res.setHeader("Content-Type", "application/vnd.google-earth.kml+xml");
+    // Earth honors refreshInterval; still, allow no proxy caching between
+    // Earth and us so operator edits show up on the next poll.
+    res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
+    res.setHeader("Content-Disposition", `inline; filename="job_${jobId}_layers.kml"`);
+    res.send(kml);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/earth/submissions — Upload KML/KMZ candidate submission
+router.post("/jobs/:jobId/earth/submissions", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const body = (req.body ?? {}) as {
+      kmlText?: string;
+      kmzBase64?: string;
+      submittedBy?: string;
+    };
+    if (!body.kmlText && !body.kmzBase64) {
+      res.status(400).json({ error: "Provide kmlText or kmzBase64" });
+      return;
+    }
+    const submittedBy =
+      body.submittedBy?.trim() || req.authUser?.email || "unknown";
+    const { createCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const revision = await createCandidateRevision(
+      jobId,
+      { kmlText: body.kmlText, kmzBase64: body.kmzBase64 },
+      submittedBy
+    );
+    res.json({ ok: true, revision });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/:jobId/earth/revisions — List candidate design revisions
+router.get("/jobs/:jobId/earth/revisions", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const snap = await db()
+      .collection("jobs")
+      .doc(jobId)
+      .collection("earthRevisions")
+      .orderBy("submittedAt", "desc")
+      .limit(50)
+      .get();
+    const revisions = snap.docs.map((d) => d.data());
+    res.json({ ok: true, revisions });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/earth/revisions/:revisionId/approve — Transactional approval
+router.post("/jobs/:jobId/earth/revisions/:revisionId/approve", async (req, res, next) => {
+  try {
+    const { jobId, revisionId } = req.params;
+    const approvedBy = req.authUser?.email || "unknown";
+    const { approveCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const result = await approveCandidateRevision(jobId, revisionId, approvedBy);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/earth/revisions/:revisionId/reject — Reject with reason
+router.post("/jobs/:jobId/earth/revisions/:revisionId/reject", async (req, res, next) => {
+  try {
+    const { jobId, revisionId } = req.params;
+    const { reason } = (req.body ?? {}) as { reason?: string };
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ error: "reason is required" });
+      return;
+    }
+    const rejectedBy = req.authUser?.email || "unknown";
+    const { rejectCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const result = await rejectCandidateRevision(jobId, revisionId, rejectedBy, reason);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Sheet Registrations (NSMS Phase 3) ─────────────────────────────────────
+// PDF-affine registrations bind a paper print's page-space to WGS84 so that
+// markup drawings can be projected onto the map. The client (printGeoreference)
+// computes the transform; the server enforces schema + append-only semantics
+// and writes an audit trail.
+
+router.get("/jobs/:jobId/sheet-registrations", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const documentId = typeof req.query.documentId === "string" ? req.query.documentId : undefined;
+    const pageNumberRaw = typeof req.query.pageNumber === "string" ? Number(req.query.pageNumber) : undefined;
+    const pageNumber = pageNumberRaw !== undefined && Number.isInteger(pageNumberRaw) ? pageNumberRaw : undefined;
+    const { listSheetRegistrations } = await import("../services/sheetRegistrationService.js");
+    const registrations = await listSheetRegistrations(jobId, { documentId, pageNumber });
+    res.json({ ok: true, registrations });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/jobs/:jobId/sheet-registrations", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const createdBy = req.authUser?.email || "unknown";
+    const body = (req.body ?? {}) as Partial<{
+      documentId: string;
+      pageNumber: number;
+      method: "corner" | "control-point" | "warp";
+      controlPoints: Array<{ sheet: { x: number; y: number }; geographic: { lat: number; lng: number } }>;
+      transform: { scale: number; rotationRad: number; tx: number; ty: number };
+      rmsError: number;
+      confidence: "low" | "medium" | "high";
+    }>;
+    const { createSheetRegistration } = await import("../services/sheetRegistrationService.js");
+    const registration = await createSheetRegistration({
+      jobId,
+      documentId: body.documentId ?? "",
+      pageNumber: body.pageNumber ?? 0,
+      method: (body.method ?? "control-point") as "corner" | "control-point" | "warp",
+      controlPoints: body.controlPoints ?? [],
+      transform: body.transform ?? { scale: 0, rotationRad: 0, tx: 0, ty: 0 },
+      rmsError: body.rmsError,
+      confidence: (body.confidence ?? "medium") as "low" | "medium" | "high",
+      createdBy,
+    });
+    res.json({ ok: true, registration });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete("/jobs/:jobId/sheet-registrations/:registrationId", async (req, res, next) => {
+  try {
+    const { jobId, registrationId } = req.params;
+    const deletedBy = req.authUser?.email || "unknown";
+    const { deleteSheetRegistration } = await import("../services/sheetRegistrationService.js");
+    const result = await deleteSheetRegistration(jobId, registrationId, deletedBy);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Print-Overlay → Earth Revision Bridge (NSMS Phase 3) ───────────────────
+// The client projects sheet-space markup drawings to WGS84 using an active
+// SheetRegistration and serializes the result to KML. This route accepts that
+// KML and funnels it through the same createCandidateRevision pipeline used
+// by the Google Earth Bridge, but tags the revision as source="pdf-markup".
+// Approval then flows through the existing RevisionReviewConsole → canonical
+// geoFeatures fan-out, so the review UX and audit trail are shared.
+
+router.post("/jobs/:jobId/print-overlay/promote-to-earth-revision", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const submittedBy = req.authUser?.email || "unknown";
+    const body = (req.body ?? {}) as { kmlText?: string; documentId?: string; sheetRegistrationId?: string };
+    if (!body.kmlText || typeof body.kmlText !== "string" || !body.kmlText.trim()) {
+      res.status(400).json({ error: "kmlText required (WGS84-projected drawings serialized to KML)" });
+      return;
+    }
+    const { createCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const revision = await createCandidateRevision(
+      jobId,
+      { kmlText: body.kmlText },
+      submittedBy,
+      "pdf-markup"
+    );
+    await recordAuditEvent(jobId, {
+      eventType: "earth_submission_received",
+      summary: `PDF markup promoted to Earth revision (${revision.featureCount} features, source=pdf-markup)`,
+      userEmail: submittedBy,
+      metadata: {
+        revisionId: revision.id,
+        source: "pdf-markup",
+        featureCount: revision.featureCount,
+        documentId: body.documentId ?? null,
+        sheetRegistrationId: body.sheetRegistrationId ?? null,
+        warnings: revision.warnings,
+      },
+    });
+    res.json({ ok: true, revision });
+  } catch (err) {
+    next(err);
+  }
+});
 
 export default router;

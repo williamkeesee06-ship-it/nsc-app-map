@@ -78,12 +78,35 @@ export function normalizeRow(
       }
     }
 
+    const rawHub = s(rec["Hub Number"]);
+    let buildRef = rawHub;
+    let buildRefType: "hub" | "splitter" | "route" | "backbone" | "custom" = "hub";
+
+    if (!buildRef) {
+      if (/^H\d+/i.test(workOrder)) {
+        buildRef = workOrder.match(/^H\d+/i)?.[0]?.toUpperCase() ?? null;
+        buildRefType = "hub";
+      } else if (/^S\d+/i.test(workOrder)) {
+        buildRef = workOrder.match(/^S\d+/i)?.[0]?.toUpperCase() ?? null;
+        buildRefType = "splitter";
+      } else if (/^RTE/i.test(workOrder)) {
+        buildRef = workOrder.match(/^RTE\s*\d+/i)?.[0]?.toUpperCase() ?? null;
+        buildRefType = "route";
+      }
+    }
+
+    const displayName = `${workOrder} — ${buildRef || "Unassigned"}`;
+
     // Ziply per-supervisor reports are pre-filtered in Smartsheet, so they do
     // NOT include a supervisor column. The supervisor is stamped by the caller
     // (see sheetsToSync loop) via a defaultSupervisor override.
     return {
       jobId: workOrderToJobId(workOrder),
       workOrder,
+      organizationId: "nsc",
+      buildReference: buildRef,
+      buildReferenceType: buildRefType,
+      displayName,
       smartsheetRowId: row.id,
       inTracker: true,
       jobStatus: s(rec["Job Status"]),
@@ -141,9 +164,15 @@ export function normalizeRow(
   }
 
   const workType = s(rec["Work Type"]);
+  const wc = s(rec["WIRE CENTER"]);
+  const displayName = `${workOrder} — ${wc || "Unassigned"}`;
   return {
     jobId: workOrderToJobId(workOrder),
     workOrder,
+    organizationId: "nsc",
+    buildReference: wc,
+    buildReferenceType: "custom",
+    displayName,
     smartsheetRowId: row.id,
     inTracker: true, // any row we see in the current sheet is on-tracker
     jobStatus: s(rec["Job Status"]),
@@ -154,7 +183,7 @@ export function normalizeRow(
     constructionManager: s(rec["Construction Manager"]),
     constructionBase: s(rec["Construction Base"]),
     customerProject: s(rec["Customer/Project"]) ?? s(rec["Customer / Project"]),
-    wireCenter: s(rec["WIRE CENTER"]),
+    wireCenter: wc,
     address: s(rec["Address"]),
     city: s(rec["City"]),
     zipCode: s(rec["Zip Code"]),
