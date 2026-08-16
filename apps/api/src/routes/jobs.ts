@@ -25,6 +25,7 @@ import {
   findRowByWorkOrder,
 } from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
+import { recordAuditEvent } from "../services/auditEventService.js";
 import { getEnv } from "../config/env.js";
 import {
   parseZiplyPrint,
@@ -3244,6 +3245,112 @@ router.post("/jobs/:jobId/earth/revisions/:revisionId/reject", async (req, res, 
     const { rejectCandidateRevision } = await import("../services/kmlIngestionService.js");
     const result = await rejectCandidateRevision(jobId, revisionId, rejectedBy, reason);
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Sheet Registrations (NSMS Phase 3) ─────────────────────────────────────
+// PDF-affine registrations bind a paper print's page-space to WGS84 so that
+// markup drawings can be projected onto the map. The client (printGeoreference)
+// computes the transform; the server enforces schema + append-only semantics
+// and writes an audit trail.
+
+router.get("/jobs/:jobId/sheet-registrations", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const documentId = typeof req.query.documentId === "string" ? req.query.documentId : undefined;
+    const pageNumberRaw = typeof req.query.pageNumber === "string" ? Number(req.query.pageNumber) : undefined;
+    const pageNumber = pageNumberRaw !== undefined && Number.isInteger(pageNumberRaw) ? pageNumberRaw : undefined;
+    const { listSheetRegistrations } = await import("../services/sheetRegistrationService.js");
+    const registrations = await listSheetRegistrations(jobId, { documentId, pageNumber });
+    res.json({ ok: true, registrations });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/jobs/:jobId/sheet-registrations", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const createdBy = req.authUser?.email || "unknown";
+    const body = (req.body ?? {}) as Partial<{
+      documentId: string;
+      pageNumber: number;
+      method: "corner" | "control-point" | "warp";
+      controlPoints: Array<{ sheet: { x: number; y: number }; geographic: { lat: number; lng: number } }>;
+      transform: { scale: number; rotationRad: number; tx: number; ty: number };
+      rmsError: number;
+      confidence: "low" | "medium" | "high";
+    }>;
+    const { createSheetRegistration } = await import("../services/sheetRegistrationService.js");
+    const registration = await createSheetRegistration({
+      jobId,
+      documentId: body.documentId ?? "",
+      pageNumber: body.pageNumber ?? 0,
+      method: (body.method ?? "control-point") as "corner" | "control-point" | "warp",
+      controlPoints: body.controlPoints ?? [],
+      transform: body.transform ?? { scale: 0, rotationRad: 0, tx: 0, ty: 0 },
+      rmsError: body.rmsError,
+      confidence: (body.confidence ?? "medium") as "low" | "medium" | "high",
+      createdBy,
+    });
+    res.json({ ok: true, registration });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete("/jobs/:jobId/sheet-registrations/:registrationId", async (req, res, next) => {
+  try {
+    const { jobId, registrationId } = req.params;
+    const deletedBy = req.authUser?.email || "unknown";
+    const { deleteSheetRegistration } = await import("../services/sheetRegistrationService.js");
+    const result = await deleteSheetRegistration(jobId, registrationId, deletedBy);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Print-Overlay → Earth Revision Bridge (NSMS Phase 3) ───────────────────
+// The client projects sheet-space markup drawings to WGS84 using an active
+// SheetRegistration and serializes the result to KML. This route accepts that
+// KML and funnels it through the same createCandidateRevision pipeline used
+// by the Google Earth Bridge, but tags the revision as source="pdf-markup".
+// Approval then flows through the existing RevisionReviewConsole → canonical
+// geoFeatures fan-out, so the review UX and audit trail are shared.
+
+router.post("/jobs/:jobId/print-overlay/promote-to-earth-revision", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const submittedBy = req.authUser?.email || "unknown";
+    const body = (req.body ?? {}) as { kmlText?: string; documentId?: string; sheetRegistrationId?: string };
+    if (!body.kmlText || typeof body.kmlText !== "string" || !body.kmlText.trim()) {
+      res.status(400).json({ error: "kmlText required (WGS84-projected drawings serialized to KML)" });
+      return;
+    }
+    const { createCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const revision = await createCandidateRevision(
+      jobId,
+      { kmlText: body.kmlText },
+      submittedBy,
+      "pdf-markup"
+    );
+    await recordAuditEvent(jobId, {
+      eventType: "earth_submission_received",
+      summary: `PDF markup promoted to Earth revision (${revision.featureCount} features, source=pdf-markup)`,
+      userEmail: submittedBy,
+      metadata: {
+        revisionId: revision.id,
+        source: "pdf-markup",
+        featureCount: revision.featureCount,
+        documentId: body.documentId ?? null,
+        sheetRegistrationId: body.sheetRegistrationId ?? null,
+        warnings: revision.warnings,
+      },
+    });
+    res.json({ ok: true, revision });
   } catch (err) {
     next(err);
   }

@@ -132,6 +132,49 @@ export const api = {
       { method: "POST", body: JSON.stringify({ ttlDays }) }
     ),
 
+  // Phase 3: NSMS sheet registrations
+  listSheetRegistrations: (
+    jobId: string,
+    filter?: { documentId?: string; pageNumber?: number }
+  ) => {
+    const params = new URLSearchParams();
+    if (filter?.documentId) params.set("documentId", filter.documentId);
+    if (filter?.pageNumber !== undefined) params.set("pageNumber", String(filter.pageNumber));
+    const qs = params.toString();
+    return request<{ ok: true; registrations: Array<any> }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/sheet-registrations${qs ? `?${qs}` : ""}`
+    );
+  },
+  createSheetRegistration: (
+    jobId: string,
+    reg: {
+      documentId: string;
+      pageNumber: number;
+      method: "corner" | "control-point" | "warp";
+      controlPoints: Array<{ sheet: { x: number; y: number }; geographic: { lat: number; lng: number } }>;
+      transform: { scale: number; rotationRad: number; tx: number; ty: number };
+      rmsError?: number;
+      confidence: "low" | "medium" | "high";
+    }
+  ) =>
+    request<{ ok: true; registration: any }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/sheet-registrations`,
+      { method: "POST", body: JSON.stringify(reg) }
+    ),
+  deleteSheetRegistration: (jobId: string, registrationId: string) =>
+    request<{ ok: true }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/sheet-registrations/${encodeURIComponent(registrationId)}`,
+      { method: "DELETE" }
+    ),
+  promotePrintOverlayToEarthRevision: (
+    jobId: string,
+    payload: { kmlText: string; documentId?: string; sheetRegistrationId?: string }
+  ) =>
+    request<{ ok: true; revision: any }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/print-overlay/promote-to-earth-revision`,
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
+
   // Legacy Phase 1/2 asbuilt (schemaVersion:1)
   getAsbuilt: (jobId: string) =>
     request<AsbuiltDoc>(`/api/asbuilt/${encodeURIComponent(jobId)}`),
