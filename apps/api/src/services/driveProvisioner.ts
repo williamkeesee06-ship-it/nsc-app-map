@@ -1,86 +1,46 @@
-import { db } from "../lib/firestore.js";
-import { recordAuditEvent } from "./auditEventService.js";
-import type { Job } from "@nsc/types";
+// Drive provisioning is INTENTIONALLY not implemented.
+//
+// Per operator directive on 2026-08-15, no Google Drive API integration is to be
+// wired in this branch. Prior code in this file fabricated synthetic folder IDs
+// (e.g. `drive_root_${jobId}_${now}`) and pretended those were real Drive folder
+// IDs. That is worse than nothing: downstream callers stored fake IDs on the
+// Job record and later tried to open URLs that don't exist.
+//
+// This module now returns a well-typed "not-provisioned" result and logs a
+// warning. When Drive is ready to be wired for real, replace the body with an
+// authenticated call to google.drive({ version: "v3" }).files.create(...) using
+// GOOGLE_DRIVE_CLIENT_EMAIL / GOOGLE_DRIVE_PRIVATE_KEY / GOOGLE_DRIVE_ROOT_FOLDER_ID
+// from env.ts. Do NOT return synthetic IDs.
 
-export interface ProvisionedDriveTree {
-  rootFolderId: string;
-  rootFolderName: string;
-  subfolders: {
-    jobControl: string;
-    earth: string;
-    planSets: string;
-    field: string;
-    asBuilt: string;
-    archive: string;
-  };
-  provisionedAt: number;
+export interface JobDriveHierarchy {
+  provisioned: false;
+  jobId: string;
+  workOrder: string;
+  buildReference: string | null;
+  reason: string;
 }
 
 /**
- * Idempotently provisions the NSMS Google Drive folder hierarchy for a job:
- *   {jobNumber} — {buildReference}/
- *     00-Job-Control/
- *     01-Earth/
- *     02-Plan-Sets/
- *     03-Field/
- *     04-As-Built/
- *     99-Archive/
+ * No-op provisioner. Always returns `provisioned: false` and never touches
+ * Google Drive. Callers must treat `provisioned === false` as "no Drive folder
+ * exists" and never persist a fake `driveFolderId` on the Job record.
  */
 export async function provisionJobDriveHierarchy(
   jobId: string,
-  jobNumber: string,
+  workOrder: string,
   buildReference?: string | null
-): Promise<ProvisionedDriveTree> {
-  const firestore = db();
-  const jobRef = firestore.collection("jobs").doc(jobId);
-  const snap = await jobRef.get();
-
-  const refName = buildReference && buildReference.trim() ? buildReference.trim() : "Unassigned";
-  const rootFolderName = `${jobNumber} — ${refName}`;
-  const now = Date.now();
-
-  // If already provisioned in the job doc, return existing mapping (idempotent)
-  if (snap.exists) {
-    const existing = snap.data() as Job & { driveHierarchy?: ProvisionedDriveTree };
-    if (existing.driveHierarchy && existing.driveHierarchy.rootFolderId) {
-      return existing.driveHierarchy;
-    }
-  }
-
-  // Standard synthetic IDs when Google Drive API credentials are in fallback mode
-  const rootFolderId = `drive_root_${jobId}_${now}`;
-  const hierarchy: ProvisionedDriveTree = {
-    rootFolderId,
-    rootFolderName,
-    subfolders: {
-      jobControl: `${rootFolderId}_00_control`,
-      earth: `${rootFolderId}_01_earth`,
-      planSets: `${rootFolderId}_02_plans`,
-      field: `${rootFolderId}_03_field`,
-      asBuilt: `${rootFolderId}_04_asbuilt`,
-      archive: `${rootFolderId}_99_archive`,
-    },
-    provisionedAt: now,
+): Promise<JobDriveHierarchy> {
+  // Deliberate breadcrumb so ops can see when the UI tries to provision.
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[driveProvisioner] Drive integration deferred. Refusing to fabricate IDs for job=${jobId} wo=${workOrder} ref=${buildReference ?? "n/a"}.`
+  );
+  return {
+    provisioned: false,
+    jobId,
+    workOrder,
+    buildReference: buildReference ?? null,
+    reason:
+      "Google Drive provisioning is not enabled in this build. Contact ops to wire GOOGLE_DRIVE_* env vars and replace this stub.",
   };
-
-  try {
-    await jobRef.set(
-      {
-        driveFolderId: rootFolderId,
-        driveHierarchy: hierarchy,
-        updatedAt: now,
-      },
-      { merge: true }
-    );
-
-    await recordAuditEvent(jobId, {
-      eventType: "job_provisioned",
-      summary: `Provisioned Drive folder tree: ${rootFolderName}`,
-      metadata: { rootFolderId, rootFolderName },
-    });
-  } catch (err) {
-    console.error(`[driveProvisioner] Failed to record drive hierarchy for job ${jobId}:`, err);
-  }
-
-  return hierarchy;
 }

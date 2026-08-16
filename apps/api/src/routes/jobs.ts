@@ -3028,7 +3028,14 @@ router.post("/jobs/:jobId/provision", async (req, res, next) => {
     }
     const job = doc.data() as Job;
     const { provisionJobDriveHierarchy } = await import("../services/driveProvisioner.js");
-    const hierarchy = await provisionJobDriveHierarchy(jobId, job.workOrder, job.buildReference);
+    const hierarchy = await provisionJobDriveHierarchy(
+      jobId,
+      job.workOrder,
+      job.buildReference ?? null
+    );
+    // Never persist a fake driveFolderId. The no-op provisioner returns
+    // provisioned:false; callers that treat that as success would silently
+    // corrupt Job records.
     res.json({ ok: true, hierarchy });
   } catch (err) {
     next(err);
@@ -3048,16 +3055,79 @@ router.get("/jobs/:jobId/timeline", async (req, res, next) => {
 });
 
 // ─── Phase 2: Earth Bridge KML & Review Console Endpoints ────────────────────
+//
+// The two GET /earth/... .kml routes are public paths (see isPublicApiPath)
+// because Google Earth cannot send Authorization headers on Network Link
+// fetches. They authenticate themselves via a signed HMAC token in the query
+// string, verified inline before any data is read. Every other Earth route
+// still requires a Firebase Bearer token through the standard middleware.
 
-// GET /api/earth/network-link/:jobId.kml — Live Network Link manifest
+/** Read all currently active drawing objects for a job. Unions the legacy
+ *  `asbuilt/current` doc with any per-user `asbuilt/{ownerSlug}` docs so the
+ *  Earth feed sees everything the map sees. */
+async function loadActiveJobObjects(jobId: string): Promise<any[]> {
+  const asbuiltSnaps = await db().collection("jobs").doc(jobId).collection("asbuilt").get();
+  const merged: any[] = [];
+  asbuiltSnaps.forEach((d) => {
+    const data = d.data();
+    const objs = Array.isArray(data?.objects) ? (data.objects as any[]) : [];
+    for (const o of objs) merged.push(o);
+  });
+  return merged;
+}
+
+// POST /api/jobs/:jobId/earth/network-link — Mint a signed KML Network Link URL
+//
+// Called by the EarthDesignPanel to hand the operator the URL to paste into
+// Google Earth Desktop or open via earth.google.com. The URL contains a signed
+// HMAC token so Earth's periodic refresh keeps working for `ttlDays` days.
+router.post("/jobs/:jobId/earth/network-link", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { ttlDays } = (req.body ?? {}) as { ttlDays?: number };
+    const ref = db().collection("jobs").doc(jobId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const { signFeedToken } = await import("../services/kmlService.js");
+    const ttlMs = Math.max(1, Math.min(365, ttlDays ?? 30)) * 24 * 60 * 60 * 1000;
+    const token = signFeedToken(jobId, ttlMs);
+    const host = req.get("host") || "nsc-app-map.vercel.app";
+    const networkLinkUrl = `https://${host}/api/earth/network-link/${encodeURIComponent(jobId)}.kml?token=${encodeURIComponent(token)}`;
+    res.json({ ok: true, networkLinkUrl, token, expiresAt: Date.now() + ttlMs });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/earth/network-link/:jobId.kml — Live Network Link manifest (public)
 router.get("/earth/network-link/:jobId.kml", async (req, res, next) => {
   try {
     const { jobId } = req.params;
+    const token = String(req.query.token ?? "");
+    const { verifyFeedToken, generateJobNetworkLinkKml, signFeedToken } = await import(
+      "../services/kmlService.js"
+    );
+    if (!verifyFeedToken(token, jobId)) {
+      res.status(401).send("Invalid or expired feed token");
+      return;
+    }
+    const ref = db().collection("jobs").doc(jobId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).send("Job not found");
+      return;
+    }
+    const job = snap.data() as Job;
+    // Re-sign so the embedded layer URL doesn't inherit the manifest's short
+    // remaining TTL — it always gets a fresh 30-day signed URL.
+    const layerToken = signFeedToken(jobId);
     const host = req.get("host") || "nsc-app-map.vercel.app";
-    const token = (req.query.token as string) || "feed_token_default";
-    const { generateJobNetworkLinkKml } = await import("../services/kmlService.js");
-    const kml = generateJobNetworkLinkKml(jobId, host, token);
+    const kml = generateJobNetworkLinkKml(job, host, layerToken);
     res.setHeader("Content-Type", "application/vnd.google-earth.kml+xml");
+    res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
     res.setHeader("Content-Disposition", `inline; filename="job_${jobId}_network_link.kml"`);
     res.send(kml);
   } catch (err) {
@@ -3065,25 +3135,37 @@ router.get("/earth/network-link/:jobId.kml", async (req, res, next) => {
   }
 });
 
-// GET /api/earth/layers/:jobId/all.kml — Dynamic Layer KML feed
+// GET /api/earth/layers/:jobId/all.kml — Dynamic Layer KML feed (public)
 router.get("/earth/layers/:jobId/all.kml", async (req, res, next) => {
   try {
     const { jobId } = req.params;
+    const token = String(req.query.token ?? "");
+    const layerParam = String(req.query.layer ?? "all");
+    const layerCode = (["all", "earth_design", "asbuilt", "pdf_markup", "other"] as const)
+      .includes(layerParam as any)
+      ? (layerParam as any)
+      : "all";
+
+    const { verifyFeedToken, generateJobLayersKml } = await import("../services/kmlService.js");
+    if (!verifyFeedToken(token, jobId)) {
+      res.status(401).send("Invalid or expired feed token");
+      return;
+    }
+
     const ref = db().collection("jobs").doc(jobId);
-    const doc = await ref.get();
-    if (!doc.exists) {
+    const snap = await ref.get();
+    if (!snap.exists) {
       res.status(404).send("Job not found");
       return;
     }
-    const job = doc.data() as Job;
+    const job = snap.data() as Job;
 
-    // Fetch active markups / geometry
-    const asbuiltSnap = await db().collection("jobs").doc(jobId).collection("asbuilt").doc("current").get();
-    const markups = (asbuiltSnap.exists ? asbuiltSnap.data()?.objects : []) || [];
-
-    const { generateJobLayersKml } = await import("../services/kmlService.js");
-    const kml = generateJobLayersKml(job, markups, "all");
+    const markups = await loadActiveJobObjects(jobId);
+    const kml = generateJobLayersKml(job, markups, layerCode);
     res.setHeader("Content-Type", "application/vnd.google-earth.kml+xml");
+    // Earth honors refreshInterval; still, allow no proxy caching between
+    // Earth and us so operator edits show up on the next poll.
+    res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
     res.setHeader("Content-Disposition", `inline; filename="job_${jobId}_layers.kml"`);
     res.send(kml);
   } catch (err) {
@@ -3091,17 +3173,27 @@ router.get("/earth/layers/:jobId/all.kml", async (req, res, next) => {
   }
 });
 
-// POST /api/jobs/:jobId/earth/submissions — Upload KML candidate submission
+// POST /api/jobs/:jobId/earth/submissions — Upload KML/KMZ candidate submission
 router.post("/jobs/:jobId/earth/submissions", async (req, res, next) => {
   try {
     const { jobId } = req.params;
-    const { kmlText, submittedBy } = req.body as { kmlText: string; submittedBy?: string };
-    if (!kmlText) {
-      res.status(400).json({ error: "kmlText is required" });
+    const body = (req.body ?? {}) as {
+      kmlText?: string;
+      kmzBase64?: string;
+      submittedBy?: string;
+    };
+    if (!body.kmlText && !body.kmzBase64) {
+      res.status(400).json({ error: "Provide kmlText or kmzBase64" });
       return;
     }
+    const submittedBy =
+      body.submittedBy?.trim() || req.authUser?.email || "unknown";
     const { createCandidateRevision } = await import("../services/kmlIngestionService.js");
-    const revision = await createCandidateRevision(jobId, kmlText, submittedBy || "Google Earth User");
+    const revision = await createCandidateRevision(
+      jobId,
+      { kmlText: body.kmlText, kmzBase64: body.kmzBase64 },
+      submittedBy
+    );
     res.json({ ok: true, revision });
   } catch (err) {
     next(err);
@@ -3130,10 +3222,28 @@ router.get("/jobs/:jobId/earth/revisions", async (req, res, next) => {
 router.post("/jobs/:jobId/earth/revisions/:revisionId/approve", async (req, res, next) => {
   try {
     const { jobId, revisionId } = req.params;
-    const { approvedBy } = req.body as { approvedBy?: string };
+    const approvedBy = req.authUser?.email || "unknown";
     const { approveCandidateRevision } = await import("../services/kmlIngestionService.js");
-    await approveCandidateRevision(jobId, revisionId, approvedBy || "Billy Keesee");
-    res.json({ ok: true });
+    const result = await approveCandidateRevision(jobId, revisionId, approvedBy);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/earth/revisions/:revisionId/reject — Reject with reason
+router.post("/jobs/:jobId/earth/revisions/:revisionId/reject", async (req, res, next) => {
+  try {
+    const { jobId, revisionId } = req.params;
+    const { reason } = (req.body ?? {}) as { reason?: string };
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ error: "reason is required" });
+      return;
+    }
+    const rejectedBy = req.authUser?.email || "unknown";
+    const { rejectCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const result = await rejectCandidateRevision(jobId, revisionId, rejectedBy, reason);
+    res.json(result);
   } catch (err) {
     next(err);
   }

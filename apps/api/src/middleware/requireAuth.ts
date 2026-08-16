@@ -32,10 +32,13 @@ function parseAllowedEmails(): string[] {
     .filter(Boolean);
 }
 
-/** Paths under /api that skip Firebase auth (health + Vercel crons). */
+/** Paths under /api that skip Firebase auth (health + Vercel crons + KML feeds).
+ *  KML feeds authenticate themselves with a signed HMAC token in the query
+ *  string because Google Earth cannot send Authorization headers on Network
+ *  Link fetches. Verification happens inside the route handler. */
 export function isPublicApiPath(path: string): boolean {
   const p = path.split("?")[0] ?? path;
-  return (
+  if (
     p === "/health" ||
     p === "/lumina/brief/daily" ||
     p === "/lumina/stale-tasks" ||
@@ -43,7 +46,13 @@ export function isPublicApiPath(path: string): boolean {
     p === "/sync/admin" ||
     p === "/sync/reconcile-tracker" ||
     p === "/sync/purge-print-overlay-docs"
-  );
+  ) {
+    return true;
+  }
+  // KML feeds — signed token in query string, verified in the route.
+  if (p.startsWith("/earth/network-link/") && p.endsWith(".kml")) return true;
+  if (p.startsWith("/earth/layers/") && p.endsWith(".kml")) return true;
+  return false;
 }
 
 export async function requireAuth(
