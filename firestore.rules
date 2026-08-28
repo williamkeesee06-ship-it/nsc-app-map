@@ -1,0 +1,35 @@
+rules_version = '2';
+
+// NSC APP MAP — Firestore security rules.
+//
+// NOTE: The application server talks to Firestore through the Firebase Admin
+// SDK, which bypasses these rules entirely. They exist as defense-in-depth for
+// any future *client-side* SDK access (e.g. the polygon tool reading/writing
+// jobs/{jobId}.digPolygon directly). Until then they simply codify the intended
+// access model: only William may read/write jobs and dig tickets.
+//
+// Set WILLIAM_UID to William's real Firebase Auth uid before enabling client
+// access. The placeholder below denies everyone until that happens.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isWilliam() {
+      return request.auth != null
+        && request.auth.uid == 'REPLACE_WITH_WILLIAM_FIREBASE_UID';
+    }
+
+    // Job records (Smartsheet-backed). Phase 1 adds digPolygon + locate fields.
+    match /jobs/{jobId} {
+      allow read, write: if isWilliam();
+
+      // As-built markups and per-job photos nested under a job.
+      match /{sub=**} {
+        allow read, write: if isWilliam();
+      }
+    }
+
+    // 811 dig tickets (Phase 1 collection).
+    match /digTickets/{ticketId} {
+      allow read, write: if isWilliam();
+    }
+  }
+}

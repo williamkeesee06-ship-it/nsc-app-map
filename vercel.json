@@ -5,11 +5,21 @@
   "installCommand": "npm install",
   "functions": {
     "api/index.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/lumina/brief/daily",
+      "schedule": "30 13 * * *"
+    },
+    {
+      "path": "/api/lumina/stale-tasks",
+      "schedule": "0 15 * * *"
+    }
   ]
 }

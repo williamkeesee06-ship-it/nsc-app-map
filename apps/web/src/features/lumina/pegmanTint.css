@@ -1,0 +1,46 @@
+/* Pegman re-skin — CSS overlay tint.
+ *
+ * Google Maps renders Pegman inside .gm-svpc with an SVG/PNG sprite we can't
+ * directly replace. Instead we apply a color filter chain that takes Google's
+ * yellow Pegman → Lumina-neon-blue, plus a soft drop-shadow that mirrors the
+ * orb's glow language.
+ *
+ * Replacement-proof: if Google changes the markup, the filter just stops
+ * applying and the user sees the default Pegman. No crash.
+ *
+ * Loaded globally (not inside the Tailwind scope) because it targets a
+ * DOM Google owns. Imported by App.tsx alongside lumina.css.
+ */
+
+.gm-svpc > div:first-child img,
+.gm-svpc img {
+  /* Tint hue toward electric-blue while keeping detail visible. */
+  filter:
+    hue-rotate(180deg)
+    saturate(1.4)
+    brightness(1.05)
+    drop-shadow(0 0 4px rgba(30, 167, 255, 0.65))
+    drop-shadow(0 0 10px rgba(30, 167, 255, 0.4));
+  transition: filter 220ms ease;
+}
+
+.gm-svpc:hover img {
+  filter:
+    hue-rotate(180deg)
+    saturate(1.55)
+    brightness(1.15)
+    drop-shadow(0 0 6px rgba(30, 167, 255, 0.85))
+    drop-shadow(0 0 14px rgba(30, 167, 255, 0.55));
+}
+
+/* When you drag Pegman to drop onto a street, Google renders a hovering copy
+ * of the icon at the cursor — tint that one too so the whole interaction
+ * stays on-brand. */
+.gm-svpc + div img,
+[role="button"][aria-label*="Street View"] img {
+  filter:
+    hue-rotate(180deg)
+    saturate(1.4)
+    brightness(1.05)
+    drop-shadow(0 0 4px rgba(30, 167, 255, 0.65));
+}

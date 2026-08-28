@@ -10,6 +10,9 @@ import { downloadScreenshot } from "./screenshot.js";
 import SaveDrawingDialog from "./SaveDrawingDialog.js";
 import LocateMeButton from "./LocateMe.js";
 import { useJobsContext } from "../jobs-map/jobsContext.js";
+// MapTypeToggle was moved out of the topbar and now lives in the Filters
+// tab as a radio-button section (see map/MapTypeFilterSection.tsx). The
+// move freed horizontal room here so the search bar can stretch wider.
 
 export default function TopbarActions() {
   // Gracefully consume the context — may be null outside DrawingProvider routes
@@ -118,15 +121,33 @@ export default function TopbarActions() {
         )}
         <button
           type="button"
-          className="screenshot-btn"
           onClick={handleScreenshot}
           disabled={screenshotting}
-          title="Screenshot entire screen (JPEG) — Ctrl/Cmd + Shift + S"
+          title="Screenshot map (JPEG) — Ctrl/Cmd + Shift + S"
           aria-label="Take full screen screenshot"
+          style={{
+            background: screenshotting ? "rgba(0,212,255,0.15)" : "rgba(0,0,0,0.5)",
+            border: "1px solid rgba(0,212,255,0.4)",
+            boxShadow: screenshotting ? "0 0 16px rgba(0,212,255,0.5)" : "0 0 8px rgba(0,212,255,0.2)",
+            color: "#00d4ff",
+            clipPath: "polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)",
+            padding: "6px 14px",
+            cursor: screenshotting ? "wait" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 9,
+            fontWeight: 800,
+            letterSpacing: "0.1em",
+            fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
+            transition: "all 0.15s ease",
+          }}
         >
           {screenshotting ? "⏳" : <ScreenshotIcon />}
         </button>
-        <CoinBtn disabled title="Save" variant="save">💾</CoinBtn>
+        {/* Base map / theme controls live in the Filters tab now — see
+            map/MapTypeFilterSection.tsx. Removed from the topbar to free
+            room for a wider search bar. */}
       </div>
     );
   }
@@ -176,17 +197,37 @@ export default function TopbarActions() {
         {/* Screenshot button — always usable, even with no target job */}
         <button
           type="button"
-          className="screenshot-btn"
           onClick={handleScreenshot}
           disabled={screenshotting}
-          title="Screenshot entire screen (JPEG) — Ctrl/Cmd + Shift + S"
+          title="Screenshot map (JPEG) — Ctrl/Cmd + Shift + S"
           aria-label="Take full screen screenshot"
+          style={{
+            background: screenshotting ? "rgba(0,212,255,0.15)" : "rgba(0,0,0,0.5)",
+            border: "1px solid rgba(0,212,255,0.4)",
+            boxShadow: screenshotting ? "0 0 16px rgba(0,212,255,0.5)" : "0 0 8px rgba(0,212,255,0.2)",
+            color: "#00d4ff",
+            clipPath: "polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)",
+            padding: "6px 14px",
+            cursor: screenshotting ? "wait" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 9,
+            fontWeight: 800,
+            letterSpacing: "0.1em",
+            fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
+            transition: "all 0.15s ease",
+          }}
         >
           {screenshotting ? "⏳" : <ScreenshotIcon />}
         </button>
 
-        {/* Phase 5: workspace mode shows auto-save status pill */}
-        {isWorkspace ? (
+        {/* Map style toggle lives in the Filters tab now — see
+            map/MapTypeFilterSection.tsx. */}
+
+        {/* Phase 5: workspace mode shows auto-save status pill (gives confirmation that
+            autosave is working, since the explicit save button was removed). */}
+        {isWorkspace && (
           <AutoSavePill
             dirty={dirty}
             saving={isSaving}
@@ -196,60 +237,22 @@ export default function TopbarActions() {
             workOrder={targetWorkOrder ?? targetJobId}
             onRetry={() => void save()}
           />
-        ) : (
-          <>
-            {/* Save target badge */}
-            <div className="save-target-badge">
-              {noTarget ? (
-                <span className="save-target-badge__hint">
-                  {canSaveNew ? "Unsaved drawing" : "No job selected"}
-                </span>
-              ) : (
-                <>
-                  <span className="save-target-badge__hint">Saving to:</span>
-                  <span className="save-target-badge__wo">{targetWorkOrder ?? targetJobId}</span>
-                </>
-              )}
-              {saveError && (
-                <span
-                  style={{ fontSize: 9, color: "var(--danger)", cursor: "pointer" }}
-                  title={saveError}
-                  onClick={() => window.alert(`Save failed:\n\n${saveError}`)}
-                >⚠ Failed (click for details)</span>
-              )}
-            </div>
+        )}
 
-            {/* Phase 5.3: always enabled save button */}
-            <CoinBtn
-              onClick={handleSave}
-              disabled={isSaving}
-              title={saveBtnTitle()}
-              variant="save"
-              extraClass={isSaving ? "saving" : savedFlash ? "saved" : undefined}
-            >
-              {saveLabel()}
-            </CoinBtn>
-
-            {/* Quick access to Field Findings — core use case: document cut cables,
-                damage, or anything seen in the field not tied to a specific work order. */}
-            {!isWorkspace && (
-              <CoinBtn
-                onClick={() => {
-                  // Best experience: let the user draw immediately as a field finding.
-                  // We set a synthetic target so autosave + tools work, then the Save
-                  // button will offer to persist it as a proper Field Finding.
-                  const ffId = `__ff__quick-${Date.now().toString(36)}`;
-                  if (ctx && typeof ctx.setTarget === "function") {
-                    ctx.setTarget(ffId, "Field Finding (unsaved)");
-                  }
-                  setShowSaveDialog(true);
-                }}
-                title="Start documenting something seen in the field (cut cables, damage, unmarked infrastructure, etc.). Draw now — it will save as a Field Finding visible on the main Jobs Map."
-              >
-                📍
-              </CoinBtn>
-            )}
-          </>
+        {/* Field Findings quick-add — only outside workspace mode. */}
+        {!isWorkspace && (
+          <CoinBtn
+            onClick={() => {
+              const ffId = `__ff__quick-${Date.now().toString(36)}`;
+              if (ctx && typeof ctx.setTarget === "function") {
+                ctx.setTarget(ffId, "Field Finding (unsaved)");
+              }
+              setShowSaveDialog(true);
+            }}
+            title="Document something seen in the field (cut cables, damage, unmarked infrastructure). Draw now — it autosaves as a Field Finding."
+          >
+            📍
+          </CoinBtn>
         )}
       </div>
 
@@ -331,16 +334,42 @@ function AutoSavePill({ dirty, saving, saveError, autoSaveCountdown, savedFlash,
   );
 }
 
-function ScreenshotIcon() {
+function MeasureIcon() {
+  // Ruler — stroke-only so it reads cleanly at small sizes on any background.
+  // No knockouts; uses currentColor strokes only.
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      {/* Modern high-tech camera icon */}
-      <rect x="3" y="5" width="18" height="14" rx="2" ry="2"/>
-      <circle cx="12" cy="12" r="3.5"/>
-      <path d="M8 2v3"/>
-      <path d="M16 2v3"/>
-      {/* Small tech accent line */}
-      <line x1="19" y1="8" x2="21" y2="8" strokeWidth="1.5"/>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {/* Angled ruler outline */}
+      <path d="M3 14.5 L9.5 21 L21 9.5 L14.5 3 Z" />
+      {/* Tick marks as short lines, not knockouts */}
+      <line x1="6.5"  y1="15.5" x2="8"  y2="17" />
+      <line x1="9"    y1="13"   x2="11" y2="15" />
+      <line x1="11.5" y1="10.5" x2="13" y2="12" />
+      <line x1="14"   y1="8"    x2="16" y2="10" />
+      <line x1="16.5" y1="5.5"  x2="18" y2="7"  />
+    </svg>
+  );
+}
+
+function ScreenshotIcon() {
+  // A modern camera icon matching the cyan and gray cyberpunk theme.
+  const BODY = "#cdd3dc";    // bright gray body
+  const CYAN = "#2bb3ff";    // neon blue lens and accent
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {/* Camera Body */}
+      <path
+        d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+        stroke={BODY} strokeWidth="2.1"
+      />
+      {/* Lens outer circle */}
+      <circle cx="12" cy="13" r="4" stroke={CYAN} strokeWidth="2.1" />
+      {/* Lens center dot */}
+      <circle cx="12" cy="13" r="1" fill={CYAN} />
+      {/* Flash indicator */}
+      <circle cx="19" cy="9" r="1.2" fill={BODY} />
     </svg>
   );
 }

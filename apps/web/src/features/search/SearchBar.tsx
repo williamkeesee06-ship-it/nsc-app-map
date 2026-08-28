@@ -15,6 +15,43 @@ import { useSearchFocus } from "./searchContext.js";
 import { useMarkupSearchEntries, type MarkupSearchEntry } from "./markupSearchStore.js";
 import type { Job } from "@nsc/types";
 
+// Neon-glow magnifying glass icon. Pure SVG, cyan stroke, drop-shadow filter
+// gives it the bright "neon sign" look that matches the search-bar styling.
+function NeonMagnifier() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      style={{
+        filter:
+          "drop-shadow(0 0 2px #6ee0ff) drop-shadow(0 0 5px #1fb6ff) drop-shadow(0 0 9px #1fb6ff)",
+      }}
+    >
+      <circle cx="10.5" cy="10.5" r="6.5" stroke="#7fe5ff" strokeWidth="1.8" />
+      <line
+        x1="15.5"
+        y1="15.5"
+        x2="21"
+        y2="21"
+        stroke="#7fe5ff"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+// Google Places Autocomplete prediction — the subset we render.
+interface PlacePrediction {
+  placeId: string;
+  description: string;
+  main: string;
+  secondary: string;
+}
+
 export default function SearchBar() {
   const jobsState = useJobs();
   const allJobs = jobsState.state === "ready" ? jobsState.jobs : [];
@@ -26,7 +63,11 @@ export default function SearchBar() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [placePreds, setPlacePreds] = useState<PlacePrediction[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Lazy-initialized Google AutocompleteService + session token.
+  const autocompleteRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
 
   // Click-outside to close suggestion panel.
   useEffect(() => {
@@ -37,6 +78,120 @@ export default function SearchBar() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Google Places Autocomplete — debounced address predictions biased to WA.
+  useEffect(() => {
+    const t = term.trim();
+    if (t.length < 3) {
+      setPlacePreds([]);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      const g = (window as any).google;
+      if (!g?.maps?.places) {
+        // Places lib not loaded yet — silently skip; user can still press Enter to geocode.
+        return;
+      }
+      if (!sessionTokenRef.current) {
+        sessionTokenRef.current = new g.maps.places.AutocompleteSessionToken();
+      }
+      const bounds = new google.maps.LatLngBounds(
+        { lat: 45.5, lng: -124.8 },
+        { lat: 49.0, lng: -116.9 },
+      );
+
+      function runLegacyAutocomplete(inputVal: string, mapsObj: any, boundary: google.maps.LatLngBounds) {
+        if (!autocompleteRef.current) {
+          autocompleteRef.current = new mapsObj.maps.places.AutocompleteService();
+        }
+        autocompleteRef.current!.getPlacePredictions(
+          {
+            input: inputVal,
+            bounds: boundary,
+            componentRestrictions: { country: "us" },
+            sessionToken: sessionTokenRef.current!,
+          },
+          (preds, status) => {
+            if (status !== google.maps.places.PlacesServiceStatus.OK || !preds) {
+              setPlacePreds([]);
+              return;
+            }
+            setPlacePreds(
+              preds.slice(0, 5).map((p) => ({
+                placeId: p.place_id,
+                description: p.description,
+                main: p.structured_formatting?.main_text ?? p.description,
+                secondary: p.structured_formatting?.secondary_text ?? "",
+              })),
+            );
+          },
+        );
+      }
+
+      // Check if Places API (New) is available
+      if (g.maps.places.AutocompleteSuggestion) {
+        g.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input: t,
+          locationBias: bounds,
+          includedRegionCodes: ["us"],
+          sessionToken: sessionTokenRef.current,
+        })
+          .then((res: any) => {
+            const suggestions = res.suggestions || [];
+            setPlacePreds(
+              suggestions
+                .slice(0, 5)
+                .map((s: any) => {
+                  const p = s.placePrediction;
+                  if (!p) return null;
+                  const fullText = p.text?.text || "";
+                  const mainText = p.mainText?.text || fullText;
+                  const secText = p.secondaryText?.text || "";
+                  return {
+                    placeId: p.placeId,
+                    description: fullText,
+                    main: mainText,
+                    secondary: secText,
+                  };
+                })
+                .filter(Boolean) as PlacePrediction[]
+            );
+          })
+          .catch((err: any) => {
+            console.warn("Places API (New) failed, falling back to legacy:", err);
+            runLegacyAutocomplete(t, g, bounds);
+          });
+      } else {
+        runLegacyAutocomplete(t, g, bounds);
+      }
+    }, 200);
+    return () => window.clearTimeout(handle);
+  }, [term]);
+
+  async function pickPlace(p: PlacePrediction) {
+    setOpen(false);
+    setError(null);
+    setTerm(p.description);
+    navigate("/");
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
+    // Geocode the place_id to get lat/lng (cheaper than PlacesService.getDetails).
+    const g = (window as unknown as { google?: { maps?: { Geocoder?: new () => google.maps.Geocoder } } }).google;
+    if (!g?.maps?.Geocoder) return;
+    const geocoder = new g.maps.Geocoder();
+    geocoder.geocode({ placeId: p.placeId }, (results, status) => {
+      if (status === "OK" && results && results[0]) {
+        const loc = results[0].geometry.location;
+        focusLatLng(loc.lat(), loc.lng(), p.description);
+        window.dispatchEvent(
+          new CustomEvent("nsc:pan-to", {
+            detail: { lat: loc.lat(), lng: loc.lng(), zoom: 17 },
+          })
+        );
+      }
+      // Reset session token after a pick — starts a new billing session.
+      sessionTokenRef.current = null;
+    });
+  }
 
   const suggestions = useMemo<Job[]>(() => {
     const t = term.trim().toLowerCase();
@@ -67,7 +222,45 @@ export default function SearchBar() {
     setTerm(job.workOrder);
     // Ensure we're on the Jobs Map route so the map exists to receive focus.
     navigate("/");
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
     focusJob(job.jobId);
+    // Fly the map. React re-renders on job-select can cause the camera to
+    // reset (marker re-mount, print overlay bounds, filter re-apply), so we
+    // dispatch the pan multiple times across animation frames so at least one
+    // lands AFTER the churn settles. Idempotent — same target every time.
+    const g = job.geocode;
+    const geoOk =
+      g?.status === "OK" &&
+      typeof g.lat === "number" &&
+      typeof g.lng === "number" &&
+      g.lat !== 0 &&
+      g.lng !== 0;
+    if (!geoOk) {
+      console.warn("[SearchBar] pickJob: no valid geocode on job", {
+        jobId: job.jobId,
+        workOrder: job.workOrder,
+        geocode: job.geocode,
+      });
+      return;
+    }
+    const lat = g!.lat!;
+    const lng = g!.lng!;
+    const fire = () => {
+      window.dispatchEvent(
+        new CustomEvent("nsc:pan-to", {
+          detail: { lat, lng, zoom: 17 },
+        })
+      );
+    };
+    // Immediate + across the next few frames + after selection side-effects
+    // have flushed. If the map isn't mounted yet, later dispatches still land.
+    fire();
+    requestAnimationFrame(() => {
+      fire();
+      requestAnimationFrame(fire);
+    });
+    window.setTimeout(fire, 120);
+    window.setTimeout(fire, 400);
   }
 
   function pickMarkup(m: MarkupSearchEntry) {
@@ -75,6 +268,7 @@ export default function SearchBar() {
     setError(null);
     setTerm(m.label);
     navigate("/");
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
     // Jump the map to the markup's location. Job card will open via
     // the existing AllJobsMarkupsOverlay click handler the next time the
     // user clicks the markup; we just take them to the spot first.
@@ -142,7 +336,13 @@ export default function SearchBar() {
         setOpen(true);
         return;
       }
+      window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
       focusLatLng(hit.lat, hit.lng, hit.label);
+      window.dispatchEvent(
+        new CustomEvent("nsc:pan-to", {
+          detail: { lat: hit.lat, lng: hit.lng, zoom: 17 },
+        })
+      );
       setOpen(false);
     } finally {
       setBusy(false);
@@ -151,8 +351,7 @@ export default function SearchBar() {
 
   return (
     <div className="search-wrap" ref={wrapRef}>
-      <form className="search-form" onSubmit={onSubmit} role="search">
-        <span className="search-form__icon" aria-hidden>⌕</span>
+      <form className="search-form search-form--neon" onSubmit={onSubmit} role="search">
         <input
           className="search-form__input"
           value={term}
@@ -181,8 +380,14 @@ export default function SearchBar() {
             ×
           </button>
         )}
-        <button type="submit" className="search-form__submit" disabled={busy}>
-          {busy ? "…" : "Go"}
+        <button
+          type="submit"
+          className="search-form__submit search-form__submit--icon"
+          disabled={busy}
+          aria-label="Search"
+          title="Search"
+        >
+          {busy ? "…" : <NeonMagnifier />}
         </button>
       </form>
 
@@ -237,9 +442,29 @@ export default function SearchBar() {
             </>
           )}
 
-          {suggestions.length === 0 && markupSuggestions.length === 0 && !error && term.trim().length > 0 && (
+          {placePreds.length > 0 && (
+            <>
+              <div className="search-suggest__heading">ADDRESSES</div>
+              <ul className="search-suggest__list">
+                {placePreds.map((p) => (
+                  <li key={p.placeId}>
+                    <button
+                      type="button"
+                      className="search-suggest__row search-suggest__row--place"
+                      onClick={() => void pickPlace(p)}
+                    >
+                      <span className="search-suggest__wo">{p.main}</span>
+                      <span className="search-suggest__addr">{p.secondary}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {suggestions.length === 0 && markupSuggestions.length === 0 && placePreds.length === 0 && !error && term.trim().length > 0 && (
             <div className="search-suggest__hint">
-              No job or markup match — press <kbd>Enter</kbd> to search this as an address.
+              No match yet — press <kbd>Enter</kbd> to search this as an address.
             </div>
           )}
         </div>

@@ -9,13 +9,32 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
 import type { DrawingObject } from "@nsc/types";
-import { useDrawing } from "./drawingContext.js";
+import { useDrawing, defaultStyleForTool } from "./drawingContext.js";
 import { DrawingEngine } from "./DrawingEngine.js";
 import { iconForTool } from "./icons/telecomIcons.js";
 import ObjectDetailsPopup from "./ObjectDetailsPopup.js";
 import ObjectDetailsCard from "./ObjectDetailsCard.js";
+import MarkupPhotosPopup from "./MarkupPhotosPopup.js";
+import { useAuth } from "../auth/authContext.js";
+import { attachNetworkHalo } from "../jobs-map/networkHalo.js";
+// Billy 6/8 (#5): label rendering / placement / callout helpers extracted.
+import {
+  type OverlayRef,
+  ZOOM_REF,
+  MIN_LABEL_ZOOM,
+  labelTextForObj,
+  clearAllLabels,
+  rebuildAllLabels,
+  midpointOfVertices,
+} from "./DrawingOverlayLabels.js";
 
 const FEET_PER_METER = 3.28084;
+
+// Billy 6/5: tools where the user ALWAYS types a label (atag / #) — popup
+// must always open. Everything else commits instantly with no popup.
+const LABEL_REQUIRED_TOOLS = new Set<string>([
+  "text", "callout",
+]);
 
 // ── Cable line rendering ──────────────────────────────────────────────────────
 
@@ -26,11 +45,27 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
   const tool = obj.tool as string;
   const style = obj.style;
 
-  if (tool === "placed_cable") {
+  // NSMS Binding Rule: Line always renders with exact saved user style
+  const color = style.strokeColor || "#1ea7ff";
+  const opacity = style.opacity ?? 0.9;
+  const weight = style.strokeWidth ?? 3;
+  let icons: google.maps.IconSequence[] | undefined = undefined;
+
+  if (style.animateFlow && (tool === "placed_cable" || tool === "line" || tool === "arrow" || tool.startsWith("ziply_"))) {
     return {
-      strokeColor: PLACED_COLOR,
-      strokeWeight: style.strokeWidth,
-      strokeOpacity: style.opacity,
+      strokeColor: color,
+      strokeWeight: weight,
+      strokeOpacity: opacity,
+      icons: [{
+        icon: {
+          path: "M 0,-1.5 0,1.5",
+          strokeOpacity: 1,
+          scale: weight * 1.2,
+          strokeColor: color,
+        },
+        offset: "0px",
+        repeat: "30px"
+      }]
     };
   }
 
@@ -38,25 +73,28 @@ function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partia
     const xSymbol: google.maps.Symbol = {
       path: "M -1,-1 1,1 M -1,1 1,-1",
       strokeColor: REMOVED_COLOR,
-      strokeWeight: Math.max(2, style.strokeWidth - 1),
-      scale: Math.max(3, style.strokeWidth + 1),
+      strokeWeight: Math.max(2, weight - 1),
+      scale: Math.max(3, weight + 1),
     };
     return {
-      strokeColor: REMOVED_COLOR,
-      strokeWeight: style.strokeWidth,
-      strokeOpacity: style.opacity,
+      strokeColor: color,
+      strokeWeight: weight,
+      strokeOpacity: opacity,
       icons: [{ icon: xSymbol, offset: "0", repeat: "60px" }],
     };
   }
 
+  if (style.strokeStyle === "dashed") {
+    icons = [{ icon: { path: "M 0,-1 0,1", strokeOpacity: opacity, scale: weight }, offset: "0", repeat: "12px" }];
+  } else if (style.strokeStyle === "dotted") {
+    icons = [{ icon: { path: "M 0,0 0,0.01", strokeOpacity: opacity, scale: weight }, offset: "0", repeat: "6px" }];
+  }
+
   return {
-    strokeColor: style.strokeColor,
-    strokeWeight: style.strokeWidth,
-    strokeOpacity: style.opacity,
-    icons:
-      style.strokeStyle === "dashed"
-        ? [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: style.strokeWidth }, offset: "0", repeat: "12px" }]
-        : undefined,
+    strokeColor: color,
+    strokeWeight: weight,
+    strokeOpacity: opacity,
+    icons,
   };
 }
 
@@ -248,13 +286,6 @@ function hatchSpecForObj(obj: DrawingObject, isSelected: boolean): HatchSpec | n
   };
 }
 
-type OverlayRef =
-  | google.maps.Polyline
-  | google.maps.Polygon
-  | google.maps.Rectangle
-  | google.maps.Circle
-  | google.maps.Marker;
-
 function distanceFeet(vertices: Array<{ lat: number; lng: number }>): number {
   if (vertices.length < 2) return 0;
   let d = 0;
@@ -276,315 +307,46 @@ const POINT_TOOLS = new Set([
   "pole_new", "pole_removed",
   "cabinet_new", "cabinet_removed",
   "anchor_new", "anchor_removed",
+  "splice",
+  "ziply_hub",
+  "ziply_terminal",
+  "ziply_address",
+  "ziply_pole",
+  "ziply_handhole",
+  "ziply_splitter",
+  "ziply_riser",
+  "ziply_slack_loop",
 ]);
 
 function isPointTool(tool: string): boolean {
-  return POINT_TOOLS.has(tool);
+  if (!tool) return false;
+  const t = tool.toLowerCase();
+  return (
+    t.includes("pole") ||
+    t.includes("mh") ||
+    t.includes("hh") ||
+    t.includes("ped") ||
+    t.includes("cabinet") ||
+    t.includes("anchor") ||
+    t.includes("splice") ||
+    t.includes("flower") ||
+    t.startsWith("ziply_") ||
+    POINT_TOOLS.has(tool)
+  );
 }
 
 // ── Zoom-scaled symbol size ────────────────────────────────────────────────────
-
-const ZOOM_REF = 17;
-// Phase 9.5 -> 9.7: a-tags appear at zoom ≥16 instead of 18 so Billy can
-// read pole labels at street level, not just rooftop level.
-const MIN_LABEL_ZOOM = 16;
+// ZOOM_REF / MIN_LABEL_ZOOM live in DrawingOverlayLabels.ts (shared with the
+// label-placement code there).
 const BASE_SIZE = 24; // 24px at reference zoom 17 (down from 32 — less bloat)
 
 // Smoother scaling with a tight 40px cap so pole icons don't dominate the map
 // at high zoom. Min raised to 8px so they're still tappable at low zoom.
 function computeSymbolPx(zoom: number, pointSize: number): number {
-  // Half-octave scaling (×1.41 per zoom step) instead of doubling, so the
-  // jump from zoom 17→18 is +40% rather than +100%. Feels proportional.
   const raw = BASE_SIZE * Math.pow(1.41, zoom - ZOOM_REF) * pointSize;
   return Math.round(Math.max(8, Math.min(40, raw)));
 }
 
-// Pick the best label text for any object — used at zoom ≥ MIN_LABEL_ZOOM.
-//   - Points (MH/HH/Pole/Ped/Cab): style.userLabel (the tag the user typed)
-//   - Lines/shapes/cables/freehand: style.description (the detail-popup field)
-//   - Text tool: its own text
-function labelTextForObj(obj: DrawingObject): string | null {
-  if (obj.style.hidden) return null;
-  if (obj.style.userLabel && obj.style.userLabel.trim()) return obj.style.userLabel.trim();
-  if (obj.style.description && obj.style.description.trim()) return obj.style.description.trim();
-  if ("text" in obj && obj.text && obj.text.trim()) return obj.text.trim();
-  return null;
-}
-
-// ── SVG label helpers ─────────────────────────────────────────────────────────
-
-function escSvg(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-const LABEL_CHAR_W = 7;
-const LABEL_PAD = 10;
-const LABEL_H = 18;
-
-function labelWidth(text: string): number {
-  return Math.max(36, text.length * LABEL_CHAR_W + LABEL_PAD * 2);
-}
-
-function makeLabelSvg(text: string): string {
-  const w = labelWidth(text);
-  const h = LABEL_H;
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
-    `<rect x="0.5" y="0.5" width="${w - 1}" height="${h - 1}" rx="4" ry="4" fill="white" stroke="#C8D0DA" stroke-width="1"/>` +
-    `<text x="${w / 2}" y="${h / 2 + 4}" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="10" font-weight="bold" fill="#1A2332">${escSvg(text)}</text>` +
-    `</svg>`
-  );
-}
-
-// ── Anti-collision label placement ────────────────────────────────────────────
-
-const OFFSET_DISTANCES = [30, 50, 70, 100];
-const OFFSET_ANGLES_DEG = [0, -45, 45, 180, -135, 135, 270, 90];
-
-function buildCandidateOffsets(): Array<{ dx: number; dy: number }> {
-  const offsets: Array<{ dx: number; dy: number }> = [];
-  for (const dist of OFFSET_DISTANCES) {
-    for (const angleDeg of OFFSET_ANGLES_DEG) {
-      const rad = (angleDeg * Math.PI) / 180;
-      offsets.push({ dx: Math.round(dist * Math.cos(rad)), dy: Math.round(dist * Math.sin(rad)) });
-    }
-  }
-  return offsets;
-}
-
-const CANDIDATE_OFFSETS = buildCandidateOffsets();
-
-// ── Projection helpers ────────────────────────────────────────────────────────
-
-function pixelOffsetToLatLng(
-  origin: google.maps.LatLngLiteral,
-  dx: number,
-  dy: number,
-  map: google.maps.Map
-): google.maps.LatLngLiteral | null {
-  const proj = map.getProjection();
-  if (!proj) return null;
-  const zoom = map.getZoom() ?? ZOOM_REF;
-  const scale = Math.pow(2, zoom);
-  const originPt = proj.fromLatLngToPoint(new google.maps.LatLng(origin.lat, origin.lng));
-  if (!originPt) return null;
-  const targetPt = new google.maps.Point(originPt.x + dx / scale, originPt.y + dy / scale);
-  const targetLatLng = proj.fromPointToLatLng(targetPt);
-  if (!targetLatLng) return null;
-  return { lat: targetLatLng.lat(), lng: targetLatLng.lng() };
-}
-
-function rectsOverlap(
-  a: { dx: number; dy: number; w: number; h: number },
-  b: { dx: number; dy: number; w: number; h: number },
-  aOrigin: google.maps.LatLngLiteral,
-  bOrigin: google.maps.LatLngLiteral,
-  map: google.maps.Map
-): boolean {
-  const proj = map.getProjection();
-  if (!proj) return false;
-  const zoom = map.getZoom() ?? ZOOM_REF;
-  const scale = Math.pow(2, zoom);
-  const aPtWorld = proj.fromLatLngToPoint(new google.maps.LatLng(aOrigin.lat, aOrigin.lng));
-  const bPtWorld = proj.fromLatLngToPoint(new google.maps.LatLng(bOrigin.lat, bOrigin.lng));
-  if (!aPtWorld || !bPtWorld) return false;
-  const aOriginPx = { x: aPtWorld.x * scale, y: aPtWorld.y * scale };
-  const bOriginPx = { x: bPtWorld.x * scale, y: bPtWorld.y * scale };
-  const aCx = aOriginPx.x + a.dx;
-  const aCy = aOriginPx.y + a.dy;
-  const bCx = bOriginPx.x + b.dx;
-  const bCy = bOriginPx.y + b.dy;
-  const aL = aCx - a.w / 2 - 2, aR = aCx + a.w / 2 + 2;
-  const aT = aCy - a.h / 2 - 2, aB = aCy + a.h / 2 + 2;
-  const bL = bCx - b.w / 2 - 2, bR = bCx + b.w / 2 + 2;
-  const bT = bCy - b.h / 2 - 2, bB = bCy + b.h / 2 + 2;
-  return !(aR < bL || bR < aL || aB < bT || bB < aT);
-}
-
-// ── Callout line ──────────────────────────────────────────────────────────────
-
-const CALLOUT_COLOR = "#9aa3b0";
-const CALLOUT_MIN_OFFSET_PX = 20;
-
-function makeCalloutLine(
-  from: google.maps.LatLngLiteral,
-  to: google.maps.LatLngLiteral,
-  map: google.maps.Map,
-  zIndex: number
-): google.maps.Polyline {
-  return new google.maps.Polyline({
-    path: [from, to],
-    strokeColor: CALLOUT_COLOR,
-    strokeWeight: 1,
-    strokeOpacity: 0.85,
-    clickable: false,
-    zIndex,
-    map,
-  });
-}
-
-// ── Label position helpers ────────────────────────────────────────────────────
-
-function midpointOfVertices(vertices: Array<{ lat: number; lng: number }>): { lat: number; lng: number } {
-  const mid = vertices[Math.floor(vertices.length / 2)];
-  return mid ?? vertices[0]!;
-}
-
-function centerOfBounds(bounds: { n: number; s: number; e: number; w: number }): { lat: number; lng: number } {
-  return { lat: (bounds.n + bounds.s) / 2, lng: (bounds.e + bounds.w) / 2 };
-}
-
-function labelPositionForObj(obj: DrawingObject): { lat: number; lng: number } | null {
-  if ("vertices" in obj) return midpointOfVertices(obj.vertices);
-  if ("bounds" in obj) return centerOfBounds(obj.bounds);
-  if ("position" in obj) return obj.position;
-  return null;
-}
-
-// ── Label placement ───────────────────────────────────────────────────────────
-
-interface LabelEntry {
-  objId: string;
-  symbolLatLng: google.maps.LatLngLiteral;
-  text: string;
-  zIndex: number;
-}
-
-function computeLabelPlacements(
-  entries: LabelEntry[],
-  map: google.maps.Map
-): Array<LabelEntry & { offsetDx: number; offsetDy: number }> {
-  const placements: Array<LabelEntry & { offsetDx: number; offsetDy: number }> = [];
-  const placed: Array<{ dx: number; dy: number; w: number; h: number; originLatLng: google.maps.LatLngLiteral }> = [];
-
-  for (const entry of entries) {
-    const w = labelWidth(entry.text);
-    const h = LABEL_H;
-    let chosenDx = CANDIDATE_OFFSETS[0]!.dx;
-    let chosenDy = CANDIDATE_OFFSETS[0]!.dy;
-
-    for (const cand of CANDIDATE_OFFSETS) {
-      const candidate = { dx: cand.dx, dy: cand.dy, w, h };
-      let collides = false;
-      for (const p of placed) {
-        if (rectsOverlap(candidate, p, entry.symbolLatLng, p.originLatLng, map)) {
-          collides = true;
-          break;
-        }
-      }
-      if (!collides) {
-        chosenDx = cand.dx;
-        chosenDy = cand.dy;
-        break;
-      }
-    }
-
-    placed.push({ dx: chosenDx, dy: chosenDy, w, h, originLatLng: entry.symbolLatLng });
-    placements.push({ ...entry, offsetDx: chosenDx, offsetDy: chosenDy });
-  }
-
-  return placements;
-}
-
-function makeLabelMarkerAt(
-  position: google.maps.LatLngLiteral,
-  text: string,
-  map: google.maps.Map,
-  zIndex: number
-): google.maps.Marker {
-  const svg = makeLabelSvg(text);
-  const w = labelWidth(text);
-  const h = LABEL_H;
-  return new google.maps.Marker({
-    position,
-    map,
-    icon: {
-      url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
-      anchor: new google.maps.Point(0, h / 2),
-      size: new google.maps.Size(w, h),
-      scaledSize: new google.maps.Size(w, h),
-    },
-    clickable: false,
-    zIndex: zIndex + 1,
-    optimized: false,
-  });
-}
-
-function clearAllLabels(
-  overlaysMap: globalThis.Map<string, OverlayRef>,
-  calloutMap: globalThis.Map<string, google.maps.Polyline>
-): void {
-  const labelKeys: string[] = [];
-  overlaysMap.forEach((_, key) => {
-    if (key.endsWith("_label")) labelKeys.push(key);
-  });
-  for (const k of labelKeys) {
-    const lbl = overlaysMap.get(k);
-    if (lbl) lbl.setMap(null);
-    overlaysMap.delete(k);
-  }
-  const calloutKeys: string[] = [];
-  calloutMap.forEach((_, key) => calloutKeys.push(key));
-  for (const k of calloutKeys) {
-    const c = calloutMap.get(k);
-    if (c) c.setMap(null);
-    calloutMap.delete(k);
-  }
-}
-
-function rebuildAllLabels(
-  map: google.maps.Map,
-  objects: DrawingObject[],
-  overlaysMap: globalThis.Map<string, OverlayRef>,
-  calloutMap: globalThis.Map<string, google.maps.Polyline>
-): void {
-  // Zoom gate: hide all labels when zoomed out below threshold
-  const curZoom = map.getZoom() ?? ZOOM_REF;
-  if (curZoom < MIN_LABEL_ZOOM) {
-    clearAllLabels(overlaysMap, calloutMap);
-    return;
-  }
-
-  const entries: LabelEntry[] = [];
-  for (const obj of objects) {
-    // Text tool already renders its own text as the primary visual — don't
-    // double-render it as a separate label marker.
-    if (obj.tool === "text" || obj.tool === "callout") continue;
-    const text = labelTextForObj(obj);
-    if (!text) continue;
-    const pos = labelPositionForObj(obj);
-    if (!pos) continue;
-    entries.push({ objId: obj.id, symbolLatLng: pos, text, zIndex: 6 });
-  }
-  if (entries.length === 0) {
-    clearAllLabels(overlaysMap, calloutMap);
-    return;
-  }
-
-  const placements = computeLabelPlacements(entries, map);
-
-  for (const p of placements) {
-    const oldLbl = overlaysMap.get(p.objId + "_label");
-    if (oldLbl) { oldLbl.setMap(null); overlaysMap.delete(p.objId + "_label"); }
-    const oldCallout = calloutMap.get(p.objId + "_callout");
-    if (oldCallout) { oldCallout.setMap(null); calloutMap.delete(p.objId + "_callout"); }
-
-    const labelLatLng = pixelOffsetToLatLng(p.symbolLatLng, p.offsetDx, p.offsetDy, map);
-    if (!labelLatLng) continue;
-
-    const lbl = makeLabelMarkerAt(labelLatLng, p.text, map, p.zIndex);
-    overlaysMap.set(p.objId + "_label", lbl);
-
-    const offsetMag = Math.sqrt(p.offsetDx ** 2 + p.offsetDy ** 2);
-    if (offsetMag > CALLOUT_MIN_OFFSET_PX) {
-      calloutMap.set(p.objId + "_callout", makeCalloutLine(p.symbolLatLng, labelLatLng, map, p.zIndex - 1));
-    }
-  }
-}
 
 // ── Screen position for card anchor ──────────────────────────────────────────
 
@@ -622,6 +384,14 @@ export default function DrawingOverlay() {
   const map = useMap();
   const { state, addObject, updateObject, updateObjectGeometry, updateObjectPosition, deleteSelected, deleteObjects, select, clearSelection, undo, redo, patchObjectStyle, setTool } =
     useDrawing();
+  const { username } = useAuth();
+  const markupOwner = username ?? "";
+
+  // Billy 6/8: photos popup state. Right-click an active-job markup → opens this.
+  const [photos, setPhotos] = useState<
+    | { obj: DrawingObject; screen: { x: number; y: number } }
+    | null
+  >(null);
   const engineRef = useRef<DrawingEngine | null>(null);
   const overlaysRef = useRef<globalThis.Map<string, OverlayRef>>(new globalThis.Map());
   const measureInfoRef = useRef<globalThis.Map<string, google.maps.InfoWindow>>(new globalThis.Map());
@@ -637,15 +407,42 @@ export default function DrawingOverlay() {
   const [pendingObject, setPendingObject] = useState<{
     obj: DrawingObject;
     screenPos: { x: number; y: number };
+    initialLabel?: string;
   } | null>(null);
 
   // Phase 5.3: selected card state (for ObjectDetailsCard)
   const [cardObj, setCardObj] = useState<DrawingObject | null>(null);
   const [cardAnchor, setCardAnchor] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  // Hover tooltip for completed paths
+  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; crew: string; time: string } | null>(null);
+
   // Stable ref to cardObj for event listeners
   const cardObjRef = useRef<DrawingObject | null>(null);
   cardObjRef.current = cardObj;
+
+  // ── Cable Flow Animation Loop (#3) ───────────────────────────────────────
+  useEffect(() => {
+    let offset = 0;
+    const interval = setInterval(() => {
+      offset = (offset + 1.2) % 30;
+      overlaysRef.current.forEach((val) => {
+        if (val instanceof google.maps.Polyline) {
+          const icons = val.get("icons");
+          if (icons && icons.length > 0 && icons[0].icon && icons[0].repeat === "30px") {
+            icons[0].offset = `${offset}px`;
+            val.set("icons", icons);
+          }
+          if (val.get("isZiplyPulse")) {
+            const t = Date.now() / 500;
+            const op = 0.15 + 0.3 * (Math.sin(t) * 0.5 + 0.5);
+            val.setOptions({ strokeOpacity: op });
+          }
+        }
+      });
+    }, 40);
+    return () => clearInterval(interval);
+  }, []);
 
   // Keep card object in sync with state (live style updates flow through)
   useEffect(() => {
@@ -688,19 +485,47 @@ export default function DrawingOverlay() {
     }
     const engine = engineRef.current;
 
+    // Billy 6/5: hybrid commit rule.
+    //   - MH/HH/PED/POLE/CAB/CABLE/text/callout — popup opens so the user
+    //     types the atag/# (this IS the marker's name and how it's searched).
+    //   - Anchor/splice/terminal/drop — no popup, commit instantly.
+    // Either way the object is auto-saved to Firestore.
+    engine.instantCommit = false;
+
     engine.onPendingObject = (obj, screenPos) => {
-      setPendingObject({ obj, screenPos });
+      if (!LABEL_REQUIRED_TOOLS.has(obj.tool as string)) {
+        addObject(obj);
+        setTool("select");
+        return;
+      }
+      let initialLabel = "";
+      if ("vertices" in obj) {
+        const len = distanceFeet(obj.vertices);
+        initialLabel = len > 0 ? `${Math.round(len)}'` : "";
+      }
+      setPendingObject({ obj, screenPos, initialLabel });
+    };
+
+    engine.onDrawEnd = () => {
+      if (state.activeTool && state.activeTool !== "select") {
+        setTool("select");
+      }
     };
 
     // Phase 9: provide live snap targets (Pole / MH / HH / PED point objects)
     engine.getSnapTargets = () => {
       const out: Array<{ id: string; lat: number; lng: number }> = [];
       for (const o of objectsForSnapRef.current) {
+        const toolStr = o.tool as string;
         if (
-          o.tool !== "pole_new" && o.tool !== "pole_removed" &&
-          o.tool !== "mh_new" && o.tool !== "mh_removed" &&
-          o.tool !== "hh_new" && o.tool !== "hh_removed" &&
-          o.tool !== "ped_new" && o.tool !== "ped_removed"
+          toolStr !== "pole_new" && toolStr !== "pole_removed" &&
+          toolStr !== "mh_new" && toolStr !== "mh_removed" &&
+          toolStr !== "hh_new" && toolStr !== "hh_removed" &&
+          toolStr !== "ped_new" && toolStr !== "ped_removed" &&
+          toolStr !== "ziply_hub" && toolStr !== "ziply_terminal" &&
+          toolStr !== "ziply_address" && toolStr !== "ziply_pole" &&
+          toolStr !== "ziply_handhole" && toolStr !== "ziply_flower_pot" &&
+          toolStr !== "flower_pot_new" && toolStr !== "flower_pot_removed"
         ) continue;
         if (!("position" in o)) continue;
         out.push({ id: o.id, lat: o.position.lat, lng: o.position.lng });
@@ -709,20 +534,21 @@ export default function DrawingOverlay() {
     };
 
     if (state.activeTool && state.activeTool !== "select") {
+      map.setOptions({ disableDoubleClickZoom: true });
       engine.activate(state.activeTool, state.style);
     } else {
+      map.setOptions({ disableDoubleClickZoom: false });
       engine.deactivate();
     }
-  }, [map, state.activeTool, state.style, addObject]);
+  }, [map, state.activeTool, state.style, addObject, setTool]);
 
   // ─── clickable state per active tool ───────────────────────────────────
   useEffect(() => {
     if (!map) return;
-    // Finished overlays stay clickable in every tool so the user can re-select
-    // and edit them. The click handler switches back to Select automatically.
+    const isSelectMode = state.activeTool === "select" || state.activeTool === null;
     overlaysRef.current.forEach((overlay, key) => {
       if (key.endsWith("_label")) return;
-      overlay.setOptions({ clickable: true });
+      overlay.setOptions({ clickable: isSelectMode });
     });
   }, [map, state.activeTool]);
 
@@ -734,13 +560,14 @@ export default function DrawingOverlay() {
 
     function handleZoomChange() {
       const zoom = map!.getZoom() ?? ZOOM_REF;
-      state.objects.forEach((obj) => {
+      const objs = objectsForSnapRef.current;
+      objs.forEach((obj) => {
         if (!isPointTool(obj.tool) || obj.style.hidden) return;
         const marker = overlaysRef.current.get(obj.id);
         if (!(marker instanceof google.maps.Marker)) return;
         const pointSize = obj.style.pointSize ?? 1.0;
         const px = computeSymbolPx(zoom, pointSize);
-        const icon = iconForTool(obj.tool, obj.style.strokeColor, pointSize);
+        const icon = iconForTool(obj.tool, obj.style.strokeColor, pointSize, obj.style.ziplyStatus);
         marker.setIcon({
           ...icon,
           size: new google.maps.Size(px, px),
@@ -748,13 +575,43 @@ export default function DrawingOverlay() {
           anchor: new google.maps.Point(px / 2, px / 2),
         });
       });
-      rebuildAllLabels(map!, state.objects, overlaysRef.current, calloutLinesRef.current);
+      // Tear down callout leaders that fell out of the label zoom band so the
+      // arrow disappears in step with the label. They'll be recreated by the
+      // next render pass when the user zooms back in.
+      if (zoom < MIN_LABEL_ZOOM) {
+        objs.forEach((obj) => {
+          if (obj.tool !== "callout") return;
+          const key = obj.id + "_callout_leader";
+          const existing = overlaysRef.current.get(key);
+          if (existing) {
+            existing.setMap(null);
+            overlaysRef.current.delete(key);
+          }
+        });
+      }
+      rebuildAllLabels(
+        map!,
+        objs,
+        overlaysRef.current,
+        calloutLinesRef.current,
+        (obj, screen) => {
+          // Click on a label opens the same details card the markup opens.
+          const live = objectsForSnapRef.current.find((o) => o.id === obj.id) || obj;
+          select([obj.id], false);
+          setCardObj(live);
+          setCardAnchor(screen);
+        }
+      );
     }
 
     const listener = map.addListener("zoom_changed", handleZoomChange);
-    return () => listener.remove();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, state.objects]);
+    return () => {
+      try {
+        if (typeof listener?.remove === "function") listener.remove();
+        else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(listener);
+      } catch { /* ignore */ }
+    };
+  }, [map, select]);
 
   // ─── Phase 5.3: editable/draggable state for selected objects ────────────
   // We attach path mutation listeners here, keyed by objId.
@@ -767,7 +624,12 @@ export default function DrawingOverlay() {
     // Remove existing listeners first
     const existing = geoListenersRef.current.get(objId);
     if (existing) {
-      existing.forEach((l) => l.remove());
+      existing.forEach((l) => {
+        try {
+          if (typeof l?.remove === "function") l.remove();
+          else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(l);
+        } catch { /* ignore */ }
+      });
     }
     const listeners: google.maps.MapsEventListener[] = [];
 
@@ -838,7 +700,12 @@ export default function DrawingOverlay() {
   function removeGeoListeners(objId: string) {
     const existing = geoListenersRef.current.get(objId);
     if (existing) {
-      existing.forEach((l) => l.remove());
+      existing.forEach((l) => {
+        try {
+          if (typeof l?.remove === "function") l.remove();
+          else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(l);
+        } catch { /* ignore */ }
+      });
       geoListenersRef.current.delete(objId);
     }
   }
@@ -865,6 +732,8 @@ export default function DrawingOverlay() {
         if (lbl) { lbl.setMap(null); overlaysRef.current.delete(id + "_label"); }
         const callout = calloutLinesRef.current.get(id + "_callout");
         if (callout) { callout.setMap(null); calloutLinesRef.current.delete(id + "_callout"); }
+        const pulse = overlaysRef.current.get(id + "_ziply_pulse");
+        if (pulse) { pulse.setMap(null); overlaysRef.current.delete(id + "_ziply_pulse"); }
         const iw = measureInfoRef.current.get(id);
         if (iw) { iw.close(); measureInfoRef.current.delete(id); }
         labelVersionRef.current.delete(id);
@@ -883,12 +752,17 @@ export default function DrawingOverlay() {
         if (prevLbl) { prevLbl.setMap(null); overlaysRef.current.delete(obj.id + "_label"); }
         const prevCallout = calloutLinesRef.current.get(obj.id + "_callout");
         if (prevCallout) { prevCallout.setMap(null); calloutLinesRef.current.delete(obj.id + "_callout"); }
+        const prevPulse = overlaysRef.current.get(obj.id + "_ziply_pulse");
+        if (prevPulse) { prevPulse.setMap(null); overlaysRef.current.delete(obj.id + "_ziply_pulse"); }
         removeGeoListeners(obj.id);
 
         // Remove selection listener if present
         const selListener = selectionListenersRef.current.get(obj.id);
         if (selListener) {
-          selListener.remove();
+          try {
+            if (typeof selListener?.remove === "function") selListener.remove();
+            else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(selListener);
+          } catch { /* ignore */ }
           selectionListenersRef.current.delete(obj.id);
         }
         return;
@@ -904,15 +778,24 @@ export default function DrawingOverlay() {
           const opts = "tool" in obj && "vertices" in obj
             ? styleToPolylineOpts(obj as typeof obj & { vertices: unknown })
             : {};
+          // Selected lines/polygons are ALWAYS editable + draggable so the user
+          // can reshape them right after clicking, regardless of what tool was
+          // active before. The geometry listeners below sync changes back.
+          const allowEdit = isSelected && !obj.style.locked;
           existing.setOptions({
             ...opts,
             strokeOpacity: isSelected ? 1 : obj.style.opacity,
             strokeWeight: isSelected ? Math.max(obj.style.strokeWidth + 1.5, 3) : obj.style.strokeWidth,
             zIndex: isSelected ? 20 : 5,
             clickable: isClickable,
-            editable: isEditable,
-            draggable: isEditable,
+            editable: allowEdit,
+            draggable: allowEdit,
           });
+          if (allowEdit) {
+            attachGeoListeners(obj.id, existing);
+          } else {
+            removeGeoListeners(obj.id);
+          }
         } else if (existing instanceof google.maps.Rectangle || existing instanceof google.maps.Circle) {
           existing.setOptions({
             strokeColor: isSelected ? "#3aa7ff" : obj.style.strokeColor,
@@ -926,20 +809,11 @@ export default function DrawingOverlay() {
             draggable: isEditable,
           });
         } else if (existing instanceof google.maps.Marker) {
-          existing.setOptions({
-            zIndex: isSelected ? 20 : 5,
-            clickable: isClickable,
-            draggable: isEditable,
-            // Make selected points more prominent (neon ring effect via icon scaling)
-            icon: isSelected ? {
-              ...iconForTool(obj.tool, "#3aa7ff", (obj.style.pointSize ?? 1) * 1.15),
-            } : undefined,
-          });
-          // Rescale point symbols
           if (isPointTool(obj.tool)) {
             const pointSize = obj.style.pointSize ?? 1.0;
             const px = computeSymbolPx(zoom, pointSize);
-            const icon = iconForTool(obj.tool, obj.style.strokeColor, pointSize);
+            const color = isSelected ? "#3aa7ff" : obj.style.strokeColor;
+            const icon = iconForTool(obj.tool, color, pointSize * (isSelected ? 1.15 : 1.0), obj.style.ziplyStatus);
             existing.setIcon({
               ...icon,
               size: new google.maps.Size(px, px),
@@ -947,13 +821,21 @@ export default function DrawingOverlay() {
               anchor: new google.maps.Point(px / 2, px / 2),
             });
           }
+          existing.setOptions({
+            zIndex: isSelected ? 20 : 5,
+            clickable: isClickable,
+            draggable: isEditable,
+          });
         }
 
-        // Attach / detach geometry listeners based on editable state
-        if (isEditable) {
-          attachGeoListeners(obj.id, existing);
-        } else {
-          removeGeoListeners(obj.id);
+        // Attach / detach geometry listeners based on editable state (points/shapes;
+        // Polylines/Polygons handled in their own branch above).
+        if (!(existing instanceof google.maps.Polyline) && !(existing instanceof google.maps.Polygon)) {
+          if (isEditable) {
+            attachGeoListeners(obj.id, existing);
+          } else {
+            removeGeoListeners(obj.id);
+          }
         }
 
         // Make sure selection click listener is present when in Select tool
@@ -1010,6 +892,11 @@ export default function DrawingOverlay() {
           setCardObj(live);
           setCardAnchor(clickPos);
         }
+      }, (target, screen) => {
+        // Billy 6/8: right-click opens the per-markup photos popup. Requires
+        // an active job (photos are stored under that job's Firestore doc).
+        if (!state.targetJobId) return;
+        setPhotos({ obj: target, screen });
       });
       if (overlay) {
         overlaysRef.current.set(obj.id, overlay);
@@ -1018,56 +905,141 @@ export default function DrawingOverlay() {
         }
       }
 
-      // Special Callout rendering: draw leader line from anchor to text position
-      if (obj.tool === "callout" && "anchor" in obj) {
+      // Special Callout rendering: draw leader polyline through optional bend
+      // points, with an arrowhead pointing at the anchor (the "tip").
+      //   path order on screen:  text-box position → bends (reversed) → anchor (tip)
+      // We put the arrow on the LAST vertex of the polyline so the head sits on
+      // the anchor (arrow points at the thing you're calling out).
+      // Zoom gate: the leader line only makes sense when the label is visible.
+      // Below MIN_LABEL_ZOOM the label is hidden, so hide the leader too.
+      if (obj.tool === "callout" && "anchor" in obj && zoom >= MIN_LABEL_ZOOM) {
         const anchor = (obj as any).anchor as { lat: number; lng: number };
         const textPos = "position" in obj ? (obj as any).position : anchor;
+        const bends: Array<{ lat: number; lng: number }> =
+          ("path" in obj && Array.isArray((obj as any).path)) ? (obj as any).path : [];
+
+        // Draw from text-box → bends (reversed) → anchor so the arrowhead
+        // ends up at the anchor.
+        const polylinePath = [textPos, ...[...bends].reverse(), anchor];
 
         const leaderKey = obj.id + "_callout_leader";
         let leader = overlaysRef.current.get(leaderKey) as google.maps.Polyline | undefined;
 
+        const arrowSymbol: google.maps.IconSequence = {
+          icon: {
+            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 3.5,
+            strokeColor: obj.style.strokeColor || "#3aa7ff",
+            fillColor: obj.style.strokeColor || "#3aa7ff",
+            fillOpacity: 1,
+          },
+          offset: "100%",
+        };
+
         if (!leader) {
           leader = new google.maps.Polyline({
-            path: [anchor, textPos],
+            path: polylinePath,
             strokeColor: obj.style.strokeColor || "#3aa7ff",
             strokeWeight: (obj.style.strokeWidth || 2) + (isSelected ? 1 : 0),
             strokeOpacity: obj.style.opacity ?? 0.9,
+            icons: [arrowSymbol],
             map,
             zIndex: isSelected ? 18 : 4,
           });
           overlaysRef.current.set(leaderKey, leader);
         } else {
-          leader.setPath([anchor, textPos]);
+          leader.setPath(polylinePath);
           leader.setOptions({
             strokeWeight: (obj.style.strokeWidth || 2) + (isSelected ? 1 : 0),
+            icons: [arrowSymbol],
             zIndex: isSelected ? 18 : 4,
           });
         }
-      }
-
-      // Create label marker (only when zoomed in close enough). Use whatever
-      // label source the object has — userLabel / description / text.
-      const labelText = labelTextForObj(obj);
-      if (labelText && zoom >= MIN_LABEL_ZOOM) {
-        const pos = labelPositionForObj(obj);
-        if (pos) {
-          const labelLatLng = pixelOffsetToLatLng(pos, 30, 0, map);
-          if (labelLatLng) {
-            const lbl = makeLabelMarkerAt(labelLatLng, labelText, map, 6);
-            overlaysRef.current.set(obj.id + "_label", lbl);
-            const offsetMag = Math.sqrt(30 ** 2);
-            if (offsetMag > CALLOUT_MIN_OFFSET_PX) {
-              calloutLinesRef.current.set(obj.id + "_callout", makeCalloutLine(pos, labelLatLng, map, 5));
-            }
-          }
+      } else if (obj.tool === "callout") {
+        // Zoomed out below MIN_LABEL_ZOOM — tear down any existing leader so
+        // the arrow disappears with its label.
+        const leaderKey = obj.id + "_callout_leader";
+        const existing = overlaysRef.current.get(leaderKey);
+        if (existing) {
+          existing.setMap(null);
+          overlaysRef.current.delete(leaderKey);
         }
       }
-      labelVersionRef.current.set(obj.id, labelText ?? undefined);
+
+      // Ziply pulse effect and tooltip
+      const pulseKey = obj.id + "_ziply_pulse";
+      let pulseGlow = overlaysRef.current.get(pulseKey) as google.maps.Polyline | undefined;
+      
+      const statusLower = (obj.style.ziplyStatus || "").toLowerCase();
+      const isZiplyComplete = (
+        obj.tool === "placed_cable" ||
+        obj.tool === "ziply_feeder" ||
+        obj.tool === "ziply_distribution" ||
+        obj.tool === "ziply_drop" ||
+        obj.tool === "ziply_bore"
+      ) && (statusLower === "complete" || statusLower === "completed");
+
+      const glowColor = obj.style.strokeColor || PLACED_COLOR;
+
+      if (isZiplyComplete && "vertices" in obj) {
+        const verts = (obj as any).vertices;
+        if (!pulseGlow) {
+          pulseGlow = new google.maps.Polyline({
+            path: verts.map((v: any) => new google.maps.LatLng(v.lat, v.lng)),
+            strokeColor: glowColor,
+            strokeWeight: obj.style.strokeWidth * 3.5,
+            strokeOpacity: 0.35,
+            zIndex: 3,
+            clickable: false,
+            map,
+          });
+          pulseGlow.set("isZiplyPulse", true);
+          overlaysRef.current.set(pulseKey, pulseGlow);
+        } else {
+          pulseGlow.setPath(verts.map((v: any) => new google.maps.LatLng(v.lat, v.lng)));
+          pulseGlow.setOptions({
+            strokeColor: glowColor,
+            strokeWeight: obj.style.strokeWidth * 3.5
+          });
+        }
+        
+        // Ensure tooltip listeners exist on the main overlay
+        const mainOverlay = overlaysRef.current.get(obj.id);
+        if (mainOverlay && !mainOverlay.get("hasHoverListeners") && obj.style.ziplyCrewId && obj.style.ziplyTimestamp) {
+          mainOverlay.addListener("mouseover", (e: any) => {
+            if (document.querySelector(".po-root")) return;
+            const dom = e.domEvent as MouseEvent | undefined;
+            if (dom) {
+              setHoverInfo({
+                x: dom.clientX,
+                y: dom.clientY,
+                crew: obj.style.ziplyCrewId!,
+                time: new Date(obj.style.ziplyTimestamp!).toLocaleString(),
+              });
+            }
+          });
+          mainOverlay.addListener("mouseout", () => {
+            setHoverInfo(null);
+          });
+          mainOverlay.set("hasHoverListeners", true);
+        }
+      } else {
+        if (pulseGlow) {
+          pulseGlow.setMap(null);
+          overlaysRef.current.delete(pulseKey);
+        }
+      }
+
+      // Label rendering is handled exclusively by rebuildAllLabels() below,
+      // which runs anti-collision placement so labels never overlap. The
+      // previous per-object label creation here was duplicating every label
+      // (one fixed-offset + one anti-collision label per markup).
+      labelVersionRef.current.set(obj.id, labelTextForObj(obj) ?? undefined);
 
       // Measure distance label
       if (obj.tool === "measure" && "vertices" in obj) {
         const ft = distanceFeet(obj.vertices);
-        const mid = obj.vertices[Math.floor(obj.vertices.length / 2)];
+        const mid = midpointOfVertices(obj.vertices);
         if (mid) {
           const iw = new google.maps.InfoWindow({
             content: `<div style="color:#1A2332;background:#fff;padding:4px 8px;border-radius:4px;font-size:12px;font-family:monospace;border:1px solid #C8D0DA;">${ft.toFixed(0)} ft</div>`,
@@ -1081,7 +1053,19 @@ export default function DrawingOverlay() {
     });
 
     // Full label anti-collision pass
-    rebuildAllLabels(map, state.objects, overlaysRef.current, calloutLinesRef.current);
+    rebuildAllLabels(
+      map,
+      state.objects,
+      overlaysRef.current,
+      calloutLinesRef.current,
+      (obj, screen) => {
+        // Click on a label opens the same details card the markup opens.
+        const live = state.objects.find((o) => o.id === obj.id) || obj;
+        select([obj.id], false);
+        setCardObj(live);
+        setCardAnchor(screen);
+      }
+    );
 
     // ── Hatch fill sync ────────────────────────────────────────────────
     // Add/update hatch overlays for hashed polygons, remove any whose object
@@ -1141,6 +1125,7 @@ export default function DrawingOverlay() {
       if (selectionListenersRef.current.has(key)) return;
 
       const listener = overlay.addListener("click", (e: google.maps.MapMouseEvent) => {
+        if (document.querySelector(".po-root")) return;
         const domEvent = (e as any).domEvent as MouseEvent | undefined;
         const pos = domEvent 
           ? { x: domEvent.clientX, y: domEvent.clientY } 
@@ -1180,28 +1165,49 @@ export default function DrawingOverlay() {
 
   // ─── Details popup save/cancel ────────────────────────────────────────────
 
-  function handlePopupSave(label: string, description: string) {
+  function handlePopupSave(label: string, description: string, method?: string, size?: string) {
     if (!pendingObject) return;
     const { obj } = pendingObject;
-    let finalObj: DrawingObject;
-    if (obj.tool === "text") {
+    let finalObj = { ...obj } as DrawingObject;
+
+    if (method && ("vertices" in finalObj)) {
+      let nextTool: DrawingObject["tool"] = finalObj.tool;
+      if (method === "BORE" || method === "TRENCH") {
+        nextTool = "ziply_bore";
+      }
       finalObj = {
-        ...obj,
-        text: label || "Text",
-        style: { ...obj.style, userLabel: label || undefined, description: description || undefined },
-      };
+        ...finalObj,
+        tool: nextTool,
+        style: {
+          ...defaultStyleForTool(nextTool),
+          ...finalObj.style,
+          userLabel: label || undefined,
+          description: description || undefined,
+        }
+      } as DrawingObject;
     } else {
-      finalObj = {
-        ...obj,
-        style: { ...obj.style, userLabel: label || undefined, description: description || undefined },
-      };
+      if (finalObj.tool === "text" || finalObj.tool === "callout") {
+        const textVal = label?.trim() || (finalObj.tool === "text" ? "Text" : "Callout");
+        finalObj = {
+          ...finalObj,
+          text: textVal,
+          style: { ...finalObj.style, userLabel: textVal, description: description || undefined },
+        } as DrawingObject;
+      } else {
+        finalObj = {
+          ...finalObj,
+          style: { ...finalObj.style, userLabel: label || undefined, description: description || undefined },
+        } as DrawingObject;
+      }
     }
     addObject(finalObj);
     setPendingObject(null);
+    setTool("select");
   }
 
   function handlePopupCancel() {
     setPendingObject(null);
+    setTool("select");
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -1212,6 +1218,7 @@ export default function DrawingOverlay() {
         <ObjectDetailsPopup
           screenPos={pendingObject.screenPos}
           tool={pendingObject.obj.tool}
+          initialLabel={pendingObject.initialLabel}
           onSave={handlePopupSave}
           onCancel={handlePopupCancel}
         />
@@ -1222,6 +1229,39 @@ export default function DrawingOverlay() {
           anchorPos={cardAnchor}
           onClose={() => { setCardObj(null); clearSelection(); }}
         />
+      )}
+      {photos && state.targetJobId && (
+        <MarkupPhotosPopup
+          jobId={state.targetJobId}
+          objectId={photos.obj.id}
+          markupLabel={labelTextForObj(photos.obj) ?? photos.obj.tool}
+          takenBy={markupOwner}
+          x={photos.screen.x}
+          y={photos.screen.y}
+          onClose={() => setPhotos(null)}
+        />
+      )}
+
+      {hoverInfo && (
+        <div style={{
+          position: "fixed",
+          top: hoverInfo.y - 45,
+          left: hoverInfo.x + 15,
+          background: "rgba(0, 15, 25, 0.9)",
+          border: "1px solid #00ffff",
+          borderRadius: 4,
+          padding: "6px 10px",
+          color: "#00ffff",
+          fontSize: 11,
+          fontFamily: "monospace",
+          zIndex: 10000,
+          boxShadow: "0 0 10px rgba(0, 255, 255, 0.3)",
+          pointerEvents: "none"
+        }}>
+          <div><strong>COMPLETED</strong></div>
+          <div>Crew: {hoverInfo.crew}</div>
+          <div>{hoverInfo.time}</div>
+        </div>
       )}
     </>
   );
@@ -1235,7 +1275,9 @@ function createOverlay(
   isSelected: boolean,
   isClickable: boolean,
   zoom: number,
-  onSelect: (id: string, additive: boolean, clickPos: { x: number; y: number }) => void
+  onSelect: (id: string, additive: boolean, clickPos: { x: number; y: number }) => void,
+  // Billy 6/8: right-click on a markup opens the per-markup photos popup.
+  onRightClick?: (obj: DrawingObject, screen: { x: number; y: number }) => void
 ): OverlayRef | null {
   const z = isSelected ? 20 : 5;
 
@@ -1252,12 +1294,25 @@ function createOverlay(
 
   const clickHandler = (e: google.maps.MapMouseEvent | google.maps.IconMouseEvent | Event) => {
     if (obj.style.locked) return;
+    if (document.querySelector(".po-root")) return;
     const mapEvent = e as google.maps.MapMouseEvent;
     const native = mapEvent.domEvent as MouseEvent | undefined;
     const pos = getClickPos(mapEvent);
     onSelect(obj.id, native?.shiftKey ?? false, pos);
     mapEvent.stop?.();
   };
+
+  // Wire right-click to the photos popup. Works on every overlay type below.
+  function wireRightClick<T extends { addListener: (e: string, fn: (e?: google.maps.MapMouseEvent) => void) => unknown }>(overlay: T): T {
+    if (onRightClick) {
+      overlay.addListener("rightclick", (e?: google.maps.MapMouseEvent) => {
+        const screen = e ? getClickPos(e) : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        onRightClick(obj, screen);
+        e?.stop?.();
+      });
+    }
+    return overlay;
+  }
 
   if ("vertices" in obj) {
     const opts = styleToPolylineOpts(obj as typeof obj & { vertices: unknown });
@@ -1272,6 +1327,7 @@ function createOverlay(
         map,
       });
       poly.addListener("click", clickHandler);
+      wireRightClick(poly);
       return poly;
     }
     const pl = new google.maps.Polyline({
@@ -1282,6 +1338,26 @@ function createOverlay(
       map,
     });
     pl.addListener("click", clickHandler);
+    wireRightClick(pl);
+    // Network View halo companion — lit only when the user toggles to
+    // Network View. Hides itself when the theme flips back to Light.
+    const halo = attachNetworkHalo(
+      map,
+      pl,
+      (opts as { strokeColor?: string }).strokeColor ||
+        obj.style?.strokeColor ||
+        "#00d4ff"
+    );
+    // Bolt the halo's lifecycle to the polyline's own setMap. When the
+    // overlay recycler calls setMap(null) to remove the polyline, the halo
+    // tears itself down too. This preserves the existing overlay lifecycle
+    // without a parallel bookkeeping list.
+    const originalSetMap = pl.setMap.bind(pl);
+    pl.setMap = ((m: google.maps.Map | null) => {
+      if (m === null) halo.dispose();
+      else halo.syncPath();
+      return originalSetMap(m);
+    }) as typeof pl.setMap;
     if (obj.tool === "arrow" && obj.vertices.length >= 2) {
       addArrowhead(pl, obj.vertices, obj.style, map);
     }
@@ -1304,6 +1380,7 @@ function createOverlay(
         map,
       });
       rect.addListener("click", clickHandler);
+      wireRightClick(rect);
       return rect;
     }
     if (obj.tool === "circle") {
@@ -1324,15 +1401,18 @@ function createOverlay(
         map,
       });
       circle.addListener("click", clickHandler);
+      wireRightClick(circle);
       return circle;
     }
   }
 
   if ("position" in obj && "text" in obj) {
-    // Phase 9.6 fix: give text markers a real (invisible) hit target so they
-    // can be clicked/selected/deleted. The previous scale:0 icon made the
-    // marker effectively un-clickable. We use a square SVG sized to roughly
-    // match the label, fully transparent.
+    // Billy 6/8: text/callout objects no longer render their text directly as
+    // a Google Maps label here — that produced a duplicate label that ignored
+    // the zoom gate and the white text-box treatment. Instead we render only
+    // an invisible hit target. The actual visible label is drawn by
+    // rebuildAllLabels() with the same white-box style and MIN_LABEL_ZOOM gate
+    // every other label uses.
     const textLen = (obj.text || "").length;
     const hitWidth = Math.max(40, textLen * 9 + 16);
     const hitHeight = 22;
@@ -1343,32 +1423,25 @@ function createOverlay(
     const marker = new google.maps.Marker({
       position: new google.maps.LatLng(obj.position.lat, obj.position.lng),
       map,
-      label: {
-        text: obj.text,
-        color: obj.style.strokeColor,
-        fontSize: "13px",
-        fontWeight: "bold",
-        fontFamily: "ui-monospace, monospace",
-      },
       icon: {
         url: "data:image/svg+xml;utf8," + encodeURIComponent(hitSvg),
         size: new google.maps.Size(hitWidth, hitHeight),
         scaledSize: new google.maps.Size(hitWidth, hitHeight),
         anchor: new google.maps.Point(hitWidth / 2, hitHeight / 2),
-        labelOrigin: new google.maps.Point(hitWidth / 2, hitHeight / 2),
       },
       draggable: isSelected,
       clickable: isClickable,
       zIndex: z,
     });
     marker.addListener("click", clickHandler);
+    wireRightClick(marker);
     return marker;
   }
 
   if ("position" in obj && !("text" in obj)) {
     const pointSize = obj.style.pointSize ?? 1.0;
     const px = computeSymbolPx(zoom, pointSize);
-    const baseIcon = iconForTool(obj.tool, obj.style.strokeColor, pointSize);
+    const baseIcon = iconForTool(obj.tool, obj.style.strokeColor, pointSize, obj.style.ziplyStatus);
     const marker = new google.maps.Marker({
       position: new google.maps.LatLng(obj.position.lat, obj.position.lng),
       map,
@@ -1384,6 +1457,7 @@ function createOverlay(
       zIndex: z,
     });
     marker.addListener("click", clickHandler);
+    wireRightClick(marker);
     return marker;
   }
 

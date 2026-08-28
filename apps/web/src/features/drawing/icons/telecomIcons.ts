@@ -15,7 +15,7 @@ function svgUri(svg: string): string {
 
 function wrap(inner: string, color: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <g stroke="${color}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <g stroke="${color}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
     ${inner}
   </g>
 </svg>`;
@@ -26,7 +26,7 @@ function wrap(inner: string, color: string): string {
 // MH — circle outline, "MH" text centered
 function mhSvg(color: string): string {
   return wrap(
-    `<circle cx="16" cy="16" r="12"/>
+    `<circle cx="16" cy="16" r="12" fill="#ffffff"/>
     <text x="16" y="20" text-anchor="middle" font-size="9" font-weight="bold"
       fill="${color}" stroke="none" font-family="system-ui, sans-serif">MH</text>`,
     color
@@ -34,47 +34,63 @@ function mhSvg(color: string): string {
 }
 
 // HH — rectangle outline, "HH" text centered
-function hhSvg(color: string): string {
+function hhSvg(color: string, status?: string): string {
+  const isPlanned = status === "planned";
+  const isFilled = status === "placed" || status === "Complete";
+  const fillVal = isFilled ? color : (isPlanned ? "none" : "#ffffff");
+  const strokeOpacity = isPlanned ? "0.5" : "1.0";
+  const textFill = isFilled ? "#ffffff" : color;
+
   return wrap(
-    `<rect x="4" y="8" width="24" height="16" rx="2"/>
+    `<rect x="4" y="8" width="24" height="16" rx="2" fill="${fillVal}" stroke-opacity="${strokeOpacity}"/>
     <text x="16" y="20" text-anchor="middle" font-size="9" font-weight="bold"
-      fill="${color}" stroke="none" font-family="system-ui, sans-serif">HH</text>`,
+      fill="${textFill}" stroke="none" font-family="system-ui, sans-serif" fill-opacity="${strokeOpacity}">HH</text>`,
     color
   );
 }
 
-// PED — square outline with X inside (cross rotated 45°)
-function pedSvg(color: string): string {
+// PED — square outline with cross inside
+function pedSvg(color: string, status?: string): string {
+  const isPlanned = status === "planned";
+  const isFilled = status === "placed" || status === "Complete";
+  const fillVal = isFilled ? color : (isPlanned ? "none" : "#ffffff");
+  const strokeOpacity = isPlanned ? "0.5" : "1.0";
+  const innerLineColor = isFilled ? "#ffffff" : color;
+
   return wrap(
-    `<rect x="6" y="6" width="20" height="20" rx="2"/>
-    <g transform="rotate(45 16 16)">
-      <line x1="16" y1="8" x2="16" y2="24"/>
-      <line x1="8" y1="16" x2="24" y2="16"/>
-    </g>`,
+    `<rect x="6" y="6" width="20" height="20" rx="2" fill="${fillVal}" stroke-opacity="${strokeOpacity}"/>
+    <line x1="16" y1="8" x2="16" y2="24" stroke="${innerLineColor}" stroke-opacity="${strokeOpacity}"/>
+    <line x1="8" y1="16" x2="24" y2="16" stroke="${innerLineColor}" stroke-opacity="${strokeOpacity}"/>`,
     color
   );
 }
 
-// POLE — circle outline with X inside (cross rotated 45°)
-function poleSvg(color: string): string {
+// POLE — black circle outline with X and cross inside, white backing fill for max visibility
+function poleSvg(color: string = "#000000"): string {
   return wrap(
-    `<circle cx="16" cy="16" r="12"/>
-    <g transform="rotate(45 16 16)">
-      <line x1="16" y1="4" x2="16" y2="28"/>
-      <line x1="4" y1="16" x2="28" y2="16"/>
-    </g>`,
+    `<circle cx="16" cy="16" r="11" fill="#ffffff" />
+    <line x1="8.2" y1="8.2" x2="23.8" y2="23.8"/>
+    <line x1="8.2" y1="23.8" x2="23.8" y2="8.2"/>`,
     color
   );
 }
 
-// CABINET — rectangle outline with X inside (cross rotated 45°)
+// CABINET — rectangle outline with cross inside
 function cabinetSvg(color: string): string {
   return wrap(
     `<rect x="3" y="8" width="26" height="16" rx="2"/>
-    <g transform="rotate(45 16 16)">
-      <line x1="16" y1="10" x2="16" y2="22"/>
-      <line x1="5" y1="16" x2="27" y2="16"/>
-    </g>`,
+    <line x1="16" y1="10" x2="16" y2="22"/>
+    <line x1="5" y1="16" x2="27" y2="16"/>`,
+    color
+  );
+}
+
+// SPLICE — diamond outline with "SP" text centered (Edit 3)
+function spliceSvg(color: string): string {
+  return wrap(
+    `<polygon points="16,4 28,16 16,28 4,16"/>
+    <text x="16" y="20" text-anchor="middle" font-size="9" font-weight="bold"
+      fill="${color}" stroke="none" font-family="system-ui, sans-serif">SP</text>`,
     color
   );
 }
@@ -101,16 +117,173 @@ function anchorSvg(color: string): string {
 
 // ── Rail SVG strings (for React inline rendering) ────────────────────────────
 
+// Ziply specific point icons
+// (legacy 5-branch hub icon; retained but unused after octagon port)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _ziplyHubSvgLegacy(color: string): string {
+  return wrap(
+    `<rect x="12" y="21" width="8" height="4" fill="${color}"/>
+    <rect x="13.5" y="17" width="5" height="4" fill="${color}"/>
+    <line x1="16" y1="17" x2="16" y2="10" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="16" cy="9.5" r="2" fill="${color}"/>
+    
+    <path d="M 16 17 L 16 14 L 12 14 L 12 12" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="12" cy="11.5" r="2" fill="${color}"/>
+    
+    <path d="M 16 17 L 16 14 L 20 14 L 20 12" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="20" cy="11.5" r="2" fill="${color}"/>
+    
+    <path d="M 16 19 L 9 19 L 9 16" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="9" cy="15.5" r="2" fill="${color}"/>
+    
+    <path d="M 16 19 L 23 19 L 23 16" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="23" cy="15.5" r="2" fill="${color}"/>
+    
+    <path d="M 12 25 A 11 11 0 1 1 20 25" fill="none" stroke="${color}" stroke-width="1.8"/>`,
+    color
+  );
+}
+
+// Pixel-identical MST terminal port from map-studio-gis:
+// Neon pink rectangle with glowing drop-shadow + "MST" label.
+// Uses 36×24 native viewBox — ignores color override to preserve exact look.
+// Splice Terminal badge: glowing purple (#A855F7) badge with MST / T1 / T2 label.
+function ziplyTerminalSvg(color?: string, labelText = "MST"): string {
+  const activeColor = (color && color !== DEFAULT_ICON_COLOR) ? color : "#A855F7";
+  const termText = (labelText || "MST").trim();
+  let fontSize = 11;
+  if (termText.length > 5) fontSize = 7.5;
+  else if (termText.length > 3) fontSize = 9;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 24" width="36" height="24">
+    <defs>
+      <filter id="mst-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="2" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <rect x="2" y="2" width="32" height="20" rx="4" fill="#090d16" fill-opacity="0.95" stroke="${activeColor}" stroke-width="2.5" filter="url(#mst-glow)"/>
+    <rect x="2" y="2" width="32" height="20" rx="4" fill="none" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.5"/>
+    <text x="18" y="15.5" font-size="${fontSize}" font-weight="900" text-anchor="middle" fill="${activeColor}" font-family="'JetBrains Mono', monospace, sans-serif" letter-spacing="0.5">${termText}</text>
+  </svg>`;
+}
+
+// Pixel-identical Hub port from map-studio-gis: glowing green octagon with HUB text.
+function ziplyHubOctagonSvg(_color: string, labelText = "HUB"): string {
+  const hubText = (labelText || "HUB").trim();
+  let fontSize = 11;
+  if (hubText.length > 7) fontSize = 7.5;
+  else if (hubText.length > 5) fontSize = 8.5;
+  else if (hubText.length > 3) fontSize = 10;
+  else fontSize = 12;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="44" height="44">
+    <defs>
+      <filter id="hub-led-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3" result="b1"/>
+        <feGaussianBlur stdDeviation="6" result="b2"/>
+        <feMerge><feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <polygon points="13,2 31,2 42,13 42,31 31,42 13,42 2,31 2,13" fill="#10b981" fill-opacity="0.25" stroke="#00ff66" stroke-width="4.5" filter="url(#hub-led-glow)"/>
+    <polygon points="13,2 31,2 42,13 42,31 31,42 13,42 2,31 2,13" fill="#022c22" fill-opacity="0.95" stroke="#10b981" stroke-width="2.5"/>
+    <polygon points="14.5,4 29.5,4 40,14.5 40,29.5 29.5,40 14.5,40 4,29.5 4,14.5" fill="none" stroke="#059669" stroke-width="1"/>
+    <text x="22" y="26" font-size="${fontSize}" font-weight="900" text-anchor="middle" fill="#ffffff" stroke="#000000" stroke-width="0.5" font-family="monospace" letter-spacing="0.5">${hubText}</text>
+  </svg>`;
+}
+
+// Pixel-identical Splitter port from map-studio-gis: optical fiber splitter node.
+function ziplySplitterSvg(color: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+    <polygon points="16,2 30,16 16,30 2,16" fill="none" stroke="${color}" stroke-width="2.5"/>
+    <circle cx="10" cy="16" r="2" fill="${color}" />
+    <line x1="12" y1="16" x2="20" y2="10" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+    <line x1="12" y1="16" x2="22" y2="16" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+    <line x1="12" y1="16" x2="20" y2="22" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="20" cy="10" r="1.5" fill="none" stroke="${color}" stroke-width="1"/>
+    <circle cx="22" cy="16" r="1.5" fill="none" stroke="${color}" stroke-width="1"/>
+    <circle cx="20" cy="22" r="1.5" fill="none" stroke="${color}" stroke-width="1"/>
+  </svg>`;
+}
+
+// Pixel-identical Riser port from map-studio-gis: circle with R.
+function ziplyRiserSvg(color: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+    <circle cx="16" cy="16" r="9" fill="#ffffff" stroke="${color}" stroke-width="2.5"/>
+    <text x="16" y="19.5" font-size="10" font-weight="900" text-anchor="middle" fill="${color}" font-family="monospace">R</text>
+  </svg>`;
+}
+
+// Pixel-identical Slack Loop port from map-studio-gis: circle with slack length label.
+function ziplySlackLoopSvg(color: string, labelText = "50"): string {
+  const loopText = (labelText || "50").trim();
+  let fontSize = 9;
+  if (loopText.length > 2) fontSize = 7.5;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+    <circle cx="16" cy="16" r="10" fill="#ffffff" stroke="${color}" stroke-width="2.5"/>
+    <text x="16" y="19.5" font-size="${fontSize}" font-weight="900" text-anchor="middle" fill="${color}" font-family="monospace">${loopText}</text>
+  </svg>`;
+}
+
+function ziplyAddressSvg(color: string): string {
+  return wrap(
+    `<polygon points="16,6 6,15 6,26 26,26 26,15" fill="#f8fafc" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
+    <rect x="13" y="17" width="6" height="9" fill="${color}"/>`,
+    color
+  );
+}
+
+function ziplyHandholeSvg(color: string, status?: string): string {
+  const isPlanned = status === "planned";
+  const isFilled = status === "placed" || status === "Complete";
+  const fillVal = isFilled ? color : (isPlanned ? "none" : "#f8fafc");
+  const strokeOpacity = isPlanned ? "0.5" : "1.0";
+
+  return wrap(
+    `<rect x="6" y="6" width="20" height="20" rx="1.5" fill="${fillVal}" stroke-opacity="${strokeOpacity}"/>
+    <line x1="16" y1="6" x2="16" y2="26" stroke="${color}" stroke-width="1.2" stroke-dasharray="2,2" stroke-opacity="${strokeOpacity}"/>
+    <line x1="6" y1="16" x2="26" y2="16" stroke="${color}" stroke-width="1.2" stroke-dasharray="2,2" stroke-opacity="${strokeOpacity}"/>`,
+    color
+  );
+}
+
+function flowerPotSvg(color: string): string {
+  return wrap(
+    `<circle cx="16" cy="7" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="16" cy="25" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="7" cy="16" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="25" cy="16" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="10" cy="10" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="22" cy="10" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="10" cy="22" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="22" cy="22" r="4.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <circle cx="16" cy="16" r="7.5" fill="#f8fafc" stroke="${color}" stroke-width="1.8"/>
+    <text x="16" y="19" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="8.5" font-weight="900" fill="${color}">FP</text>`,
+    color
+  );
+}
+
 // Returns raw SVG string for use in rail tiles (not data-URI)
 export function railSvgForTool(tool: string, color?: string): string {
   const c = color ?? DEFAULT_ICON_COLOR;
-  if (tool.startsWith("mh")) return mhSvg(c);
-  if (tool.startsWith("hh")) return hhSvg(c);
-  if (tool.startsWith("ped")) return pedSvg(c);
-  if (tool.startsWith("pole")) return poleSvg(c);
-  if (tool.startsWith("cabinet")) return cabinetSvg(c);
-  if (tool.startsWith("anchor")) return anchorSvg(c);
-  return mhSvg(c); // fallback
+  const t = (tool || "").toLowerCase();
+  if (t === "ziply_hub" || t.includes("hub")) return ziplyHubOctagonSvg(c);
+  if (t === "ziply_terminal" || t.includes("terminal")) return ziplyTerminalSvg(c);
+  if (t === "ziply_splitter" || t === "splitter") return ziplySplitterSvg(c);
+  if (t === "ziply_riser" || t === "riser") return ziplyRiserSvg(c);
+  if (t === "ziply_slack_loop" || t === "slack_loop" || t.includes("slack")) return ziplySlackLoopSvg(c);
+  if (t === "ziply_address" || t === "ziply_service_address" || t.includes("address")) return ziplyAddressSvg(c);
+  if (t === "ziply_handhole" || t.includes("handhole")) return ziplyHandholeSvg(c);
+  if (t === "ziply_pole" || t.includes("pole")) return poleSvg(c);
+  if (t.includes("flower_pot") || t.includes("flowerpot")) return flowerPotSvg(c);
+
+  if (t.includes("pole")) return poleSvg(c);
+  if (t.includes("mh") || t.includes("manhole")) return mhSvg(c);
+  if (t.includes("hh") || t.includes("handhole")) return hhSvg(c);
+  if (t.includes("ped")) return pedSvg(c);
+  if (t.includes("cabinet") || t.includes("cab")) return cabinetSvg(c);
+  if (t.includes("anchor") || t.includes("guy")) return anchorSvg(c);
+  if (t.includes("splice")) return spliceSvg(c);
+  return poleSvg(c); // fallback
 }
 
 // ── Map icon generator ────────────────────────────────────────────────────────
@@ -118,23 +291,45 @@ export function railSvgForTool(tool: string, color?: string): string {
 export function iconForTool(
   tool: string,
   overrideColor?: string,
-  pointSize = 1.0
-): { url: string; size: google.maps.Size; anchor: google.maps.Point } {
-  const color = overrideColor ?? DEFAULT_ICON_COLOR;
-  const px = Math.round(ICON_SIZE * pointSize);
+  pointSize = 1.0,
+  ziplyStatus?: string
+): { url: string; size: google.maps.Size; scaledSize?: google.maps.Size; anchor: google.maps.Point } {
+  const t = (tool || "").toLowerCase();
+  const isPole = t.includes("pole");
+  const isPed = t.includes("ped");
+  const isHH = t.includes("handhole") || t.includes("hh");
+
+  let color = overrideColor ?? DEFAULT_ICON_COLOR;
+  if (isPole && overrideColor !== "#3aa7ff") color = "#000000";
+  else if (isPed && overrideColor !== "#3aa7ff") color = "#10b981"; // green square for pedestals
+  else if (isHH && overrideColor !== "#3aa7ff") color = "#475569"; // slate rectangle for handholes
+
+  const px = Math.max(24, Math.round(ICON_SIZE * pointSize));
 
   let svg: string;
-  if (tool.startsWith("mh")) svg = mhSvg(color);
-  else if (tool.startsWith("hh")) svg = hhSvg(color);
-  else if (tool.startsWith("ped")) svg = pedSvg(color);
-  else if (tool.startsWith("pole")) svg = poleSvg(color);
-  else if (tool.startsWith("cabinet")) svg = cabinetSvg(color);
-  else if (tool.startsWith("anchor")) svg = anchorSvg(color);
-  else svg = pedSvg(color); // fallback
+  if (t === "ziply_hub" || t.includes("hub")) svg = ziplyHubOctagonSvg(color);
+  else if (t === "ziply_terminal" || t.includes("terminal")) svg = ziplyTerminalSvg(color);
+  else if (t === "ziply_splitter" || t === "splitter") svg = ziplySplitterSvg(color);
+  else if (t === "ziply_riser" || t === "riser") svg = ziplyRiserSvg(color);
+  else if (t === "ziply_slack_loop" || t === "slack_loop" || t.includes("slack")) svg = ziplySlackLoopSvg(color);
+  else if (t === "ziply_address" || t.includes("address")) svg = ziplyAddressSvg(color);
+  else if (t === "ziply_handhole" || t.includes("handhole")) svg = ziplyHandholeSvg(color, ziplyStatus);
+  else if (t === "ziply_pole" || t.includes("pole")) svg = poleSvg(color);
+  else if (t.includes("flower_pot") || t.includes("flowerpot")) svg = flowerPotSvg(color);
+
+  else if (t.includes("pole")) svg = poleSvg(color);
+  else if (t.includes("mh") || t.includes("manhole")) svg = mhSvg(color);
+  else if (t.includes("hh") || t.includes("handhole")) svg = hhSvg(color, ziplyStatus);
+  else if (t.includes("ped")) svg = pedSvg(color, ziplyStatus);
+  else if (t.includes("cabinet") || t.includes("cab")) svg = cabinetSvg(color);
+  else if (t.includes("anchor") || t.includes("guy")) svg = anchorSvg(color);
+  else if (t.includes("splice")) svg = spliceSvg(color);
+  else svg = poleSvg(color); // fallback
 
   return {
     url: svgUri(svg),
     size: new google.maps.Size(px, px),
+    scaledSize: new google.maps.Size(px, px),
     anchor: new google.maps.Point(px / 2, px / 2),
   };
 }

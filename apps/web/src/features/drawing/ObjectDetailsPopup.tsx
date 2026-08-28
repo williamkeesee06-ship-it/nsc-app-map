@@ -4,6 +4,7 @@
 // Used for both new objects and editing existing objects from the layers panel.
 
 import { useEffect, useRef, useState } from "react";
+import { useActiveContract } from "../workspace/contractStore.js";
 
 export interface ObjectDetailsPopupProps {
   /** Pixel position (viewport-relative) to anchor the popup near. */
@@ -14,32 +15,91 @@ export interface ObjectDetailsPopupProps {
   initialLabel?: string;
   /** Pre-fill for edit mode */
   initialDescription?: string;
-  onSave: (label: string, description: string) => void;
+  onSave: (label: string, description: string, method?: string, size?: string) => void;
   onCancel: () => void;
 }
 
-// Per-icon-type prompt config. Only the four locked icon families (Pole, MH, HH, PED)
-// get a custom ID/tag prompt — anything else falls back to a generic name.
+function isLine(tool: string): boolean {
+  return (
+    tool === "placed_cable" ||
+    tool === "removed_cable" ||
+    tool === "line" ||
+    tool === "arrow" ||
+    tool === "ziply_feeder" ||
+    tool === "ziply_distribution" ||
+    tool === "ziply_drop" ||
+    tool === "ziply_bore"
+  );
+}
+
+function parseLineProps(label: string, desc: string) {
+  const footageMatch = label.match(/^(\d+)/);
+  const footage = footageMatch ? footageMatch[1] : "";
+  
+  let method = "";
+  if (/BORE/i.test(label) || /BORE/i.test(desc)) method = "BORE";
+  else if (/TRENCH/i.test(label) || /TRENCH/i.test(desc)) method = "TRENCH";
+  else if (/AERIAL|OH/i.test(label) || /AERIAL|OH/i.test(desc)) method = "AERIAL";
+  
+  let size = "";
+  if (/1-2"\s*DUCT/i.test(desc)) size = "1-2\" DUCT";
+  else if (/10MStrand/i.test(desc)) size = "10MStrand";
+  else if (/144F/i.test(desc)) size = "144F";
+  else if (/72F/i.test(desc)) size = "72F";
+  else if (/24F/i.test(desc)) size = "24F";
+  
+  return { footage, method, size };
+}
+
+// Per-icon-type prompt config
 type IconPrompt = {
   placeholder: string;
-  prefix: string | null; // null = no auto-prefix (PED + generic)
+  prefix: string | null;
 };
 
 function promptForTool(tool: string): IconPrompt {
-  // Pole (new or removed) → A-TAG
-  if (tool === "pole_new" || tool === "pole_removed") {
-    return { placeholder: "A-TAG # (e.g. A-1234)", prefix: "A-" };
+  if (tool === "pole_new" || tool === "pole_removed" || tool === "ziply_pole") {
+    return { placeholder: "Ziply Pole / A-TAG (e.g. A-1234)", prefix: "A-" };
   }
   if (tool === "mh_new" || tool === "mh_removed") {
     return { placeholder: "MH # (e.g. MH-54)", prefix: "MH-" };
   }
-  if (tool === "hh_new" || tool === "hh_removed") {
+  if (tool === "hh_new" || tool === "hh_removed" || tool === "ziply_handhole") {
     return { placeholder: "HH # (e.g. HH-1123)", prefix: "HH-" };
   }
-  if (tool === "ped_new" || tool === "ped_removed") {
-    return { placeholder: "PED # / label (e.g. PED-1)", prefix: null };
+  if (tool === "ziply_hub") {
+    return { placeholder: "Ziply Splitter Hub (e.g. S3063)", prefix: null };
   }
-  // Cabinet / anchor / non-locked point tools and shape/line tools
+  if (tool === "ziply_terminal") {
+    return { placeholder: "Ziply Terminal (e.g. T2)", prefix: null };
+  }
+  if (tool === "ziply_address") {
+    return { placeholder: "Customer Address (e.g. 18402 McElroy Rd)", prefix: null };
+  }
+  if (tool === "ped_new" || tool === "ped_removed" || tool === "ziply_flower_pot" || tool.startsWith("flower_pot")) {
+    return { placeholder: "Flower Pot / PED # / label (e.g. FP-1)", prefix: null };
+  }
+  if (tool === "cabinet_new" || tool === "cabinet_removed") {
+    return { placeholder: "Cabinet # / label (e.g. CAB-7)", prefix: null };
+  }
+  if (tool === "anchor_new" || tool === "anchor_removed") {
+    return { placeholder: "Anchor # / label (optional)", prefix: null };
+  }
+  if (tool === "ziply_splitter") {
+    return { placeholder: "Splitter ID / ratio (e.g. 1x8, SP-3)", prefix: null };
+  }
+  if (tool === "ziply_riser") {
+    return { placeholder: "Riser # / label (optional)", prefix: null };
+  }
+  if (tool === "ziply_slack_loop") {
+    return { placeholder: "Slack length ft (e.g. 50)", prefix: null };
+  }
+  if (tool === "text") {
+    return { placeholder: "Type the text to show on the map\u2026", prefix: null };
+  }
+  if (tool === "callout") {
+    return { placeholder: "Callout text\u2026", prefix: null };
+  }
   return { placeholder: "Name this object (optional)", prefix: null };
 }
 
@@ -53,7 +113,9 @@ function applyPrefix(label: string, prefix: string | null): string {
 }
 
 const POPUP_W = 280;
-const POPUP_H = 148; // approx height to help with viewport clamping
+// Make height dynamic based on tool type to prevent clipping
+const POPUP_H_POINT = 148;
+const POPUP_H_LINE = 240;
 
 export default function ObjectDetailsPopup({
   screenPos,
@@ -63,14 +125,46 @@ export default function ObjectDetailsPopup({
   onSave,
   onCancel,
 }: ObjectDetailsPopupProps) {
+  const { contract } = useActiveContract();
+  const isLineTool = isLine(tool);
+
+  // Line States
+  const parsed = isLineTool ? parseLineProps(initialLabel, initialDescription) : null;
+  const [footage, setFootage] = useState(parsed?.footage ?? (initialLabel.replace(/'/g, "") || ""));
+  const [method, setMethod] = useState(parsed?.method ?? "");
+  const [size, setSize] = useState(parsed?.size ?? "");
+  const [sizeOption, setSizeOption] = useState(() => {
+    if (!parsed?.size) return "";
+    const common = ["1-2\" DUCT", "10MStrand", "144F", "72F", "24F"];
+    return common.includes(parsed.size) ? parsed.size : "custom";
+  });
+
+  // Point States
   const [label, setLabel] = useState(initialLabel);
   const [description, setDescription] = useState(initialDescription);
+  
   const titleRef = useRef<HTMLInputElement>(null);
   const prompt = promptForTool(tool);
 
-  const finalize = () => onSave(applyPrefix(label, prompt.prefix), description.trim());
+  const prefix = contract === "Ziply" ? null : prompt.prefix;
+  const popupHeight = isLineTool ? POPUP_H_LINE : POPUP_H_POINT;
 
-  // Autofocus title on mount
+  const finalize = () => {
+    if (isLineTool) {
+      const cleanFootage = footage.replace(/['\s]/g, "").trim();
+      const resolvedLabel = cleanFootage ? `${cleanFootage}' ${method}`.trim() : "";
+      const resolvedDesc = [size, method].filter(Boolean).join(" ");
+      onSave(resolvedLabel, resolvedDesc, method, size);
+    } else {
+      let finalLabel = applyPrefix(label, prefix);
+      if (contract === "Ziply" && /^a-/i.test(finalLabel)) {
+        finalLabel = finalLabel.slice(2);
+      }
+      onSave(finalLabel, description.trim());
+    }
+  };
+
+  // Autofocus title/footage on mount
   useEffect(() => {
     titleRef.current?.focus();
   }, []);
@@ -80,43 +174,37 @@ export default function ObjectDetailsPopup({
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
   const OFFSET = 12; // px offset from click point
   let left = screenPos.x + OFFSET;
-  let top = screenPos.y - POPUP_H / 2;
+  let top = screenPos.y - popupHeight / 2;
   if (left + POPUP_W > vw - 8) left = screenPos.x - POPUP_W - OFFSET;
   if (left < 8) left = 8;
   if (top < 8) top = 8;
-  if (top + POPUP_H > vh - 8) top = vh - POPUP_H - 8;
+  if (top + popupHeight > vh - 8) top = vh - popupHeight - 8;
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
       e.preventDefault();
       onCancel();
     }
-    // Ctrl/Cmd+Enter anywhere saves
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       finalize();
     }
   }
 
-  function handleTitleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      // Move focus to description
-      const ta = (e.currentTarget.closest(".odp")?.querySelector("textarea")) as HTMLTextAreaElement | null;
-      if (ta) {
-        ta.focus();
-      } else {
-        finalize();
-      }
-    }
-  }
-
-  function handleDescKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      finalize();
-    }
-  }
+  const inputStyle: React.CSSProperties = {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(200,208,218,0.18)",
+    borderRadius: 4,
+    color: "#f4f8ff",
+    fontFamily: "inherit",
+    fontSize: 12,
+    fontWeight: 700,
+    padding: "6px 8px",
+    width: "100%",
+    outline: "none",
+    boxSizing: "border-box",
+    letterSpacing: "0.04em",
+  };
 
   return (
     <div
@@ -137,59 +225,107 @@ export default function ObjectDetailsPopup({
         padding: "12px 12px 10px",
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 10,
         fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
       }}
-      // Prevent map click events bubbling through the popup
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {/* Title input */}
-      <input
-        ref={titleRef}
-        type="text"
-        value={label}
-        onChange={(e) => setLabel(e.target.value)}
-        onKeyDown={handleTitleKeyDown}
-        placeholder={prompt.placeholder}
-        style={{
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(200,208,218,0.18)",
-          borderRadius: 4,
-          color: "#f4f8ff",
-          fontFamily: "inherit",
-          fontSize: 12,
-          fontWeight: 700,
-          padding: "6px 8px",
-          width: "100%",
-          outline: "none",
-          boxSizing: "border-box",
-          letterSpacing: "0.04em",
-        }}
-      />
+      {isLineTool ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {/* Footage Field */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Footage</span>
+            <input
+              ref={titleRef}
+              type="text"
+              value={footage}
+              onChange={(e) => setFootage(e.target.value)}
+              placeholder="e.g. 275"
+              style={inputStyle}
+            />
+          </div>
 
-      {/* Description textarea */}
-      <textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        onKeyDown={handleDescKeyDown}
-        placeholder="Add a description, notes, or details (optional)"
-        rows={2}
-        style={{
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(200,208,218,0.14)",
-          borderRadius: 4,
-          color: "#c8d0da",
-          fontFamily: "inherit",
-          fontSize: 11,
-          padding: "6px 8px",
-          width: "100%",
-          outline: "none",
-          resize: "none",
-          boxSizing: "border-box",
-          lineHeight: 1.5,
-        }}
-      />
+          {/* Placement Method Field */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Placement Method</span>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">-- Select Method --</option>
+              <option value="BORE">BORE (Underground)</option>
+              <option value="TRENCH">TRENCH (Underground)</option>
+              <option value="AERIAL">AERIAL (Overhead)</option>
+            </select>
+          </div>
+
+          {/* Cable / Conduit Size Field */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: "bold", textTransform: "uppercase" }}>Size / Spec</span>
+            <select
+              value={sizeOption}
+              onChange={(e) => {
+                setSizeOption(e.target.value);
+                if (e.target.value !== "custom") setSize(e.target.value);
+              }}
+              style={inputStyle}
+            >
+              <option value="">-- Select Size --</option>
+              <option value="1-2&quot; DUCT">1-2&quot; DUCT</option>
+              <option value="10MStrand">10MStrand</option>
+              <option value="144F">144F</option>
+              <option value="72F">72F</option>
+              <option value="24F">24F</option>
+              <option value="custom">Other / Custom...</option>
+            </select>
+            {sizeOption === "custom" && (
+              <input
+                type="text"
+                value={size}
+                onChange={(e) => setSize(e.target.value)}
+                placeholder="Enter custom size..."
+                style={{ ...inputStyle, marginTop: 4 }}
+              />
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Title input */}
+          <input
+            ref={titleRef}
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={prompt.placeholder}
+            style={inputStyle}
+          />
+
+          {/* Description textarea */}
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add a description, notes, or details (optional)"
+            rows={2}
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(200,208,218,0.14)",
+              borderRadius: 4,
+              color: "#c8d0da",
+              fontFamily: "inherit",
+              fontSize: 11,
+              padding: "6px 8px",
+              width: "100%",
+              outline: "none",
+              resize: "none",
+              boxSizing: "border-box",
+              lineHeight: 1.5,
+            }}
+          />
+        </>
+      )}
 
       {/* Buttons row */}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 2 }}>

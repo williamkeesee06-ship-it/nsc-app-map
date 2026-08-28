@@ -73,6 +73,9 @@ export class DrawingEngine {
   onDrawEnd?: () => void;
   /** Phase 5.1: intercept completed objects — show details popup before committing */
   onPendingObject?: PendingObjectFn;
+  /** When true, ALL objects commit immediately and the popup is bypassed entirely.
+   *  Set per-user (see DrawingOverlay) to honor the "auto-save everything" rule. */
+  instantCommit = false;
 
   constructor(map: google.maps.Map, commit: CommitFn) {
     this.map = map;
@@ -80,7 +83,7 @@ export class DrawingEngine {
   }
 
   activate(tool: DrawingTool, style: DrawingStyle): void {
-    this.deactivate();
+    this.clearState();
     this.tool = tool;
     this.style = style;
 
@@ -116,8 +119,13 @@ export class DrawingEngine {
     }
   }
 
-  deactivate(): void {
-    this.listeners.forEach((l) => l.remove());
+  private clearState(): void {
+    this.listeners.forEach((l) => {
+      try {
+        if (typeof l?.remove === "function") l.remove();
+        else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(l);
+      } catch { /* ignore */ }
+    });
     this.listeners = [];
     this.previewLine?.setMap(null);
     this.previewLine = null;
@@ -136,6 +144,10 @@ export class DrawingEngine {
     this.tool = null;
     this.style = null;
     this.map.setOptions({ draggableCursor: null, draggable: true });
+  }
+
+  deactivate(): void {
+    this.clearState();
     this.onDrawEnd?.();
   }
 
@@ -219,12 +231,22 @@ export class DrawingEngine {
 
   /** Commit the object immediately OR hand off to popup handler if registered. */
   private commitOrPend(obj: DrawingObject, centerLat: number, centerLng: number): void {
-    if (this.onPendingObject) {
+    // Annotate tools (text/shapes/freehand/etc.) don't need the label popup —
+    // they commit immediately. Only telecom tools that need a user label/description
+    // open the popup. Callout has its own inline text editor.
+    if (!this.instantCommit && this.onPendingObject && this.needsLabelPopup(obj.tool)) {
       const screenPos = this.latLngToScreenPoint(centerLat, centerLng);
       this.onPendingObject(obj, screenPos);
     } else {
       this.commit(obj);
     }
+  }
+
+  /** Tools that need user-supplied label/description on creation. */
+  private needsLabelPopup(tool: DrawingTool): boolean {
+    return [
+      "text", "callout"
+    ].includes(tool);
   }
 
   private cursorFor(tool: DrawingTool): string {
@@ -235,7 +257,10 @@ export class DrawingEngine {
   }
 
   private isPolylineTool(tool: DrawingTool): boolean {
-    return ["placed_cable", "removed_cable", "line", "arrow"].includes(tool);
+    return [
+      "placed_cable", "removed_cable", "line", "arrow",
+      "ziply_feeder", "ziply_distribution", "ziply_drop", "ziply_bore"
+    ].includes(tool);
   }
 
   private isPointTool(tool: DrawingTool): boolean {
@@ -246,6 +271,11 @@ export class DrawingEngine {
       "pole_new", "pole_removed",
       "cabinet_new", "cabinet_removed",
       "anchor_new", "anchor_removed",
+      "splice",
+      "flower_pot_new", "flower_pot_removed",
+      // Ziply point tools
+      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole", "ziply_flower_pot",
+      "ziply_splitter", "ziply_riser", "ziply_slack_loop"
     ].includes(tool);
   }
 
@@ -255,12 +285,16 @@ export class DrawingEngine {
     const style = this.style!;
 
     // Live preview polyline
+    const isLineTool = this.tool ? this.isPolylineTool(this.tool) : false;
     this.previewLine = new google.maps.Polyline({
       path: [],
-      strokeColor: style.strokeColor,
-      strokeWeight: style.strokeWidth,
-      strokeOpacity: style.opacity,
-      strokeDashArray: style.strokeStyle === "dashed" ? "8 4" : undefined,
+      strokeColor: isLineTool ? "#FFFF00" : style.strokeColor,
+      strokeWeight: isLineTool ? 4 : style.strokeWidth,
+      strokeOpacity: isLineTool ? 1.0 : style.opacity,
+      strokeDashArray:
+        style.strokeStyle === "dashed" ? "8 4"
+        : style.strokeStyle === "dotted" ? "2 4"
+        : undefined,
       map: this.map,
       clickable: false,
       zIndex: 10,
@@ -317,7 +351,7 @@ export class DrawingEngine {
     const style = this.style!;
     const verts = [...this.vertices];
 
-    if (verts.length < 2) {
+    if (verts.length < 2 || (tool === "polygon" && verts.length < 3)) {
       this.deactivate();
       return;
     }
@@ -386,7 +420,7 @@ export class DrawingEngine {
     const midVert = verts[Math.floor(verts.length / 2)]!;
     const obj: DrawingObject = {
       id: genId(),
-      tool: "freehand",
+      tool: (this.tool === "highlighter" ? "highlighter" : "freehand") as "freehand" | "highlighter",
       vertices: verts,
       style,
     };
@@ -581,28 +615,150 @@ export class DrawingEngine {
   }
 
   // ─── Callout tool ───────────────────────────────────────────────────────────
+  //
+  // STRICT 3-CLICK FLOW (Billy 6/10, option A):
+  //   click 1 → arrow tip (anchor)        — where the arrow head will point
+  //   click 2 → bend (knee)               — required mid-leader vertex
+  //   click 3 → text box position + COMMIT — opens the label popup immediately
+  //
+  // No double-click needed. No timing race. Each click advances a deterministic
+  // step counter. Industry standard for callouts (Bluebeam, Adobe, Nitro) is
+  // arrow→knee→text; this matches Billy's spec exactly.
+  //
+  // To cancel mid-draw: press Escape or switch tools (deactivate() cleans up).
 
   private setupCalloutTool(): void {
     const style = this.style!;
+
+    // Block Google's built-in double-click-to-zoom while the callout tool is
+    // active. Otherwise a fast click 2 + click 3 pair (under 300ms) would zoom
+    // the map underneath the user mid-draw — confusing and disorienting.
+    // We restore the prior value on cleanup so other tools/behavior unchanged.
+    const prevDblClickZoom = this.map.get("disableDoubleClickZoom");
+    this.map.setOptions({ disableDoubleClickZoom: true });
+
+    // Strict step machine. 0 = waiting for arrow head, 1 = waiting for bend,
+    // 2 = waiting for text box. After step 2 commits, the tool deactivates.
+    let step: 0 | 1 | 2 = 0;
+    let anchor: { lat: number; lng: number } | null = null;
+    let bend: { lat: number; lng: number } | null = null;
+
+    let previewLine: google.maps.Polyline | null = null;
+    let anchorMarker: google.maps.Marker | null = null;
+    let bendMarker: google.maps.Marker | null = null;
+
+    const ensurePreview = () => {
+      if (previewLine) return;
+      previewLine = new google.maps.Polyline({
+        path: [],
+        strokeColor: style.strokeColor,
+        strokeWeight: style.strokeWidth,
+        strokeOpacity: style.opacity,
+        map: this.map,
+        clickable: false,
+        zIndex: 15,
+      });
+    };
+
+    const clearPreview = () => {
+      previewLine?.setMap(null);
+      previewLine = null;
+      anchorMarker?.setMap(null);
+      anchorMarker = null;
+      bendMarker?.setMap(null);
+      bendMarker = null;
+      // Restore double-click-zoom to whatever the map had before. Undefined
+      // → default (enabled). True/false → use the prior explicit value.
+      this.map.setOptions({
+        disableDoubleClickZoom:
+          typeof prevDblClickZoom === "boolean" ? prevDblClickZoom : false,
+      });
+    };
+
+    /** Live preview from committed points + the current cursor. */
+    const updatePreview = (cursor?: { lat: number; lng: number }) => {
+      if (!previewLine) return;
+      const path: Array<{ lat: number; lng: number }> = [];
+      if (anchor) path.push(anchor);
+      if (bend) path.push(bend);
+      if (cursor) path.push(cursor);
+      previewLine.setPath(path.map((p) => new google.maps.LatLng(p.lat, p.lng)));
+    };
+
+    /** Tiny dot at a committed click so the user sees what's locked in. */
+    const dropMarker = (pt: { lat: number; lng: number }): google.maps.Marker =>
+      new google.maps.Marker({
+        position: pt,
+        map: this.map,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 4,
+          fillColor: style.strokeColor,
+          fillOpacity: 1,
+          strokeColor: "#fff",
+          strokeWeight: 1.5,
+        },
+        clickable: false,
+        zIndex: 16,
+      });
+
+    // Cursor tracking so the rubber-band line follows the mouse between clicks.
+    const move = this.map.addListener("mousemove", (e: google.maps.MapMouseEvent) => {
+      const pt = latLng(e);
+      if (!pt || step === 0) return;
+      updatePreview(pt);
+    });
+    this.listeners.push(move);
 
     const click = this.map.addListener("click", (e: google.maps.MapMouseEvent) => {
       const pt = latLng(e);
       if (!pt) return;
 
-      // Create a pending callout object
+      if (step === 0) {
+        // Click 1 — lock in the arrow head.
+        anchor = pt;
+        ensurePreview();
+        anchorMarker = dropMarker(pt);
+        step = 1;
+        updatePreview(pt);
+        return;
+      }
+
+      if (step === 1) {
+        // Click 2 — lock in the bend (knee).
+        bend = pt;
+        bendMarker = dropMarker(pt);
+        step = 2;
+        updatePreview(pt);
+        return;
+      }
+
+      // step === 2 → Click 3 lands the text box, commits, opens the editor.
+      // anchor and bend are guaranteed non-null here by the step machine.
+      if (!anchor || !bend) return;
+      const textBox = pt;
+
       const obj: any = {
         id: genId(),
         tool: "callout",
-        anchor: pt,
-        position: pt,
-        text: "\u200b",
+        anchor,
+        position: textBox,
+        path: [bend], // single required knee per the strict flow
+        text: "\u200b", // zero-width placeholder so the editor opens empty
         style,
       };
 
+      clearPreview();
+      step = 0;
+      anchor = null;
+      bend = null;
       this.deactivate();
-      this.commitOrPend(obj, pt.lat, pt.lng);
+      this.commitOrPend(obj, textBox.lat, textBox.lng);
     });
-
     this.listeners.push(click);
+
+    // If the user switches tools or hits Escape mid-draw, the listeners array
+    // gets cleared by deactivate(). We piggyback on it so cleanup runs.
+    this.listeners.push({ remove: clearPreview } as google.maps.MapsEventListener);
   }
 }

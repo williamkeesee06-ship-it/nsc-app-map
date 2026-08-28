@@ -1,29 +1,47 @@
-// Compact job card with INLINE EDITING (Billy 5/21).
-//   - Secondary Job Status pill → click to cycle through dropdown
-//   - NSC Project Notes        → click to edit text
-//   - Crew / Foreman           → click to open dropdown
-//   - Schedule Date            → click to open date picker
-//   - Traffic Control          → click toggle
-// Saves write directly to Smartsheet via the nsc-smartapp Worker.
-import { useEffect, useState } from "react";
-import type { Job } from "@nsc/types";
+// Compact job card with unified styling (Lumen & Ziply) and collapsible sections.
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, FileText, ChevronRight, ChevronDown, CheckCircle2, Wand2, Calendar, FileDown, UploadCloud, Layers, Paperclip } from "lucide-react";
+import { useMap } from "@vis.gl/react-google-maps";
+import type { DigTicket, Job, PrintOverlayDoc, PrintOverlayPage } from "@nsc/types";
 import { Link } from "react-router-dom";
 import { MARKER_COLORS, colorKeyForSecondaryStatus } from "./markerStyle.js";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
+import Eight11Section from "./Eight11Section.js";
+import { computePlantProgress, isZiplyJob } from "../ziply/ziplyUtils.js";
+import LayersPanel from "../workspace/LayersPanel.js";
+import { useActiveContract } from "../workspace/contractStore.js";
+import { uploadToStorage, sanitizeStorageSegment } from "../../lib/storage.js";
+import { deleteBlueprintImage } from "../print-overlay/blueprintImageStore.js";
 
 interface Props {
   job: Job;
   onClose?: () => void;
+  onJobUpdate?: (job: Job) => void;
   variant?: "popup" | "panel";
+  theme?: "steel" | "cyberpunk" | "titanium" | "glass";
+  onThemeChange?: (theme: "steel" | "cyberpunk" | "titanium" | "glass") => void;
+  ziplyPrintLayerVisible?: boolean;
+  setZiplyPrintLayerVisible?: (v: boolean) => void;
 }
+
+interface Schema {
+  secondaryStatusOptions: string[];
+  foremanOptions: string[];
+}
+
+let _schemaCache: Schema | null = null;
+let _schemaPromise: Promise<Schema> | null = null;
 
 const SS_WORKER = "https://nsc-smartapp.williamkeesee06.workers.dev";
 
-// Cache the dropdown options between mounts so we don't refetch every click.
-type Schema = { secondaryStatusOptions: string[]; foremanOptions: string[] };
-let _schemaCache: Schema | null = null;
-let _schemaPromise: Promise<Schema> | null = null;
+function slugify(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
 function loadSchema(): Promise<Schema> {
   if (_schemaCache) return Promise.resolve(_schemaCache);
   if (_schemaPromise) return _schemaPromise;
@@ -37,10 +55,10 @@ function loadSchema(): Promise<Schema> {
       _schemaCache = c;
       return c;
     })
-    .catch(() => {
-      const c: Schema = { secondaryStatusOptions: [], foremanOptions: [] };
-      _schemaCache = c;
-      return c;
+    .catch((err) => {
+      console.warn("[JobCard] Failed to fetch Smartsheet schema options, will retry on next interaction:", err);
+      _schemaPromise = null;
+      return { secondaryStatusOptions: [], foremanOptions: [] };
     });
   return _schemaPromise;
 }
@@ -64,11 +82,30 @@ async function saveField(
   }
 }
 
-export default function JobCard({ job, onClose, variant = "popup" }: Props) {
+export default function JobCard({
+  job,
+  onClose,
+  onJobUpdate,
+  variant = "popup",
+  theme = "steel",
+  onThemeChange,
+  ziplyPrintLayerVisible = true,
+  setZiplyPrintLayerVisible = () => {},
+}: Props) {
   const { username, isManager } = useAuth();
   const [minimized, setMinimized] = useState(false);
+  const [localTheme, setLocalTheme] = useState<"steel" | "cyberpunk" | "titanium" | "glass">("steel");
+  const activeTheme = onThemeChange ? theme : localTheme;
+  const setActiveTheme = onThemeChange ? onThemeChange : setLocalTheme;
   const wo = job.workOrder;
   const status = job.jobStatus ?? "—";
+
+  const [activeTab, setActiveTab] = useState<"info" | "progress" | "overlays">("info");
+  const [docsExpanded, setDocsExpanded] = useState(false);
+  const { contract } = useActiveContract();
+
+  // Collapse/Expand state
+  const [notesExpanded, setNotesExpanded] = useState(false);
 
   // Local edit state (optimistic display until save resolves)
   const [secondary, setSecondary] = useState<string>(job.secondaryJobStatus ?? "");
@@ -84,7 +121,7 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
     if (!schema) loadSchema().then((s) => setSchema(s));
   }, [schema]);
 
-  // Re-sync local state if the underlying job object changes (e.g. user clicks another job)
+  // Re-sync local state if the underlying job object changes
   useEffect(() => {
     setSecondary(job.secondaryJobStatus ?? "");
     setForeman(job.constructionCrewForeman ?? "");
@@ -93,7 +130,7 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
     setNotes(job.nscProjectNotes ?? "");
   }, [job.jobId]);
 
-  // Save indicator: "idle" | "saving" | "ok" | "err"
+  // Save indicator state
   const [savingField, setSavingField] = useState<string | null>(null);
   const [savedField, setSavedField] = useState<string | null>(null);
   const [errField, setErrField] = useState<string | null>(null);
@@ -107,9 +144,6 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
     if (res.ok) {
       setSavedField(field);
       setTimeout(() => setSavedField(null), 1500);
-      // Billy 5/26: keep Firestore (and therefore the map view) in sync with
-      // what we just wrote to Smartsheet. Without this, a refresh re-reads
-      // stale Firestore data and the user's edit appears to revert.
       try {
         if (username) {
           if (isManager) {
@@ -120,7 +154,7 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
           window.dispatchEvent(new Event("nsc:jobs-reload"));
         }
       } catch (err) {
-        console.warn("Post-save sync failed (UI will still show update locally):", err);
+        console.warn("Post-save sync failed:", err);
       }
     } else {
       setErrField(field);
@@ -129,7 +163,6 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
     }
   }
 
-  // Minimized pill — always rendered in popup variant
   if (minimized && variant === "popup") {
     return (
       <div className="job-card-pill" title={`${wo} · ${status}`}>
@@ -140,7 +173,7 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
           aria-label="Restore job card"
           title="Restore"
         >
-          ⌃
+          ↕
         </button>
         {onClose && (
           <button
@@ -159,331 +192,1166 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
   const secondaryOptions = schema?.secondaryStatusOptions ?? [];
   const foremanOptions = schema?.foremanOptions ?? [];
 
-  return (
-    <div className={`job-card job-card--${variant}`}>
-      <header className="job-card__head">
-        <div className="job-card__head-left">
-          <span className="job-card__wo">{wo}</span>
-          {/* Secondary status pill — now a dropdown (Billy 5/21) */}
-          <SecondaryStatusEditablePill
-            status={secondary}
-            options={secondaryOptions}
-            onChange={(v) => {
-              setSecondary(v);
-              commit("secondaryStatus", v);
-            }}
-            saving={savingField === "secondaryStatus"}
-            saved={savedField === "secondaryStatus"}
-            error={errField === "secondaryStatus"}
-          />
-          {!job.inTracker && (
-            <span className="status-pill status-archived">Archived</span>
-          )}
-        </div>
+  // Documents listing: Ziply documents + permits
+  const ziplyPrintLayer = job.ziplyPrintLayer;
+  const attachmentsList = ziplyPrintLayer?.permitFiles ?? [];
 
-        <div className="job-card__head-actions">
-          {variant === "popup" && (
-            <button
-              className="icon-btn"
-              onClick={() => setMinimized(true)}
-              aria-label="Minimize job card"
-              title="Minimize"
-            >
-              −
-            </button>
-          )}
-          {onClose && (
-            <button className="icon-btn" onClick={onClose} aria-label="Close">
-              ×
-            </button>
-          )}
-        </div>
-      </header>
+  // Plant stats / Running totals
+  const stats = computePlantProgress(job);
 
-      {/* Primary job status row (read-only) */}
-      <div style={{ paddingLeft: 12, paddingBottom: 4, marginTop: -2 }}>
-        <span className={`status-pill status-${slugify(status)}`} style={{ fontSize: 9 }}>
-          {status}
-        </span>
-      </div>
+  const [localOverlayDoc, setLocalOverlayDoc] = useState<PrintOverlayDoc | null>(job.printOverlay ?? null);
+  useEffect(() => {
+    setLocalOverlayDoc(job.printOverlay ?? null);
+  }, [job.printOverlay]);
 
-      <Row label="Address" value={job.address} />
-      <Row label="City" value={job.city} />
+  const overlayPages: PrintOverlayPage[] = localOverlayDoc?.pages ?? [];
+  const [activePageSelId, setActivePageSelId] = useState<string>("");
 
-      <div className="job-card__row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 12px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-        <span style={{ fontSize: 11, color: "#8a94a6", textTransform: "uppercase", letterSpacing: "0.05em" }}>Pin Position</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 11, color: job.customCoordinates ? "#ffcc00" : "#39ff7a", fontWeight: 600 }}>
-            {job.customCoordinates ? "Custom Override" : "Auto Snapped"}
+  useEffect(() => {
+    if (overlayPages.length > 0 && !activePageSelId) {
+      setActivePageSelId(overlayPages[0].id);
+    }
+  }, [overlayPages, activePageSelId]);
+
+  const activePageSel = overlayPages.find((p: PrintOverlayPage) => p.id === activePageSelId);
+  const activePageOpacity = activePageSel ? (localOverlayDoc?.transforms?.[activePageSel.id]?.opacity ?? 0.5) : 0.5;
+
+  const togglePageExcluded = async (pageId: string) => {
+    const currentDoc = localOverlayDoc ?? job.printOverlay;
+    if (!currentDoc) return;
+    const doc = { ...currentDoc };
+    doc.pages = (doc.pages ?? []).map((p) =>
+      p.id === pageId ? { ...p, excluded: !p.excluded } : p
+    );
+    doc.updatedAt = Date.now();
+    doc.updatedBy = username || "system";
+
+    setLocalOverlayDoc(doc);
+    const updatedJob = { ...job, printOverlay: doc };
+    onJobUpdate?.(updatedJob);
+
+    try {
+      await api.putPrintOverlay(job.jobId, doc);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    } catch (e) {
+      console.warn("[JobCard] Failed to toggle page visibility", e);
+    }
+  };
+
+  // Hard-delete an overlay page from the job's PrintOverlayDoc.
+  //
+  // Previous behavior optimistically updated local state, then PUT, then
+  // dispatched reload. If the PUT failed silently (auth expired, network
+  // dropped, 4xx from validation) the local card looked cleared but the
+  // next jobs-reload restored the doc from the server — the "stuck overlay"
+  // symptom Billy reported.
+  //
+  // New order:
+  //   1. Build the trimmed doc — also purge orphan sources whose only pages
+  //      just got removed, so no zombie source rehydrates on next load.
+  //   2. PUT to the server FIRST and await success.
+  //   3. Only then update local state, notify the parent (setSelectedJob),
+  //      dispatch nsc:jobs-reload, and drop the cached blueprint image.
+  //   4. On failure, surface a real error (no silent success).
+  const deleteOverlayPage = async (pageId: string) => {
+    const currentDoc = localOverlayDoc ?? job.printOverlay;
+    if (!currentDoc) return;
+    if (!window.confirm("Are you sure you want to delete this overlay page?")) return;
+
+    const doc: PrintOverlayDoc = { ...currentDoc };
+    doc.pages = (doc.pages ?? []).filter((p) => p.id !== pageId);
+
+    if (doc.transforms) {
+      const updatedTransforms = { ...doc.transforms };
+      delete updatedTransforms[pageId];
+      doc.transforms = updatedTransforms;
+    }
+    if (doc.alignments) {
+      const updatedAlignments = { ...doc.alignments };
+      delete updatedAlignments[pageId];
+      doc.alignments = updatedAlignments;
+    }
+
+    // Purge sources whose only referencing pages just got removed. Without
+    // this, a stale source keeps the download URL alive and any future "re-
+    // add pages from source" path could resurrect the deleted page.
+    if (doc.sources) {
+      const stillReferencedDocIds = new Set((doc.pages ?? []).map((p) => p.documentId));
+      doc.sources = doc.sources.filter((s) => stillReferencedDocIds.has(s.documentId));
+    }
+
+    doc.updatedAt = Date.now();
+    doc.updatedBy = username || "system";
+
+    try {
+      // 1) Persist first — if this fails, local state stays truthful.
+      await api.putPrintOverlay(job.jobId, doc);
+
+      // 2) Then reflect in local state.
+      setLocalOverlayDoc(doc);
+      if (activePageSelId === pageId) {
+        setActivePageSelId(doc.pages[0]?.id ?? "");
+      }
+      onJobUpdate?.({ ...job, printOverlay: doc });
+
+      // 3) Drop the cached preview image (fire-and-forget).
+      void deleteBlueprintImage(pageId);
+
+      // 4) Fan out to every subscriber so AllJobsPrintOverlays refetches.
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+      try {
+        const bc = new BroadcastChannel("nsc_jobs_channel");
+        bc.postMessage("nsc:jobs-reload");
+        bc.close();
+      } catch {}
+    } catch (e) {
+      console.error("[JobCard] Failed to delete overlay page", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      window.alert(
+        `Could not delete overlay page. The map may still show it until the next refresh.\n\nDetails: ${msg}`
+      );
+    }
+  };
+
+  const updatePageOpacity = async (pageId: string, opacity: number) => {
+    const currentDoc = localOverlayDoc ?? job.printOverlay;
+    if (!currentDoc) return;
+    const doc = { ...currentDoc };
+    const transforms = { ...doc.transforms };
+    const base = transforms[pageId] ?? {
+      center: job.geocode ? { lat: job.geocode.lat, lng: job.geocode.lng } : { lat: 0, lng: 0 },
+      scale: 1,
+      rotationDeg: 0,
+      opacity: 0.5
+    };
+    transforms[pageId] = { ...base, opacity };
+    doc.transforms = transforms;
+    doc.updatedAt = Date.now();
+    doc.updatedBy = username || "system";
+
+    setLocalOverlayDoc(doc);
+    const updatedJob = { ...job, printOverlay: doc };
+    onJobUpdate?.(updatedJob);
+
+    try {
+      await api.putPrintOverlay(job.jobId, doc);
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    } catch (e) {
+      console.warn("[JobCard] Failed to update page opacity", e);
+    }
+  };
+
+  const getStatusStyles = (statusStr: string) => {
+    const s = statusStr.toLowerCase();
+    if (s.includes("ready") || s.includes("rts") || s.includes("clear")) {
+      return { border: "1.5px solid #00C853", boxShadow: "0 0 8px rgba(0, 200, 83, 0.25)", backgroundColor: "rgba(0, 200, 83, 0.05)", color: "#00C853" };
+    } else if (s.includes("progress") || s.includes("active") || s.includes("sched") || s.includes("route")) {
+      return { border: "1.5px solid #0033A0", boxShadow: "0 0 8px rgba(0, 51, 160, 0.25)", backgroundColor: "rgba(0, 51, 160, 0.05)", color: "#0033A0" };
+    } else if (s.includes("pending")) {
+      return { border: "1.5px solid #ff8a1f", boxShadow: "0 0 8px rgba(255, 138, 31, 0.25)", backgroundColor: "rgba(255, 138, 31, 0.05)", color: "#ff8a1f" };
+    } else if (s.includes("complete") || s.includes("done")) {
+      return { border: "1.5px solid #00C853", boxShadow: "0 0 8px rgba(0, 200, 83, 0.25)", backgroundColor: "rgba(0, 200, 83, 0.05)", color: "#00C853" };
+    } else if (s.includes("hold")) {
+      return { border: "1.5px solid #ff2d4a", boxShadow: "0 0 8px rgba(255, 45, 74, 0.25)", backgroundColor: "rgba(255, 45, 74, 0.05)", color: "#ff2d4a" };
+    } else if (s.includes("fielding")) {
+      return { border: "1.5px solid #c44dff", boxShadow: "0 0 8px rgba(196, 77, 255, 0.25)", backgroundColor: "rgba(196, 77, 255, 0.05)", color: "#c44dff" };
+    } else {
+      return { border: "1.5px solid #94a3b8", boxShadow: "0 0 8px rgba(148, 163, 184, 0.25)", backgroundColor: "rgba(148, 163, 184, 0.05)", color: "#94a3b8" };
+    }
+  };
+
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+
+  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploadingAttachment(true);
+    try {
+      const sanitizedName = sanitizeStorageSegment(file.name);
+      const documentId = `permit-${Date.now()}`;
+      const path = `jobs/${job.jobId}/permits/${documentId}/${sanitizedName}`;
+
+      const uploadResult = await uploadToStorage(path, file, {
+        contentType: file.type || "application/pdf",
+      });
+
+      // Call api.ziplyPermitIngest to record it in the backend database
+      await api.ziplyPermitIngest(job.jobId, {
+        permitType: "other",
+        storageFiles: [
+          {
+            storagePath: uploadResult.storagePath,
+            downloadUrl: uploadResult.downloadUrl,
+            contentType: uploadResult.contentType || file.type || "application/pdf",
+            name: file.name,
+            size: uploadResult.size,
+          },
+        ],
+      });
+
+      // Reload jobs
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
+    } catch (err) {
+      console.error("[JobCard] Attachment upload failed", err);
+      alert("Failed to upload attachment: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
+  const getStatusBorderColor = (statusStr: string) => {
+    const s = statusStr.toLowerCase();
+    if (s.includes("ready") || s.includes("rts") || s.includes("clear")) {
+      return "#00C853";
+    } else if (s.includes("progress") || s.includes("active") || s.includes("sched") || s.includes("route")) {
+      return "#1E5EFF";
+    } else if (s.includes("pending")) {
+      return "#ff8a1f";
+    } else if (s.includes("complete") || s.includes("done")) {
+      return "#00C853";
+    } else if (s.includes("hold")) {
+      return "#ff2d4a";
+    } else if (s.includes("fielding")) {
+      return "#c44dff";
+    } else {
+      return "#94a3b8";
+    }
+  };
+
+  const isPanel = variant === "panel";
+
+  if (!isPanel) {
+    return (
+      <div className={`job-card job-card--popup theme-${activeTheme}`} style={{ display: "flex", flexDirection: "column", gap: 10, padding: "12px", width: "280px" }}>
+        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: "14px", fontWeight: 900, color: "#0033A0" }}>{wo}</span>
+          <span style={{
+            fontSize: "9px",
+            fontWeight: 800,
+            padding: "2px 6px",
+            borderRadius: "9999px",
+            ...getStatusStyles(secondary || status)
+          }}>
+            {secondary || status}
           </span>
-          {job.customCoordinates && (
-            <button
-              onClick={async () => {
-                await api.resetJobLocation(job.jobId);
-                window.dispatchEvent(new Event("nsc:jobs-reload"));
-              }}
-              style={{
-                background: "rgba(255,204,0,0.15)",
-                border: "1px solid rgba(255,204,0,0.4)",
-                color: "#ffcc00",
-                fontSize: 10,
-                padding: "2px 6px",
-                borderRadius: 4,
-                cursor: "pointer",
-              }}
-              title="Reset pin to address geocode / route"
-            >
-              Reset
-            </button>
-          )}
+        </header>
+        <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+          <div>{job.address}</div>
+          <div>{job.city}</div>
         </div>
       </div>
+    );
+  }
 
-      <EditableRow
-        label="Crew / Foreman"
-        value={foreman}
-        type="select"
-        options={foremanOptions}
-        onChange={(v) => {
-          setForeman(v);
-          commit("foreman", v);
-        }}
-        saving={savingField === "foreman"}
-        saved={savedField === "foreman"}
-        error={errField === "foreman"}
-      />
-
-      <EditableRow
-        label="Schedule Date"
-        value={schedDate}
-        type="date"
-        onChange={(v) => {
-          setSchedDate(v);
-          commit("schedDate", v || null);
-        }}
-        saving={savingField === "schedDate"}
-        saved={savedField === "schedDate"}
-        error={errField === "schedDate"}
-      />
-
-      <EditableRow
-        label="Traffic Control"
-        value={tcReq === true ? "Required" : tcReq === false ? "Not required" : ""}
-        type="toggle"
-        toggleValue={tcReq === true}
-        onToggle={(v) => {
-          setTcReq(v);
-          commit("tcRequired", v);
-        }}
-        saving={savingField === "tcRequired"}
-        saved={savedField === "tcRequired"}
-        error={errField === "tcRequired"}
-      />
-
-      <Row label="Completed" value={fmtDate(job.actualCompletionDate)} />
-
-      {/* Notes — always shown so user can add even when empty */}
-      <div className="job-card__notes">
-        <div className="job-card__notes-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          NSC Project Notes
-          <SaveIndicator
-            saving={savingField === "notes"}
-            saved={savedField === "notes"}
-            error={errField === "notes"}
-          />
+  return (
+    <div 
+      className="job-detail-panel"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        width: "100%",
+        background: "transparent",
+        overflow: "hidden"
+      }}
+    >
+      {/* Header Info: Job Number & Status Pill */}
+      <div style={{ padding: "18px 20px 12px 20px", display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 }}>
+        {/* Row 1: Large Job Number Pill (Full Width) */}
+        <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
+          <div style={{
+            width: "100%",
+            background: "#000000",
+            border: "3px solid #1E5EFF",
+            borderRadius: "9999px",
+            padding: "8px 20px",
+            display: "flex",
+            alignItems: "center",
+            boxShadow: "0 0 10px rgba(30, 94, 255, 0.7), inset 0 0 6px rgba(30, 94, 255, 0.4)",
+            minWidth: 0
+          }}>
+            <div style={{
+              fontSize: "18px",
+              fontWeight: 900,
+              color: "#ffffff",
+              fontFamily: "'Space Grotesk', 'Rajdhani', sans-serif",
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              width: "100%",
+              textAlign: "center",
+              textShadow: "0 0 4px rgba(30, 94, 255, 0.8)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}>
+              {job.displayName || (job.buildReference ? `${wo} — ${job.buildReference}` : wo)}
+            </div>
+          </div>
         </div>
-        <EditableNotes value={notes} onCommit={(v) => { setNotes(v); commit("notes", v); }} />
-      </div>
 
-      <footer className="job-card__foot" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Link to={`/jobs/${job.jobId}`} className="btn btn--primary">
-          Open workspace →
-        </Link>
-        <a
-          href={`https://nsc-asbuilt-app.vercel.app?jobId=${encodeURIComponent(job.workOrder)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn--secondary"
-          style={{
+        {/* Row 2: Hub + Status Pill */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {job.hubNumber && <HubOctagonBadge hub={job.hubNumber} />}
+
+          {/* Status in a matching pill style next to it */}
+          <div style={{
+            background: "#000000",
+            border: `2.2px solid ${getStatusBorderColor(secondary || status)}`,
+            borderRadius: "9999px",
+            padding: "0 14px",
+            fontSize: "9.5px",
+            fontWeight: 900,
+            color: "#ffffff",
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            boxShadow: `0 0 8px ${getStatusBorderColor(secondary || status)}88`,
             display: "inline-flex",
             alignItems: "center",
-            gap: 4,
-            padding: "6px 12px",
-            borderRadius: 999,
-            background: "rgba(58, 167, 255, 0.12)",
-            border: "1px solid rgba(58, 167, 255, 0.5)",
-            color: "#3aa7ff",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.05em",
+            justifyContent: "center",
+            height: "32px",
+          }}>
+            {secondary || status}
+          </div>
+
+          {!job.inTracker && (
+            <span style={{
+              background: "rgba(239, 68, 68, 0.1)",
+              border: "1.5px solid #ef4444",
+              color: "#ef4444",
+              borderRadius: "9999px",
+              padding: "2px 8px",
+              fontSize: "8px",
+              fontWeight: 800,
+              textTransform: "uppercase"
+            }}>
+              Archived
+            </span>
+          )}
+          <Eight11ExpiryPill job={job} />
+        </div>
+      </div>
+
+      {/* Royal Blue Glow Tabstrip */}
+      <div style={{
+        display: "flex",
+        padding: "0 20px 8px 20px",
+        gap: 6,
+        borderBottom: "1.5px solid var(--border)",
+        flexShrink: 0
+      }}>
+        {(["info", "progress", "overlays"] as const).map(tab => {
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                flex: 1,
+                background: isActive ? "rgba(0, 51, 160, 0.08)" : "transparent",
+                border: isActive ? "1.5px solid #0033A0" : "1.5px solid transparent",
+                color: isActive ? "#0033A0" : "var(--text-muted)",
+                fontSize: "10px",
+                fontWeight: 900,
+                textTransform: "uppercase",
+                padding: "8px 4px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                textAlign: "center",
+                boxShadow: isActive ? "0 2px 6px rgba(0, 51, 160, 0.15)" : "none",
+                transition: "all 0.2s ease-in-out",
+                letterSpacing: "0.05em"
+              }}
+              onMouseOver={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.color = "#0033A0";
+                  e.currentTarget.style.borderColor = "rgba(0, 51, 160, 0.2)";
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.color = "var(--text-muted)";
+                  e.currentTarget.style.borderColor = "transparent";
+                }
+              }}
+            >
+              {tab}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab Content Section (Scrollable) */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+        
+        {/* INFO TAB */}
+        {activeTab === "info" && (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <Row label="Address" value={job.address} />
+              <Row label="City" value={job.city} />
+              <Row label="Supervisor" value={job.constructionSupervisor || "Unassigned"} />
+              <div className="job-card__row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <span style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>Pin Position</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 11, color: job.customCoordinates ? "#ffcc00" : "#39ff7a", fontWeight: 700 }}>
+                    {job.customCoordinates ? "Custom Override" : "Auto Snapped"}
+                  </span>
+                  {job.customCoordinates && (
+                    <button
+                      onClick={async () => {
+                        await api.resetJobLocation(job.jobId);
+                        window.dispatchEvent(new Event("nsc:jobs-reload"));
+                      }}
+                      style={{
+                        background: "rgba(255,204,0,0.15)",
+                        border: "1px solid rgba(255,204,0,0.4)",
+                        color: "#ffcc00",
+                        fontSize: 10,
+                        padding: "2px 6px",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                      }}
+                      title="Reset pin to address geocode / route"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ height: 0, borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #ffffff", margin: "14px 0 12px 0" }} />
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setNotesExpanded((v) => !v)}
+                aria-expanded={notesExpanded}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "none",
+                  border: "none",
+                  padding: "4px 0",
+                  margin: 0,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  color: "var(--text-muted)",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {notesExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                <span>NSC Project Notes</span>
+                {!notesExpanded && notes.trim() && (
+                  <span
+                    style={{
+                      color: "var(--text)",
+                      fontWeight: 600,
+                      textTransform: "none",
+                      letterSpacing: 0,
+                      opacity: 0.7,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: 200,
+                      marginLeft: 4,
+                    }}
+                  >
+                    · {notes.trim().slice(0, 60)}{notes.trim().length > 60 ? "…" : ""}
+                  </span>
+                )}
+                <SaveIndicator
+                  saving={savingField === "notes"}
+                  saved={savedField === "notes"}
+                  error={errField === "notes"}
+                />
+              </button>
+              {notesExpanded && (
+                <EditableNotes value={notes} onCommit={(v) => { setNotes(v); void commit("notes", v); }} />
+              )}
+            </div>
+
+            {/* 811 Locate Section inside Tab */}
+            <div style={{ height: 0, borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #ffffff", margin: "14px 0 12px 0" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <h4 style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", margin: "0 0 2px 0", letterSpacing: "0.05em" }}>
+                811 Locate Shape
+              </h4>
+              <Eight11Section job={job} />
+            </div>
+          </>
+        )}
+
+        {/* PROGRESS TAB */}
+        {activeTab === "progress" && (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <EditableRow
+                label="Crew / Foreman"
+                value={foreman}
+                type="select"
+                options={foremanOptions}
+                onChange={(v) => {
+                  setForeman(v);
+                  void commit("foreman", v);
+                }}
+                saving={savingField === "foreman"}
+                saved={savedField === "foreman"}
+                error={errField === "foreman"}
+              />
+
+              <EditableRow
+                label="Schedule Date"
+                value={schedDate}
+                type="date"
+                onChange={(v) => {
+                  setSchedDate(v);
+                  void commit("schedDate", v || null);
+                }}
+                saving={savingField === "schedDate"}
+                saved={savedField === "schedDate"}
+                error={errField === "schedDate"}
+              />
+
+              <EditableRow
+                label="Traffic Control"
+                value={tcReq === true ? "Required" : tcReq === false ? "Not required" : ""}
+                type="toggle"
+                toggleValue={tcReq === true}
+                onToggle={(v) => {
+                  setTcReq(v);
+                  void commit("tcRequired", v);
+                }}
+                saving={savingField === "tcRequired"}
+                saved={savedField === "tcRequired"}
+                error={errField === "tcRequired"}
+              />
+            </div>
+
+            {/* Construction Progress (Bore/Terminal progress bars) */}
+            {isZiplyJob(job) && (
+              <>
+                <div style={{ height: 0, borderTop: "1px solid rgba(0, 0, 0, 0.08)", borderBottom: "1px solid rgba(255, 255, 255, 0.5)", margin: "14px 0 12px 0" }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <span style={{ fontSize: 9, color: "#6b7280", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    Plant Progress & Metrics
+                  </span>
+                  
+                  {/* Double-Bezel Nested Card Architecture */}
+                  <div style={{
+                    background: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(6, 182, 212, 0.15)",
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                    boxShadow: "inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 4px 12px rgba(6, 182, 212, 0.04)"
+                  }}>
+                    {/* Fiber Cable Footage Metric */}
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, marginBottom: 4 }}>
+                        <span style={{ color: "#374151", fontWeight: 700 }}>Fiber Cable (Footage)</span>
+                        <span style={{ fontWeight: 800, color: "#0891b2" }}>{stats.completeFt.toLocaleString()} / {stats.totalFt.toLocaleString()} ft</span>
+                      </div>
+                      <div style={{ width: "100%", height: 6, background: "rgba(0, 0, 0, 0.06)", borderRadius: 100, overflow: "hidden", display: "flex" }}>
+                        <div style={{
+                          width: `${stats.totalFt > 0 ? (stats.completeFt / stats.totalFt) * 100 : 0}%`,
+                          height: "100%",
+                          background: "linear-gradient(90deg, #06b6d4 0%, #0891b2 100%)",
+                          boxShadow: "0 0 8px rgba(6, 182, 212, 0.5)",
+                          borderRadius: 100,
+                          transition: "width 0.4s cubic-bezier(0.32, 0.72, 0, 1)"
+                        }} />
+                      </div>
+                    </div>
+                    
+                    {/* Splice Terminals Metric */}
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, marginBottom: 4 }}>
+                        <span style={{ color: "#374151", fontWeight: 700 }}>Splice Terminals</span>
+                        <span style={{ fontWeight: 800, color: "#0891b2" }}>{stats.complete} / {stats.total} Complete</span>
+                      </div>
+                      <div style={{ width: "100%", height: 6, background: "rgba(0, 0, 0, 0.06)", borderRadius: 100, overflow: "hidden", display: "flex" }}>
+                        <div style={{
+                          width: `${stats.total > 0 ? (stats.complete / stats.total) * 100 : 0}%`,
+                          height: "100%",
+                          background: "linear-gradient(90deg, #06b6d4 0%, #0891b2 100%)",
+                          boxShadow: "0 0 8px rgba(6, 182, 212, 0.5)",
+                          borderRadius: 100,
+                          transition: "width 0.4s cubic-bezier(0.32, 0.72, 0, 1)"
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+          </>
+        )}
+
+        {/* OVERLAYS TAB */}
+        {activeTab === "overlays" && (
+          <>
+            {/* If Ziply: Print Anchoring controls */}
+            {isZiplyJob(job) && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <h4 style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", margin: 0, letterSpacing: "0.05em" }}>
+                  Print Anchoring
+                </h4>
+                
+                {/* One single button to enter Print Overlay Studio */}
+                <div style={{ marginTop: 4 }}>
+                  <button
+                    type="button"
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      border: "1.5px solid #002280",
+                      background: "#0033A0",
+                      color: "#ffffff",
+                      boxShadow: "0 2px 6px rgba(0, 51, 160, 0.2)",
+                      borderRadius: "8px",
+                      padding: "8px",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      letterSpacing: "0.05em",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => window.open(`/print-overlay/jobs/${job.jobId}`, "_blank")}
+                  >
+                    <Layers size={12} /> ENTER PRINT OVERLAY STUDIO
+                  </button>
+                </div>
+
+                {overlayPages.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+                    {/* Master Overlay Toggle */}
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 10px",
+                      background: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 6,
+                      boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+                      marginBottom: 4
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text)" }}>
+                        Show Overlays on Map
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={ziplyPrintLayerVisible}
+                        onChange={(e) => setZiplyPrintLayerVisible(e.target.checked)}
+                        style={{ accentColor: "#0033A0", cursor: "pointer" }}
+                      />
+                    </div>
+
+                    {/* Visual Vertical Page Carousel in Left Rail */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                      <span style={{ color: "var(--text-muted)", fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Print Pages Carousel ({overlayPages.length})
+                      </span>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 8,
+                          maxHeight: 360,
+                          overflowY: "auto",
+                          paddingRight: 4,
+                          scrollbarWidth: "thin",
+                        }}
+                      >
+                        {overlayPages.map((p) => {
+                          const isSel = activePageSelId === p.id;
+                          const transform = job.printOverlay?.transforms?.[p.id];
+                          const isLocked = transform?.isLocked ?? false;
+                          const thumbUrl = p.previewUrl || (p as any).objectUrl || (p as any).dataUrl;
+                          const pageOpacity = transform?.opacity ?? 0.5;
+
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => setActivePageSelId(p.id)}
+                              style={{
+                                width: "100%",
+                                background: isSel ? "#eff6ff" : "#ffffff",
+                                border: isSel ? "2px solid #0033A0" : "1px solid #cbd5e1",
+                                borderRadius: 8,
+                                padding: 8,
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                                cursor: "pointer",
+                                boxShadow: isSel ? "0 2px 8px rgba(0, 51, 160, 0.15)" : "0 1px 3px rgba(0,0,0,0.05)",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <div
+                                  style={{
+                                    width: 60,
+                                    height: 48,
+                                    background: "#f1f5f9",
+                                    borderRadius: 4,
+                                    overflow: "hidden",
+                                    flexShrink: 0,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  {thumbUrl ? (
+                                    <img src={thumbUrl} alt={p.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                  ) : (
+                                    <div style={{ fontSize: 9, color: "#64748b", fontWeight: 700 }}>Page {p.pageNumber}</div>
+                                  )}
+                                </div>
+
+                                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {p.label || `Page ${p.pageNumber}`}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void deleteOverlayPage(p.id);
+                                      }}
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        color: "#ef4444",
+                                        fontSize: 12,
+                                        fontWeight: 800,
+                                        cursor: "pointer",
+                                        padding: "0 4px",
+                                      }}
+                                      title="Delete page"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+
+                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "var(--text-muted)", cursor: "pointer", fontWeight: 700 }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={!p.excluded}
+                                        onChange={() => void togglePageExcluded(p.id)}
+                                        style={{ accentColor: "#0033A0", cursor: "pointer" }}
+                                      />
+                                      Show
+                                    </label>
+
+                                    <button
+                                      type="button"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (!job.printOverlay) return;
+                                        const nextTransforms = {
+                                          ...(job.printOverlay.transforms ?? {}),
+                                          [p.id]: {
+                                            ...(job.printOverlay.transforms?.[p.id] ?? { center: { lat: 0, lng: 0 }, scale: 1, rotationDeg: 0, opacity: 0.5 }),
+                                            isLocked: !isLocked,
+                                          },
+                                        };
+                                        try {
+                                          await api.putPrintOverlay(job.jobId, { ...job.printOverlay, transforms: nextTransforms });
+                                          window.dispatchEvent(new Event("nsc:jobs-reload"));
+                                        } catch (err) {
+                                          console.error("Lock toggle failed", err);
+                                        }
+                                      }}
+                                      style={{
+                                        background: isLocked ? "#64748b" : "#0284c7",
+                                        color: "#ffffff",
+                                        border: "none",
+                                        borderRadius: 4,
+                                        fontSize: 9,
+                                        fontWeight: 800,
+                                        padding: "3px 7px",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 3,
+                                      }}
+                                    >
+                                      {isLocked ? "Locked" : "Unlocked"}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Opacity slider */}
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                                <span style={{ color: "var(--text-muted)", fontSize: "8px", fontWeight: 800, textTransform: "uppercase" }}>Opacity:</span>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="1"
+                                  step="0.05"
+                                  value={pageOpacity}
+                                  onChange={(e) => {
+                                    void updatePageOpacity(p.id, parseFloat(e.target.value));
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ flexGrow: 1, height: 4, accentColor: "#0033A0" }}
+                                />
+                                <span style={{ fontSize: 8, color: "#0033A0", fontWeight: 800, width: 24, textAlign: "right" }}>
+                                  {Math.round(pageOpacity * 100)}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* If Lumen (non-Ziply): Render LayersPanel */}
+            {contract !== "Ziply" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <h4 style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", margin: 0, letterSpacing: "0.05em" }}>
+                  Drawing Layers
+                </h4>
+                <LayersPanel />
+              </div>
+            )}
+          </>
+        )}
+
+      </div>
+
+      {/* Bottom Documents/Attachments Section */}
+      <div style={{
+        borderTop: "1.5px solid var(--border)",
+        background: "rgba(15, 23, 42, 0.02)",
+        display: "flex",
+        flexDirection: "column",
+        flexShrink: 0
+      }}>
+        <button
+          type="button"
+          onClick={() => setDocsExpanded(!docsExpanded)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "none",
+            border: "none",
+            width: "100%",
+            padding: "12px 20px",
+            cursor: "pointer",
+            color: docsExpanded ? "#0033A0" : "var(--text-muted)",
+            fontSize: "11px",
+            fontWeight: 800,
             textTransform: "uppercase",
-            textDecoration: "none",
-            whiteSpace: "nowrap",
+            letterSpacing: "0.05em",
+            transition: "all 0.2s"
           }}
         >
-          Open in As-Built →
-        </a>
-      </footer>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Paperclip size={14} style={{ color: docsExpanded ? "#0033A0" : "var(--text-muted)", transform: "rotate(45deg)" }} />
+            <span>Attachments</span>
+            <span style={{
+              background: docsExpanded ? "rgba(0, 51, 160, 0.08)" : "rgba(0, 0, 0, 0.06)",
+              color: docsExpanded ? "#0033A0" : "var(--text)",
+              borderRadius: "9999px",
+              padding: "1px 6px",
+              fontSize: "9px",
+              fontWeight: 800,
+              marginLeft: 4,
+              border: docsExpanded ? "1.5px solid rgba(0, 51, 160, 0.3)" : "1.5px solid var(--border)"
+            }}>
+              {attachmentsList.length}
+            </span>
+          </div>
+          <span style={{ transition: "transform 0.2s", transform: docsExpanded ? "rotate(180deg)" : "rotate(0deg)" }}>▲</span>
+        </button>
+        
+        {docsExpanded && (
+          <div style={{
+            padding: "12px 20px 20px 20px",
+            background: "rgba(0,0,0,0.02)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            borderTop: "1px solid var(--border)",
+            maxHeight: "180px",
+            overflowY: "auto"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>File Attachments:</span>
+              <button
+                type="button"
+                onClick={() => attachmentInputRef.current?.click()}
+                disabled={uploadingAttachment}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  border: "1px solid #0033A0",
+                  background: "rgba(0, 51, 160, 0.08)",
+                  color: "#0033A0",
+                  borderRadius: "4px",
+                  padding: "3px 8px",
+                  fontSize: "9px",
+                  fontWeight: 800,
+                  cursor: uploadingAttachment ? "wait" : "pointer",
+                  opacity: uploadingAttachment ? 0.6 : 1,
+                }}
+              >
+                <UploadCloud size={10} /> {uploadingAttachment ? "Uploading..." : "Upload"}
+              </button>
+              <input
+                ref={attachmentInputRef}
+                type="file"
+                accept="application/pdf,.pdf,image/*"
+                onChange={handleAttachmentUpload}
+                style={{ display: "none" }}
+              />
+            </div>
+            {attachmentsList.length === 0 ? (
+              <span style={{ fontSize: 10, color: "var(--text-muted)", fontStyle: "italic" }}>No files attached to Smartsheet yet.</span>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {attachmentsList.map((file: any, i: number) => (
+                  <a
+                    key={i}
+                    href={file.downloadUrl || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: 11, color: "var(--text)", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}
+                  >
+                    <FileText size={12} style={{ color: "#0033A0" }} /> {file.name || `Attachment ${i + 1}`}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
 
 // -----------------------------------------------------------------------------
-// Secondary-status pill: click to open a dropdown of all valid options.
+// 811 expiration pill — surfaces a filed/active dig ticket that is expiring
+// within 7 days. Clicking it jumps to the 811 tab, selects the ticket, and
+// opens the ITIC modal.
 // -----------------------------------------------------------------------------
-function SecondaryStatusEditablePill({
-  status,
-  options,
-  onChange,
-  saving,
-  saved,
-  error,
-}: {
-  status: string;
-  options: string[];
-  onChange: (v: string) => void;
-  saving: boolean;
-  saved: boolean;
-  error: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const key = colorKeyForSecondaryStatus(status || "");
-  const color = MARKER_COLORS[key];
-  const display = status || "Set status";
+const EXPIRY_STATUSES = new Set<DigTicket["status"]>(["Filed", "Active", "Expiring"]);
+const EXPIRY_DAY_MS = 24 * 60 * 60 * 1000;
+
+function Eight11ExpiryPill({ job }: { job: Job }) {
+  const [ticket, setTicket] = useState<DigTicket | null>(null);
+  const { username, isManager } = useAuth();
+
+  useEffect(() => {
+    let cancelled = false;
+    const owner = isManager ? "*" : username || "";
+    api
+      .listDigTickets(owner)
+      .then(({ tickets }) => {
+        if (cancelled) return;
+        const match = tickets.find(
+          (t) => t.jobId === job.jobId && EXPIRY_STATUSES.has(t.status),
+        );
+        setTicket(match ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setTicket(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [job.jobId, username, isManager]);
+
+  if (!ticket || ticket.dates.expiresAt == null) return null;
+
+  const daysLeft = Math.floor((ticket.dates.expiresAt - Date.now()) / EXPIRY_DAY_MS);
+  if (daysLeft > 7) return null;
+
+  let label: string;
+  let bg: string;
+  let color: string;
+  if (daysLeft <= 0) {
+    label = "811: expired";
+    bg = "#c33";
+    color = "#fff";
+  } else if (daysLeft < 1) {
+    label = "811: today";
+    bg = "#c33";
+    color = "#fff";
+  } else {
+    label = `811: ${daysLeft}d`;
+    bg = "#f5a623";
+    color = "#1a1a1a";
+  }
+
+  const openTicket = () => {
+    const detail = { ticketId: ticket.id, openIticModal: true };
+    try {
+      sessionStorage.setItem("nsc.lumina.openDigTicket", JSON.stringify(detail));
+    } catch {
+      /* ignore disabled storage */
+    }
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "811-tickets" } }));
+    window.dispatchEvent(new CustomEvent("nsc:lumina:openDigTicket", { detail }));
+  };
 
   return (
-    <span style={{ position: "relative", display: "inline-block", marginLeft: 6 }}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        title="Click to change secondary status"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "1px 7px",
-          borderRadius: 10,
-          fontSize: 9,
-          fontWeight: 700,
-          letterSpacing: "0.05em",
-          background: `${color.core}22`,
-          border: `1px solid ${color.core}88`,
-          color: color.core,
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-        }}
-      >
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: color.core,
-            boxShadow: `0 0 4px ${color.glow}`,
-            display: "inline-block",
-            flexShrink: 0,
-          }}
-        />
-        {display}
-        <span style={{ opacity: 0.7, fontSize: 8 }}>▾</span>
-      </button>
-      <SaveIndicator saving={saving} saved={saved} error={error} inline />
-      {open && (
-        <>
-          <div
-            onClick={() => setOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 1000,
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "calc(100% + 4px)",
-              left: 0,
-              zIndex: 1001,
-              minWidth: 200,
-              maxHeight: 280,
-              overflowY: "auto",
-              background: "#0f1623",
-              border: "1px solid #2a3a55",
-              borderRadius: 6,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-              padding: 4,
-            }}
-          >
-            {options.length === 0 && (
-              <div style={{ padding: 8, fontSize: 10, color: "#93d4ff" }}>
-                Loading options…
-              </div>
-            )}
-            {options.map((opt) => {
-              const isCurrent = opt === status;
-              const ck = colorKeyForSecondaryStatus(opt);
-              const c = MARKER_COLORS[ck];
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => {
-                    onChange(opt);
-                    setOpen(false);
-                  }}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "5px 8px",
-                    background: isCurrent ? "rgba(147,212,255,0.12)" : "transparent",
-                    border: "none",
-                    color: "#e6f0ff",
-                    fontSize: 10,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    borderRadius: 4,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(147,212,255,0.18)")}
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = isCurrent
-                      ? "rgba(147,212,255,0.12)"
-                      : "transparent")
-                  }
-                >
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: c.core,
-                      boxShadow: `0 0 4px ${c.glow}`,
-                      flexShrink: 0,
-                    }}
-                  />
-                  {opt}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </span>
+    <button
+      type="button"
+      className="status-pill"
+      onClick={openTicket}
+      title={`Dig ticket ${ticket.ticketNumber || ""} — open on the 811 tab`}
+      style={{
+        background: bg,
+        color,
+        border: "none",
+        cursor: "pointer",
+        fontWeight: 700,
+        fontSize: "9px",
+        borderRadius: "4px",
+        padding: "2px 6px"
+      }}
+    >
+      {label}
+    </button>
   );
 }
 
 // -----------------------------------------------------------------------------
-// Generic editable row — click value to enter edit mode.
+// Hub octagon badge — Ziply royal-blue neon octagon with hub number inside.
+// Sits next to the WO in the JobCard header when job.hubNumber is present.
+// SVG octagon is a regular polygon inscribed in a 48x48 box. The number scales
+// down for longer hub codes (e.g. "SPBW03") so it always fits inside.
 // -----------------------------------------------------------------------------
+function HubOctagonBadge({ hub }: { hub: string }) {
+  const NEON = "#1E5EFF";
+  const size = 44;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = size / 2 - 3;
+  // Octagon vertices — start at top edge, step every 45°, offset by 22.5° so
+  // the flat side is on top (classic stop-sign orientation).
+  const points = Array.from({ length: 8 }, (_, i) => {
+    const angle = (Math.PI / 4) * i - Math.PI / 8 - Math.PI / 2;
+    return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+  }).join(" ");
+
+  const label = String(hub).trim();
+  // Font size shrinks for longer labels so they always fit inside the octagon.
+  const fontSize =
+    label.length <= 3 ? 15 : label.length <= 4 ? 13 : label.length <= 5 ? 11 : 9;
+
+  return (
+    <div
+      title={`Hub ${label}`}
+      aria-label={`Hub ${label}`}
+      style={{
+        width: size,
+        height: size,
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        filter: `drop-shadow(0 0 3px ${NEON}) drop-shadow(0 0 6px ${NEON}88)`,
+      }}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+        {/* Outer neon octagon */}
+        <polygon
+          points={points}
+          fill="#0a1a3a"
+          stroke={NEON}
+          strokeWidth={2}
+          strokeLinejoin="round"
+        />
+        {/* Inner subtle stroke for depth */}
+        <polygon
+          points={points}
+          fill="none"
+          stroke="rgba(255,255,255,0.15)"
+          strokeWidth={0.6}
+          strokeLinejoin="round"
+          transform={`translate(${cx} ${cy}) scale(0.88) translate(${-cx} ${-cy})`}
+        />
+        <text
+          x={cx}
+          y={cy}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontFamily="'Space Grotesk', 'Rajdhani', sans-serif"
+          fontWeight={900}
+          fontSize={fontSize}
+          fill="#ffffff"
+          style={{ letterSpacing: "0.02em" }}
+        >
+          {label}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Helper components for layout.
+// -----------------------------------------------------------------------------
+function SaveIndicator({
+  saving,
+  saved,
+  error,
+}: {
+  saving: boolean;
+  saved: boolean;
+  error: boolean;
+}) {
+  if (saving) return <span style={{ fontSize: 9, color: "#38bdf8" }}>Saving…</span>;
+  if (saved) return <span style={{ fontSize: 9, color: "#34d399" }}>Saved</span>;
+  if (error) return <span style={{ fontSize: 9, color: "#f87171" }}>Error</span>;
+  return null;
+}
+
+function Row({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
+      <span style={{ color: "#94a3b8" }}>{label}</span>
+      <span style={{ fontWeight: 600, color: "#f1f5f9" }}>{value}</span>
+    </div>
+  );
+}
+
 function EditableRow({
   label,
   value,
   type,
-  options,
-  toggleValue,
+  options = [],
   onChange,
+  toggleValue = false,
   onToggle,
   saving,
   saved,
@@ -493,223 +1361,133 @@ function EditableRow({
   value: string;
   type: "select" | "date" | "toggle";
   options?: string[];
-  toggleValue?: boolean;
   onChange?: (v: string) => void;
+  toggleValue?: boolean;
   onToggle?: (v: boolean) => void;
-  saving: boolean;
-  saved: boolean;
-  error: boolean;
+  saving?: boolean;
+  saved?: boolean;
+  error?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
-
   return (
-    <div className="job-card__row" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <span className="job-card__row-label">{label}</span>
-      {type === "toggle" ? (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <label
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              cursor: "pointer",
-              fontSize: 10,
-              fontWeight: 600,
-              color: toggleValue ? "#ff6b00" : "#93d4ff",
-            }}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, padding: "2px 0" }}>
+      <span style={{ color: "#475569" }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <SaveIndicator saving={!!saving} saved={!!saved} error={!!error} />
+        {type === "select" && onChange && (
+          <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            style={{ background: "#ffffff", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)" }}
           >
+            <option value="">Choose...</option>
+            {options.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        )}
+        {type === "date" && onChange && (
+          <input
+            type="date"
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            style={{ background: "#ffffff", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)" }}
+          />
+        )}
+        {type === "toggle" && onToggle && (
+          <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
             <input
               type="checkbox"
-              checked={!!toggleValue}
-              onChange={(e) => onToggle && onToggle(e.target.checked)}
-              style={{ accentColor: "#ff6b00", cursor: "pointer" }}
+              checked={toggleValue}
+              onChange={(e) => onToggle(e.target.checked)}
+              style={{ accentColor: "#0033A0", cursor: "pointer" }}
             />
-            {toggleValue ? "Required" : "Not required"}
           </label>
-          <SaveIndicator saving={saving} saved={saved} error={error} inline />
-        </span>
-      ) : editing ? (
-        type === "select" ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <select
-              autoFocus
-              value={value}
-              onChange={(e) => {
-                onChange && onChange(e.target.value);
-                setEditing(false);
-              }}
-              onBlur={() => setEditing(false)}
-              style={{
-                background: "#0f1623",
-                color: "#e6f0ff",
-                border: "1px solid #2a3a55",
-                borderRadius: 4,
-                padding: "2px 6px",
-                fontSize: 11,
-                maxWidth: 200,
-              }}
-            >
-              <option value="">— none —</option>
-              {(options || []).map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-            <SaveIndicator saving={saving} saved={saved} error={error} inline />
-          </span>
-        ) : (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <input
-              autoFocus
-              type="date"
-              value={value || ""}
-              onChange={(e) => {
-                onChange && onChange(e.target.value);
-              }}
-              onBlur={() => setEditing(false)}
-              style={{
-                background: "#0f1623",
-                color: "#e6f0ff",
-                border: "1px solid #2a3a55",
-                borderRadius: 4,
-                padding: "2px 6px",
-                fontSize: 11,
-              }}
-            />
-            <SaveIndicator saving={saving} saved={saved} error={error} inline />
-          </span>
-        )
-      ) : (
-        <span
-          className="job-card__row-value"
-          onClick={() => setEditing(true)}
-          title="Click to edit"
-          style={{
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            minWidth: value ? undefined : 110,
-            padding: value ? undefined : "3px 10px",
-            borderRadius: value ? undefined : 6,
-            border: value ? undefined : "1px dashed rgba(147,212,255,0.55)",
-            background: value ? undefined : "rgba(147,212,255,0.08)",
-            borderBottom: value ? "1px dotted rgba(147,212,255,0.35)" : undefined,
-            color: value ? undefined : "#93d4ff",
-            fontSize: value ? undefined : 10,
-            fontWeight: value ? undefined : 700,
-            letterSpacing: value ? undefined : "0.06em",
-          }}
-        >
-          {value || "TAP TO SET ▾"}
-          <SaveIndicator saving={saving} saved={saved} error={error} inline />
-        </span>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
-// -----------------------------------------------------------------------------
-// EditableNotes — textarea that commits on blur.
-// -----------------------------------------------------------------------------
 function EditableNotes({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  const [val, setVal] = useState(value);
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setVal(value);
+  }, [value]);
 
   if (!editing) {
     return (
       <div
-        className="job-card__notes-body"
         onClick={() => setEditing(true)}
-        title="Click to edit"
         style={{
+          background: "#ffffff",
+          border: "1px solid #cbd5e1",
+          borderRadius: 6,
+          padding: 8,
+          fontSize: 11,
+          lineHeight: 1.45,
+          color: value ? "#0f172a" : "#64748b",
+          fontStyle: value ? "normal" : "italic",
           cursor: "pointer",
-          minHeight: 24,
-          borderBottom: "1px dotted rgba(147,212,255,0.35)",
-          color: value ? undefined : "#93d4ff",
-          opacity: value ? 1 : 0.6,
+          minHeight: 48,
+          whiteSpace: "pre-wrap",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
         }}
       >
-        {value || <em>Click to add notes…</em>}
+        {value || "Tap to add project notes..."}
       </div>
     );
   }
-  return (
-    <textarea
-      autoFocus
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        setEditing(false);
-        if (draft !== value) onCommit(draft);
-      }}
-      rows={3}
-      style={{
-        width: "100%",
-        background: "#0f1623",
-        color: "#e6f0ff",
-        border: "1px solid #2a3a55",
-        borderRadius: 4,
-        padding: 6,
-        fontSize: 11,
-        fontFamily: "inherit",
-        resize: "vertical",
-      }}
-    />
-  );
-}
 
-// -----------------------------------------------------------------------------
-// Save indicator dot.
-// -----------------------------------------------------------------------------
-function SaveIndicator({
-  saving,
-  saved,
-  error,
-  inline,
-}: {
-  saving: boolean;
-  saved: boolean;
-  error: boolean;
-  inline?: boolean;
-}) {
-  if (!saving && !saved && !error) return null;
-  const color = error ? "#ef4444" : saved ? "#16a34a" : "#f59e0b";
-  const text = error ? "ERR" : saved ? "✓" : "…";
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        fontSize: 9,
-        fontWeight: 700,
-        color,
-        marginLeft: inline ? 4 : 0,
-      }}
-      title={error ? "Save failed" : saved ? "Saved" : "Saving…"}
-    >
-      {text}
-    </span>
-  );
-}
+  const done = () => {
+    setEditing(false);
+    if (val !== value) onCommit(val);
+  };
 
-function Row({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null;
   return (
-    <div className="job-card__row">
-      <span className="job-card__row-label">{label}</span>
-      <span className="job-card__row-value">{value}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <textarea
+        ref={ref}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={done}
+        style={{
+          width: "100%",
+          minHeight: 100,
+          background: "#ffffff",
+          border: "1px solid #0033A0",
+          boxShadow: "0 0 6px rgba(0,51,160,0.15)",
+          color: "#0f172a",
+          borderRadius: 6,
+          padding: 8,
+          fontSize: 11,
+          fontFamily: "inherit",
+          outline: "none",
+          resize: "vertical",
+        }}
+        autoFocus
+      />
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={done}
+          style={{ background: "#0033A0", color: "#ffffff", border: "none", borderRadius: 4, padding: "4px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
+        >
+          Save
+        </button>
+      </div>
     </div>
   );
 }
 
 function fmtDate(d: string | null | undefined): string | null {
   if (!d) return null;
-  return d;
-}
-
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  try {
+    return new Date(d).toLocaleDateString();
+  } catch {
+    return d;
+  }
 }

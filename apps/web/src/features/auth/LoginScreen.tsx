@@ -1,65 +1,111 @@
-// Phase 9.7: supervisor login with Smartsheet name validation.
-// Fetches /api/jobs, builds a set of unique constructionSupervisor names,
-// and only allows sign-in if the entered name (case-insensitive) is in that set.
+// Firebase Email/Password sign-in (solo lock).
+// After auth succeeds, AuthProvider maps the session to operator "Billy Keesee"
+// and loads Smartsheet jobs. Not a name-whitelist gate.
 import { useState } from "react";
 import { useAuth } from "./authContext.js";
 import { api } from "../../lib/api.js";
+import { signInWithEmail } from "../../lib/firebase.js";
 
 export default function LoginScreen() {
-  const { setUsername, setManagers } = useAuth();
-  const [value, setValue] = useState("");
+  const { setManagers } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string>("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = value.trim();
-    if (!trimmed) {
-      setError("Enter your name to continue.");
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError("Enter email and password.");
       return;
     }
     setBusy(true);
     setError(null);
+    setStatus("Signing in…");
     try {
-      const { supervisors, managers } = await api.listSupervisors();
-      // Save the manager list so the rest of the app can branch on it.
-      setManagers(managers ?? []);
-      const match = trimmed.toLowerCase();
-      const canonical = supervisors.find(
-        (s) => s.trim().toLowerCase() === match
-      );
-      if (!canonical) {
-        setError("Name not found in Smartsheet. Check spelling or contact admin.");
+      // Do NOT pre-block on VITE_AUTH_ALLOWED_EMAILS here — that env is baked at
+      // build time and a stale/wrong list locked Billy out of his own app.
+      // Firebase validates the password; AuthProvider + API enforce the allowlist
+      // (Billy's work + personal emails are always allowed in code).
+      const user = await signInWithEmail(trimmedEmail, password);
+      // Token was forced in signInWithEmail — confirm before any /api call
+      const token = await user.getIdToken();
+      if (!token) {
+        setError("Signed in but Firebase did not return an API token. Refresh and try again.");
         setBusy(false);
+        setStatus("");
         return;
       }
-      const isManagerLogin = (managers ?? []).some(
-        (m) => m.trim().toLowerCase() === match
-      );
-      // Phase 9.7: on-demand sync — managers refresh ALL supervisors, regular
-      // supervisors refresh only their own rows. This is the only time we hit
-      // Smartsheet for non-Billy users.
-      setStatus(
-        isManagerLogin
-          ? "Loading all supervisors' jobs from Smartsheet…"
-          : "Loading your jobs from Smartsheet…"
-      );
+      // AuthProvider will set operator name. Prefetch supervisor/manager lists.
+      setStatus("Loading workspace…");
       try {
-        if (isManagerLogin) {
-          await api.syncAllSupervisors(canonical);
-        } else {
-          await api.syncSupervisor(canonical);
+        const { managers } = await api.listSupervisors();
+        setManagers(managers ?? []);
+      } catch (listErr) {
+        console.warn("listSupervisors after login failed:", listErr);
+        if (listErr instanceof Error && /403|Access denied/i.test(listErr.message)) {
+          setError("Signed in, but API rejected this account. Check AUTH_ALLOWED_EMAILS on Vercel.");
+          setBusy(false);
+          setStatus("");
+          return;
         }
-      } catch (syncErr) {
-        // Non-fatal: log in anyway with whatever is already in Firestore.
-        // The user can hit Resync from the topbar to retry.
-        console.warn("Sync on login failed:", syncErr);
+        if (listErr instanceof Error && /401|Bearer|not signed in/i.test(listErr.message)) {
+          setError(
+            "Signed in, but API still got no token. Hard-refresh (Ctrl+Shift+R) and try once more. " +
+              "If it continues, Vercel FIREBASE_* service-account vars may not match the web app project."
+          );
+          setBusy(false);
+          setStatus("");
+          return;
+        }
       }
-      setUsername(canonical);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not verify name.");
+      // AuthProvider handles sync on session attach; overlay unmounts when username is set.
+      window.dispatchEvent(new Event("nsc:jobs-reload"));
       setBusy(false);
+      setStatus("");
+    } catch (err) {
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code: string }).code)
+          : "";
+      // Firebase Auth Email/Password is NOT your Gmail password unless you
+      // created this exact user under Firebase Console → Authentication.
+      if (
+        code === "auth/invalid-credential" ||
+        code === "auth/wrong-password" ||
+        code === "auth/user-not-found" ||
+        code === "auth/invalid-email"
+      ) {
+        setError(
+          "Firebase rejected this email/password. This is NOT your Gmail login — " +
+            "you must create this user in Firebase Console → Authentication → Users " +
+            "(Email/Password provider ON), then use that app password here."
+        );
+      } else if (code === "auth/operation-not-allowed") {
+        setError(
+          "Email/Password sign-in is disabled in Firebase. Enable it under " +
+            "Authentication → Sign-in method → Email/Password."
+        );
+      } else if (code === "auth/configuration-not-found" || code === "auth/api-key-not-valid") {
+        setError(
+          "Firebase is not configured for this site. Check VITE_FIREBASE_* env vars on Vercel."
+        );
+      } else if (code === "auth/too-many-requests") {
+        setError("Too many attempts. Wait a moment and try again.");
+      } else if (code === "auth/network-request-failed") {
+        setError("Network error reaching Firebase. Check internet / VPN / firewall.");
+      } else if (err instanceof Error && /403|Access denied/i.test(err.message)) {
+        setError(
+          "Signed in to Firebase, but this email is not on AUTH_ALLOWED_EMAILS / VITE_AUTH_ALLOWED_EMAILS."
+        );
+      } else {
+        const msg = err instanceof Error ? err.message : "Sign-in failed.";
+        setError(code ? `${msg} (${code})` : msg);
+      }
+      setBusy(false);
+      setStatus("");
     }
   }
 
@@ -96,7 +142,6 @@ export default function LoginScreen() {
           fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
         }}
       >
-        {/* Electric blue accent bar (matches smooth stainless theme) */}
         <div
           style={{
             height: 2,
@@ -116,19 +161,46 @@ export default function LoginScreen() {
           NORTH SKY · APP MAP
         </div>
         <h2 style={{ margin: 0, fontSize: 19, color: "#1a2230", fontWeight: 700 }}>
-          Supervisor sign-in
+          Private access
         </h2>
         <p style={{ margin: 0, fontSize: 11, color: "#4a5868", lineHeight: 1.5 }}>
-          Enter your name exactly as it appears in Smartsheet. Your jobs will load
-          automatically.
+          Authorized operators only. Use the <strong>Firebase Auth</strong> email/password
+          created in the Firebase Console — not your Google/Gmail account password
+          (unless you set them the same when creating the Firebase user). Workspace
+          opens as Billy Keesee until multi-user mapping ships.
         </p>
         <input
-          type="text"
+          type="email"
           autoFocus
-          placeholder="First and last name"
-          value={value}
+          autoComplete="username"
+          placeholder="Email"
+          value={email}
           onChange={(e) => {
-            setValue(e.target.value);
+            setEmail(e.target.value);
+            if (error) setError(null);
+          }}
+          disabled={busy}
+          style={{
+            background: "rgba(255,255,255,0.85)",
+            border: error
+              ? "1px solid #d04848"
+              : "1px solid rgba(120, 130, 145, 0.5)",
+            borderRadius: 6,
+            padding: "11px 12px",
+            fontFamily: "inherit",
+            fontSize: 13,
+            color: "#1a2230",
+            outline: "none",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.08) inset",
+          }}
+        />
+        <input
+          type="password"
+          autoComplete="current-password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value);
             if (error) setError(null);
           }}
           disabled={busy}
@@ -183,7 +255,7 @@ export default function LoginScreen() {
               "0 1px 0 rgba(255,255,255,0.35) inset, 0 2px 6px rgba(0,0,0,0.25)",
           }}
         >
-          {busy ? (status || "Verifying…") : "Sign in"}
+          {busy ? status || "Signing in…" : "Sign in"}
         </button>
       </form>
     </div>

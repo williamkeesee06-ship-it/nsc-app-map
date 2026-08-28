@@ -9,10 +9,37 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { DrawingObject, DrawingStyle } from "@nsc/types";
-import { useDrawing } from "./drawingContext.js";
+import { useDrawing, defaultStyleForTool } from "./drawingContext.js";
 import { railSvgForTool } from "./icons/telecomIcons.js";
-import IconPicker from "./IconPicker.js";
-import { type IconKey } from "./icons/iconRegistry.js";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
+import { api } from "../../lib/api.js";
+import { findMatchingTerminal, findMatchingCable } from "../ziply/SpatialMatcher.js";
+import { useActiveContract } from "../workspace/contractStore.js";
+import { useJobsContext } from "../jobs-map/jobsContext.js";
+
+function parseLineProps(label: string, desc: string) {
+  const footageMatch = label.match(/^(\d+)/);
+  const footage = footageMatch ? footageMatch[1] : "";
+  
+  let method = "";
+  if (/BORE/i.test(label) || /BORE/i.test(desc)) method = "BORE";
+  else if (/TRENCH/i.test(label) || /TRENCH/i.test(desc)) method = "TRENCH";
+  else if (/AERIAL|OH/i.test(label) || /AERIAL|OH/i.test(desc)) method = "AERIAL";
+  
+  let size = "";
+  if (/1-2"\s*DUCT/i.test(desc)) size = "1-2\" DUCT";
+  else if (/10MStrand/i.test(desc)) size = "10MStrand";
+  else if (/144F/i.test(desc)) size = "144F";
+  else if (/72F/i.test(desc)) size = "72F";
+  else if (/24F/i.test(desc)) size = "24F";
+  
+  return { footage, method, size };
+}
+// IconPicker / IconKey imports removed — Billy 6/10: no per-object icon swap.
+// Icons are still bound to each object's style at draw time; we just don't
+// expose a way to change them after the fact.
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
 
@@ -62,6 +89,17 @@ const POINT_TOOLS = new Set([
   "pole_new", "pole_removed",
   "cabinet_new", "cabinet_removed",
   "anchor_new", "anchor_removed",
+  "ziply_hub",
+  "ziply_terminal",
+  "ziply_address",
+  "ziply_pole",
+  "ziply_handhole",
+  "ziply_flower_pot",
+  "ziply_splitter",
+  "ziply_riser",
+  "ziply_slack_loop",
+  "flower_pot_new",
+  "flower_pot_removed",
 ]);
 
 function isPointTool(tool: string): boolean {
@@ -79,7 +117,11 @@ function isLine(tool: string): boolean {
     tool === "line" ||
     tool === "arrow" ||
     tool === "freehand" ||
-    tool === "measure"
+    tool === "measure" ||
+    tool === "ziply_feeder" ||
+    tool === "ziply_distribution" ||
+    tool === "ziply_drop" ||
+    tool === "ziply_bore"
   );
 }
 
@@ -349,19 +391,121 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     select, 
     dispatch, 
     addObject,
-    rotateSelected 
+    // rotateSelected removed — Billy 6/10: rotate buttons aren't useful.
   } = useDrawing();
   const isSelectTool = drawState.activeTool === "select";
 
-  const [label, setLabel] = useState(obj.style.userLabel ?? "");
+  const { jobs } = useJobsContext();
+  const job = jobs.find((j) => j.jobId === drawState.targetJobId);
+
+  const handleAutoFill = () => {
+    if (!job || !job.ziplyPrintLayer?.mapObjects) return;
+    const mapObjects = job.ziplyPrintLayer.mapObjects;
+
+    if (isPointTool(obj.tool) && "position" in obj) {
+        const match = findMatchingTerminal(
+          { lat: obj.position.lat, lng: obj.position.lng },
+          mapObjects,
+          label || obj.style.userLabel
+        );
+        if (match) {
+          patchObjectStyle(obj.id, {
+            userLabel: match.label || match.name || label,
+            ziplyPrintPage: match.pageRef ?? obj.style.ziplyPrintPage,
+            ziplyPortCount: match.portCount ?? obj.style.ziplyPortCount,
+            ziplyTailLengthFt: match.footageFt ?? match.tailLengthFt ?? obj.style.ziplyTailLengthFt,
+            ziplyLashedOrConduitFt: match.lashedFt ?? match.conduitFt ?? obj.style.ziplyLashedOrConduitFt,
+            ziplyAddressesServed: Array.isArray(match.addressesServed)
+              ? match.addressesServed.join(", ")
+              : (match.addressesServed ?? obj.style.ziplyAddressesServed),
+          });
+        } else {
+          window.alert("No matching AI terminal found by name/label or spatial radius.");
+        }
+    } else if (isLine(obj.tool) && "vertices" in obj) {
+        const match = findMatchingCable(obj.vertices, mapObjects);
+        if (match) {
+          const methodRaw = (match.buildType || "").toLowerCase();
+          const normMethod = methodRaw === "bore" || methodRaw === "trench" ? methodRaw : (methodRaw === "aerial" || methodRaw === "oh" ? "aerial" : obj.style.ziplyInstallMethod);
+          patchObjectStyle(obj.id, {
+            ziplyCableType: match.cableType ?? obj.style.ziplyCableType,
+            ziplyFiberCount: match.fiberCount ?? match.size ?? (parseInt(match.cableType || "0", 10) || obj.style.ziplyFiberCount),
+            ziplyInstallMethod: normMethod,
+            ziplyFootage: Math.round(match.lengthFeet || match.lengthFt || 0) || obj.style.ziplyFootage,
+            ziplyConduitOrStrand: match.conduitOrStrand ?? match.strandType ?? match.conduitSize ?? obj.style.ziplyConduitOrStrand,
+          });
+        } else {
+          window.alert("No matching AI cable path found nearby.");
+        }
+    }
+  };
+
+  const { contract } = useActiveContract();
+
+  const cleanLabel = (lbl: string) => {
+    const isPoleOrEquipment = obj.tool.includes("pole") || obj.tool.includes("hub") || obj.tool.includes("terminal");
+    if (contract === "Ziply" && isPoleOrEquipment && /^a-/i.test(lbl)) {
+      return lbl.slice(2);
+    }
+    return lbl;
+  };
+
+  const isLineObj = isLine(obj.tool);
+  const lineProps = isLineObj ? parseLineProps(obj.style.userLabel ?? "", obj.style.description ?? "") : null;
+  const [footage, setFootage] = useState(lineProps?.footage ?? "");
+  const [method, setMethod] = useState(lineProps?.method ?? "");
+  const [size, setSize] = useState(lineProps?.size ?? "");
+  const [sizeOption, setSizeOption] = useState(() => {
+    if (!lineProps?.size) return "";
+    const common = ["1-2\" DUCT", "10MStrand", "144F", "72F", "24F"];
+    return common.includes(lineProps.size) ? lineProps.size : "custom";
+  });
+
+  const [label, setLabel] = useState(cleanLabel(obj.style.userLabel ?? ""));
   const [description, setDescription] = useState(obj.style.description ?? "");
   const labelRef = useRef<HTMLInputElement>(null);
 
   // Sync local state when object changes externally (e.g. geometry drag)
   useEffect(() => {
-    setLabel(obj.style.userLabel ?? "");
+    setLabel(cleanLabel(obj.style.userLabel ?? ""));
     setDescription(obj.style.description ?? "");
-  }, [obj.id, obj.style.userLabel, obj.style.description]);
+
+    if (isLineObj) {
+      const p = parseLineProps(obj.style.userLabel ?? "", obj.style.description ?? "");
+      setFootage(p.footage);
+      setMethod(p.method);
+      setSize(p.size);
+      const common = ["1-2\" DUCT", "10MStrand", "144F", "72F", "24F"];
+      setSizeOption(!p.size ? "" : (common.includes(p.size) ? p.size : "custom"));
+    }
+  }, [obj.id, obj.style.userLabel, obj.style.description, contract, isLineObj]);
+
+  const commitLineChanges = (f: string, m: string, s: string) => {
+    const cleanFootage = f.replace(/['\s]/g, "").trim();
+    const resolvedLabel = cleanFootage ? `${cleanFootage}' ${m}`.trim() : "";
+    const resolvedDesc = [s, m].filter(Boolean).join(" ");
+    
+    let nextTool = obj.tool;
+    if (m === "BORE" || m === "TRENCH") {
+      nextTool = "ziply_bore";
+    } else if (m === "AERIAL") {
+      nextTool = "ziply_distribution";
+    }
+    
+    updateObject({
+      ...obj,
+      tool: nextTool,
+      style: {
+        ...defaultStyleForTool(nextTool),
+        ...obj.style,
+        userLabel: resolvedLabel || undefined,
+        description: resolvedDesc || undefined,
+        ziplyInstallMethod: m ? m.toLowerCase() : obj.style.ziplyInstallMethod,
+        ziplyConduitOrStrand: s || obj.style.ziplyConduitOrStrand,
+        ziplyFootage: cleanFootage ? Number(cleanFootage) : obj.style.ziplyFootage,
+      }
+    } as DrawingObject);
+  };
 
   // Commit label change to context (debounced 300ms)
   const labelDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -370,13 +514,16 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     if (labelDebounce.current) clearTimeout(labelDebounce.current);
     labelDebounce.current = setTimeout(() => {
       let finalLabel = v.trim();
-      // Phase 9: Pole labels auto-prefix with "A-" when missing
+      // Phase 9: Pole labels auto-prefix with "A-" when missing (except on Ziply contract)
       if (
         finalLabel &&
-        (obj.tool === "pole_new" || obj.tool === "pole_removed") &&
+        contract !== "Ziply" &&
+        (obj.tool === "pole_new" || obj.tool === "pole_removed" || obj.tool === "ziply_pole" || obj.tool.includes("pole")) &&
         !/^a-/i.test(finalLabel)
       ) {
         finalLabel = `A-${finalLabel}`;
+      } else if (contract === "Ziply" && /^a-/i.test(finalLabel)) {
+        finalLabel = finalLabel.slice(2);
       }
       patchObjectStyle(obj.id, { userLabel: finalLabel || undefined });
     }, 300);
@@ -504,6 +651,21 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
     text: "Text", line: "Line", arrow: "Arrow",
     rectangle: "Rectangle", circle: "Circle", polygon: "Polygon",
     freehand: "Freehand", measure: "Measure",
+    ziply_hub: "Ziply Splitter Hub (FDH)",
+    ziply_terminal: "Ziply Terminal (MST)",
+    ziply_splitter: "Ziply Splitter",
+    ziply_riser: "Ziply Riser",
+    ziply_slack_loop: "Ziply Slack Loop",
+    ziply_address: "Ziply Service Address",
+    ziply_pole: "Ziply Pole",
+    ziply_handhole: "Ziply Handhole",
+    ziply_flower_pot: "Ziply Flower Pot",
+    flower_pot_new: "Flower Pot (New)",
+    flower_pot_removed: "Flower Pot (Removed)",
+    ziply_feeder: "F1 Cable (Feeder)",
+    ziply_distribution: "F2 Cable (Distribution)",
+    ziply_drop: "Drop Cable",
+    ziply_bore: "Ziply Bore / Trench",
   };
   const typeName = TYPE_NAMES[obj.tool] ?? obj.tool;
 
@@ -590,56 +752,168 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
       {/* ── Body (scrollable) ──────────────────────────────────────── */}
       <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", maxHeight: "70vh" }}>
 
-        {/* Title field */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
-            {isPoint ? "A-TAG #" : "Title"}
-          </label>
-          <input
-            ref={labelRef}
-            type="text"
-            value={label}
-            onChange={(e) => handleLabelChange(e.target.value)}
-            placeholder={isPoint ? "A-TAG # (optional)" : "Name this object…"}
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(200,208,218,0.18)",
-              borderRadius: 5,
-              color: "#f4f8ff",
-              fontFamily: "inherit",
-              fontSize: 12,
-              fontWeight: 700,
-              padding: "6px 8px",
-              outline: "none",
-              letterSpacing: "0.04em",
-            }}
-          />
-        </div>
+        {isLineObj ? (
+          <>
+            {/* Footage Field */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                Footage
+              </label>
+              <input
+                type="text"
+                value={footage}
+                onChange={(e) => {
+                  setFootage(e.target.value);
+                  commitLineChanges(e.target.value, method, size);
+                }}
+                placeholder="e.g. 275"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(200,208,218,0.18)",
+                  borderRadius: 5,
+                  color: "#f4f8ff",
+                  fontFamily: "inherit",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 8px",
+                  outline: "none",
+                  letterSpacing: "0.04em",
+                }}
+              />
+            </div>
 
-        {/* Description */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
-            Description / Notes
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => handleDescChange(e.target.value)}
-            placeholder="Add notes or details…"
-            rows={3}
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(200,208,218,0.14)",
-              borderRadius: 5,
-              color: "#c8d0da",
-              fontFamily: "inherit",
-              fontSize: 11,
-              padding: "6px 8px",
-              outline: "none",
-              resize: "vertical",
-              lineHeight: 1.5,
-            }}
-          />
-        </div>
+            {/* Placement Method Field */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                Placement Method
+              </label>
+              <select
+                value={method}
+                onChange={(e) => {
+                  setMethod(e.target.value);
+                  commitLineChanges(footage, e.target.value, size);
+                }}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(200,208,218,0.18)",
+                  borderRadius: 5,
+                  color: "#f4f8ff",
+                  fontFamily: "inherit",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 8px",
+                  outline: "none",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                <option value="">-- Select Method --</option>
+                <option value="BORE">BORE (Underground)</option>
+                <option value="TRENCH">TRENCH (Underground)</option>
+                <option value="AERIAL">AERIAL (Overhead)</option>
+              </select>
+            </div>
+
+            {/* Size Selector */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                Size / Spec
+              </label>
+              <select
+                value={sizeOption}
+                onChange={(e) => {
+                  setSizeOption(e.target.value);
+                  if (e.target.value !== "custom") {
+                    setSize(e.target.value);
+                    commitLineChanges(footage, method, e.target.value);
+                  }
+                }}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(200,208,218,0.18)",
+                  borderRadius: 5,
+                  color: "#f4f8ff",
+                  fontFamily: "inherit",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 8px",
+                  outline: "none",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                <option value="">-- Select Size --</option>
+                <option value="1-2&quot; DUCT">1-2&quot; DUCT</option>
+                <option value="10MStrand">10MStrand</option>
+                <option value="144F">144F</option>
+                <option value="72F">72F</option>
+                <option value="24F">24F</option>
+                <option value="custom">Other / Custom...</option>
+              </select>
+              {sizeOption === "custom" && (
+                <input
+                  type="text"
+                  value={size}
+                  onChange={(e) => {
+                    setSize(e.target.value);
+                    commitLineChanges(footage, method, e.target.value);
+                  }}
+                  placeholder="Enter custom size..."
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(200,208,218,0.18)",
+                    borderRadius: 5,
+                    color: "#f4f8ff",
+                    fontFamily: "inherit",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: "6px 8px",
+                    outline: "none",
+                    letterSpacing: "0.04em",
+                    marginTop: 4,
+                  }}
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Title field */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                {isPoint ? "A-TAG #" : "Title"}
+              </label>
+              <input
+                ref={labelRef}
+                type="text"
+                value={label}
+                onChange={(e) => handleLabelChange(e.target.value)}
+                placeholder={isPoint ? "A-TAG # (optional)" : "Name this object…"}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(200,208,218,0.18)",
+                  borderRadius: 5,
+                  color: "#f4f8ff",
+                  fontFamily: "inherit",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 8px",
+                  outline: "none",
+                  letterSpacing: "0.04em",
+                }}
+              />
+            </div>
+
+            {/* Description */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>
+                Description / Notes
+              </label>
+              <RichTextEditor
+                content={description}
+                onChange={handleDescChange}
+              />
+            </div>
+          </>
+        )}
 
         {/* ── Style controls ──────────────────────────── */}
         <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -699,65 +973,41 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
             </div>
           )}
 
-          {/* Point size — telecom symbols only (fully resizable) */}
-          {isPoint && (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", width: 52, flexShrink: 0 }}>Size</span>
+          {/* Cable Flow Animation Toggle */}
+          {isCableOrLine && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", width: 52, flexShrink: 0 }}>Flow</span>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 10, color: "#c8d0da" }}>
                 <input
-                  type="range"
-                  min={0.5}
-                  max={2.0}
-                  step={0.1}
-                  value={currentPointSize}
-                  onChange={(e) => patchStyle({ pointSize: Number(e.target.value) })}
-                  style={{ flex: 1 }}
+                  type="checkbox"
+                  checked={!!obj.style.animateFlow}
+                  onChange={(e) => patchStyle({ animateFlow: e.target.checked })}
+                  style={{
+                    cursor: "pointer",
+                    accentColor: "#1ea7ff"
+                  }}
                 />
-                <span style={{ fontSize: 10, color: "#8a96a3", width: 32, textAlign: "right" }}>{currentPointSize.toFixed(1)}x</span>
-              </div>
-
-              {/* Icon customization per object (My Maps style) */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase" }}>Icon</span>
-                <IconPicker
-                  value={obj.style.icon}
-                  onChange={(newIcon: IconKey) => patchStyle({ icon: newIcon })}
-                  compact
-                />
-              </div>
-            </>
+                Animate Cable Flow
+              </label>
+            </div>
           )}
 
-          {/* Transform controls for all selected objects (PDF editor style) */}
-          <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 8, marginTop: 4 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", marginBottom: 4 }}>
-              Transform
-            </div>
-
-            {/* Rotation - uses the real rotateSelected action */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", width: 52, flexShrink: 0 }}>Rotate</span>
-              <button onClick={() => rotateSelected(-15)} style={{ fontSize: 11, padding: "1px 5px" }}>-15°</button>
-              <button onClick={() => rotateSelected(15)} style={{ fontSize: 11, padding: "1px 5px" }}>+15°</button>
-              <button onClick={() => rotateSelected(90)} style={{ fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>90°</button>
-              <button onClick={() => rotateSelected(-90)} style={{ fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>-90°</button>
-            </div>
-
-            {/* Scale for all objects */}
+          {/* Point size */}
+          {isPoint && (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", width: 52, flexShrink: 0 }}>Scale</span>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "#6a7580", textTransform: "uppercase", width: 52, flexShrink: 0 }}>Size</span>
               <input
                 type="range"
                 min={0.5}
-                max={3}
+                max={2.0}
                 step={0.1}
-                value={obj.style.pointSize ?? 1}
+                value={currentPointSize}
                 onChange={(e) => patchStyle({ pointSize: Number(e.target.value) })}
                 style={{ flex: 1 }}
               />
-              <span style={{ fontSize: 10, color: "#8a96a3", width: 28 }}>{((obj.style.pointSize ?? 1) * 100).toFixed(0)}%</span>
+              <span style={{ fontSize: 10, color: "#8a96a3", width: 32, textAlign: "right" }}>{currentPointSize.toFixed(1)}x</span>
             </div>
-          </div>
+          )}
 
           {/* Fill — closed shapes only */}
           {isClosedShape && !isPoint && (
@@ -786,6 +1036,593 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
             </div>
           )}
         </div>
+
+        {/* ── ZIPLY INDUSTRIAL LIVE PLANT CARD ──────────────────────────────────────── */}
+        {(obj.tool.startsWith("ziply_") || obj.tool === "placed_cable" || obj.tool === "removed_cable") && (
+          <div
+            style={{
+              borderTop: "1.5px solid rgba(0, 119, 255, 0.35)",
+              paddingTop: 12,
+              marginTop: 4,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              background: "linear-gradient(180deg, rgba(0, 82, 204, 0.08) 0%, rgba(13, 21, 32, 0.4) 100%)",
+              borderRadius: 8,
+              padding: 10,
+              border: "1px solid rgba(0, 119, 255, 0.25)",
+              boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 4px 12px rgba(0,0,0,0.3)",
+            }}
+          >
+            {/* Header & AI Badge */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span
+                  style={{
+                    background: "linear-gradient(135deg, #0052cc 0%, #0077ff 100%)",
+                    color: "#fff",
+                    fontSize: 9,
+                    fontWeight: 900,
+                    padding: "3px 7px",
+                    borderRadius: 4,
+                    letterSpacing: "0.08em",
+                    boxShadow: "0 0 10px rgba(0,119,255,0.5)",
+                    fontFamily: "var(--font-mono, monospace)",
+                  }}
+                >
+                  LIVE PLANT CARD
+                </span>
+                {obj.style.ziplyAiSuggested && (
+                  <span
+                    style={{
+                      background: "rgba(168, 85, 247, 0.2)",
+                      border: "1px solid rgba(168, 85, 247, 0.5)",
+                      color: "#c084fc",
+                      fontSize: 8,
+                      fontWeight: 800,
+                      padding: "2px 6px",
+                      borderRadius: 3,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    ✨ AI Suggested
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleAutoFill}
+                style={{
+                  background: "rgba(0, 119, 255, 0.15)",
+                  border: "1px solid rgba(0, 119, 255, 0.4)",
+                  borderRadius: 4,
+                  color: "#38bdf8",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  padding: "4px 8px",
+                  cursor: "pointer",
+                  boxShadow: "0 0 8px rgba(0, 119, 255, 0.2)",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                ⚡ Match AI Print
+              </button>
+            </div>
+
+            {/* ── STATUS TOGGLE & FLOW ANIMATION BUTTON ── */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {/* Instant Status Switch */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                  Status (Auto-Glow)
+                </label>
+                <div style={{ display: "flex", background: "rgba(0,0,0,0.5)", borderRadius: 5, padding: 2, border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <button
+                    type="button"
+                    onClick={() => patchStyle({ ziplyStatus: "planned" })}
+                    style={{
+                      flex: 1,
+                      padding: "4px 0",
+                      fontSize: 9,
+                      fontWeight: 800,
+                      borderRadius: 3,
+                      border: "none",
+                      cursor: "pointer",
+                      background: (obj.style.ziplyStatus ?? "planned") === "planned" ? "#334155" : "transparent",
+                      color: (obj.style.ziplyStatus ?? "planned") === "planned" ? "#cbd5e1" : "#64748b",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    PLANNED
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => patchStyle({ ziplyStatus: "placed", ziplyTimestamp: Date.now() })}
+                    style={{
+                      flex: 1,
+                      padding: "4px 0",
+                      fontSize: 9,
+                      fontWeight: 900,
+                      borderRadius: 3,
+                      border: "none",
+                      cursor: "pointer",
+                      background: obj.style.ziplyStatus === "placed" ? "linear-gradient(135deg, #059669 0%, #10b981 100%)" : "transparent",
+                      color: obj.style.ziplyStatus === "placed" ? "#fff" : "#64748b",
+                      boxShadow: obj.style.ziplyStatus === "placed" ? "0 0 12px rgba(16,185,129,0.6)" : "none",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    CONDUIT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => patchStyle({ ziplyStatus: "Complete", ziplyTimestamp: Date.now() })}
+                    style={{
+                      flex: 1,
+                      padding: "4px 0",
+                      fontSize: 9,
+                      fontWeight: 900,
+                      borderRadius: 3,
+                      border: "none",
+                      cursor: "pointer",
+                      background: obj.style.ziplyStatus === "Complete" ? "linear-gradient(135deg, #0891b2 0%, #06b6d4 100%)" : "transparent",
+                      color: obj.style.ziplyStatus === "Complete" ? "#fff" : "#64748b",
+                      boxShadow: obj.style.ziplyStatus === "Complete" ? "0 0 12px rgba(6,182,212,0.6)" : "none",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    FIBER
+                  </button>
+                </div>
+              </div>
+
+              {/* Independent Flow Pulse Button (for cables & terminals) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
+                <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                  Flow Beam
+                </label>
+                <button
+                  type="button"
+                  onClick={() => patchStyle({ animateFlow: !obj.style.animateFlow })}
+                  style={{
+                    padding: "5px 10px",
+                    fontSize: 9,
+                    fontWeight: 800,
+                    borderRadius: 4,
+                    border: obj.style.animateFlow ? "1px solid #38bdf8" : "1px solid rgba(255,255,255,0.12)",
+                    background: obj.style.animateFlow ? "rgba(56, 189, 248, 0.2)" : "rgba(0,0,0,0.4)",
+                    color: obj.style.animateFlow ? "#38bdf8" : "#64748b",
+                    boxShadow: obj.style.animateFlow ? "0 0 10px rgba(56,189,248,0.4)" : "none",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  title="Toggle slow light-beam animation down the cable path"
+                >
+                  {obj.style.animateFlow ? "🌊 BEAMS ON" : "OFF"}
+                </button>
+              </div>
+            </div>
+
+            {/* ── TERMINAL SPECIFIC CARD LAYOUT ── */}
+            {(obj.tool === "ziply_terminal" || obj.tool.includes("terminal")) && (
+              <>
+                {/* Port Count Selection Pills */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Port Count
+                  </label>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {[4, 6, 8, 12, 16].map((ports) => {
+                      const active = obj.style.ziplyPortCount === ports;
+                      return (
+                        <button
+                          key={ports}
+                          type="button"
+                          onClick={() => patchStyle({ ziplyPortCount: ports })}
+                          style={{
+                            flex: 1,
+                            padding: "4px 0",
+                            fontSize: 10,
+                            fontWeight: 800,
+                            borderRadius: 4,
+                            border: active ? "1px solid #0077ff" : "1px solid rgba(255,255,255,0.12)",
+                            background: active ? "rgba(0, 119, 255, 0.25)" : "rgba(0,0,0,0.4)",
+                            color: active ? "#60a5fa" : "#94a3b8",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          {ports}P
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Tail Length & Lashed Footage */}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                    <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                      MST Tail (ft)
+                    </label>
+                    <input
+                      type="number"
+                      value={obj.style.ziplyTailLengthFt ?? ""}
+                      onChange={(e) => patchStyle({ ziplyTailLengthFt: Number(e.target.value) || undefined })}
+                      placeholder="e.g. 1000"
+                      style={{
+                        background: "rgba(0,0,0,0.4)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 4,
+                        color: "#f8fafc",
+                        fontSize: 11,
+                        padding: "5px 8px",
+                        outline: "none",
+                        fontFamily: "var(--font-mono, monospace)",
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                    <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                      Lashed / Conduit (ft)
+                    </label>
+                    <input
+                      type="number"
+                      value={obj.style.ziplyLashedOrConduitFt ?? ""}
+                      onChange={(e) => patchStyle({ ziplyLashedOrConduitFt: Number(e.target.value) || undefined })}
+                      placeholder="e.g. 578"
+                      style={{
+                        background: "rgba(0,0,0,0.4)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 4,
+                        color: "#f8fafc",
+                        fontSize: 11,
+                        padding: "5px 8px",
+                        outline: "none",
+                        fontFamily: "var(--font-mono, monospace)",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Served House Addresses Pills ([✓ 14201] [✓ 14205] [+ Add]) */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Served House Addresses
+                  </label>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+                    {(obj.style.ziplyServedAddressesList ?? (obj.style.ziplyAddressesServed ? obj.style.ziplyAddressesServed.split(",").map(s => s.trim()).filter(Boolean) : [])).map((addr, idx) => (
+                      <span
+                        key={idx}
+                        onClick={() => {
+                          const current = (obj.style.ziplyServedAddressesList ?? (obj.style.ziplyAddressesServed ? obj.style.ziplyAddressesServed.split(",").map(s => s.trim()).filter(Boolean) : []));
+                          const updated = current.filter((_, i) => i !== idx);
+                          patchStyle({ ziplyServedAddressesList: updated, ziplyAddressesServed: updated.join(", ") });
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          background: "rgba(16, 185, 129, 0.15)",
+                          border: "1px solid rgba(16, 185, 129, 0.4)",
+                          color: "#34d399",
+                          fontSize: 9,
+                          fontWeight: 800,
+                          padding: "3px 7px",
+                          borderRadius: 999,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                        title="Click to uncheck/remove address"
+                      >
+                        ✓ {addr} <span style={{ opacity: 0.6, fontSize: 8 }}>✕</span>
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = window.prompt("Enter house address number:");
+                        if (val && val.trim()) {
+                          const current = (obj.style.ziplyServedAddressesList ?? (obj.style.ziplyAddressesServed ? obj.style.ziplyAddressesServed.split(",").map(s => s.trim()).filter(Boolean) : []));
+                          const updated = [...current, val.trim()];
+                          patchStyle({ ziplyServedAddressesList: updated, ziplyAddressesServed: updated.join(", ") });
+                        }
+                      }}
+                      style={{
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px dashed rgba(255,255,255,0.2)",
+                        color: "#94a3b8",
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        cursor: "pointer",
+                      }}
+                    >
+                      + Add Address
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── POLE SPECIFIC CARD LAYOUT ── */}
+            {(obj.tool === "ziply_pole" || obj.tool.includes("pole")) && (
+              <>
+                {/* PSE Pole ID */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    PSE Pole ID
+                  </label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyPoleId ?? ""}
+                    onChange={(e) => patchStyle({ ziplyPoleId: e.target.value || undefined })}
+                    placeholder="e.g. 226988-169290"
+                    style={{
+                      background: "rgba(0,0,0,0.4)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      color: "#f8fafc",
+                      fontSize: 11,
+                      padding: "5px 8px",
+                      outline: "none",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}
+                  />
+                </div>
+
+                {/* Guy Wire / Make Ready Notes */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Guy Wire / Make Ready Notes
+                  </label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyGuyWireNotes ?? ""}
+                    onChange={(e) => patchStyle({ ziplyGuyWireNotes: e.target.value || undefined })}
+                    placeholder="e.g. OH GUY"
+                    style={{
+                      background: "rgba(0,0,0,0.4)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      color: "#f8fafc",
+                      fontSize: 11,
+                      padding: "5px 8px",
+                      outline: "none",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}
+                  />
+                </div>
+
+                {/* Grid Coordinates */}
+                {"position" in obj && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                      Grid Coordinates
+                    </label>
+                    <div style={{
+                      background: "rgba(0,0,0,0.2)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      borderRadius: 4,
+                      color: "#94a3b8",
+                      fontSize: 9,
+                      padding: "5px 8px",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}>
+                      Lat: {obj.position.lat.toFixed(6)}, Lng: {obj.position.lng.toFixed(6)}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── HANDHOLE / VAULT / PEDESTAL SPECIFIC CARD LAYOUT ── */}
+            {(obj.tool.includes("handhole") || obj.tool.includes("hh") || obj.tool.includes("ped") || obj.tool.includes("flower") || obj.tool === "ziply_handhole" || obj.tool === "ziply_flower_pot") && (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Structure / Handhole ID
+                  </label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyStructureId ?? obj.style.ziplyPoleId ?? ""}
+                    onChange={(e) => patchStyle({ ziplyStructureId: e.target.value || undefined })}
+                    placeholder="e.g. HH-102 or VAULT 2436"
+                    style={{
+                      background: "rgba(0,0,0,0.4)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      color: "#f8fafc",
+                      fontSize: 11,
+                      padding: "5px 8px",
+                      outline: "none",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Size / Spec (e.g. 24x36 Tier 22)
+                  </label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyConduitOrStrand ?? obj.style.ziplyHandholeSize ?? ""}
+                    onChange={(e) => patchStyle({ ziplyConduitOrStrand: e.target.value || undefined, ziplyHandholeSize: e.target.value || undefined })}
+                    placeholder="e.g. 24x36x24 Tier 22"
+                    style={{
+                      background: "rgba(0,0,0,0.4)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      color: "#f8fafc",
+                      fontSize: 11,
+                      padding: "5px 8px",
+                      outline: "none",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ── CABLE SPECIFIC CARD LAYOUT ── */}
+            {isCableOrLine && (
+              <>
+                {/* Fiber Count (Required) & Footage */}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                    <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                      Fiber Count *
+                    </label>
+                    <input
+                      type="number"
+                      value={obj.style.ziplyFiberCount ?? (parseInt(obj.style.ziplyCableType || "0", 10) || "")}
+                      onChange={(e) => {
+                        const count = Number(e.target.value);
+                        patchStyle({ ziplyFiberCount: count || undefined, ziplyCableType: count ? `${count}F` : undefined });
+                      }}
+                      placeholder="e.g. 144"
+                      style={{
+                        background: "rgba(0,0,0,0.4)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 4,
+                        color: "#f8fafc",
+                        fontSize: 11,
+                        padding: "5px 8px",
+                        outline: "none",
+                        fontFamily: "var(--font-mono, monospace)",
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                    <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                      Footage (ft)
+                    </label>
+                    <input
+                      type="number"
+                      value={obj.style.ziplyFootage ?? ""}
+                      onChange={(e) => patchStyle({ ziplyFootage: Number(e.target.value) || undefined })}
+                      placeholder="e.g. 275"
+                      style={{
+                        background: "rgba(0,0,0,0.4)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 4,
+                        color: "#f8fafc",
+                        fontSize: 11,
+                        padding: "5px 8px",
+                        outline: "none",
+                        fontFamily: "var(--font-mono, monospace)",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Installation Method */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Install Method
+                  </label>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {(["bore", "trench", "aerial", "overlash"] as const).map((method) => {
+                      const active = (obj.style.ziplyInstallMethod || "").toLowerCase() === method;
+                      return (
+                        <button
+                          key={method}
+                          type="button"
+                          onClick={() => patchStyle({ ziplyInstallMethod: method })}
+                          style={{
+                            flex: 1,
+                            padding: "4px 0",
+                            fontSize: 9,
+                            fontWeight: 800,
+                            borderRadius: 4,
+                            border: active ? "1px solid #38bdf8" : "1px solid rgba(255,255,255,0.12)",
+                            background: active ? "rgba(56, 189, 248, 0.2)" : "rgba(0,0,0,0.4)",
+                            color: active ? "#38bdf8" : "#94a3b8",
+                            cursor: "pointer",
+                            textTransform: "capitalize",
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          {method}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Conduit Size / Strand Type */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                    Conduit Size / Strand Type
+                  </label>
+                  <input
+                    type="text"
+                    value={obj.style.ziplyConduitOrStrand ?? ""}
+                    onChange={(e) => patchStyle({ ziplyConduitOrStrand: e.target.value || undefined })}
+                    placeholder="e.g. 1-2&quot; DUCT or 10MStrand"
+                    style={{
+                      background: "rgba(0,0,0,0.4)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      color: "#f8fafc",
+                      fontSize: 11,
+                      padding: "5px 8px",
+                      outline: "none",
+                      fontFamily: "var(--font-mono, monospace)",
+                    }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Crew & Page Ref */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                  Print Sheet
+                </label>
+                <input
+                  type="text"
+                  value={obj.style.ziplyPrintPage ?? ""}
+                  onChange={(e) => patchStyle({ ziplyPrintPage: e.target.value })}
+                  placeholder="e.g. Sheet 4"
+                  style={{
+                    background: "rgba(0,0,0,0.4)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 4,
+                    color: "#f8fafc",
+                    fontSize: 10,
+                    padding: "4px 6px",
+                    outline: "none",
+                  }}
+                />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+                <label style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase" }}>
+                  Crew ID
+                </label>
+                <input
+                  type="text"
+                  value={obj.style.ziplyCrewId ?? ""}
+                  onChange={(e) => patchStyle({ ziplyCrewId: e.target.value })}
+                  placeholder="e.g. Crew A"
+                  style={{
+                    background: "rgba(0,0,0,0.4)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 4,
+                    color: "#f8fafc",
+                    fontSize: 10,
+                    padding: "4px 6px",
+                    outline: "none",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Photos ─────────────────────────────────── */}
         <div style={{ borderTop: "1px solid rgba(200,208,218,0.1)", paddingTop: 8 }}>
@@ -827,6 +1664,148 @@ export default function ObjectDetailsCard({ obj, anchorPos, onClose }: ObjectDet
           }}
         >Delete</button>
       </div>
+    </div>
+  );
+}
+
+// ── RichTextEditor component using Tiptap (#10) ─────────────────────────────
+interface RichTextEditorProps {
+  content: string;
+  onChange: (html: string) => void;
+}
+
+function RichTextEditor({ content, onChange }: RichTextEditorProps) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+    ],
+    content,
+    onUpdate: ({ editor }) => {
+      onChange(editor.getHTML());
+    },
+    editorProps: {
+      attributes: {
+        class: "tiptap-editor-content focus:outline-none",
+        style: "min-height: 80px; max-height: 150px; overflow-y: auto; font-size: 11px; line-height: 1.4; color: #c8d0da; outline: none; padding: 6px 8px; border-radius: 5px; background: rgba(255,255,255,0.04); border: 1px solid rgba(200,208,218,0.14);",
+      }
+    }
+  });
+
+  useEffect(() => {
+    if (editor && content !== editor.getHTML()) {
+      editor.commands.setContent(content);
+    }
+  }, [content, editor]);
+
+  if (!editor) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {/* Mini toolbar */}
+      <div 
+        style={{ 
+          display: "flex", 
+          gap: 4, 
+          padding: "2px 4px", 
+          background: "rgba(255,255,255,0.03)", 
+          border: "1px solid rgba(200,208,218,0.1)", 
+          borderRadius: 4,
+          alignItems: "center"
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          style={{
+            background: editor.isActive("bold") ? "rgba(30, 167, 255, 0.25)" : "transparent",
+            color: editor.isActive("bold") ? "#1ea7ff" : "#8a96a3",
+            border: "none",
+            borderRadius: 3,
+            padding: "2px 6px",
+            fontSize: 9,
+            fontWeight: 700,
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Bold"
+        >
+          B
+        </button>
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          style={{
+            background: editor.isActive("italic") ? "rgba(30, 167, 255, 0.25)" : "transparent",
+            color: editor.isActive("italic") ? "#1ea7ff" : "#8a96a3",
+            border: "none",
+            borderRadius: 3,
+            padding: "2px 6px",
+            fontSize: 9,
+            fontStyle: "italic",
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Italic"
+        >
+          I
+        </button>
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          style={{
+            background: editor.isActive("underline") ? "rgba(30, 167, 255, 0.25)" : "transparent",
+            color: editor.isActive("underline") ? "#1ea7ff" : "#8a96a3",
+            border: "none",
+            borderRadius: 3,
+            padding: "2px 6px",
+            fontSize: 9,
+            textDecoration: "underline",
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Underline"
+        >
+          U
+        </button>
+        <div style={{ width: 1, height: 10, background: "rgba(200,208,218,0.15)" }} />
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          style={{
+            background: editor.isActive("bulletList") ? "rgba(30, 167, 255, 0.25)" : "transparent",
+            color: editor.isActive("bulletList") ? "#1ea7ff" : "#8a96a3",
+            border: "none",
+            borderRadius: 3,
+            padding: "2px 4px",
+            fontSize: 9,
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Bullet List"
+        >
+          • List
+        </button>
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          style={{
+            background: editor.isActive("orderedList") ? "rgba(30, 167, 255, 0.25)" : "transparent",
+            color: editor.isActive("orderedList") ? "#1ea7ff" : "#8a96a3",
+            border: "none",
+            borderRadius: 3,
+            padding: "2px 4px",
+            fontSize: 9,
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Numbered List"
+        >
+          1. List
+        </button>
+      </div>
+
+      <EditorContent editor={editor} />
     </div>
   );
 }

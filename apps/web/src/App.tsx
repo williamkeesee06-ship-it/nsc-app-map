@@ -1,8 +1,6 @@
-import { Routes, Route, NavLink, Navigate, useMatch } from "react-router-dom";
+import { Routes, Route, Navigate, useMatch } from "react-router-dom";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import JobsMap from "./features/jobs-map/JobsMap.js";
-import JobWorkspace from "./features/workspace/JobWorkspace.js";
-import SyncAdmin from "./features/sync-admin/SyncAdmin.js";
 import { SearchFocusProvider } from "./features/search/searchContext.js";
 import SearchBar from "./features/search/SearchBar.js";
 import TopbarActions from "./features/drawing/TopbarActions.js";
@@ -10,67 +8,172 @@ import JobContextStrip from "./features/workspace/JobContextStrip.js";
 import { AuthProvider, useAuth } from "./features/auth/authContext.js";
 import LoginScreen from "./features/auth/LoginScreen.js";
 import { FiltersProvider } from "./features/jobs-map/filtersContext.js";
-import StatusFilterPills from "./features/jobs-map/StatusFilterPills.js";
-import CentralOfficesPill from "./features/jobs-map/CentralOfficesPill.js";
+import MapTypeToggle from "./features/map/MapTypeToggle.js";
+import MapStatusFilterPill from "./features/jobs-map/MapStatusFilterPill.js";
+// JobInfoBoxes removed from topbar — info shown in JobCard detail panel
+import { LuminaProvider } from "./features/lumina/store/luminaStore.js";
+import { useActiveContract } from "./features/workspace/contractStore.js";
+import "./features/lumina/lumina.css";
+import "./features/lumina/pegmanTint.css";
+
+import React, { Component, type ReactNode, lazy, Suspense } from "react";
+
+const JobWorkspace = lazy(() => import("./features/workspace/JobWorkspace.js"));
+const SyncAdmin = lazy(() => import("./features/sync-admin/SyncAdmin.js"));
+const PrintOverlayStandalone = lazy(() => import("./features/print-overlay/PrintOverlayStandalone.js"));
+
+interface EBProps { children: ReactNode }
+interface EBState { error: Error | null; errorInfo: React.ErrorInfo | null }
+
+class AppErrorBoundary extends Component<EBProps, EBState> {
+  state: EBState = { error: null, errorInfo: null };
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    this.setState({ error, errorInfo });
+    console.error("AppErrorBoundary caught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 99999, background: "#111827", color: "#f87171",
+          padding: 32, fontFamily: "monospace", overflow: "auto", fontSize: 13, lineHeight: 1.6
+        }}>
+          <h2 style={{ color: "#ef4444", marginTop: 0 }}>⚠️ Application Runtime Error</h2>
+          <pre style={{ background: "#1f2937", padding: 16, borderRadius: 8, color: "#fca5a5", whiteSpace: "pre-wrap" }}>
+            {this.state.error.toString()}
+            {"\n\nStack:\n"}
+            {this.state.error.stack}
+            {"\n\nComponent Stack:\n"}
+            {this.state.errorInfo?.componentStack}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
-const LIBRARIES: ("geometry")[] = ["geometry"];
+const LIBRARIES: ("geometry" | "places")[] = ["geometry", "places"];
 
 export default function App() {
   return (
-    <APIProvider apiKey={apiKey ?? ""} libraries={LIBRARIES}>
-      <AuthProvider>
-        <SearchFocusProvider>
-          <FiltersProvider>
-            <Shell />
-          </FiltersProvider>
-        </SearchFocusProvider>
-      </AuthProvider>
-    </APIProvider>
+    <AppErrorBoundary>
+      <APIProvider apiKey={apiKey ?? ""} libraries={LIBRARIES}>
+        <AuthProvider>
+          <SearchFocusProvider>
+            <FiltersProvider>
+              <LuminaProvider>
+                <AppRoutes />
+              </LuminaProvider>
+            </FiltersProvider>
+          </SearchFocusProvider>
+        </AuthProvider>
+      </APIProvider>
+    </AppErrorBoundary>
+  );
+}
+
+function AppRoutes() {
+  const { username, authReady } = useAuth();
+  const needsLogin = !import.meta.env.DEV && authReady && username === null;
+
+  return (
+    <>
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/print-overlay/jobs/:jobId" element={<PrintOverlayStandalone />} />
+          <Route path="/*" element={<Shell />} />
+        </Routes>
+      </Suspense>
+
+      {!authReady && !import.meta.env.DEV && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 4999,
+            display: "grid",
+            placeItems: "center",
+            background: "rgba(255, 255, 255, 0.9)",
+            color: "#1a1a1a",
+            fontFamily: "ui-monospace, Consolas, monospace",
+            fontSize: 12,
+            letterSpacing: "0.12em",
+          }}
+        >
+          CHECKING ACCESS…
+        </div>
+      )}
+      {needsLogin && <LoginScreen />}
+      {!apiKey && <MissingKeyOverlay />}
+    </>
+  );
+}
+
+function ContractSelector() {
+  const { contract, setActiveContract } = useActiveContract();
+  return (
+    <div
+      className="contract-selector"
+      role="group"
+      aria-label="Active contract workspace"
+    >
+      <button
+        className={`contract-btn ${contract === "Lumen" ? "lumen-active" : "lumen-inactive"}`}
+        onClick={() => setActiveContract("Lumen")}
+        title="Switch to Lumen contract jobs"
+      >
+        LUMEN
+      </button>
+      <button
+        className={`contract-btn ${contract === "Ziply" ? "ziply-active" : "ziply-inactive"}`}
+        onClick={() => setActiveContract("Ziply")}
+        title="Switch to Ziply contract jobs"
+      >
+        ⚡ ZIPLY
+      </button>
+    </div>
   );
 }
 
 function Shell() {
-  const { username } = useAuth();
-  const needsLogin = username === null;
+  const { contract } = useActiveContract();
   return (
-    <>
-      <div className="app-frame">
-        {/* Industrial rivets at inner corners */}
-        <div className="rivet rivet-tl" />
-        <div className="rivet rivet-tr" />
-        <div className="rivet rivet-bl" />
-        <div className="rivet rivet-br" />
-        <div className="app-shell">
-          <div className="shell">
-            <header className="topbar">
-              <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
-              <h1>APP MAP</h1>
-              <SearchBar />
-              {/* Phase 9.6: inline job-info strip when in workspace mode */}
-              <InlineJobContext />
-              <nav>
-                <NavLink to="/" end>Jobs Map</NavLink>
-                <NavLink to="/sync">Sync</NavLink>
-              </nav>
-              <StatusFilterPills />
-              <CentralOfficesPill />
-              <TopbarActions />
-              <UserChip />
-            </header>
+    <div className={`app-frame ${contract === "Ziply" ? "contract-ziply" : ""}`}>
+      {/* Industrial rivets at inner corners */}
+      <div className="rivet rivet-tl" />
+      <div className="rivet rivet-tr" />
+      <div className="rivet rivet-bl" />
+      <div className="rivet rivet-br" />
+      <div className="app-shell">
+        <div className="shell">
+          <header className="topbar" style={{ gap: 8 }}>
+            <img src="/northsky-logo.jpg" alt="North Sky — Building Tomorrow's Broadband" className="logo" />
+            <ContractSelector />
+            <SearchBar />
+            <MapTypeToggle />
+            <MapStatusFilterPill />
+            {/* Job info boxes removed — detail shown in JobCard panel */}
+            {/* Phase 9.6: inline job-info strip when in workspace mode */}
+            <InlineJobContext />
+            <TopbarActions />
+            <UserChip />
+          </header>
+          <Suspense fallback={null}>
             <Routes>
               <Route path="/" element={<JobsMap />} />
               <Route path="/jobs/:jobId" element={<JobWorkspace />} />
               <Route path="/sync" element={<SyncAdmin />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-          </div>
+          </Suspense>
         </div>
       </div>
-      {needsLogin && <LoginScreen />}
-      {!apiKey && <MissingKeyOverlay />}
-    </>
+    </div>
   );
 }
 
@@ -91,54 +194,24 @@ function UserChip() {
   if (!username) return null;
   return (
     <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 2,
-        marginLeft: 6,
-        fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
-        letterSpacing: "0.04em",
-        color: "var(--text-muted, #8a96a3)",
-        flexShrink: 0,
-      }}
-      title={`Filtering jobs for supervisor: ${username}`}
+      className="user-chip"
+      title={`Logged in as: ${username}`}
     >
-      <span
-        style={{
-          padding: "2px 7px",
-          borderRadius: 8,
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(200,208,218,0.18)",
-          color: "var(--text, #f4f8ff)",
-          fontWeight: 700,
-          fontSize: 9,
-          lineHeight: 1.2,
-          maxWidth: 90,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {username}
-      </span>
-      <button
-        type="button"
-        onClick={logout}
-        style={{
-          background: "transparent",
-          border: "none",
-          color: "var(--text-muted, #8a96a3)",
-          fontFamily: "inherit",
-          fontSize: 9,
-          cursor: "pointer",
-          textDecoration: "underline",
-          padding: 0,
-          lineHeight: 1,
-        }}
-      >
-        Log out
-      </button>
+      <div className="user-avatar">
+        {username.slice(0, 2).toUpperCase()}
+      </div>
+      <div className="user-info">
+        <span className="user-name">
+          {username.toUpperCase()}
+        </span>
+        <button
+          type="button"
+          className="logout-btn"
+          onClick={logout}
+        >
+          LOG OUT
+        </button>
+      </div>
     </div>
   );
 }
@@ -146,7 +219,7 @@ function UserChip() {
 function MissingKeyOverlay() {
   return (
     <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+      position: "fixed", inset: 0, background: "rgba(29,78,216,0.12)",
       display: "grid", placeItems: "center", zIndex: 1000, padding: 24,
     }}>
       <div style={{ maxWidth: 480, textAlign: "center", lineHeight: 1.5, background: "var(--surface)", borderRadius: 12, padding: 32, border: "1.5px solid var(--border)" }}>

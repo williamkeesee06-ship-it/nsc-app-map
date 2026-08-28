@@ -74,7 +74,7 @@ export function colorKeyForSecondaryStatus(
   secondaryJobStatus: string | null | undefined
 ): MarkerColorKey {
   if (!secondaryJobStatus) return "gray";
-  const s = secondaryJobStatus.trim().toLowerCase();
+  const s = String(secondaryJobStatus).trim().toLowerCase();
   for (const rule of STATUS_TO_COLOR) {
     if (rule.test(s)) return rule.key;
   }
@@ -89,17 +89,28 @@ export function isJobCompleted(job: {
   jobStatus?: string | null;
   secondaryJobStatus?: string | null;
 }): boolean {
-  const p = (job.jobStatus || "").trim().toLowerCase();
+  const p = String(job?.jobStatus ?? "").trim().toLowerCase();
   if (p === "complete" || p === "completed") return true;
-  const s = (job.secondaryJobStatus || "").trim().toLowerCase();
+  const s = String(job?.secondaryJobStatus ?? "").trim().toLowerCase();
   return s.startsWith("complete");
 }
 
 // Resolve the marker color for a job, honoring the Completed override.
-export function colorKeyForJob(job: {
-  jobStatus?: string | null;
-  secondaryJobStatus?: string | null;
-}): MarkerColorKey {
+//
+// Ziply contract (Phase 10): color the pin by its Job Status bucket so the map
+// visually matches the 7 dashboard gauges — Commitment=purple, In Progress=blue,
+// RTS=yellow, Ready Soon=orange, Resto=green, Gigs=completed_green, On Hold=red.
+// Lumen contract: keep the legacy secondaryJobStatus → color mapping.
+export function colorKeyForJob(
+  job: {
+    jobStatus?: string | null;
+    secondaryJobStatus?: string | null;
+  },
+  contract?: string
+): MarkerColorKey {
+  if (contract === "Ziply") {
+    return bucketColorKey(bucketForJob(job));
+  }
   if (isJobCompleted(job)) return "completed_green";
   return colorKeyForSecondaryStatus(job.secondaryJobStatus);
 }
@@ -113,12 +124,23 @@ export function colorForSecondaryStatus(
 // ── Phase 9: Status bucket regrouping ────────────────────────────────────────
 // The Smartsheet has many raw status strings; we collapse to 6 user-facing buckets.
 
+// Ziply Job Status buckets (Phase 10 rewrite). Ziply's raw Job Status column
+// uses numbered prefixes like "01_In Progress - Commitiment", "05_Ready for
+// Construction", etc. We collapse those into 7 user-facing buckets. The
+// legacy Lumen-era buckets (needs_fielding, pending, completed) are kept as
+// type aliases so older code compiles while it's migrated over.
 export type StatusBucket =
-  | "needs_fielding"
-  | "rts"
-  | "on_hold"
-  | "pending"
+  | "commitment"
   | "in_progress"
+  | "rts"
+  | "ready_soon"
+  | "resto"
+  | "gigs"
+  | "on_hold"
+  // Legacy Lumen buckets — kept for backwards compatibility, mapped in
+  // bucketForJob() below but no longer surfaced in the dashboard.
+  | "needs_fielding"
+  | "pending"
   | "completed";
 
 export interface StatusBucketDef {
@@ -127,23 +149,75 @@ export interface StatusBucketDef {
   colorKey: MarkerColorKey;
 }
 
+// The seven buckets shown in the dashboard's top status bar (Ziply, Phase 10).
+// Order left-to-right is the logical pipeline: pre-build → building →
+// finishing → on-hold. Colors intentionally reuse the existing marker palette
+// so the map/legend/dashboard all agree.
 export const STATUS_BUCKETS: StatusBucketDef[] = [
-  { key: "needs_fielding", label: "Needs Fielding", colorKey: "purple" },
-  { key: "rts",            label: "RTS",            colorKey: "yellow" },
-  { key: "on_hold",        label: "On Hold",        colorKey: "red" },
-  { key: "pending",        label: "Pending",        colorKey: "orange" },
-  { key: "in_progress",    label: "In Progress",    colorKey: "blue" },
-  { key: "completed",      label: "Completed",      colorKey: "completed_green" },
+  { key: "commitment",  label: "Commitment",  colorKey: "purple" },
+  { key: "in_progress", label: "In Progress", colorKey: "blue" },
+  { key: "rts",         label: "RTS",         colorKey: "yellow" },
+  { key: "ready_soon",  label: "Ready Soon",  colorKey: "orange" },
+  { key: "resto",       label: "Resto",       colorKey: "green" },
+  { key: "gigs",        label: "Gigs",        colorKey: "completed_green" },
+  { key: "on_hold",     label: "On Hold",     colorKey: "red" },
 ];
 
+// Map a job to one of the 7 Ziply buckets. Uses the Job Status column's
+// numeric prefix ("01_..." … "15_...") first because that's what Ziply's
+// tracker actually ships — falls back to the legacy secondaryJobStatus
+// matching so any non-Ziply Lumen rows still bucket sensibly.
 export function bucketForJob(job: {
   jobStatus?: string | null;
   secondaryJobStatus?: string | null;
 }): StatusBucket {
-  if (isJobCompleted(job)) return "completed";
-  const s = (job.secondaryJobStatus || "").trim().toLowerCase();
-  if (!s) return "pending";
-  if (s === "needs fielding") return "needs_fielding";
+  const raw = String(job?.jobStatus ?? "").trim();
+  const lower = raw.toLowerCase();
+
+  // --- Ziply numbered prefixes -------------------------------------------
+  // "01_In Progress - Commitiment" (note: Smartsheet has this misspelled;
+  // we match the prefix, so the typo doesn't matter).
+  if (lower.startsWith("01") || lower.includes("commit")) return "commitment";
+  if (lower.startsWith("04") && lower.includes("in progress")) return "in_progress";
+  if (lower.startsWith("05") || lower.includes("ready for construction")) return "rts";
+  if (lower.startsWith("06") || lower.includes("ready soon")) return "ready_soon";
+  if (lower.startsWith("07") || lower.includes("pending resto")) return "resto";
+  if (lower.startsWith("08") || lower.includes("pending gigs")) return "gigs";
+  // 09 Complete — finished work, surfaces in Gigs alongside other done work.
+  if (lower.startsWith("09") || lower.includes("ready for billing") || lower.includes("complete"))
+    return "gigs";
+  // 10 On Hold + 11 Pending Permit + 12 Awarded to Others + 15 Pending Approval
+  // are all forms of "not buildable right now" — Billy 8/6: if it's pending
+  // permit or awaiting approval, treat it as on hold. Red pin, on-hold bucket.
+  if (
+    lower.startsWith("10") ||
+    lower.startsWith("11") ||
+    lower.startsWith("12") ||
+    lower.startsWith("15") ||
+    lower.includes("on hold") ||
+    lower.includes("pending permit") ||
+    lower.includes("pending approval") ||
+    lower.includes("awarded to others") ||
+    lower.includes("cancel")
+  ) {
+    return "on_hold";
+  }
+
+  // --- Legacy Lumen fallback --------------------------------------------
+  // Only runs for jobs whose jobStatus didn't match any numbered Ziply prefix
+  // above. Ziply rows with a numbered status prefix never reach this branch,
+  // so unknown Ziply statuses fall through to the safest default: on_hold
+  // rather than ready_soon (Billy 8/6: don't silently dump unknowns into
+  // "ready to build" — mark them as needing attention).
+  if (isJobCompleted(job)) return "gigs"; // completed Lumen jobs surface in Gigs
+  const s = String(job?.secondaryJobStatus ?? "").trim().toLowerCase();
+  // If this looks like a Ziply row (has a numbered jobStatus) with no
+  // secondaryJobStatus, we already tried and failed to bucket it above —
+  // don't pretend it's Ready Soon. Send it to on_hold so it surfaces as
+  // needing attention instead of inflating the build queue.
+  if (!s && /^\d/.test(raw)) return "on_hold";
+  if (!s) return "ready_soon";
+  if (s === "needs fielding") return "commitment";
   if (
     s === "rts" ||
     (s.includes("fielded") && s.includes("rts")) ||
@@ -158,13 +232,7 @@ export function bucketForJob(job: {
     s === "pending hsr"
   )
     return "in_progress";
-  if (
-    s === "pending" ||
-    s === "pending permit" ||
-    s === "pending engineering"
-  )
-    return "pending";
-  return "pending";
+  return "ready_soon";
 }
 
 export function bucketLabel(b: StatusBucket): string {
@@ -175,6 +243,8 @@ export function bucketColorKey(b: StatusBucket): MarkerColorKey {
   return STATUS_BUCKETS.find((x) => x.key === b)?.colorKey ?? "gray";
 }
 
+const pinCache = new Map<string, string>();
+
 // Build a high-precision GIS Vector Pin SVG
 // Design: Crisp metallic bevels, high-contrast core, reticle base, drop-shadow halo.
 export function precisionPinDataUrl(
@@ -183,6 +253,11 @@ export function precisionPinDataUrl(
   isSelected = false,
   isManualOverride = false
 ): string {
+  const roundedOpacity = Math.round(opacity * 100) / 100;
+  const cacheKey = `${color.key}_${roundedOpacity}_${isSelected ? 1 : 0}_${isManualOverride ? 1 : 0}`;
+  const cached = pinCache.get(cacheKey);
+  if (cached) return cached;
+
   const { core, glow } = color;
   const id = color.key;
   const strokeWidth = isSelected ? "2.5" : "2";
@@ -208,7 +283,7 @@ export function precisionPinDataUrl(
       <stop offset="100%" stop-color="${glow}"/>
     </linearGradient>
   </defs>
-  <g opacity="${opacity}" filter="url(#p-glow-${id})">
+  <g opacity="${roundedOpacity}" filter="url(#p-glow-${id})">
     <!-- Ground target reticle -->
     <ellipse cx="20" cy="51" rx="9" ry="2.5" fill="none" stroke="${core}" stroke-opacity="0.4" stroke-width="1.2" stroke-dasharray="2 2"/>
     <ellipse cx="20" cy="51" rx="4.5" ry="1.2" fill="${core}" fill-opacity="0.6"/>
@@ -227,7 +302,9 @@ export function precisionPinDataUrl(
     ${overrideDot}
   </g>
 </svg>`.trim();
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  pinCache.set(cacheKey, url);
+  return url;
 }
 
 // Backward-compatible alias for existing callers

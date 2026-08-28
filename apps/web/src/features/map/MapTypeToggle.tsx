@@ -1,80 +1,86 @@
-// Enhanced Map Style Control - Dark map + full label toggling
-import { useEffect, useState, useRef, useCallback } from "react";
-import { useMap } from "@vis.gl/react-google-maps";
-import { getMapStyles } from "./mapStyles.js";
+import { useEffect, useState, useRef } from "react";
+import type { MapTheme } from "./mapStyles.js";
+import { Layers } from "lucide-react";
+import { useFiltersContext } from "../jobs-map/filtersContext.js";
 
-type MapType = "roadmap" | "satellite" | "hybrid" | "terrain";
+export type MapType = "roadmap" | "satellite" | "hybrid";
 
 export interface MapPreferences {
-  mapType: MapType;
+  mapType: "roadmap" | "satellite" | "hybrid" | "terrain";
+  theme: MapTheme;
   dark: boolean;
   showRoadLabels: boolean;
   showPoiLabels: boolean;
+  showCityLabels: boolean;
+  showTransit: boolean;
 }
-
-const LABELS: Record<MapType, string> = {
-  roadmap: "Map",
-  satellite: "Satellite",
-  hybrid: "Satellite (labels)",
-  terrain: "Terrain",
-};
 
 const PREFS_KEY = "nsc:mapPrefs";
 
-function loadPrefs(): MapPreferences {
+const DEFAULT_PREFS: MapPreferences = {
+  mapType: "roadmap",
+  theme: "classic",
+  dark: false,
+  showRoadLabels: true,
+  showPoiLabels: false,
+  showCityLabels: true,
+  showTransit: false,
+};
+
+export function loadPrefs(): MapPreferences {
   try {
     const raw = localStorage.getItem(PREFS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const theme: MapTheme = parsed.theme ?? (parsed.dark ? "dark" : "classic");
+      const mapType = parsed.mapType === "terrain" ? "roadmap" : (parsed.mapType ?? "roadmap");
+      
+      // Keep details permanently on for roadmap/hybrid, off for pure satellite road labels.
+      const showRoadLabels = mapType === "satellite" ? false : true;
+
+      return {
+        ...DEFAULT_PREFS,
+        ...parsed,
+        mapType,
+        theme,
+        dark: theme === "dark",
+        showRoadLabels,
+        showPoiLabels: parsed.showPoiLabels ?? false,
+        showCityLabels: parsed.showCityLabels ?? true,
+        showTransit: parsed.showTransit ?? false,
+      };
+    }
   } catch {}
-  return {
-    mapType: "roadmap",
-    dark: false,
-    showRoadLabels: true,
-    showPoiLabels: true,
-  };
+  return { ...DEFAULT_PREFS };
 }
 
-function savePrefs(prefs: MapPreferences) {
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
+export function savePrefs(prefs: MapPreferences) {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {}
 }
 
-function broadcast(prefs: MapPreferences) {
+export function broadcastPrefs(prefs: MapPreferences) {
   window.dispatchEvent(new CustomEvent("nsc:map-prefs-changed", { detail: prefs }));
 }
 
+export const MAP_PREFS_EVENT = "nsc:map-prefs-changed";
+
 export default function MapTypeToggle() {
-  const map = useMap();
   const [prefs, setPrefs] = useState<MapPreferences>(loadPrefs);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { mapType, dark, showRoadLabels, showPoiLabels } = prefs;
+  const { filters, setFilters } = useFiltersContext();
+  const isGlobalOverlaysOn = filters.showPrintOverlays !== false;
 
-  // Apply everything to the map
+  const { mapType, theme } = prefs;
+
   useEffect(() => {
-    if (!map) return;
-
-    map.setMapTypeId(mapType);
-
-    const styles = getMapStyles({
-      dark,
-      showRoadLabels,
-      showPoiLabels,
-    });
-    map.setOptions({ styles });
-
     savePrefs(prefs);
-    broadcast(prefs);
-  }, [map, prefs]);
+    broadcastPrefs(prefs);
+  }, [prefs]);
 
-  // Sync between map instances
-  useEffect(() => {
-    const h = (e: Event) => setPrefs((e as CustomEvent<MapPreferences>).detail);
-    window.addEventListener("nsc:map-prefs-changed", h);
-    return () => window.removeEventListener("nsc:map-prefs-changed", h);
-  }, []);
-
-  // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -85,102 +91,222 @@ export default function MapTypeToggle() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  function update(update: Partial<MapPreferences>) {
-    setPrefs(prev => ({ ...prev, ...update }));
+  // Synchronize from other sources if needed
+  useEffect(() => {
+    function onChange(e: Event) {
+      const next = (e as CustomEvent<MapPreferences>).detail;
+      if (!next) return;
+      setPrefs((curr) => (JSON.stringify(curr) === JSON.stringify(next) ? curr : next));
+    }
+    window.addEventListener(MAP_PREFS_EVENT, onChange);
+    return () => window.removeEventListener(MAP_PREFS_EVENT, onChange);
+  }, []);
+
+  function setType(type: "roadmap" | "satellite" | "hybrid") {
+    setPrefs((prev) => ({
+      ...prev,
+      mapType: type,
+      showRoadLabels: type !== "satellite",
+    }));
   }
 
+  function toggleTheme(newTheme: MapTheme) {
+    setPrefs((prev) => ({
+      ...prev,
+      theme: newTheme,
+      dark: newTheme === "dark",
+    }));
+  }
+
+  const isImagery = mapType === "satellite" || mapType === "hybrid";
+
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative" }} ref={dropdownRef}>
       <button
         type="button"
-        className="map-type-toggle"
         onClick={() => setOpen(!open)}
-        title="Map style & labels"
+        title="Map settings"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: "rgba(6, 182, 212, 0.05)",
+          border: "1.5px solid #06B6D4",
+          boxShadow: "0 0 8px rgba(6, 182, 212, 0.25)",
+          borderRadius: "9999px",
+          padding: "5px 14px",
+          color: "#06B6D4",
+          fontSize: "11px",
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+          outline: "none",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.boxShadow = "0 0 14px rgba(6, 182, 212, 0.45)";
+          e.currentTarget.style.background = "rgba(6, 182, 212, 0.1)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.boxShadow = "0 0 8px rgba(6, 182, 212, 0.25)";
+          e.currentTarget.style.background = "rgba(6, 182, 212, 0.05)";
+        }}
       >
-        <span className="map-type-toggle__icon">
-          {dark ? "🌙" : mapType === "roadmap" ? "🗺" : mapType === "satellite" ? "🛰" : mapType === "hybrid" ? "🌐" : "🏔"}
-        </span>
-        <span className="map-type-toggle__label">
-          {dark ? "Dark" : LABELS[mapType]}
-        </span>
-        <span style={{ fontSize: 9, marginLeft: 2 }}>▼</span>
+        <span>MAP</span>
+        <span style={{ fontSize: 8, opacity: 0.8 }}>▼</span>
       </button>
 
       {open && (
         <div
-          ref={dropdownRef}
           style={{
             position: "absolute",
             top: "100%",
             right: 0,
-            marginTop: 6,
-            background: "rgba(28, 33, 45, 0.97)",
-            border: "1px solid rgba(200, 208, 218, 0.3)",
-            borderRadius: 10,
-            padding: "6px 0",
-            minWidth: 215,
-            zIndex: 400,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
-            fontSize: 13,
+            marginTop: 8,
+            background: "rgba(15, 23, 42, 0.96)",
+            border: "1px solid rgba(6, 182, 212, 0.25)",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 10px rgba(6, 182, 212, 0.1)",
+            borderRadius: 12,
+            padding: "10px",
+            minWidth: 200,
+            zIndex: 9999,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
           }}
         >
-          {/* Base Maps */}
-          <div style={{ padding: "4px 14px 2px", fontSize: 10, color: "#8a96a3", fontWeight: 600 }}>BASE MAP</div>
+          {/* MAP TYPE */}
+          <div>
+            <div style={sectionHeaderStyle}>MAP TYPE</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+              {[
+                { id: "roadmap", label: "Classic" },
+                { id: "satellite", label: "Satellite" },
+                { id: "hybrid", label: "Hybrid" },
+              ].map((opt) => {
+                const active = mapType === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setType(opt.id as any)}
+                    style={itemBtnStyle(active)}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-          {(["roadmap", "satellite", "hybrid", "terrain"] as const).map(type => (
-            <button
-              key={type}
-              onClick={() => update({ mapType: type, dark: false })}
-              style={{
-                display: "flex", width: "100%", padding: "6px 14px", gap: 8, alignItems: "center",
-                background: type === mapType && !dark ? "rgba(58,167,255,0.18)" : "transparent",
-                border: "none", color: "#f4f8ff", cursor: "pointer", textAlign: "left"
-              }}
-            >
-              <span style={{ width: 20 }}>
-                {type === "roadmap" ? "🗺" : type === "satellite" ? "🛰" : type === "hybrid" ? "🌐" : "🏔"}
-              </span>
-              {LABELS[type]}
-            </button>
-          ))}
+          {!isImagery && (
+            <>
+              <div style={dividerStyle} />
+              {/* THEME */}
+              <div>
+                <div style={sectionHeaderStyle}>THEME</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+                  {[
+                    { id: "classic", label: "Light" },
+                    { id: "dark", label: "Dark" },
+                  ].map((opt) => {
+                    const active = theme === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => toggleTheme(opt.id as MapTheme)}
+                        style={itemBtnStyle(active)}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
 
-          {/* Dark Map */}
-          <button
-            onClick={() => update({ dark: true, mapType: "roadmap" })}
-            style={{
-              display: "flex", width: "100%", padding: "6px 14px", gap: 8, alignItems: "center", marginTop: 2,
-              background: dark ? "rgba(58,167,255,0.18)" : "transparent",
-              border: "none", color: "#f4f8ff", cursor: "pointer", textAlign: "left"
-            }}
-          >
-            <span style={{ width: 20 }}>🌙</span>
-            <strong>Dark Map</strong>
-          </button>
+          <div style={dividerStyle} />
 
-          <div style={{ height: 1, background: "rgba(200,208,218,0.2)", margin: "6px 10px" }} />
-
-          {/* Label Toggles */}
-          <div style={{ padding: "2px 14px 4px", fontSize: 10, color: "#8a96a3", fontWeight: 600 }}>LABELS</div>
-
-          <label style={{ display: "flex", alignItems: "center", padding: "5px 14px", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={showRoadLabels}
-              onChange={e => update({ showRoadLabels: e.target.checked })}
-            />
-            Street / road names
-          </label>
-
-          <label style={{ display: "flex", alignItems: "center", padding: "5px 14px", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={showPoiLabels}
-              onChange={e => update({ showPoiLabels: e.target.checked })}
-            />
-            Businesses &amp; places
-          </label>
+          {/* OVERLAYS TOGGLE */}
+          <div>
+            <div style={sectionHeaderStyle}>OVERLAYS</div>
+            <div style={{ marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilters({
+                    ...filters,
+                    showPrintOverlays: !isGlobalOverlaysOn,
+                  });
+                }}
+                style={{
+                  width: "100%",
+                  padding: "6px 10px",
+                  borderRadius: 6,
+                  background: isGlobalOverlaysOn ? "rgba(6, 182, 212, 0.15)" : "transparent",
+                  border: isGlobalOverlaysOn ? "1px solid rgba(6, 182, 212, 0.4)" : "1px solid transparent",
+                  color: isGlobalOverlaysOn ? "#06B6D4" : "#94a3b8",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Layers size={13} style={{ color: isGlobalOverlaysOn ? "#06B6D4" : "#94a3b8" }} />
+                  <span>Print Overlays</span>
+                </div>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 900,
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    background: isGlobalOverlaysOn ? "#06B6D4" : "#475569",
+                    color: "#ffffff",
+                  }}
+                >
+                  {isGlobalOverlaysOn ? "ON" : "OFF"}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
+}
+
+const sectionHeaderStyle: React.CSSProperties = {
+  fontSize: 9,
+  letterSpacing: "0.08em",
+  color: "#94a3b8",
+  fontWeight: 800,
+  paddingLeft: 4,
+};
+
+const dividerStyle: React.CSSProperties = {
+  height: 1,
+  background: "rgba(6, 182, 212, 0.15)",
+};
+
+function itemBtnStyle(active: boolean): React.CSSProperties {
+  return {
+    width: "100%",
+    padding: "6px 10px",
+    borderRadius: 6,
+    background: active ? "rgba(6, 182, 212, 0.15)" : "transparent",
+    border: active ? "1px solid rgba(6, 182, 212, 0.4)" : "1px solid transparent",
+    color: active ? "#06B6D4" : "#94a3b8",
+    textAlign: "left",
+    fontSize: 11,
+    fontWeight: active ? 700 : 500,
+    cursor: "pointer",
+    transition: "all 0.15s ease",
+  };
 }

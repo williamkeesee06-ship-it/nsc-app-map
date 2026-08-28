@@ -11,9 +11,14 @@ export type JobState =
 
 export function useJob(jobId: string): JobState {
   const [s, setS] = useState<JobState>({ state: "loading" });
+  const [nonce, setNonce] = useState(0);
+
+  useEffect(() => {
+    setS({ state: "loading" });
+  }, [jobId]);
+
   useEffect(() => {
     let cancelled = false;
-    setS({ state: "loading" });
     api
       .getJob(jobId)
       .then(({ job }) => {
@@ -27,6 +32,15 @@ export function useJob(jobId: string): JobState {
     return () => {
       cancelled = true;
     };
-  }, [jobId]);
+  }, [jobId, nonce]);
+
+  useEffect(() => {
+    function onReload() {
+      setNonce((n) => n + 1);
+    }
+    window.addEventListener("nsc:jobs-reload", onReload);
+    return () => window.removeEventListener("nsc:jobs-reload", onReload);
+  }, []);
+
   return s;
 }

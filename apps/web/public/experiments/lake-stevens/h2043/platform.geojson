@@ -1,0 +1,2306 @@
+{
+  "type": "FeatureCollection",
+  "name": "Ziply_Woodinville_Imported",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "metadata": {
+    "projectId": "H2043",
+    "city": "Woodinville",
+    "stats": {
+      "services": 35,
+      "terminals": 10,
+      "cables": 39,
+      "poles": 25,
+      "handholes": 1,
+      "hubs": 2
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-0",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.163952,
+          47.7322317
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P1",
+        "description": "<div><b>name</b>: P1</div><div><b>description</b>: PSE 226988-169290</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-1",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1639088,
+          47.73329930000001
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P3",
+        "description": "<div><b>name</b>: P3</div><div><b>description</b>: PSE 227028-167291</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-2",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.163869,
+          47.7340027
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P4",
+        "description": "<div><b>name</b>: P4</div><div><b>description</b>: PSE 227057-167292</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-3",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1638486,
+          47.7348273
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P5",
+        "description": "<div><b>name</b>: P5</div><div><b>description</b>: PSE 227085-167292</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-4",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1636703,
+          47.7356008
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "PSE 227113-167298",
+        "description": "<div><b>name</b>: PSE 227113-167298</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-5",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1638252,
+          47.73560190000001
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P6",
+        "description": "<div><b>name</b>: P6</div><div><b>description</b>: PSE 227112-167293</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-6",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1638025,
+          47.7360117
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P8",
+        "description": "<div><b>name</b>: P8</div><div><b>description</b>: PSE 227151-167294</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-7",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1638159,
+          47.7364162
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P9",
+        "description": "<div><b>name</b>: P9</div><div><b>description</b>: PSE 227176-167294</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-8",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1651319,
+          47.73565829999999
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "PSE 227113-167268",
+        "description": "<div><b>name</b>: PSE 227113-167268</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-9",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1658762,
+          47.73566640000001
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "PSE 227112-167247",
+        "description": "<div><b>name</b>: PSE 227112-167247</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-10",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1637918,
+          47.736589
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "PSE 227152-167222",
+        "description": "<div><b>name</b>: PSE 227152-167222</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-11",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1635793,
+          47.7365106
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "PSE 227152-167240",
+        "description": "<div><b>name</b>: PSE 227152-167240</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-12",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1638094,
+          47.7373182
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "PSE 221787-167224",
+        "description": "<div><b>name</b>: PSE 221787-167224</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-13",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1638208,
+          47.7368708
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "ZIPLY 227169-167224",
+        "description": "<div><b>name</b>: ZIPLY 227169-167224</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-14",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1651799,
+          47.7372892
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "ZIPLY 227187-167201",
+        "description": "<div><b>name</b>: ZIPLY 227187-167201</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-15",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1639239,
+          47.7326038
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P2",
+        "description": "<div><b>name</b>: P2</div><div><b>description</b>: ZIPLY 227004-167290</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-16",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.166468,
+          47.7366509
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P11",
+        "description": "<div><b>name</b>: P11</div><div><b>description</b>: ZIPLY 227152-167223</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-17",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1657538,
+          47.7366419
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P10",
+        "description": "<div><b>name</b>: P10</div><div><b>description</b>: PSE 227152-167240</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-18",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1671064,
+          47.7365942
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "PSE 227149-167216",
+        "description": "<div><b>name</b>: PSE 227149-167216</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-19",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.166444,
+          47.7372969
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P12",
+        "description": "<div><b>name</b>: P12</div><div><b>description</b>: ZIPLY 227169-167224</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-20",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1664344,
+          47.7375864
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P13",
+        "description": "<div><b>name</b>: P13</div><div><b>description</b>: PSE 221787-167224</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-21",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1673705,
+          47.7375905
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P14",
+        "description": "<div><b>name</b>: P14</div><div><b>description</b>: ZIPLY 227187-167201</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-22",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1682969,
+          47.7375931
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "PSE 227188-167185",
+        "description": "<div><b>name</b>: PSE 227188-167185</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-23",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1638017,
+          47.7373999
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P15",
+        "description": "<div><b>name</b>: P15</div><div><b>description</b>: PSE 227195-167293</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-24",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.163772,
+          47.7380612
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P16",
+        "description": "<div><b>name</b>: P16</div><div><b>description</b>: PSE 227210-167294</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-25",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1637226,
+          47.738465
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P17",
+        "description": "<div><b>name</b>: P17</div><div><b>description</b>: PSE 227225-167296</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-26",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1634772,
+          47.738263
+        ]
+      },
+      "properties": {
+        "layer": "terminal",
+        "type": "point",
+        "label": "PED",
+        "description": "<div><b>name</b>: PED</div><div><b>description</b>: EXISTING</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-27",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1637072,
+          47.73878199999999
+        ]
+      },
+      "properties": {
+        "layer": "pole",
+        "type": "point",
+        "label": "P18",
+        "description": "<div><b>name</b>: P18</div><div><b>description</b>: PSE 227227-167295</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-0",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1669018,
+            47.73725020000001
+          ],
+          [
+            -122.1674718,
+            47.7375877
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 39",
+        "description": "<div><b>name</b>: Line 39</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-1",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1674088,
+            47.7369544
+          ],
+          [
+            -122.1674718,
+            47.7375877
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 40",
+        "description": "<div><b>name</b>: Line 40</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-2",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1680193,
+            47.736875
+          ],
+          [
+            -122.1674718,
+            47.7375877
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 41",
+        "description": "<div><b>name</b>: Line 41</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-28",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1662623,
+          47.7352445
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13001",
+        "description": "<div><b>name</b>: 13001</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-29",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1653995,
+          47.7350958
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13019",
+        "description": "<div><b>name</b>: 13019</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-30",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1652037,
+          47.73599959999999
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13120",
+        "description": "<div><b>name</b>: 13120</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-31",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1658552,
+          47.7360893
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13019",
+        "description": "<div><b>name</b>: 13019</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-32",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.166912,
+          47.73683249999999
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15015",
+        "description": "<div><b>name</b>: 15015</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-33",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1667859,
+          47.7361957
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "14915",
+        "description": "<div><b>name</b>: 14915</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-34",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1641426,
+          47.7359226
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13124",
+        "description": "<div><b>name</b>: 13124</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-35",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1628337,
+          47.7352245
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "14800",
+        "description": "<div><b>name</b>: 14800</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-36",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1646786,
+          47.734993
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "14723",
+        "description": "<div><b>name</b>: 14723</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-37",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1650997,
+          47.7343363
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13102",
+        "description": "<div><b>name</b>: 13102</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-38",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.167508,
+          47.7378617
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "12918",
+        "description": "<div><b>name</b>: 12918</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-39",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1674088,
+          47.7369544
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "12917",
+        "description": "<div><b>name</b>: 12917</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-40",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1669018,
+          47.73725020000001
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "12927",
+        "description": "<div><b>name</b>: 12927</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-41",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1669903,
+          47.73820450000001
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15121",
+        "description": "<div><b>name</b>: 15121</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-42",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1691817,
+          47.7380566
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "12810",
+        "description": "<div><b>name</b>: 12810</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-43",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1660318,
+          47.7383578
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15124",
+        "description": "<div><b>name</b>: 15124</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-44",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1680193,
+          47.736875
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "12909",
+        "description": "<div><b>name</b>: 12909</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-45",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1634185,
+          47.7378066
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15120",
+        "description": "<div><b>name</b>: 15120</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-46",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1634198,
+          47.7378598
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15124",
+        "description": "<div><b>name</b>: 15124</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-47",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1634144,
+          47.73792469999999
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15128",
+        "description": "<div><b>name</b>: 15128</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-48",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1634037,
+          47.7380483
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15182",
+        "description": "<div><b>name</b>: 15182</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-49",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1634091,
+          47.73811500000001
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15186",
+        "description": "<div><b>name</b>: 15186</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-50",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1634024,
+          47.7381647
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15190",
+        "description": "<div><b>name</b>: 15190</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-51",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1619485,
+          47.7381794
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13321",
+        "description": "<div><b>name</b>: 13321</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-52",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1618392,
+          47.7381659
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13323",
+        "description": "<div><b>name</b>: 13323</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-53",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1617178,
+          47.7381645
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13325",
+        "description": "<div><b>name</b>: 13325</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-54",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1615983,
+          47.7381593
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13327",
+        "description": "<div><b>name</b>: 13327</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-55",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1614165,
+          47.7381647
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13383",
+        "description": "<div><b>name</b>: 13383</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-56",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1612804,
+          47.73815750000001
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13385",
+        "description": "<div><b>name</b>: 13385</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-57",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1611812,
+          47.73815750000001
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13387",
+        "description": "<div><b>name</b>: 13387</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-58",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1610544,
+          47.7381548
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "13389",
+        "description": "<div><b>name</b>: 13389</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-3",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1634185,
+            47.7378066
+          ],
+          [
+            -122.1638082,
+            47.73808819999999
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 32",
+        "description": "<div><b>name</b>: Line 32</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-4",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1634198,
+            47.7378598
+          ],
+          [
+            -122.1638082,
+            47.73808819999999
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 33",
+        "description": "<div><b>name</b>: Line 33</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-5",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1634144,
+            47.73792469999999
+          ],
+          [
+            -122.1638082,
+            47.73808819999999
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 34",
+        "description": "<div><b>name</b>: Line 34</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-6",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1634037,
+            47.7380483
+          ],
+          [
+            -122.1638082,
+            47.73808819999999
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 35",
+        "description": "<div><b>name</b>: Line 35</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-7",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1634091,
+            47.73811500000001
+          ],
+          [
+            -122.1638082,
+            47.73808819999999
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 36",
+        "description": "<div><b>name</b>: Line 36</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-8",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1634024,
+            47.7381647
+          ],
+          [
+            -122.1638082,
+            47.73808819999999
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 37",
+        "description": "<div><b>name</b>: Line 37</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-9",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1615557,
+            47.7382335
+          ],
+          [
+            -122.1619485,
+            47.7381794
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 38",
+        "description": "<div><b>name</b>: Line 38</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-10",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1615557,
+            47.7382335
+          ],
+          [
+            -122.1618392,
+            47.7381659
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 39",
+        "description": "<div><b>name</b>: Line 39</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-11",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1615557,
+            47.7382335
+          ],
+          [
+            -122.1617178,
+            47.7381645
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 40",
+        "description": "<div><b>name</b>: Line 40</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-12",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1615557,
+            47.7382335
+          ],
+          [
+            -122.1615983,
+            47.7381593
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 41",
+        "description": "<div><b>name</b>: Line 41</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-13",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1614165,
+            47.7381647
+          ],
+          [
+            -122.1615557,
+            47.7382335
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 42",
+        "description": "<div><b>name</b>: Line 42</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-14",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1612712,
+            47.7381565
+          ],
+          [
+            -122.1615557,
+            47.7382335
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 43",
+        "description": "<div><b>name</b>: Line 43</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-15",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1611812,
+            47.73815750000001
+          ],
+          [
+            -122.1615557,
+            47.7382335
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 44",
+        "description": "<div><b>name</b>: Line 44</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-16",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1610544,
+            47.7381548
+          ],
+          [
+            -122.1615557,
+            47.7382335
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 45",
+        "description": "<div><b>name</b>: Line 45</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-17",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1638082,
+            47.73808819999999
+          ],
+          [
+            -122.1647323,
+            47.7385457
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 46",
+        "description": "<div><b>name</b>: Line 46</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-18",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1638082,
+            47.73808819999999
+          ],
+          [
+            -122.1642977,
+            47.7395631
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 47",
+        "description": "<div><b>name</b>: Line 47</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-19",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1674718,
+            47.7375877
+          ],
+          [
+            -122.1660318,
+            47.7383578
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 48",
+        "description": "<div><b>name</b>: Line 48</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-20",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1674718,
+            47.7375877
+          ],
+          [
+            -122.1669903,
+            47.73820450000001
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 49",
+        "description": "<div><b>name</b>: Line 49</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-21",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1674718,
+            47.7375877
+          ],
+          [
+            -122.167508,
+            47.7378617
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 50",
+        "description": "<div><b>name</b>: Line 50</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-22",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1674718,
+            47.7375877
+          ],
+          [
+            -122.1691817,
+            47.7380566
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 51",
+        "description": "<div><b>name</b>: Line 51</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-59",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1638933,
+          47.736591
+        ]
+      },
+      "properties": {
+        "layer": "hub",
+        "type": "point",
+        "label": "S1-S2107",
+        "description": "<div><b>name</b>: S1-S2107</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-60",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1674718,
+          47.7375877
+        ]
+      },
+      "properties": {
+        "layer": "terminal",
+        "type": "point",
+        "label": "T1",
+        "description": "<div><b>name</b>: T1</div><div><b>description</b>: 12PORT 1000' (578' OVERLASHED)</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-23",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1651799,
+            47.7373433
+          ],
+          [
+            -122.1637813,
+            47.7373289
+          ],
+          [
+            -122.1637846,
+            47.7371905
+          ],
+          [
+            -122.1637973,
+            47.7367106
+          ],
+          [
+            -122.1638033,
+            47.7365889
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "T1 12PORT",
+        "description": "<div><b>name</b>: T1 12PORT</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-61",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1665988,
+          47.73664800000001
+        ]
+      },
+      "properties": {
+        "layer": "terminal",
+        "type": "point",
+        "label": "T2",
+        "description": "<div><b>name</b>: T2</div><div><b>description</b>: 6PORT 50' (0'OVERLASHED)</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-24",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1638683,
+            47.7365885
+          ],
+          [
+            -122.1637904,
+            47.7365851
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "T2 6PORT",
+        "description": "<div><b>name</b>: T2 6PORT</div><div><b>description</b>: 50'\u00a0</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-62",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1650889,
+          47.7356592
+        ]
+      },
+      "properties": {
+        "layer": "terminal",
+        "type": "point",
+        "label": "T3",
+        "description": "<div><b>name</b>: T3</div><div><b>description</b>: 6PORT 1000 (675' OVERLASH)</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-25",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1650889,
+            47.7356592
+          ],
+          [
+            -122.1638143,
+            47.735632
+          ],
+          [
+            -122.1637634,
+            47.7365845
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "T3 6PORT",
+        "description": "<div><b>name</b>: T3 6PORT</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-63",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1638937,
+          47.73560580000001
+        ]
+      },
+      "properties": {
+        "layer": "terminal",
+        "type": "point",
+        "label": "T4",
+        "description": "<div><b>name</b>: T4</div><div><b>description</b>: 6PORT 500'</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-26",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1638937,
+            47.73560580000001
+          ],
+          [
+            -122.163804,
+            47.7356029
+          ],
+          [
+            -122.1637544,
+            47.73658819999999
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "T4 6PORT",
+        "description": "<div><b>name</b>: T4 6PORT</div><div><b>description</b>: 500' ( 357' OVERLASHED)</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-64",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.16381,
+          47.7380496
+        ]
+      },
+      "properties": {
+        "layer": "hub",
+        "type": "point",
+        "label": "S2108",
+        "description": "<div><b>name</b>: S2108</div><div><b>description</b>: 72(2)/12(2)</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-65",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1638082,
+          47.73808819999999
+        ]
+      },
+      "properties": {
+        "layer": "terminal",
+        "type": "point",
+        "label": "T6",
+        "description": "<div><b>name</b>: T6</div><div><b>description</b>: 12 PORT 50' (0'OVERLASH)</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-27",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1638082,
+            47.73808819999999
+          ],
+          [
+            -122.163772,
+            47.7380612
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "T6 12 PORT",
+        "description": "<div><b>name</b>: T6 12 PORT</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-66",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1642977,
+          47.7395631
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15321",
+        "description": "<div><b>name</b>: 15321</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-67",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1647323,
+          47.7385457
+        ]
+      },
+      "properties": {
+        "layer": "service_point",
+        "type": "point",
+        "label": "15221",
+        "description": "<div><b>name</b>: 15221</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-68",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1617676,
+          47.7382432
+        ]
+      },
+      "properties": {
+        "layer": "terminal",
+        "type": "point",
+        "label": "FP",
+        "description": "<div><b>name</b>: FP</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-69",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.161557,
+          47.7382468
+        ]
+      },
+      "properties": {
+        "layer": "handhole",
+        "type": "point",
+        "label": "H1",
+        "description": "<div><b>name</b>: H1</div><div><b>description</b>: PROPOSED HH 1730</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-70",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1612177,
+          47.7382414
+        ]
+      },
+      "properties": {
+        "layer": "terminal",
+        "type": "point",
+        "label": "FP",
+        "description": "<div><b>name</b>: FP</div><div><b>description</b>: PROPOSED</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-71",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1610152,
+          47.7382333
+        ]
+      },
+      "properties": {
+        "layer": "terminal",
+        "type": "point",
+        "label": "PED",
+        "description": "<div><b>name</b>: PED</div><div><b>description</b>: EXISTING</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-pt-72",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.1615557,
+          47.7382335
+        ]
+      },
+      "properties": {
+        "layer": "terminal",
+        "type": "point",
+        "label": "T5",
+        "description": "<div><b>name</b>: T5</div><div><b>description</b>: 12 PORT 1000'\u00a0</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-28",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.163772,
+            47.7380612
+          ],
+          [
+            -122.1635482,
+            47.7380565
+          ],
+          [
+            -122.1635334,
+            47.73826390000001
+          ],
+          [
+            -122.1634772,
+            47.738263
+          ],
+          [
+            -122.1615513,
+            47.7382585
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "T5",
+        "description": "<div><b>name</b>: T5</div><div><b>description</b>: 12 PORT 1000'</div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-29",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.166912,
+            47.73683249999999
+          ],
+          [
+            -122.1665988,
+            47.73664800000001
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 20",
+        "description": "<div><b>name</b>: Line 20</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-30",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1665988,
+            47.73664800000001
+          ],
+          [
+            -122.1667859,
+            47.7361957
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 21",
+        "description": "<div><b>name</b>: Line 21</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-31",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1650889,
+            47.7356592
+          ],
+          [
+            -122.1658552,
+            47.7360893
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 22",
+        "description": "<div><b>name</b>: Line 22</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-32",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1652037,
+            47.73599959999999
+          ],
+          [
+            -122.1650889,
+            47.7356592
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 23",
+        "description": "<div><b>name</b>: Line 23</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-33",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1662623,
+            47.7352445
+          ],
+          [
+            -122.1650889,
+            47.7356592
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 24",
+        "description": "<div><b>name</b>: Line 24</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-34",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1653995,
+            47.7350958
+          ],
+          [
+            -122.1650889,
+            47.7356592
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 25",
+        "description": "<div><b>name</b>: Line 25</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-35",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1638937,
+            47.73560580000001
+          ],
+          [
+            -122.1641426,
+            47.7359226
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 26",
+        "description": "<div><b>name</b>: Line 26</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-36",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1638937,
+            47.73560580000001
+          ],
+          [
+            -122.1646897,
+            47.73501619999999
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 27",
+        "description": "<div><b>name</b>: Line 27</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-37",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1638937,
+            47.73560580000001
+          ],
+          [
+            -122.1650997,
+            47.7343363
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 28",
+        "description": "<div><b>name</b>: Line 28</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "mymaps-ln-38",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -122.1638937,
+            47.73560580000001
+          ],
+          [
+            -122.1628337,
+            47.7352245
+          ]
+        ]
+      },
+      "properties": {
+        "layer": "distribution",
+        "type": "line",
+        "label": "Line 29",
+        "description": "<div><b>name</b>: Line 29</div><div><b>description</b>: <i>empty</i></div>",
+        "status": "designed"
+      }
+    }
+  ]
+}

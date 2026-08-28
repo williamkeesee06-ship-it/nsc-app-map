@@ -1,0 +1,1771 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700;800&family=Share+Tech+Mono&display=swap');
+
+/* Dashboard home — "Neon Pulse Light" visual system. Light brushed steel,
+   chrome bezels with rivets, radial dyson-ring gauges, electric-blue neon
+   glow. Tokens are scoped to .nsc-dashboard so they don't leak into the global
+   theme. Grids: 3-col row = 58fr 21fr 21fr, bottom row = 42fr 58fr (Lumina
+   shrunk so At-Risk + Quick Links get more room). */
+
+.nsc-dashboard {
+  --neon-blue: #3da9ff;
+  --neon-mint: #6be7c4;
+  --neon-violet: #b48cff;
+  --neon-amber: #ffb547;
+  --neon-red: #ff3b5c;
+  --ink: #1a2230;
+  --ink-soft: #5b6878;
+  --steel-line: #c8d0d9;
+  --neon-glow: 0 0 12px rgba(61, 169, 255, 0.55);
+
+  position: absolute;
+  inset: 0;
+  color: var(--ink);
+  overflow: hidden;
+  font-family: 'Rajdhani', sans-serif !important;
+  /* Blueprint skyline tiled behind all widgets across the whole board. The
+     navy strip repeats on both axes at native size so cranes, telecom towers,
+     and buildings read everywhere, not just in a bottom strip. A single
+     translucent light veil covers the full board so the blueprint bleeds
+     through softly; widgets carry their own chrome bezels, so the skyline
+     peeks through the gaps between them. */
+  background: #0f172a;
+  background-image: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%) !important;
+}
+
+/* Subtle brushed-steel noise overlay. */
+.nsc-dashboard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+.nsc-dashboard__scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Center the dashboard and cap it so ultra-wide monitors don't stretch the
+   widgets thin. Every top-level row/strip also keeps its natural height —
+   without flex: 0 0 auto the fixed-height scroll column shrinks the strips
+   below their content and clips the gauges. */
+.nsc-dashboard__scroll > * {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 2400px;
+  margin: 0 auto;
+}
+
+.nsc-dashboard__row {
+  display: grid;
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* Row 1: Active Dig Tickets (wide) | Calendar (large) */
+.nsc-dashboard__row--tickets-cal {
+  grid-template-columns: 58fr 42fr;
+  min-height: 400px;
+}
+
+/* Row 2: Map (small) | Lumina (small) | At Risk (large) */
+.nsc-dashboard__row--map-ai {
+  grid-template-columns: 28fr 21fr 51fr;
+  min-height: 360px;
+}
+
+/* ── Chrome bezel ────────────────────────────────────────────────────── */
+
+.bezel {
+  position: relative;
+  border-radius: 14px;
+  padding: 18px;
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #eef2f7 30%,
+    #d4dce5 70%,
+    #b9c3ce 100%
+  ) !important;
+  border: 1px solid #a6b1bd !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    inset 0 -3px 4px rgba(120, 135, 150, 0.55),
+    0 1px 2px rgba(40, 50, 65, 0.15),
+    0 14px 34px -12px rgba(28, 38, 54, 0.4) !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.bezel__inner {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  background-color: #e2e8f0;
+  background-image: linear-gradient(
+    135deg,
+    #f8fafc 0%,
+    #e2e8f0 40%,
+    #cbd5e1 70%,
+    #f1f5f9 100%
+  );
+  padding: 16px 18px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  box-shadow:
+    inset 0 1px 1px #ffffff,
+    inset 0 -1px 2px rgba(15, 23, 42, 0.08),
+    0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+@keyframes led-pulse {
+  0% {
+    opacity: 0.85;
+    box-shadow: 0 0 8px rgba(61, 169, 255, 0.45);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 15px rgba(61, 169, 255, 0.85);
+  }
+  100% {
+    opacity: 0.85;
+    box-shadow: 0 0 8px rgba(61, 169, 255, 0.45);
+  }
+}
+
+.bezel__accent {
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 4px;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--bezel-accent, var(--neon-red)) 20%,
+    var(--bezel-accent, var(--neon-red)) 80%,
+    transparent
+  );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--bezel-accent, var(--neon-red)) 65%, transparent);
+  animation: led-pulse 3s infinite ease-in-out;
+}
+
+/* Premium 3D chrome rivets — 4 corners only. Scoped under .nsc-dashboard so
+   these win over the app-wide `.rivet { display: none !important }` rule in
+   global.css (which was killing every dashboard rivet). Each head reads as a
+   real machined bolt: bright specular highlight top-left, brushed-chrome body,
+   recessed shadow bottom-right, plus an outer bevel ring (::before) and a drop
+   shadow so it sits on the frame. Light-theme translation of the neon-pulse
+   reference. */
+.nsc-dashboard .rivet {
+  display: block !important;
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 45deg,
+    #cfd6df 0%,
+    #a2aebc 20%,
+    #ffffff 40%,
+    #8e9ba9 60%,
+    #cfd6df 80%,
+    #a2aebc 100%
+  ) !important;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.8),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.4),
+    0 1.5px 3px rgba(0, 0, 0, 0.3) !important;
+  z-index: 4;
+}
+
+/* 3D screw slot */
+.nsc-dashboard .rivet::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 15%;
+  right: 15%;
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6));
+  transform: translateY(-50%) rotate(45deg);
+  box-shadow: 0 0.5px 0.5px rgba(255, 255, 255, 0.4);
+}
+
+/* Outer chrome bevel ring around each rivet head. */
+.nsc-dashboard .rivet::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fdfefe 0%, #c4ccd6 45%, #8c97a3 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.85),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.3);
+  z-index: -1;
+}
+
+.nsc-dashboard .rivet--tl { top: 7px; left: 7px; }
+.nsc-dashboard .rivet--tr { top: 7px; right: 7px; }
+.nsc-dashboard .rivet--bl { bottom: 7px; left: 7px; }
+.nsc-dashboard .rivet--br { bottom: 7px; right: 7px; }
+
+/* Cards reuse the bezel; keep flex column behaviour for inner content. */
+.nsc-dashboard .card {
+  min-height: 0;
+}
+
+.nsc-dashboard .card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.nsc-dashboard .card__title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--ink);
+}
+
+/* ── Radial gauge ────────────────────────────────────────────────────── */
+
+.radial-gauge {
+  position: relative;
+  flex: 0 0 auto;
+}
+.radial-gauge::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.05) 100%);
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.5), inset 0 -2px 4px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.radial-gauge__svg {
+  display: block;
+}
+
+.radial-gauge__content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  pointer-events: none;
+}
+
+.radial-gauge__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1px;
+}
+
+.radial-gauge__value {
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.radial-gauge__label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  max-width: 90%;
+}
+
+/* ── Hero card (Weather + Gauges + Quick Links merged) ───────────────── */
+
+.hero-card {
+  min-height: 220px;
+}
+
+/* Rich dark navy → electric-blue gradient background with subtle radar texture */
+.hero-card .bezel__inner {
+  background-color: #050d1a !important;
+  background-image:
+    linear-gradient(135deg, #060e20 0%, #0a1a3a 35%, #0d2251 65%, #0a1a3a 100%),
+    url("/dashboard/weather-radar-bg.png") !important;
+  background-blend-mode: overlay !important;
+  background-size: cover !important;
+  background-position: center !important;
+  border-top: 3px solid #3da9ff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(61, 169, 255, 0.25),
+    inset 0 0 80px rgba(0, 80, 200, 0.15),
+    0 4px 24px rgba(0, 30, 80, 0.5) !important;
+}
+
+/* Animated top-edge electric glow */
+.hero-card .bezel__inner::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #3da9ff 30%, #7000ff 70%, transparent);
+  opacity: 0.9;
+  animation: hero-glow-scan 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes hero-glow-scan {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.hero-card__body {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* Glowing vertical divider between zones */
+.hero-card__divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  background: linear-gradient(180deg, transparent, rgba(61, 169, 255, 0.5) 30%, rgba(112, 0, 255, 0.5) 70%, transparent);
+  margin: 8px 20px;
+  box-shadow: 0 0 8px rgba(61, 169, 255, 0.3);
+}
+
+/* LEFT: Weather zone */
+.hero-card__weather {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 24px 0 8px;
+}
+
+.hero-card__weather-skeleton {
+  width: 300px;
+}
+
+/* Override weather text colors for dark hero bg */
+.hero-card .weather-strip__temp {
+  font-size: 52px;
+  font-weight: 200;
+  line-height: 1;
+  color: #e8f4ff;
+  display: flex;
+  align-items: flex-start;
+}
+
+.hero-card .weather-strip__unit {
+  font-size: 18px;
+  font-weight: 400;
+  color: #7aaddc;
+  margin-top: 5px;
+}
+
+.hero-card .weather-strip__lead {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hero-card .weather-strip__condition {
+  font-size: 13px;
+  color: #90b8d8;
+}
+
+.hero-card .weather-strip__area {
+  font-size: 11px;
+  color: #6090b0;
+  opacity: 1;
+}
+
+.hero-card .weather-strip__dials {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* CENTER: Job gauges zone */
+.hero-card__gauges {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 4px;
+  padding: 0 4px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+/* RIGHT: Quick links zone */
+.hero-card__quicklinks {
+  flex: 0 0 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px 0 4px;
+}
+
+.hero-card__ql-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(61, 169, 255, 0.7);
+  margin: 0 0 4px;
+}
+
+.hero-card__ql-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  border-radius: 10px;
+  border: 1px solid rgba(61, 169, 255, 0.2);
+  background: rgba(10, 30, 70, 0.6);
+  color: #c8dff0;
+  padding: 8px 10px;
+  backdrop-filter: blur(6px);
+  transition: all 0.15s ease;
+}
+
+.hero-card__ql-tile:hover {
+  background: rgba(20, 60, 130, 0.7);
+  border-color: rgba(61, 169, 255, 0.55);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(61, 169, 255, 0.25), inset 0 1px 0 rgba(255,255,255,0.08);
+  transform: translateX(2px);
+}
+
+.hero-card__weather .hero-card__ql-tile:hover {
+  transform: translateY(-2px);
+}
+
+.hero-card__ql-glyph {
+  flex: 0 0 auto;
+  display: flex;
+  color: #3da9ff;
+}
+
+.hero-card__ql-label {
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.hero-card__ql-arrow {
+  flex: 0 0 auto;
+  color: rgba(61, 169, 255, 0.5);
+  transition: color 0.15s ease;
+}
+
+.hero-card__ql-tile:hover .hero-card__ql-arrow {
+  color: #3da9ff;
+}
+
+/* Shared gauge button — keep across status-bar__seg usages */
+.status-bar__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.status-bar__seg:hover {
+  transform: translateY(-2px);
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--seg-color) 55%, transparent));
+}
+
+/* Existing weather-strip lead fields (kept for fallback/error state) */
+.weather-strip__lead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.weather-strip__temp {
+  font-size: 56px;
+  font-weight: 200;
+  line-height: 1;
+  color: #f2f6fb;
+  display: flex;
+  align-items: flex-start;
+}
+
+.weather-strip__unit {
+  font-size: 20px;
+  font-weight: 400;
+  color: #c3ccd8;
+  margin-top: 6px;
+}
+
+.weather-strip__condition {
+  font-size: 14px;
+  color: #c3ccd8;
+}
+
+.weather-strip__area {
+  font-size: 12px;
+  color: #c3ccd8;
+  opacity: 0.85;
+}
+
+.weather-strip__dials {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ── Map preview ─────────────────────────────────────────────────────── */
+
+.map-preview .bezel__inner {
+  padding: 14px;
+}
+
+.map-preview__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #18b26b;
+}
+
+.map-preview__live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #18b26b;
+  box-shadow: 0 0 8px #18b26b;
+  animation: nsc-pulse 1.6s ease-in-out infinite;
+}
+
+.map-preview__canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 200px;
+  border: 1px solid var(--steel-line);
+  padding: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: inset 0 2px 8px rgba(30, 42, 60, 0.18);
+}
+
+.map-preview__canvas > div {
+  position: absolute;
+  inset: 0;
+}
+
+.map-preview__scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 40px rgba(61, 169, 255, 0.22);
+}
+
+.map-preview__kpis {
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* ── Active dig tickets card ─────────────────────────────────────────── */
+
+.digtix-card__count {
+  font-size: 12px;
+  font-weight: 800;
+  color: #063d2c;
+  background: #2fe6a8;
+  border-radius: 999px;
+  padding: 2px 9px;
+  box-shadow: 0 0 10px rgba(47, 230, 168, 0.5);
+}
+
+.digtix-card__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #b3bdc9 transparent;
+}
+
+.digtix-card__scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.digtix-card__scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.digtix-card__scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, #cdd5df, #97a2af);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.digtix-card__scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #bcc6d1, #828d9b);
+  background-clip: padding-box;
+}
+
+.digtix-card__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.digtix-card__table th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  padding: 4px 8px;
+  position: sticky;
+  top: 0;
+  background: #f4f8fc;
+}
+
+.digtix-card__table td {
+  padding: 7px 8px;
+  border-top: 1px solid #eef1f5;
+  color: var(--ink);
+  vertical-align: middle;
+}
+
+.digtix-card__row {
+  cursor: pointer;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.digtix-card__row:hover {
+  background: rgba(47, 230, 168, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(47, 230, 168, 0.3);
+}
+
+.digtix-card__job {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.digtix-card__ticket {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.digtix-card__expiry {
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.digtix-card__pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.digtix-card__pill--green {
+  background: #16a34a;
+  box-shadow: 0 0 8px rgba(22, 163, 74, 0.45);
+}
+
+.digtix-card__pill--yellow {
+  background: var(--neon-amber);
+  color: #4a3300;
+}
+
+.digtix-card__pill--red {
+  background: var(--neon-red);
+  box-shadow: 0 0 8px rgba(255, 59, 92, 0.5);
+}
+
+.digtix-card__empty,
+.calendar-card__empty,
+.atrisk-card__empty {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 6px 0 0;
+}
+
+/* ── Calendar card ───────────────────────────────────────────────────── */
+
+.calendar-card__open {
+  border: 1px solid var(--steel-line);
+  background: linear-gradient(180deg, #ffffff, #eef2f6);
+  color: var(--neon-blue);
+  border-radius: 999px;
+  padding: 3px 12px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.calendar-card__week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.calendar-card__day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 2px;
+  border-radius: 10px;
+  border: 1px solid var(--steel-line);
+  background: linear-gradient(180deg, #ffffff, #eef2f6);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.calendar-card__day:hover {
+  transform: translateY(-1px);
+}
+
+.calendar-card__day--today {
+  border-color: var(--neon-blue);
+  color: var(--neon-blue);
+}
+
+.calendar-card__day--selected {
+  border-color: var(--neon-blue);
+  color: var(--neon-blue);
+  background: linear-gradient(180deg, #effaff, #d8eeff);
+  box-shadow:
+    inset 0 1px 4px rgba(30, 42, 60, 0.12),
+    var(--neon-glow);
+}
+
+.calendar-card__dow {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.calendar-card__day--selected .calendar-card__dow {
+  color: var(--neon-blue);
+}
+
+.calendar-card__date {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.calendar-card__dots {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 7px;
+}
+
+.calendar-card__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--neon-blue);
+  box-shadow: 0 0 4px rgba(61, 169, 255, 0.7);
+}
+
+.calendar-card__dots-empty {
+  width: 5px;
+  height: 5px;
+}
+
+.calendar-card__dots-more {
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.calendar-card__crews {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.calendar-card__crew {
+  display: flex;
+  flex-direction: column;
+  border-left: 3px solid var(--neon-blue);
+  padding: 2px 0 2px 10px;
+}
+
+.calendar-card__crew-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.calendar-card__crew-meta {
+  font-size: 11px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Lumina briefing ─────────────────────────────────────────────────── */
+
+/* Lumina now occupies the narrower (42fr) column — cut ~30% off the card's
+   internal padding so the briefing still breathes in the tighter footprint. */
+.lumina-card .bezel__inner {
+  padding: 11px 13px;
+}
+
+.lumina-card__brand-row {
+  margin-bottom: 8px;
+}
+
+.lumina-card__brand {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.lumina-card__layout {
+  display: flex;
+  gap: 14px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.lumina-card__orb-col {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.neon-orb {
+  filter: drop-shadow(0 0 18px rgba(61, 169, 255, 0.6));
+  animation: nsc-orb 3s ease-in-out infinite;
+}
+
+.lumina-card__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lumina-card__hello {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  margin-bottom: 8px;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.lumina-card__bullets {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.lumina-card__bullet {
+  position: relative;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.lumina-card__bullet::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--neon-blue);
+  box-shadow: var(--neon-glow);
+}
+
+.lumina-card__answer {
+  font-size: 13px;
+  color: var(--ink);
+  background: rgba(61, 169, 255, 0.08);
+  border: 1px solid rgba(61, 169, 255, 0.25);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.lumina-card__ask {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.lumina-card__ask-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--steel-line);
+  padding: 0 14px;
+  font-size: 13px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: inset 0 1px 3px rgba(30, 42, 60, 0.1);
+}
+
+.lumina-card__ask-input:focus {
+  outline: none;
+  border-color: var(--neon-blue);
+  box-shadow: inset 0 1px 3px rgba(30, 42, 60, 0.1), var(--neon-glow);
+}
+
+.lumina-card__ask-send {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--steel-line);
+  background: linear-gradient(180deg, #ffffff, #e9eef4);
+  color: var(--neon-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--neon-glow);
+}
+
+.lumina-card__ask-send:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* ── At-risk jobs ────────────────────────────────────────────────────── */
+
+.atrisk-card .bezel__inner {
+  padding-top: 18px;
+}
+
+.atrisk-card__title {
+  color: var(--neon-red);
+}
+
+.atrisk-card__count {
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--neon-red);
+  border-radius: 999px;
+  padding: 2px 9px;
+  box-shadow: 0 0 10px rgba(255, 59, 92, 0.5);
+}
+
+.atrisk-card__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Thin chrome-tinted scrollbar (Firefox). */
+  scrollbar-width: thin;
+  scrollbar-color: #b3bdc9 transparent;
+}
+
+/* Thin chrome-tinted scrollbar (WebKit/Blink). */
+.atrisk-card__scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.atrisk-card__scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.atrisk-card__scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, #cdd5df, #97a2af);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.atrisk-card__scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #bcc6d1, #828d9b);
+  background-clip: padding-box;
+}
+
+.atrisk-card__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.atrisk-card__table th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  padding: 4px 8px;
+  position: sticky;
+  top: 0;
+  background: #f4f8fc;
+}
+
+.atrisk-card__table td {
+  padding: 7px 8px;
+  border-top: 1px solid #eef1f5;
+  color: var(--ink);
+  vertical-align: top;
+}
+
+.atrisk-card__row {
+  cursor: pointer;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.atrisk-card__row:hover {
+  background: rgba(255, 59, 92, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 59, 92, 0.25);
+}
+
+.atrisk-card__id {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.atrisk-card__reason {
+  color: var(--ink-soft);
+}
+
+.atrisk-card__risk {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.atrisk-card__risk--high {
+  background: var(--neon-red);
+  box-shadow: 0 0 8px rgba(255, 59, 92, 0.5);
+}
+
+.atrisk-card__risk--med {
+  background: var(--neon-amber);
+  color: #4a3300;
+}
+
+/* ── Quick links ─────────────────────────────────────────────────────── */
+
+.quicklinks-card__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  flex: 1 1 auto;
+}
+
+.quicklinks-card__tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  border-radius: 12px;
+  border: 1px solid var(--steel-line);
+  background: linear-gradient(180deg, #ffffff, #eef2f6);
+  color: var(--ink);
+  padding: 12px 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(40, 50, 65, 0.08);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.quicklinks-card__tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--neon-blue);
+  box-shadow: var(--neon-glow), 0 6px 16px -6px rgba(40, 50, 65, 0.3);
+}
+
+.quicklinks-card__glyph {
+  display: flex;
+  color: var(--neon-blue);
+}
+
+.quicklinks-card__label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.quicklinks-card__open {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--neon-blue);
+}
+
+/* ── Skeletons ───────────────────────────────────────────────────────── */
+
+.dash-skel {
+  border-radius: 10px;
+  background: linear-gradient(
+    100deg,
+    rgba(180, 195, 210, 0.18) 30%,
+    rgba(180, 195, 210, 0.35) 50%,
+    rgba(180, 195, 210, 0.18) 70%
+  );
+  background-size: 200% 100%;
+  animation: nsc-shimmer 1.3s linear infinite;
+}
+
+.dash-skel--map {
+  flex: 1 1 auto;
+  min-height: 200px;
+}
+
+.dash-skel--strip {
+  height: 96px;
+  width: 100%;
+}
+
+.dash-skel--list {
+  flex: 1 1 auto;
+  min-height: 120px;
+}
+
+/* ── Animations ──────────────────────────────────────────────────────── */
+
+@keyframes nsc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes nsc-orb {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 14px rgba(61, 169, 255, 0.5));
+  }
+  50% {
+    transform: scale(1.04);
+    filter: drop-shadow(0 0 26px rgba(61, 169, 255, 0.85));
+  }
+}
+
+@keyframes nsc-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Responsive: stack columns and wrap hero card on medium/narrow viewports so nothing clips. */
+@media (max-width: 1350px) {
+  .hero-card__body {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+  }
+  .hero-card__weather {
+    padding: 0 0 12px;
+    flex: 0 0 100% !important;
+    justify-content: space-between;
+  }
+  .hero-card__divider {
+    display: none;
+  }
+  .hero-card__gauges {
+    width: 100%;
+    justify-content: center;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .nsc-dashboard__row--tickets-cal,
+  .nsc-dashboard__row--map-ai {
+    grid-template-columns: 1fr;
+  }
+  .hero-card__quicklinks {
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+/* ── Custom Dashboard Widget Card Backgrounds & Legibility Overrides ── */
+
+/* Scoped variables for clean contrast — EXCLUDE hero-card which has its own dark bg */
+.nsc-dashboard .bezel__inner:not(.hero-card .bezel__inner) {
+  background-color: #ffffff !important;
+  background-image: 
+    linear-gradient(45deg, #f1f5f9 25%, transparent 25%), 
+    linear-gradient(-45deg, #f1f5f9 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #f1f5f9 75%), 
+    linear-gradient(-45deg, transparent 75%, #f1f5f9 75%) !important;
+  background-size: 8px 8px !important;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0 !important;
+  border-top: 3px solid #1d4ed8 !important; /* Royal Blue Accent Line */
+  border-radius: 8px !important;
+  color: #0f172a !important; /* Dark Slate Text */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), 0 2px 4px rgba(15, 23, 42, 0.05) !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+/* 1. Gauge Widgets (Job Status Bar) */
+.status-bar {
+  --gauge-face-color: #f1f5f9;
+  --gauge-face-shadow: #cbd5e1;
+}
+.status-bar .bezel__inner {
+  border-top: 3px solid #1d4ed8 !important;
+}
+.status-bar .radial-gauge__value {
+  color: #0f172a !important; /* High contrast dark value */
+}
+.status-bar .radial-gauge__label {
+  color: #475569 !important; /* Soft slate label */
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+/* 2. Calendar Card */
+.calendar-card .bezel__inner {
+  color: #1e293b !important;
+}
+.calendar-card .card__title {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+.calendar-card__day {
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(226, 232, 240, 0.7) !important;
+  color: #0f172a !important;
+}
+.calendar-card__day:hover {
+  background: rgba(255, 255, 255, 0.6) !important;
+  border-color: rgba(203, 213, 225, 0.8) !important;
+}
+.calendar-card__day--selected {
+  background: #2563eb !important; /* Royal Blue selection */
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+.calendar-card__day--selected .calendar-card__date,
+.calendar-card__day--selected .calendar-card__dow {
+  color: #ffffff !important;
+}
+.calendar-card__date {
+  color: #0f172a !important;
+}
+.calendar-card__dow {
+  color: #64748b !important;
+}
+.calendar-card__crew {
+  display: flex !important;
+  flex-direction: column !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(203, 213, 225, 0.7) !important;
+  border-left: 4px solid #2563eb !important; /* Royal Blue accent stripe */
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  margin-bottom: 4px;
+}
+.calendar-card__crew-name {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+.calendar-card__crew-meta {
+  color: #64748b !important;
+}
+.calendar-card__open {
+  border: 1px solid rgba(203, 213, 225, 0.8) !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(4px) !important;
+  color: #2563eb !important;
+  font-weight: 700 !important;
+}
+.calendar-card__open:hover {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: #1d4ed8 !important;
+}
+.calendar-card__empty {
+  color: #64748b !important;
+  font-weight: 600 !important;
+}
+
+/* 3. Active Dig Tickets Card */
+.digtix-card .bezel__inner {
+  color: #1e293b !important;
+}
+.digtix-card .card__title {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+.digtix-card__list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 4px !important;
+}
+.digtix-card__item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(226, 232, 240, 0.7) !important;
+  border-left: 4px solid #2563eb !important;
+  border-radius: 8px !important;
+  padding: 10px 14px !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.digtix-card__item:hover {
+  background: rgba(255, 255, 255, 0.6) !important;
+  border-color: rgba(203, 213, 225, 0.8) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+}
+.digtix-card__item:has(.digtix-card__pill--red) {
+  border-left-color: var(--neon-red) !important;
+}
+.digtix-card__item:has(.digtix-card__pill--yellow) {
+  border-left-color: var(--neon-orange) !important;
+}
+.digtix-card__item:has(.digtix-card__pill--green) {
+  border-left-color: var(--neon-green) !important;
+}
+.digtix-card__col {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+.digtix-card__col--job {
+  width: 25% !important;
+}
+.digtix-card__col--ticket {
+  width: 30% !important;
+}
+.digtix-card__col--expiry {
+  width: 25% !important;
+}
+.digtix-card__col--status {
+  width: 20% !important;
+  align-items: flex-end !important;
+}
+.digtix-card__item-header {
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+  letter-spacing: 0.05em !important;
+}
+.digtix-card__item-text {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+}
+.digtix-card__empty {
+  color: #64748b !important;
+  font-weight: 600 !important;
+}
+
+/* 4. At Risk Jobs Card */
+.atrisk-card .bezel__inner {
+  color: #1e293b !important;
+}
+.atrisk-card__title {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+.atrisk-card__count {
+  background: #fee2e2 !important; /* Soft alert red count badge */
+  color: #ef4444 !important;
+  border: 1px solid #fca5a5 !important;
+}
+.atrisk-card__table th {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+}
+.atrisk-card__table td {
+  border-top: 1px solid #e2e8f0 !important;
+  color: #1e293b !important;
+}
+.atrisk-card__row {
+  background: rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(4px) !important;
+  transition: all 0.2s ease !important;
+}
+.atrisk-card__row:hover {
+  background: rgba(255, 255, 255, 0.55) !important;
+}
+.atrisk-card__empty {
+  color: #64748b !important;
+  font-weight: 600 !important;
+}
+
+/* 5. Lumina Briefing Card */
+.lumina-card .bezel__inner {
+  color: #1e293b !important;
+  border-top: 3px solid #8b5cf6 !important; /* Lumina Purple accent top stripe */
+}
+.lumina-card__brand {
+  color: #8b5cf6 !important;
+  text-shadow: none !important;
+}
+.lumina-card__hello {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+.lumina-card__bullet {
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(226, 232, 240, 0.7) !important;
+  border-left: 3px solid #8b5cf6 !important; /* Purple trim */
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  margin-bottom: 6px !important;
+  color: #1e293b !important;
+}
+.lumina-card__ask-input {
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(203, 213, 225, 0.8) !important;
+  color: #0f172a !important;
+}
+.lumina-card__ask-input::placeholder {
+  color: #94a3b8 !important;
+}
+.lumina-card__ask-input:focus {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15) !important;
+}
+
+/* 6. Quick Links Card */
+.quicklinks-card .bezel__inner {
+  color: #1e293b !important;
+}
+.quicklinks-card .card__title {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+.quicklinks-card__tile {
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(226, 232, 240, 0.7) !important;
+  box-shadow: none !important;
+  color: #1e293b !important;
+  transition: all 0.2s ease !important;
+}
+.quicklinks-card__tile:hover {
+  border-color: #2563eb !important;
+  background: rgba(255, 255, 255, 0.65) !important;
+  color: #1d4ed8 !important;
+}
+.quicklinks-card__label {
+  color: #334155 !important;
+}
+
+/* ── Dashboard Sizing & Glowing Title Effects ── */
+
+/* 1. Scale Up Dashboard Category Titles & Add Cyberpunk Accent Glows */
+.nsc-dashboard .card__title {
+  display: inline-flex !important;
+  align-items: center !important;
+  position: relative !important;
+  padding-left: 14px !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  text-shadow: -0.5px -0.5px 0.5px rgba(0, 0, 0, 0.35), 0.5px 0.5px 0.5px rgba(255, 255, 255, 0.75) !important;
+  color: #2d3b4e !important;
+}
+
+.nsc-dashboard .card__title::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 4px !important;
+  height: 14px !important;
+  background: #3da9ff !important;
+  border-radius: 2px !important;
+  box-shadow: 0 0 8px rgba(61, 169, 255, 0.85) !important;
+}
+
+/* Red accent title for At-Risk Jobs card */
+.nsc-dashboard .atrisk-card__title {
+  color: var(--neon-red) !important;
+  text-shadow: 0 0 8px rgba(255, 59, 92, 0.45) !important;
+}
+.nsc-dashboard .atrisk-card__title::before {
+  background: var(--neon-red) !important;
+  box-shadow: 0 0 8px rgba(255, 59, 92, 0.85) !important;
+}
+
+/* 2. Scale Up Dashboard Typography (General Elements, Tables, Lists) */
+
+/* Active Dig Tickets Table & At-Risk Table */
+.digtix-card__table,
+.atrisk-card__table {
+  font-size: 14px !important; /* Scaled up from 12px */
+}
+.digtix-card__table th,
+.atrisk-card__table th {
+  font-size: 12px !important; /* Scaled up from 10px */
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+.digtix-card__table td,
+.atrisk-card__table td {
+  font-size: 14px !important;
+  padding: 8px 10px !important;
+}
+
+/* Calendar Days */
+.calendar-card__dow {
+  font-size: 12px !important; /* Scaled up from 9px */
+}
+.calendar-card__date {
+  font-size: 17px !important; /* Scaled up from 15px */
+}
+
+/* Calendar Crew Lists */
+.calendar-card__crew {
+  display: flex !important;
+  flex-direction: column !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(61, 169, 255, 0.15) !important;
+  border-left: 3px solid var(--neon-blue) !important;
+  border-radius: 8px !important;
+  padding: 6px 12px !important;
+  margin-bottom: 4px;
+}
+.calendar-card__crew-name {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+.calendar-card__crew-meta {
+  font-size: 13px !important; /* Scaled up from 11px */
+}
+
+/* Lumina Card */
+.lumina-card__bullet {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+.lumina-card__ask-input {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+.lumina-card__brand {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+
+/* Quick Links Card */
+.quicklinks-card__label {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+.quicklinks-card__open {
+  font-size: 13px !important; /* Scaled up from 11px */
+}
+
+/* Empty State / Standby text */
+.digtix-card__empty,
+.calendar-card__empty,
+.atrisk-card__empty {
+  font-size: 15px !important; /* Scaled up from 13px */
+}
+
+
+
+/* 6. Glow-Track LED Scrollbars */
+.nsc-dashboard ::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+.nsc-dashboard ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-radius: 4px !important;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.15) !important;
+}
+.nsc-dashboard ::-webkit-scrollbar-thumb {
+  background: rgba(61, 169, 255, 0.3) !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(61, 169, 255, 0.5) !important;
+  box-shadow: 0 0 6px rgba(61, 169, 255, 0.3) !important;
+  transition: all 0.2s ease !important;
+}
+.nsc-dashboard ::-webkit-scrollbar-thumb:hover {
+  background: rgba(61, 169, 255, 0.6) !important;
+  box-shadow: 0 0 10px rgba(61, 169, 255, 0.7) !important;
+}
+
+/* 7. Modern Tech Font Integration - Value & Condition overrides */
+.nsc-dashboard .radial-gauge__value,
+.nsc-dashboard .weather-strip__temp,
+.nsc-dashboard .weather-strip__condition,
+.nsc-dashboard .digtix-card__item-text {
+  font-family: 'Share Tech Mono', monospace !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* ── Active Build Jobs card (Phase 10 Ziply) ───────────────────────────── */
+.active-build { padding: 14px 16px; display: flex; flex-direction: column; min-height: 320px; max-height: 520px; }
+.active-build__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.active-build__title { font-size: 15px; font-weight: 700; letter-spacing: 0.02em; margin: 0; color: #1f2937; }
+.active-build__count {
+  font-family: 'Share Tech Mono', monospace;
+  background: rgba(61, 169, 255, 0.14);
+  color: #1f7ad6;
+  border: 1px solid rgba(61, 169, 255, 0.4);
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 12px;
+  box-shadow: 0 0 8px rgba(61, 169, 255, 0.35);
+}
+.active-build__empty { color: #6b7280; padding: 22px 0; text-align: center; font-size: 13px; }
+.active-build__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 440px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -8px 12px -8px rgba(0, 0, 0, 0.08);
+  padding: 2px 6px;
+}
+.active-build__scroll::-webkit-scrollbar { width: 8px; }
+.active-build__scroll::-webkit-scrollbar-thumb {
+  background: rgba(61, 169, 255, 0.45);
+  border-radius: 999px;
+}
+.active-build__scroll::-webkit-scrollbar-track { background: transparent; }
+.active-build__list { list-style: none; padding: 0; margin: 0; }
+.active-build__row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 12px; align-items: center;
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.active-build__row:last-child { border-bottom: none; }
+.active-build__gauge { width: 64px; height: 64px; }
+.active-build__info {
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  min-width: 0; /* allow ellipsis */
+}
+.active-build__hub {
+  font-family: 'Share Tech Mono', monospace;
+  font-weight: 700;
+  font-size: 14px;
+  color: #1f2937;
+  letter-spacing: 0.03em;
+}
+.active-build__address {
+  font-size: 12px; color: #4b5563;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.active-build__city { color: #6b7280; }
+.active-build__actions { display: flex; align-items: center; gap: 8px; }
+.active-build__markups {
+  font-family: 'Share Tech Mono', monospace;
+  background: rgba(154, 163, 173, 0.15);
+  color: #6b7280;
+  border: 1px solid rgba(154, 163, 173, 0.3);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  min-width: 40px; text-align: center;
+}
+.active-build__markups.is-nonzero {
+  background: rgba(196, 77, 255, 0.18);
+  color: #7a1fb0;
+  border-color: rgba(196, 77, 255, 0.5);
+  box-shadow: 0 0 6px rgba(196, 77, 255, 0.3);
+}
+.active-build__print-btn {
+  background: linear-gradient(180deg, #1f7ad6 0%, #14568f 100%);
+  color: #fff;
+  border: 1px solid #0e4577;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(58, 167, 255, 0.4);
+  transition: all 0.15s ease;
+}
+.active-build__print-btn:hover {
+  background: linear-gradient(180deg, #3aa7ff 0%, #1f7ad6 100%);
+  box-shadow: 0 0 14px rgba(58, 167, 255, 0.7);
+}

@@ -21,6 +21,29 @@ export interface Filters {
   /** Phase 9.7 (manager mode): active supervisor names (case-insensitive).
    *  Empty set = show all supervisors. */
   supervisors: Set<string>;
+  showDigPolygons?: boolean;
+  /** Ziply-only: limit to North Metro cities / construction base. Lumen ignores. */
+  ziplyNorthMetroOnly?: boolean;
+  /** Ziply-only: filter by print document / ingest state. Lumen ignores. */
+  ziplyPrintFilter?: "all" | "has_print" | "no_print" | "processing" | "failed";
+  /**
+   * Ziply-only status groups. When set and non-empty, used instead of Lumen
+   * status buckets for Ziply map pins. Empty/undefined = show all Ziply jobs.
+   */
+  ziplyStatusGroups?: Set<"not_started" | "in_progress" | "complete">;
+  /** Ziply-only: active digital twin asset layers. */
+  ziplyActiveLayers?: Set<string>;
+  /**
+   * Ziply-only: buckets the user wants HIDDEN from the map.
+   * Empty/undefined = show everything. Populated = hide those bucket keys.
+   * Uses the 7 pipeline buckets: commitment, in_progress, rts, ready_soon,
+   * resto, gigs, on_hold. Backed by the Map Status Filter pill.
+   */
+  hiddenStatusBuckets?: Set<StatusBucket>;
+  /** Global toggle to show/hide print overlays on the map. Default true. */
+  showPrintOverlays?: boolean;
+  /** Individual job IDs whose print overlays are hidden. */
+  hiddenOverlayJobIds?: Set<string>;
 }
 
 export function defaultFilters(): Filters {
@@ -39,6 +62,18 @@ export function defaultFilters(): Filters {
     ]),
     workTypeTags: new Set(),
     supervisors: new Set<string>(),
+    showDigPolygons: true,
+    showPrintOverlays: true,
+    hiddenOverlayJobIds: new Set<string>(),
+    // Ziply defaults: North Metro (Lake Stevens etc.) — Billy's current focus
+    ziplyNorthMetroOnly: true,
+    ziplyPrintFilter: "all",
+    ziplyStatusGroups: new Set(),
+    ziplyActiveLayers: new Set(["hub", "feeder", "distribution", "drop", "bore", "terminal", "service_point", "pole", "handhole"]),
+    // Default: hide On Hold pins on the map. Billy 8/6: "I most likely will
+    // never want to see my jobs on hold." User can flip it back on from the
+    // Map Status Filter pill.
+    hiddenStatusBuckets: new Set<StatusBucket>(["on_hold"]),
   };
 }
 
@@ -60,6 +95,10 @@ export function applyFilters(jobs: Job[], f: Filters): Job[] {
     }
     if (f.hideUnmapped) {
       if (!j.geocode || j.geocode.status !== "OK") return false;
+    }
+    // Map Status Filter (pill dropdown): buckets in this set are hidden.
+    if (f.hiddenStatusBuckets && f.hiddenStatusBuckets.size > 0) {
+      if (f.hiddenStatusBuckets.has(bucketForJob(j))) return false;
     }
     return true;
   });
@@ -217,13 +256,7 @@ export default function FilterRail({
   }
 
   // --- Default mode: status buckets now live in the topbar StatusFilterPills.
-  // Render just the live count widget here so the rail still shows shown/total.
-  return (
-    <section className="rail-section rail-section--filters">
-      <div className="filter-collapsible-header" style={{ padding: "4px 2px" }}>
-        <strong>JOBS SHOWN</strong>
-        <NeonCountWidget shown={filteredCount} total={jobs.length} />
-      </div>
-    </section>
-  );
+  // Jobs-shown count widget hidden until the redesign is approved.
+  void filteredCount;
+  return null;
 }

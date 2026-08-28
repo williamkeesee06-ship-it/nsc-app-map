@@ -1,0 +1,145 @@
+name: Setup Cloud Run Public Access + Firebase Web Config
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auth to Firebase
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Grant Cloud Run invoker=allUsers on HTTP functions
+        env:
+          PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          set -e
+          for svc in fileticketbot checkutilityresponses confirmandsubmit; do
+            gcloud run services add-iam-policy-binding "$svc" \
+              --project="$PROJECT_ID" \
+              --region=us-west1 \
+              --member=allUsers \
+              --role=roles/run.invoker \
+              --quiet
+          done
+
+      - name: Fetch or create Firebase Web App config
+        env:
+          PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          set -e
+
+          TOKEN="$(gcloud auth print-access-token)"
+          BASE="https://firebase.googleapis.com/v1beta1"
+
+          echo "Listing existing web apps..."
+          LIST="$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "$BASE/projects/${PROJECT_ID}/webApps")"
+          echo "$LIST"
+
+          APP_ID="$(echo "$LIST" | jq -r '.apps[0].appId // empty')"
+
+          if [ -z "$APP_ID" ]; then
+            echo "No web app found; creating one..."
+            CREATE="$(curl -s -X POST \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{"displayName": "nsc-app-map"}' \
+              "$BASE/projects/${PROJECT_ID}/webApps")"
+            echo "$CREATE"
+
+            # Synchronous response with appId directly present.
+            APP_ID="$(echo "$CREATE" | jq -r '.appId // empty')"
+
+            if [ -z "$APP_ID" ]; then
+              # Async response: poll the returned operation until done.
+              OP_NAME="$(echo "$CREATE" | jq -r '.name // empty')"
+              if [ -z "$OP_NAME" ]; then
+                echo "ERROR: create response had neither appId nor operation name" >&2
+                exit 1
+              fi
+
+              echo "Polling operation: $OP_NAME"
+              for i in $(seq 1 20); do
+                OP="$(curl -s -H "Authorization: Bearer $TOKEN" \
+                  "$BASE/${OP_NAME}")"
+                DONE="$(echo "$OP" | jq -r '.done // false')"
+                if [ "$DONE" = "true" ]; then
+                  echo "$OP"
+                  APP_ID="$(echo "$OP" | jq -r '.response.appId // empty')"
+                  break
+                fi
+                sleep 3
+              done
+            fi
+          fi
+
+          if [ -z "$APP_ID" ]; then
+            echo "ERROR: could not resolve a web app appId" >&2
+            exit 1
+          fi
+
+          echo "Using appId: $APP_ID"
+
+          echo "Fetching web app config..."
+          CONFIG="$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "$BASE/projects/${PROJECT_ID}/webApps/${APP_ID}/config")"
+          echo "$CONFIG"
+
+          echo "$CONFIG" > /tmp/firebase-config.json
+
+      - name: Emit Firebase config to log
+        run: |
+          set -e
+          echo "=== FIREBASE_CONFIG_START ==="
+          cat /tmp/firebase-config.json
+          echo "=== FIREBASE_CONFIG_END ==="
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebase-web-config
+          path: /tmp/firebase-config.json
+          retention-days: 1
+
+      - name: Push Firebase config to Vercel env vars
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set +e  # allow overwriting existing (POST returns 400 if exists)
+          for kv in "VITE_FIREBASE_API_KEY:apiKey" "VITE_FIREBASE_AUTH_DOMAIN:authDomain" "VITE_FIREBASE_PROJECT_ID:projectId" "VITE_FIREBASE_STORAGE_BUCKET:storageBucket" "VITE_FIREBASE_MESSAGING_SENDER_ID:messagingSenderId" "VITE_FIREBASE_APP_ID:appId"; do
+            KEY="${kv%%:*}"
+            JSON_FIELD="${kv##*:}"
+            VALUE=$(jq -r ".${JSON_FIELD}" /tmp/firebase-config.json)
+
+            curl -s -X POST "https://api.vercel.com/v10/projects/prj_W8HXxukIu5kfoODg051UNIOR9rIu/env?upsert=true&teamId=team_AkTKhyQaAaDPGABiAKPz60Jg" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n --arg k "$KEY" --arg v "$VALUE" '{key:$k, value:$v, type:"encrypted", target:["production","preview","development"]}')" \
+              | jq -r '.key // .error.message'
+          done
+
+      - name: Trigger Vercel production redeploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -e
+          REPO_ID=$(curl -s "https://api.vercel.com/v9/projects/prj_W8HXxukIu5kfoODg051UNIOR9rIu?teamId=team_AkTKhyQaAaDPGABiAKPz60Jg" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" | jq -r '.link.repoId')
+          curl -s -X POST "https://api.vercel.com/v13/deployments?teamId=team_AkTKhyQaAaDPGABiAKPz60Jg" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"nsc-app-map\",\"target\":\"production\",\"gitSource\":{\"type\":\"github\",\"repoId\":${REPO_ID},\"ref\":\"main\"}}" \
+            | jq -r '.id // .error.message'
+
+      - name: Print summary
+        run: |
+          echo "✅ Cloud Run public access granted"
+          echo "✅ Firebase web app config synced to Vercel env vars"
+          echo "✅ Vercel production redeploy triggered"

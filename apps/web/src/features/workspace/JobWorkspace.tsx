@@ -2,20 +2,25 @@
 // Reuses the same drawing engine, left rail, and modifier strip as the Jobs Map,
 // but filters to one job, hides non-active markers, and enables auto-save.
 // Phase 5.3: auto-center on job geocode at zoom 19 on workspace entry.
-import { useCallback, useEffect, useRef } from "react";
+// NSMS: Adds slide-in drawers for Earth Bridge design/review + As-Built studio.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Map, useMap } from "@vis.gl/react-google-maps";
 import { stylesFor, DEFAULT_CENTER, DEFAULT_ZOOM } from "../map/mapStyles.js";
 import { useMapTheme } from "../map/themeContext.js";
 import { DrawingProvider, useDrawing } from "../drawing/drawingContext.js";
 import DrawingOverlay from "../drawing/DrawingOverlay.js";
-import MapTypeToggle from "../map/MapTypeToggle.js";
+// MapTypeToggle removed — map type/theme now lives in LeftRail Filters tab (MapTypeFilterSection).
+import MapTypeApplier from "../map/MapTypeApplier.js";
 import ModifiersPanel from "../drawing/ModifiersPanel.js";
 import LeftRail from "../jobs-map/LeftRail.js";
 import { defaultFilters } from "../jobs-map/FilterRail.js";
 import { api } from "../../lib/api.js";
 import LayersPanel from "./LayersPanel.js";
 import { useJob } from "./useJob.js";
+import JobPrintOverlays from "../print-overlay/JobPrintOverlays.js";
+import EarthDesignPanel from "../earth/EarthDesignPanel.js";
+import AsBuiltStudio from "../as-built/AsBuiltStudio.js";
 
 const WORKSPACE_ZOOM = 19; // street-level, ready for placing physical infrastructure
 
@@ -87,6 +92,9 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
   // Resolved job for the fit component (null while loading)
   const job = jobState.state === "ready" ? jobState.job : null;
 
+  // NSMS drawers — mutually exclusive (only one open at a time)
+  const [drawer, setDrawer] = useState<null | "earth" | "asbuilt">(null);
+
   return (
     <div className="workspace-layout">
       {/* Phase 9.6: JobContextStrip is now rendered inline in App.tsx topbar */}
@@ -111,14 +119,141 @@ function WorkspaceInner({ jobId, theme, mapRef }: InnerProps) {
               <MapHandle mapRef={mapRef} />
               <FitToJobGeometry job={job} jobId={jobId} />
               <DrawingOverlay />
-              <MapTypeToggle />
+              {job && <JobPrintOverlays job={job} visible={true} />}
+              {/* MapTypeToggle lives in the topbar; this applier wires it to the map. */}
+              <MapTypeApplier />
             </Map>
           </div>
+
+          {/* NSMS drawer toggles — floating on the right edge of the map */}
+          <NsmsDrawerToggles active={drawer} onSelect={setDrawer} />
+
+          {/* NSMS drawer overlay */}
+          {drawer && job && (
+            <NsmsDrawer title={drawer === "earth" ? "Google Earth Bridge" : "As-Built Studio"} onClose={() => setDrawer(null)}>
+              {drawer === "earth" ? (
+                <EarthDesignPanel job={job} />
+              ) : (
+                <AsBuiltStudio job={job} />
+              )}
+            </NsmsDrawer>
+          )}
         </div>
 
         {/* Layers panel (right side) */}
         <LayersPanel />
       </div>
+    </div>
+  );
+}
+
+// ── NSMS drawer chrome ──────────────────────────────────────────────────
+
+interface DrawerToggleProps {
+  active: null | "earth" | "asbuilt";
+  onSelect: (next: null | "earth" | "asbuilt") => void;
+}
+
+function NsmsDrawerToggles({ active, onSelect }: DrawerToggleProps) {
+  const btn = (key: "earth" | "asbuilt", label: string, bg: string): React.CSSProperties => ({
+    background: active === key ? bg : "rgba(15, 23, 42, 0.85)",
+    border: `1px solid ${active === key ? bg : "rgba(148, 163, 184, 0.35)"}`,
+    color: "#f8fafc",
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.04em",
+    padding: "8px 12px",
+    borderRadius: 6,
+    cursor: "pointer",
+    textTransform: "uppercase",
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.35)",
+  });
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 96,
+        right: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        zIndex: 20,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => onSelect(active === "earth" ? null : "earth")}
+        style={btn("earth", "Earth", "#0284c7")}
+        title="Google Earth Bridge — Network Link + KML review"
+      >
+        Earth
+      </button>
+      <button
+        type="button"
+        onClick={() => onSelect(active === "asbuilt" ? null : "asbuilt")}
+        style={btn("asbuilt", "As-Built", "#0d9488")}
+        title="As-Built Studio"
+      >
+        As-Built
+      </button>
+    </div>
+  );
+}
+
+interface DrawerProps {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+function NsmsDrawer({ title, onClose, children }: DrawerProps) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 460,
+        maxWidth: "90vw",
+        background: "rgba(3, 7, 18, 0.96)",
+        borderLeft: "1px solid rgba(148, 163, 184, 0.25)",
+        boxShadow: "-8px 0 24px rgba(0, 0, 0, 0.45)",
+        display: "flex",
+        flexDirection: "column",
+        zIndex: 30,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "12px 16px",
+          borderBottom: "1px solid rgba(148, 163, 184, 0.2)",
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.06em", color: "#f8fafc", textTransform: "uppercase" }}>
+          {title}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            background: "transparent",
+            border: "1px solid rgba(148, 163, 184, 0.35)",
+            color: "#e2e8f0",
+            fontSize: 11,
+            fontWeight: 800,
+            padding: "4px 10px",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
+          Close
+        </button>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>{children}</div>
     </div>
   );
 }
@@ -195,10 +330,6 @@ function FitToJobGeometry({ job, jobId }: FitProps) {
       }
       if (hasPoints && !bounds.isEmpty()) {
         map.fitBounds(bounds, 60);
-        if (import.meta.env.DEV) {
-          const c = bounds.getCenter();
-          console.log("[workspace] fit to drawing bounds, center", c.lat(), c.lng());
-        }
         didFitRef.current = jobId;
         return;
       }
@@ -212,9 +343,6 @@ function FitToJobGeometry({ job, jobId }: FitProps) {
       const { lat, lng } = job.geocode;
       map.setCenter({ lat, lng });
       map.setZoom(WORKSPACE_ZOOM);
-      if (import.meta.env.DEV) {
-        console.log("[workspace] centering on", lat, lng, "zoom", WORKSPACE_ZOOM);
-      }
       didFitRef.current = jobId;
       return;
     }
@@ -227,13 +355,6 @@ function FitToJobGeometry({ job, jobId }: FitProps) {
           const loc = results[0].geometry.location;
           map.setCenter(loc);
           map.setZoom(WORKSPACE_ZOOM);
-          if (import.meta.env.DEV) {
-            console.log("[workspace] geocoded address, centering on", loc.lat(), loc.lng(), "zoom", WORKSPACE_ZOOM);
-          }
-        } else {
-          if (import.meta.env.DEV) {
-            console.warn("[workspace] geocode failed for address:", job.address, status);
-          }
         }
       });
       didFitRef.current = jobId;

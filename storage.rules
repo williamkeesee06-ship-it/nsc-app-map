@@ -1,0 +1,54 @@
+rules_version = '2';
+
+// NSC APP MAP — Cloud Storage security rules.
+//
+// Ziply print ingestion uploads PDFs/images directly from the browser to
+// ziply-prints/{jobId}/{fileName}. The web app uses Firebase Auth (anonymous is
+// sufficient) so Storage requests have request.auth populated even though the
+// app's operator login is still the local username whitelist.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSupportedZiplyPrint() {
+      return request.resource != null
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/(jpeg|jpg|png|webp|gif|heic|heif)');
+    }
+
+    // Print Overlay Studio writes an original source PDF and generated page
+    // preview PNGs under jobs/{jobId}/print-overlay/... The app uploads the
+    // source (100 MB cap, mirrored here) and re-uploadable page previews, so
+    // both create and update are permitted; deletes stay disabled (overlay
+    // edits are non-destructive metadata, never a Storage delete).
+    function isSupportedPrintOverlay() {
+      return request.resource != null
+        && request.resource.size < 100 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/png');
+    }
+
+    match /ziply-prints/{jobId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isSupportedZiplyPrint();
+      allow update, delete: if false;
+    }
+
+    match /jobs/{jobId}/print-overlay/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isSupportedPrintOverlay();
+      allow delete: if false;
+    }
+
+    match /jobs/{jobId}/permits/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isSupportedPrintOverlay();
+      allow delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

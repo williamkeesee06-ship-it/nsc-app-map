@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AsBuiltDocument, DrawingObject, DrawingStyle, DrawingTool, JobLayer } from "@nsc/types";
+import { pathLengthFt } from "@nsc/types";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../auth/authContext.js";
 
@@ -88,7 +89,135 @@ export const COLORS = {
   black: "#000000",
 } as const;
 
-function defaultStyleForTool(tool: DrawingTool): DrawingStyle {
+export function defaultStyleForTool(tool: DrawingTool): DrawingStyle {
+  // Ziply Draw Tools
+  if (tool === "ziply_feeder") {
+    return {
+      strokeColor: "#06B6D4",
+      strokeWidth: 6,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+    };
+  }
+  if (tool === "ziply_distribution") {
+    return {
+      strokeColor: "#6366F1",
+      strokeWidth: 4,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+    };
+  }
+  if (tool === "ziply_drop") {
+    return {
+      strokeColor: "#F59E0B",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+    };
+  }
+  if (tool === "ziply_bore") {
+    return {
+      strokeColor: "#10B981",
+      strokeWidth: 3,
+      strokeStyle: "dashed",
+      fill: { kind: "none" },
+      opacity: 1,
+    };
+  }
+  if (tool === "ziply_hub") {
+    return {
+      strokeColor: "#EF4444",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.25,
+    };
+  }
+  if (tool === "ziply_terminal") {
+    return {
+      strokeColor: "#A855F7",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_address") {
+    return {
+      strokeColor: "#3B82F6",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_pole") {
+    return {
+      strokeColor: "#000000",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_handhole") {
+    return {
+      strokeColor: "#64748B",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_flower_pot") {
+    return {
+      strokeColor: "#10B981", // green outline for flower pot
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_splitter") {
+    return {
+      strokeColor: "#000000",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_riser") {
+    return {
+      strokeColor: "#000000",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+  if (tool === "ziply_slack_loop") {
+    return {
+      strokeColor: "#000000",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fill: { kind: "none" },
+      opacity: 1,
+      pointSize: 1.0,
+    };
+  }
+
   // Phase 4: cable colors are hardcoded in DrawingOverlay, but we still set
   // them here so the modifier strip can show the right color swatch.
   if (tool === "placed_cable") {
@@ -343,8 +472,14 @@ interface DrawingContextValue {
   ungroupSelected: () => void;
   alignSelected: (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v') => void;
   deleteObjects: (ids: string[]) => void;
+  splitPolyline: (id: string, splitIndex: number, splitCoord?: { lat: number; lng: number }) => void;
+  overrideFootage: (id: string, footage?: number) => void;
+  softDeleteSelected: (deletedBy?: string) => void;
+  restoreObjects: (ids: string[]) => void;
 
-  save: () => Promise<void>;
+  /** Optional `expectedTargetJobId` lets callers pin which job they expect to be saving for.
+   *  If the live target moved (job switch in flight), the save is aborted. */
+  save: (expectedTargetJobId?: string | null) => Promise<void>;
   /** Phase 5.2: clear the localStorage draft for the current target (or any draft) */
   clearDraft: () => void;
   mapRef: MutableRefObject<google.maps.Map | null>;
@@ -669,10 +804,12 @@ export function DrawingProvider({ children, mapRef }: Props) {
   }, []);
 
   const deleteObjects = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    pushHistory();
     const toDelete = new Set(ids);
     const objects = stateRef.current.objects.filter(o => !toDelete.has(o.id));
     dispatch({ type: "SET_OBJECTS", objects });
-  }, []);
+  }, [pushHistory]);
 
   const alignSelected = useCallback((alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v') => {
     const selected = stateRef.current.selectedIds;
@@ -755,9 +892,109 @@ export function DrawingProvider({ children, mapRef }: Props) {
   const updateObjectGeometry = useCallback((id: string, vertices: Array<{ lat: number; lng: number }>) => {
     const obj = objectsRef.current.find((o) => o.id === id);
     if (!obj || !("vertices" in obj)) return;
-    // No pushHistory — geometry drags are continuous; caller handles undo granularity
-    dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, vertices } });
+    // Calculate new geodesic footage via pathLengthFt
+    const calculatedFootage = Math.round(pathLengthFt(vertices));
+    const style: DrawingStyle = {
+      ...obj.style,
+      calculatedFootage,
+      ziplyFootage: obj.style.footageOverride ?? calculatedFootage,
+    };
+    dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, vertices, style } });
   }, []);
+
+  const overrideFootage = useCallback((id: string, footage?: number) => {
+    const obj = objectsRef.current.find((o) => o.id === id);
+    if (!obj) return;
+    pushHistory();
+    const style: DrawingStyle = {
+      ...obj.style,
+      footageOverride: footage,
+      ziplyFootageOverride: footage !== undefined,
+      ziplyFootage: footage ?? obj.style.calculatedFootage,
+    };
+    dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, style } });
+  }, [pushHistory]);
+
+  const splitPolyline = useCallback((id: string, splitIndex: number, splitCoord?: { lat: number; lng: number }) => {
+    const obj = objectsRef.current.find((o) => o.id === id);
+    if (!obj || !("vertices" in obj) || !Array.isArray(obj.vertices)) return;
+
+    const verts = obj.vertices;
+    if (splitIndex <= 0 || splitIndex >= verts.length) return;
+
+    pushHistory();
+
+    const part1Verts = verts.slice(0, splitIndex + 1);
+    const part2Verts = verts.slice(splitIndex);
+
+    if (splitCoord) {
+      part1Verts[part1Verts.length - 1] = splitCoord;
+      part2Verts[0] = splitCoord;
+    }
+
+    const ft1 = Math.round(pathLengthFt(part1Verts));
+    const ft2 = Math.round(pathLengthFt(part2Verts));
+
+    const seg1: DrawingObject = {
+      ...obj,
+      id: `${obj.id}_seg1`,
+      vertices: part1Verts,
+      style: { ...obj.style, calculatedFootage: ft1, ziplyFootage: ft1 },
+    };
+
+    const seg2: DrawingObject = {
+      ...obj,
+      id: `${obj.id}_seg2`,
+      vertices: part2Verts,
+      style: { ...obj.style, calculatedFootage: ft2, ziplyFootage: ft2 },
+    };
+
+    const nextObjects = objectsRef.current.filter((o) => o.id !== id).concat([seg1, seg2]);
+    dispatch({ type: "SET_OBJECTS", objects: nextObjects });
+  }, [pushHistory]);
+
+  const softDeleteSelected = useCallback((deletedBy?: string) => {
+    if (stateRef.current.selectedIds.size === 0) return;
+    pushHistory();
+    const now = Date.now();
+    const user = deletedBy || ownerRef.current || "user";
+    const nextObjects = objectsRef.current.map((o) => {
+      if (stateRef.current.selectedIds.has(o.id)) {
+        return {
+          ...o,
+          style: {
+            ...o.style,
+            isDeleted: true,
+            deletedAt: now,
+            deletedBy: user,
+            deletedSource: "nsms_map",
+          },
+        };
+      }
+      return o;
+    });
+    dispatch({ type: "SET_OBJECTS", objects: nextObjects });
+    dispatch({ type: "CLEAR_SELECTION" });
+  }, [pushHistory]);
+
+  const restoreObjects = useCallback((ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    pushHistory();
+    const idSet = new Set(ids);
+    const nextObjects = objectsRef.current.map((o) => {
+      if (idSet.has(o.id)) {
+        return {
+          ...o,
+          style: {
+            ...o.style,
+            isDeleted: false,
+          },
+        };
+      }
+      return o;
+    });
+    dispatch({ type: "SET_OBJECTS", objects: nextObjects });
+  }, [pushHistory]);
 
   const updateObjectPosition = useCallback((id: string, position: { lat: number; lng: number }) => {
     const obj = objectsRef.current.find((o) => o.id === id);
@@ -765,15 +1002,55 @@ export function DrawingProvider({ children, mapRef }: Props) {
     dispatch({ type: "UPDATE_OBJECT", obj: { ...obj, position } as DrawingObject });
   }, []);
 
-  const save = useCallback(async () => {
+  // Billy 6/18 — mid-flight target-change guard.
+  // When the user switches jobs, there's a window between setTarget(B) and the
+  // async loadObjects(B's data) call where stateRef has { targetJobId: B,
+  // objects: A's markups }. If autosave fires in that window it PUTs A's
+  // markups into B's doc, silently destroying B's real data. We protect
+  // against this by capturing the expected target at save-call time and
+  // bailing out if the current target has moved.
+  const save = useCallback(async (expectedTargetJobId?: string | null) => {
     const { targetJobId, objects } = stateRef.current;
-    if (!targetJobId) {
-      dispatch({
-        type: "SET_SAVE_ERROR",
-        error: "No job selected. Click a pin on the map first, then save.",
-      });
+    const owner = ownerRef.current;
+
+    // If the caller pinned a target, refuse to save if the live target has
+    // changed underneath us. The dropped save is harmless — dirty stays true
+    // and the next autosave tick will pick it up once the new target settles.
+    if (expectedTargetJobId !== undefined && expectedTargetJobId !== targetJobId) {
+      // eslint-disable-next-line no-console
+      console.warn(`[drawing-save] aborted: target changed from ${expectedTargetJobId} to ${targetJobId} mid-flight`);
       return;
     }
+
+    // No job selected → save to per-user scratchpad so main-map markups
+    // follow Billy across devices (Billy 6/3).
+    if (!targetJobId) {
+      if (!owner) {
+        dispatch({
+          type: "SET_SAVE_ERROR",
+          error: "Sign in to save markups across devices.",
+        });
+        return;
+      }
+      dispatch({ type: "SET_SAVING", saving: true });
+      dispatch({ type: "SET_SAVE_ERROR", error: null });
+      dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: null });
+      try {
+        await api.putScratchpad(owner, objects as unknown[]);
+        dispatch({ type: "MARK_SAVED" });
+        lsClearDraft(null);
+        window.dispatchEvent(new CustomEvent("nsc:markups-saved", {
+          detail: { scratchpad: true, owner }
+        }));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        dispatch({ type: "SET_SAVE_ERROR", error: msg });
+      } finally {
+        dispatch({ type: "SET_SAVING", saving: false });
+      }
+      return;
+    }
+
     dispatch({ type: "SET_SAVING", saving: true });
     dispatch({ type: "SET_SAVE_ERROR", error: null });
     dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: null });
@@ -785,7 +1062,7 @@ export function DrawingProvider({ children, mapRef }: Props) {
         updatedAt: Date.now(),
         schemaVersion: 2 as const,
       };
-      await api.putDrawing(targetJobId, payload as unknown as AsBuiltDocument, ownerRef.current);
+      await api.putDrawing(targetJobId, payload as unknown as AsBuiltDocument, owner);
       dispatch({ type: "MARK_SAVED" });
       // Phase 5.2: clear localStorage draft after successful server save
       lsClearDraft(targetJobId);
@@ -831,54 +1108,71 @@ export function DrawingProvider({ children, mapRef }: Props) {
   saveRef.current = save;
 
   useEffect(() => {
-    // Auto-save when a target job is set (workspace or main map) and there are unsaved changes
-    if (!state.targetJobId || !state.dirty || state.saving) return;
+    // Auto-save whenever there are unsaved changes. Two paths:
+    //   - targetJobId set   → PUT /api/asbuilt/:jobId (workspace/field-finding)
+    //   - no target         → PUT /api/scratchpad/:owner (personal scratchpad)
+    // Both flow through save() which picks the right endpoint.
+    if (!state.dirty || state.saving) return;
+    // Need either a target job OR a signed-in user (for scratchpad).
+    if (!state.targetJobId && !ownerRef.current) return;
 
     clearAutoSaveTimers();
 
     // No visible countdown — autosave is fast and silent
     dispatch({ type: "SET_AUTO_SAVE_COUNTDOWN", countdown: null });
 
+    // Capture the target at scheduling time so the fired save can verify the
+    // target hasn't moved. See save() for the rationale.
+    const expectedTarget = state.targetJobId;
     autoSaveTimerRef.current = setTimeout(() => {
       clearAutoSaveTimers();
-      void saveRef.current();
+      void saveRef.current(expectedTarget);
     }, AUTO_SAVE_DELAY_MS);
 
     return clearAutoSaveTimers;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.targetJobId, state.dirty, state.objects]);
 
-  // Phase 5.2: persist to localStorage on every objects change (debounced 500ms)
-  const lsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Billy 6/5: localStorage draft persistence DISABLED. Firestore is the
+  // single source of truth — markups sync via the asbuilt PUT (for a job) or
+  // the scratchpad PUT (for the main map). Nothing is cached locally.
+  // Any stale localStorage draft from before this change is cleared on mount.
   useEffect(() => {
-    if (lsDebounceRef.current) clearTimeout(lsDebounceRef.current);
-    lsDebounceRef.current = setTimeout(() => {
-      lsSaveDraft(state.objects, state.targetJobId, state.targetWorkOrder);
-    }, 500);
-    return () => {
-      if (lsDebounceRef.current) clearTimeout(lsDebounceRef.current);
-    };
-  // We intentionally run this for every objects/target change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.objects, state.targetJobId, state.targetWorkOrder]);
-
-  // Phase 5.2: hydrate from localStorage on mount (only when in-memory state is empty)
-  const hydratedRef = useRef(false);
-  useEffect(() => {
-    if (hydratedRef.current) return;
-    hydratedRef.current = true;
-    // Only restore if we have no objects in memory yet
-    if (state.objects.length > 0) return;
-    const draft = lsReadDraft();
-    if (!draft) return;
-    // Restore the draft objects and target into the drawing state
-    dispatch({ type: "SET_OBJECTS", objects: draft.objects, markDirty: true });
-    if (draft.targetJobId) {
-      dispatch({ type: "SET_TARGET", jobId: draft.targetJobId, workOrder: draft.targetWorkOrder });
+    try {
+      localStorage.removeItem(LS_OBJECTS_KEY);
+      localStorage.removeItem(LS_JOB_KEY);
+      localStorage.removeItem(LS_WO_KEY);
+    } catch {
+      // ignore
     }
-  // Run once on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Billy 6/3: hydrate the per-user scratchpad on login so main-map markups
+  // drawn on another device show up here. We only do this when no target job
+  // is set (workspace edits are owned by their job's doc, not the scratchpad)
+  // and when local state is essentially empty so we don't blow away unsaved
+  // edits the user just made.
+  const scratchpadHydratedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!username) return;
+    if (scratchpadHydratedRef.current === username) return;
+    scratchpadHydratedRef.current = username;
+    if (state.targetJobId) return;          // workspace mode — don't touch
+    if (state.objects.length > 0) return;   // unsaved local work — don't touch
+    void api.getScratchpad(username)
+      .then((res) => {
+        if (!Array.isArray(res.objects) || res.objects.length === 0) return;
+        dispatch({
+          type: "SET_OBJECTS",
+          objects: res.objects as DrawingObject[],
+          markDirty: false,
+        });
+      })
+      .catch(() => {
+        // best-effort — scratchpad hydration is silent on failure
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username]);
 
   // Warn before tab close/navigation when there are unsaved drawings
   useEffect(() => {
@@ -946,6 +1240,10 @@ export function DrawingProvider({ children, mapRef }: Props) {
     ungroupSelected,
     alignSelected,
     deleteObjects,
+    splitPolyline,
+    overrideFootage,
+    softDeleteSelected,
+    restoreObjects,
     save,
     clearDraft,
     mapRef,

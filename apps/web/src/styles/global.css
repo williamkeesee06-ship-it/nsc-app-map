@@ -3,40 +3,65 @@
    Theme tokens live in theme.css. This file consumes them.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 :root {
-  /* Bebas Neue is the headline/UI face: all-caps by design, bold, modern.
-     Inter is the fallback for places where readability matters more than
-     style (long body text, multi-line notes, date/time inputs, etc.). */
-  font-family: 'Bebas Neue', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light;
-  letter-spacing: 0.04em;
-}
+  /* UI body = Inter (readable). Headlines/labels can use Space Grotesk.
+     Mono data = JetBrains Mono. Never use display-only faces for body copy. */
+  --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Space Grotesk", var(--font-sans);
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
 
-/* App-wide all-caps + bold for everything that uses the default face. */
-body {
-  font-family: 'Bebas Neue', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
+  /* Left rail / command panels — light mode */
+  --rail-bg: #ffffff;
+  --rail-bg-elevated: #f8fafc;
+  --rail-border: rgba(29, 78, 216, 0.12);
+  --rail-text: #0f172a;
+  --rail-text-secondary: #334155;
+  --rail-text-muted: #64748b;
+  --rail-text-dim: #94a3b8;
+  --rail-accent: var(--accent, #1d4ed8);
+  --rail-accent-soft: rgba(29, 78, 216, 0.10);
 
-/* Inputs/textareas/selects keep readable Inter — Bebas Neue is a display
-   face and looks broken for typed user content. */
-input, textarea, select {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  text-transform: none;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  color-scheme: dark light;
   letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Notes body — user-typed prose, keep readable. */
-.job-card__notes-body, .job-card__notes textarea {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+body {
+  font-family: var(--font-sans);
   text-transform: none;
   font-weight: 500;
   letter-spacing: 0;
+  color: var(--text);
+}
+
+/* Compact UI chrome (tabs, pills, section labels) may still use tracking */
+.left-rail-tab,
+.filters-tab__heading,
+.sf-pill,
+.glow-text,
+.job-card__notes-label {
+  letter-spacing: 0.04em;
+}
+
+input, textarea, select {
+  font-family: var(--font-sans);
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* Notes body — user-typed prose */
+.job-card__notes-body, .job-card__notes textarea {
+  font-family: var(--font-sans);
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.45;
 }
 
 * { box-sizing: border-box; }
@@ -165,15 +190,19 @@ a { color: var(--accent); }
    ============================================================ */
 .shell {
   display: grid;
-  grid-template-rows: 72px 1fr;
+  /* auto: never clip topbar controls; 1fr is the map */
+  grid-template-rows: auto 1fr;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ── Topbar ────────────────────────────────────────────────── */
 .topbar {
   display: flex;
   align-items: center;
-  padding: 0 14px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
   /* Glass + chrome */
   background: var(--surface-glass);
   backdrop-filter: blur(20px) saturate(1.5);
@@ -182,13 +211,18 @@ a { color: var(--accent); }
   box-shadow: 0 2px 12px rgba(0,0,0,0.08);
   gap: 10px;
   position: relative;
-  z-index: 50;
+  /* Above map chrome (print banner, overwatch, pills) */
+  z-index: 200;
   min-width: 0;
+  min-height: 56px;
+  height: auto;
+  overflow: visible;
 }
 
 .logo {
-  /* Phase 9.6: slimmed from 56px → 44px */
-  height: 44px;
+  /* Keep logo from forcing a tall topbar that hides sibling controls */
+  height: 40px;
+  max-height: 40px;
   width: auto;
   display: block;
   flex-shrink: 0;
@@ -272,11 +306,11 @@ a { color: var(--accent); }
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  border: 1px solid rgba(58, 167, 255, 0.35);
-  background: rgba(20, 26, 38, 0.75);
+  border: 1px solid rgba(29, 78, 216, 0.3);
+  background: rgba(248, 250, 252, 0.95);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  color: #3aa7ff;
+  color: #1d4ed8;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -284,17 +318,17 @@ a { color: var(--accent); }
   cursor: pointer;
   transition: all 120ms ease;
   box-shadow: 
-    0 2px 8px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 2px 8px rgba(29, 78, 216, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .screenshot-btn:hover:not(:disabled) {
-  border-color: #3aa7ff;
-  background: rgba(25, 32, 48, 0.85);
+  border-color: #1d4ed8;
+  background: rgba(241, 245, 249, 0.98);
   box-shadow: 
-    0 0 0 1px rgba(58, 167, 255, 0.3),
-    0 4px 14px rgba(0, 0, 0, 0.35),
-    0 0 12px rgba(58, 167, 255, 0.25);
+    0 0 0 1px rgba(29, 78, 216, 0.25),
+    0 4px 14px rgba(29, 78, 216, 0.15),
+    0 0 12px rgba(29, 78, 216, 0.15);
   transform: translateY(-1px);
 }
 
@@ -354,7 +388,7 @@ a { color: var(--accent); }
   height: 100%;
 }
 
-.map-host { width: 100%; height: 100%; }
+.map-host { width: 100%; height: 100%; overflow: hidden; }
 
 /* ── Generic toolbar (legacy, kept for compat) ──────────────── */
 .toolbar {
@@ -411,81 +445,129 @@ a { color: var(--accent); }
 .jobs-map .jobs-map__main { flex: 1 1 auto; min-width: 0; }
 
 .left-rail {
-  /* Width is driven by inline style (useState). Default ~140px via JS. */
   flex-shrink: 0;
-  background: var(--surface-glass);
-  backdrop-filter: blur(18px) saturate(1.4);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
-  border-right: 1.5px solid var(--border);
-  box-shadow: 2px 0 12px rgba(0,0,0,0.07);
+  background: var(--rail-bg);
+  color: var(--rail-text);
+  border-right: 1px solid var(--rail-border);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
   height: 100%;
   min-height: 0;
   display: flex;
-  flex-direction: column;
-  font-size: 13px;
+  flex-direction: row;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
   position: relative;
+  transition: width 180ms ease;
 }
 .left-rail__scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 10px 8px;
+  background: #ffffff;
+  color: var(--rail-text);
+  padding: 12px 12px 16px;
   flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+.left-rail__scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.left-rail__scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
+/* Everything in the rail body inherits high-contrast text by default */
+.left-rail__scroll,
+.left-rail__scroll p,
+.left-rail__scroll span,
+.left-rail__scroll label,
+.left-rail__scroll li,
+.left-rail__scroll strong,
+.left-rail__scroll small,
+.left-rail__scroll h1,
+.left-rail__scroll h2,
+.left-rail__scroll h3,
+.left-rail__scroll h4 {
+  color: inherit;
+}
+.left-rail__scroll h1,
+.left-rail__scroll h2,
+.left-rail__scroll h3,
+.left-rail__scroll h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--rail-text);
 }
 
 /* Section wrappers */
 .rail-section { margin-bottom: 8px; }
 .rail-section__divider {
-  height: 1.5px;
-  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rail-border), transparent);
   margin: 10px 0;
 }
 
-/* ── Vertical Tabs in Left Rail ───────────────────────────── */
-.left-rail-tabs {
+/* ── Vertical Tab Strip in Left Rail ───────────────────────── */
+.left-rail-tabstrip {
+  width: 46px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 50%, #1e40af 100%);
   display: flex;
   flex-direction: column;
+  padding-top: 10px;
   gap: 2px;
-  padding: 4px 4px 8px;
-  border-bottom: 1px solid rgba(200,208,218,0.15);
-  margin-bottom: 6px;
+  border-right: 2px solid #1e40af;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.contract-ziply .left-rail-tabstrip {
+  background: linear-gradient(180deg, #1e3a6e 0%, #152a52 55%, #0f1f3d 100%);
+}
+
+.left-rail-tabstrip::-webkit-scrollbar {
+  display: none;
 }
 
 .left-rail-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: 6px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  padding: 16px 6px;
+  border: none;
   background: transparent;
-  border: 1px solid transparent;
-  color: #8a96a3;
-  font-size: 11px;
-  font-weight: 600;
+  color: rgba(255, 255, 255, 0.82);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   cursor: pointer;
-  transition: all 120ms ease;
+  text-transform: uppercase;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+  white-space: nowrap;
 }
 
 .left-rail-tab:hover {
-  background: rgba(255,255,255,0.06);
-  color: #c8d0da;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
 .left-rail-tab.active {
-  background: rgba(58,167,255,0.12);
-  border-color: rgba(58,167,255,0.4);
-  color: #3aa7ff;
+  background: rgba(29, 78, 216, 0.18);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
 }
 
-.left-rail-tab .tab-icon {
-  font-size: 14px;
-  width: 18px;
-}
-
-.left-rail-tab .tab-label {
-  font-size: 10px;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
+.contract-ziply .left-rail-tab.active {
+  color: #7eb6ff;
+  box-shadow: inset 0 0 0 1px rgba(30, 94, 255, 0.45);
 }
 
 /* Layer rows */
@@ -505,8 +587,8 @@ a { color: var(--accent); }
 }
 
 .layer-row.active {
-  background: rgba(58,167,255,0.15);
-  color: #3aa7ff;
+  background: rgba(29, 78, 216, 0.12);
+  color: #1d4ed8;
 }
 
 /* Annotate tab specific */
@@ -535,18 +617,19 @@ a { color: var(--accent); }
   align-items: center;
   gap: 6px;
   margin: 6px 0 2px;
+  font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 1.2px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--rail-text-muted);
 }
 .telecom-divider::before,
 .telecom-divider::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--chrome-dark), transparent);
+  background: linear-gradient(90deg, transparent, var(--rail-border), transparent);
 }
 
 .tool-tile {
@@ -556,18 +639,25 @@ a { color: var(--accent); }
   justify-content: center;
   gap: 2px;
   padding: 5px 2px 4px;
-  border-radius: 6px;
-  border: 1px solid var(--chrome-dark);
-  background: linear-gradient(160deg, var(--chrome-light) 0%, var(--surface) 60%, #E0E6EE 100%);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: linear-gradient(160deg, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%);
   cursor: pointer;
-  transition: box-shadow 120ms ease, border-color 120ms ease, background 120ms ease;
+  transition: box-shadow 120ms ease, border-color 120ms ease, background 120ms ease, color 120ms ease;
   min-height: 48px;
   min-width: 0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.10), inset 0 1px 1px rgba(255,255,255,0.8);
-  color: var(--text);
-  font: inherit;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 1);
+  color: #475569;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
   position: relative;
   overflow: hidden;
+}
+.tool-tile:hover:not(:disabled) {
+  border-color: rgba(58, 167, 255, 0.5);
+  color: #0f172a;
+  background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 55%, #e2e8f0 100%);
 }
 
 /* Blue neon glow behind the button */
@@ -592,11 +682,11 @@ a { color: var(--accent); }
 /* Active: strong neon blue glow + whole icon turns neon blue */
 .tool-tile--active {
   border-color: #3aa7ff !important;
-  background: linear-gradient(160deg, #1a2a44 0%, #162033 60%, #1f2f4a 100%) !important;
+  background: linear-gradient(160deg, #e0f2fe 0%, #bae6fd 60%, #7dd3fc 100%) !important;
 }
 
 .tool-tile--active::before {
-  box-shadow: 0 0 20px rgba(58, 167, 255, 0.85), 0 0 36px rgba(58, 167, 255, 0.45);
+  box-shadow: 0 0 15px rgba(58, 167, 255, 0.4), 0 0 25px rgba(58, 167, 255, 0.2);
 }
 
 /* Make the icon neon blue when active */
@@ -619,17 +709,30 @@ a { color: var(--accent); }
 }
 .tool-tile__icon svg { display: block; width: 100%; height: 100%; }
 
+/* Glyph icons (Annotate tab uses unicode/emoji chars instead of SVGs).
+   Render them at the same visual size as Telecom SVG icons so tile heights match. */
+.tool-tile__icon--glyph {
+  font-size: 20px;
+  line-height: 1;
+  width: 30px;
+  height: 26px;
+}
+
 .tool-tile__label {
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: #64748b;
   text-align: center;
-  line-height: 1.1;
+  line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
   width: 100%;
+}
+.tool-tile:hover:not(:disabled) .tool-tile__label,
+.tool-tile--active .tool-tile__label {
+  color: #0f172a;
 }
 
 /* Legacy tool buttons (kept for fallback) */
@@ -641,12 +744,14 @@ a { color: var(--accent); }
 }
 .tool-row--utilities { margin-bottom: 10px; }
 .tool-btn {
-  background: var(--surface);
-  border: 1.5px solid var(--border);
+  background: linear-gradient(160deg, #1e293b 0%, #151c2a 100%);
+  border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 6px;
   padding: 6px 9px;
-  color: var(--text);
-  font-size: 13px;
+  color: var(--rail-text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1.1;
   cursor: pointer;
   min-width: 32px;
@@ -656,9 +761,9 @@ a { color: var(--accent); }
   justify-content: center;
 }
 .tool-btn:hover:not(:disabled) {
-  background: var(--chrome-light);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: linear-gradient(160deg, #243247 0%, #1a2436 100%);
+  border-color: var(--rail-accent);
+  color: #fff;
 }
 .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .tool-btn--text { font-size: 12px; padding: 6px 10px; }
@@ -690,30 +795,44 @@ a { color: var(--accent); }
 .filter-rail {
   background: transparent;
   font-size: 13px;
+  color: var(--rail-text);
 }
 .filter-rail__header {
   display: flex; justify-content: space-between; align-items: center;
-  padding-bottom: 8px; border-bottom: 1.5px solid var(--border);
+  padding-bottom: 8px; border-bottom: 1px solid var(--rail-border);
   margin-bottom: 10px;
-  color: var(--text);
-  font-weight: 600;
+  color: var(--rail-text);
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 .filter-rail__count {
-  font-size: 11px; color: var(--text-muted);
-  background: var(--chrome-light); padding: 2px 8px; border-radius: 999px;
-  border: 1px solid var(--border);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--rail-text-secondary);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--rail-border);
 }
 .filter-section { margin-bottom: 14px; }
 .filter-section__title {
-  font-size: 10px; color: var(--text-muted);
-  letter-spacing: 0.8px; text-transform: uppercase;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--rail-text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   margin-bottom: 6px;
 }
 .filter-section__body { display: flex; flex-direction: column; gap: 4px; }
 .check {
   display: flex; align-items: center; gap: 8px;
-  font-size: 12px; color: var(--text);
+  font-size: 12px; color: var(--rail-text-secondary);
   cursor: pointer; padding: 3px 0;
+}
+.left-rail .check:hover { color: var(--rail-text); }
+.left-rail .link {
+  color: var(--rail-accent);
+  font-weight: 600;
 }
 .check input { accent-color: var(--accent); }
 .link {
@@ -1150,9 +1269,40 @@ a { color: var(--accent); }
   position: relative;
   height: 100%;
   min-height: 0;
+  /* Defensive clip: the Google Map div and any of its React children are
+     appended as plain document-flow siblings inside this container's
+     descendants (see @vis.gl/react-google-maps map/index.tsx + 
+     use-map-instance.ts). Any stray non-absolutely-positioned content
+     accidentally introduced by a future overlay must never be able to
+     visually escape the map viewport into normal page flow below the fold. */
+  overflow: hidden;
+  /* Stacking context BELOW topbar (z-index 200) so map HUD never covers it */
+  z-index: 1;
 }
-/* Map host takes full area; modifier strip is absolute on top */
-.map-host { width: 100%; height: 100%; }
+/* Map host takes full area; chrome (banner, overwatch) lives inside this box */
+.map-host {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Floating map chrome — always inside map-host, never under the app topbar */
+.map-chrome-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+}
+.map-chrome-top > * {
+  pointer-events: auto;
+}
 
 /* ── Job Card (light theme) ─────────────────────────────────── */
 .job-card {
@@ -1162,6 +1312,11 @@ a { color: var(--accent); }
   padding: 14px;
   font-size: 13px;
   box-shadow: var(--shadow-glass);
+  /* Bebas Neue (the app-wide display face) is a condensed all-caps font that's
+     hard to read for the card's dense data. Use Inter here — clean, modern, and
+     still all-caps via text-transform — for legibility. */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+  letter-spacing: 0.02em;
 }
 .job-card--panel { box-shadow: none; }
 .job-card__head {
@@ -1180,27 +1335,43 @@ a { color: var(--accent); }
   grid-template-columns: 110px 1fr;
   gap: 8px;
   padding: 4px 0;
+  align-items: center;
+}
+/* Edit 8: keep EditableRow on the same 110px grid so the right column lines
+   up flush with the static Address/City/Completed rows. */
+.job-card__row--editable {
+  display: grid !important;
+  grid-template-columns: 110px 1fr !important;
+  gap: 8px !important;
+  align-items: center !important;
 }
 .job-card__row-label {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.05em;
   padding-top: 2px;
 }
-.job-card__row-value { color: var(--text); }
+.job-card__row-value {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
 .job-card__notes {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1.5px solid var(--border);
 }
 .job-card__notes-label {
-  font-size: 10px; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.6px;
+  font-size: 10px; color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
   margin-bottom: 4px;
 }
 .job-card__notes-body {
-  font-size: 12px; line-height: 1.5;
+  font-size: 14px; font-weight: 500; line-height: 1.5;
   max-height: 140px; overflow-y: auto;
   white-space: pre-wrap;
   background: var(--chrome-light); padding: 8px;
@@ -1296,25 +1467,28 @@ a { color: var(--accent); }
 
 /* ── Rail section headers removed (Phase 4) ─────────────────── */
 .rail-h4 {
-  font-size: 10px;
-  letter-spacing: 0.9px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--rail-text-secondary);
   margin: 10px 0 5px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.rail-h4--muted { color: var(--text-muted); }
+.rail-h4--muted { color: var(--rail-text-muted); }
 .rail-phase {
   font-size: 9px;
-  color: var(--text-muted);
-  background: var(--chrome-light);
+  font-family: var(--font-mono);
+  color: var(--rail-text-muted);
+  background: rgba(255, 255, 255, 0.06);
   padding: 1px 6px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--rail-border);
   text-transform: none;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.02em;
 }
 
 /* ── Draw-target bar (now in topbar as badge) ─────────────────  */
@@ -2123,36 +2297,17 @@ a { color: var(--accent); }
 }
 .job-context-strip__wo { color: var(--accent-blue); }
 
-/* ── Left rail: steel panel + rivets at corners ─────────── */
+/* ── Left rail: dark command panel (high-contrast text) ─── */
 .left-rail {
-  background: var(--brushed-grain-bg);
+  background: var(--rail-bg);
+  color: var(--rail-text);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  border-right: 1px solid var(--chrome-trim-dark);
-  box-shadow:
-    inset 1px 0 0 rgba(255,255,255,0.45),
-    inset -1px 0 0 rgba(0,0,0,0.30),
-    2px 0 14px rgba(0,0,0,0.22);
+  border-right: 1px solid var(--rail-border);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
 }
 .left-rail::before,
-.left-rail::after {
-  content: '';
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  left: 6px;
-  background: radial-gradient(circle at 35% 30%,
-    var(--rivet-highlight) 0%, #cdd4dc 38%, var(--rivet-base) 70%, #767e88 100%);
-  box-shadow:
-    inset 0 1px 1px rgba(255,255,255,0.85),
-    inset 0 -1px 1px rgba(0,0,0,0.35),
-    0 1px 2px var(--rivet-shadow);
-  pointer-events: none;
-  z-index: 5;
-}
-.left-rail::before { top: 8px; }
-.left-rail::after  { bottom: 8px; }
+.left-rail::after { display: none; }
 
 /* ── Layers panel: matching steel + rivets ──────────────── */
 .layers-panel,
@@ -2295,32 +2450,13 @@ button.primary:hover,
 }
 
 /* ── Tool tiles: brushed steel facets ───────────────────── */
-.tool-tile {
-  background: linear-gradient(180deg, #e8edf2 0%, #c6cdd5 50%, #a3acb6 100%);
-  border: 1px solid var(--chrome-trim-dark);
-  color: var(--text-primary);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.65),
-    inset 0 -1px 0 rgba(0,0,0,0.22),
-    0 1px 3px rgba(0,0,0,0.18);
-}
+/* Brushed-steel tool-tile overrides removed in favor of the AsBuilt-style
+   white tiles with blue borders defined earlier in this stylesheet. */
 .tool-tile:hover:not(:disabled) {
-  border-color: var(--accent-blue);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.7),
-    inset 0 -1px 0 rgba(0,0,0,0.22),
-    0 0 10px rgba(30,167,255,0.35),
-    0 2px 6px rgba(0,0,0,0.20);
+  background: #f4f8ff;
+  border-color: #003a99;
+  box-shadow: 0 2px 6px rgba(0,82,204,0.25);
 }
-.tool-tile--active {
-  border-color: var(--accent-blue) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.7),
-    inset 0 -1px 0 rgba(0,0,0,0.25),
-    0 0 0 2px var(--accent-blue-soft),
-    0 0 14px rgba(30,167,255,0.55) !important;
-}
-.tool-tile__label { color: var(--text-secondary); }
 
 .tool-btn {
   background: linear-gradient(180deg, #e8edf2 0%, #c6cdd5 50%, #a3acb6 100%);
@@ -2739,13 +2875,11 @@ input:focus, textarea:focus, select:focus {
     0 3px 10px rgba(0,0,0,0.18);
 }
 
-/* Polished left rail / layers / job-context strip:
-   remove the harsh inset dark edges. */
+/* Polished left rail / layers / job-context strip */
 .left-rail {
   box-shadow:
-    inset 1px 0 0 rgba(255,255,255,0.55),
-    inset -1px 0 0 rgba(0,0,0,0.12),
-    2px 0 10px rgba(0,0,0,0.14);
+    inset -1px 0 0 rgba(255, 255, 255, 0.04),
+    4px 0 24px rgba(0, 0, 0, 0.4);
 }
 .layers-panel,
 .layers-panel--collapsed {
@@ -2917,4 +3051,803 @@ input:focus, textarea:focus, select:focus {
 }
 .search-suggest__row--markup .search-suggest__wo {
   color: #22D3FF;
+}
+
+/* ============================================================
+   AsBuilt-style Job Info Boxes (topbar)
+   ============================================================
+   Always-visible row of read-only fields that auto-fill when a
+   job is selected via search or by clicking a map pin. */
+.job-info-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.job-info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(200, 208, 218, 0.18);
+  border-radius: 4px;
+  padding: 3px 6px;
+  min-height: 32px;
+  min-width: 0;
+  justify-content: center;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+
+.job-info-field__label {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #8a96a3;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.job-info-field__value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f4f8ff;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.job-info-field__value--empty {
+  color: #4a5566;
+  font-weight: 400;
+}
+
+.job-info-tc {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(200, 208, 218, 0.18);
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: default;
+  min-height: 32px;
+  flex-shrink: 0;
+}
+
+.job-info-tc input[type="checkbox"] {
+  accent-color: #0052cc;
+  cursor: default;
+  pointer-events: none;
+  width: 14px;
+  height: 14px;
+}
+
+.job-info-tc__text {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #f4f8ff;
+}
+
+.job-info-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(200, 208, 218, 0.18);
+  border-radius: 4px;
+  padding: 3px 8px;
+  min-height: 32px;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 140px;
+}
+
+.job-info-status__label {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #8a96a3;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.job-info-status__pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(58, 167, 255, 0.12);
+  border: 1px solid rgba(58, 167, 255, 0.55);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #cce4ff;
+  line-height: 1.4;
+  align-self: flex-start;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.job-info-status__pill--empty {
+  background: transparent;
+  border-color: rgba(200, 208, 218, 0.18);
+  color: #4a5566;
+  font-weight: 400;
+}
+
+/* ============================================================
+   FILTERS Tab in LeftRail
+   ============================================================ */
+.filters-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--rail-text);
+}
+
+.filters-tab__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filters-tab__heading {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--rail-accent);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.filters-tab .check,
+.filters-tab label {
+  color: var(--rail-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.filters-tab .link {
+  color: var(--rail-accent);
+  font-weight: 600;
+}
+
+/* In the filters tab, pills wrap vertically inside the narrow rail. */
+.filters-tab .sf-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ============================================================
+   Topbar tweaks (6/2/26 v2)
+   ============================================================
+   - Bigger NorthSky logo so the brand reads at a glance
+   - Narrower search bar so the 7 info boxes have more room
+   - Screenshot/measure buttons gain an --active state for tool toggles
+   - MapTypeToggle inline-friendly in topbar
+*/
+.topbar .logo { height: 40px; max-height: 40px; }
+
+/* 6/18/26: widened search bar after MapTypeToggle moved to Filters tab.
+   Previously flex 0 1 280px / max 320 / min 200. Now ~70% wider per approved
+   topbar_filters_redesign mockup. */
+.topbar .search-wrap {
+  flex: 1 1 520px;
+  max-width: 620px;
+  min-width: 340px;
+}
+
+.screenshot-btn--active {
+  background: #0052cc !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.35);
+}
+
+/* MapTypeToggle compact size when sitting in the topbar.
+   IMPORTANT: force position:static so it doesn't fall back to the
+   absolute (top:50px/right:12px) base rule and get pushed off-screen.
+   Bold cyan border so it's unmistakably visible as the Base Map control. */
+.topbar .map-type-toggle {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  height: 34px;
+  padding: 4px 12px;
+  font-size: 11px;
+  flex-shrink: 0 !important;
+  white-space: nowrap;
+  border: 1.5px solid rgba(58, 167, 255, 0.85) !important;
+  background: rgba(20, 26, 38, 0.92) !important;
+  box-shadow: 0 0 0 1px rgba(58,167,255,0.25), 0 2px 8px rgba(0,0,0,0.35) !important;
+}
+.topbar .map-type-toggle:hover {
+  border-color: #3aa7ff !important;
+  box-shadow: 0 0 12px rgba(58,167,255,0.4), 0 2px 8px rgba(0,0,0,0.4) !important;
+}
+
+/* Make sure the topbar action cluster always stays visible on the right,
+   even when the info-boxes try to consume all available space. The cluster
+   must never shrink or get clipped — it owns the screenshot + Base Map
+   controls and those are critical. */
+.topbar .topbar-actions {
+  margin-left: auto;
+  flex-shrink: 0 !important;
+  flex-wrap: nowrap;
+}
+.topbar .topbar-actions .screenshot-btn,
+.topbar .topbar-actions .map-type-toggle {
+  flex-shrink: 0 !important;
+}
+
+/* The center info-row must YIELD space to the action cluster. Cap it so it
+   can't stretch across a wide monitor and crowd the controls off-screen. */
+.topbar .job-info-row {
+  flex: 0 1 auto !important;
+  max-width: 52vw;
+}
+
+/* If the records-banner pill is hidden (removed in JSX), this is a no-op,
+   but explicit display:none safeguards against any cached CSS still hooking it. */
+.records-banner { display: none !important; }
+
+/* ─── Editor Toolbar (Phase 2 redesign) ──────────────────────────────
+   Replaces .modifier-strip — light ivory + cyan neon accent. Same
+   absolute-top-of-map position, slightly taller (44px) to fit selects. */
+.editor-toolbar {
+  position: absolute;
+  /* Sit fully inside the map pane (not under app topbar) */
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 35;
+  background: rgba(250, 250, 247, 0.94);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border-top: 1.5px solid #00d4ff;
+  box-shadow:
+    0 0 0 0.5px rgba(0, 212, 255, 0.4),
+    0 2px 14px rgba(0, 0, 0, 0.08),
+    0 0 24px rgba(0, 212, 255, 0.12);
+  height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+.editor-toolbar::-webkit-scrollbar { height: 0; }
+
+.editor-toolbar .etb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.editor-toolbar .etb-div {
+  width: 1px;
+  height: 22px;
+  background: rgba(30, 58, 95, 0.18);
+  flex-shrink: 0;
+}
+
+.editor-toolbar .etb-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #1e3a5f;
+  opacity: 0.7;
+}
+
+.editor-toolbar .etb-val {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e3a5f;
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-toolbar .etb-info {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a5f;
+  padding: 0 4px;
+}
+
+/* ── Sliders ───────────────────────────────────────────────── */
+.editor-toolbar .etb-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 90px;
+  height: 4px;
+  background: linear-gradient(to right, #00d4ff 0%, #00d4ff var(--v, 50%), rgba(30,58,95,0.15) var(--v, 50%));
+  border-radius: 2px;
+  cursor: pointer;
+}
+.editor-toolbar .etb-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #00d4ff;
+  box-shadow: 0 0 6px rgba(0, 212, 255, 0.5);
+  cursor: pointer;
+}
+.editor-toolbar .etb-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #00d4ff;
+  box-shadow: 0 0 6px rgba(0, 212, 255, 0.5);
+  cursor: pointer;
+}
+
+/* ── Selects ───────────────────────────────────────────────── */
+.editor-toolbar .etb-select {
+  height: 30px;
+  padding: 0 22px 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(30, 58, 95, 0.2);
+  background: #fff
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%231e3a5f' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E")
+    no-repeat right 8px center;
+  background-size: 8px;
+  -webkit-appearance: none;
+  appearance: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e3a5f;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.editor-toolbar .etb-select:hover,
+.editor-toolbar .etb-select:focus {
+  border-color: #00d4ff;
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.18);
+  outline: none;
+}
+.editor-toolbar .etb-select--font { min-width: 100px; }
+.editor-toolbar .etb-select--size { min-width: 56px; }
+
+/* ── Buttons (B/I/U, align, delete) ────────────────────────── */
+.editor-toolbar .etb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  min-width: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(30, 58, 95, 0.2);
+  background: #fff;
+  color: #1e3a5f;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.editor-toolbar .etb-btn:hover {
+  border-color: #00d4ff;
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.18);
+}
+.editor-toolbar .etb-btn--toggle.etb-btn--active {
+  background: #00d4ff;
+  color: #04222e;
+  border-color: #00d4ff;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.4);
+}
+.editor-toolbar .etb-btn--danger {
+  color: #c62828;
+}
+.editor-toolbar .etb-btn--danger:hover {
+  background: #fff5f5;
+  border-color: #c62828;
+  box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.18);
+}
+
+/* Group adjacent etb-btn toggles tighter */
+.editor-toolbar .etb-item .etb-btn + .etb-btn {
+  margin-left: 4px;
+}
+
+/* ── Toggle group (style / fill / size) ────────────────────── */
+.editor-toolbar .etb-toggle {
+  display: inline-flex;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid rgba(30, 58, 95, 0.2);
+  overflow: hidden;
+  padding: 2px;
+  gap: 2px;
+}
+.editor-toolbar .etb-toggle-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: #1e3a5f;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.editor-toolbar .etb-toggle-btn:hover {
+  background: rgba(0, 212, 255, 0.08);
+}
+.editor-toolbar .etb-toggle-btn--active {
+  background: #00d4ff;
+  color: #04222e;
+  box-shadow: 0 0 6px rgba(0, 212, 255, 0.4);
+}
+
+/* ── Swatches ──────────────────────────────────────────────── */
+.editor-toolbar .etb-swatches {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.editor-toolbar .etb-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(30, 58, 95, 0.2);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.editor-toolbar .etb-swatch:hover {
+  transform: scale(1.15);
+}
+.editor-toolbar .etb-swatch--active {
+  border-color: #00d4ff;
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.35);
+  transform: scale(1.1);
+}
+
+/* ── Color pill (custom picker / text color) ───────────────── */
+.editor-toolbar .etb-color-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(30, 58, 95, 0.2);
+  background: #fff;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s;
+}
+.editor-toolbar .etb-color-pill:hover {
+  border-color: #00d4ff;
+}
+.editor-toolbar .etb-color-pill--small {
+  height: 22px;
+  padding: 0 4px;
+}
+.editor-toolbar .etb-color-pill-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e3a5f;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  line-height: 1;
+}
+.editor-toolbar .etb-color-pill-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(30, 58, 95, 0.25);
+  pointer-events: none;
+}
+.editor-toolbar .etb-color-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+
+/* ── Text input (label) ────────────────────────────────────── */
+.editor-toolbar .etb-text-input {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(30, 58, 95, 0.2);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e3a5f;
+  min-width: 140px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.editor-toolbar .etb-text-input:focus {
+  outline: none;
+  border-color: #00d4ff;
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.18);
+}
+
+/* ── Dark-mode override ────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .editor-toolbar {
+    background: rgba(28, 32, 40, 0.94);
+    border-top-color: #00d4ff;
+  }
+  .editor-toolbar .etb-label,
+  .editor-toolbar .etb-val,
+  .editor-toolbar .etb-info { color: #e6edf3; }
+  .editor-toolbar .etb-select,
+  .editor-toolbar .etb-btn,
+  .editor-toolbar .etb-toggle,
+  .editor-toolbar .etb-color-pill,
+  .editor-toolbar .etb-text-input {
+    background: #1e2229;
+    color: #e6edf3;
+    border-color: rgba(255,255,255,0.12);
+  }
+  .editor-toolbar .etb-toggle-btn { color: #e6edf3; }
+  .editor-toolbar .etb-color-pill-label { color: #e6edf3; }
+}
+
+/* ─── Jobs Shown — Minimal Pill (Phase 2 redesign) ───────────── */
+.jobs-shown-pill {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: rgba(250, 250, 247, 0.96);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border: 1.5px solid #00d4ff;
+  box-shadow:
+    0 0 0 0.5px rgba(0, 212, 255, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.10),
+    0 0 22px rgba(0, 212, 255, 0.22);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.jobs-shown-pill:hover {
+  transform: translateX(-50%) translateY(-1px);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 212, 255, 0.6),
+    0 6px 22px rgba(0, 0, 0, 0.12),
+    0 0 30px rgba(0, 212, 255, 0.32);
+}
+.jobs-shown-pill .jsp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00d4ff;
+  box-shadow: 0 0 8px #00d4ff;
+}
+.jobs-shown-pill .jsp-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #1e3a5f;
+}
+.jobs-shown-pill .jsp-num {
+  font-size: 17px;
+  font-weight: 700;
+  color: #00b8e0;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.jobs-shown-pill .jsp-divider {
+  color: #1e3a5f;
+  opacity: 0.35;
+  font-size: 15px;
+}
+.jobs-shown-pill .jsp-den {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e3a5f;
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+.jobs-shown-pill .jsp-chevron {
+  color: #1e3a5f;
+  opacity: 0.55;
+  margin-left: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .jobs-shown-pill {
+    background: rgba(28, 32, 40, 0.94);
+  }
+  .jobs-shown-pill .jsp-label,
+  .jobs-shown-pill .jsp-divider,
+  .jobs-shown-pill .jsp-den,
+  .jobs-shown-pill .jsp-chevron { color: #e6edf3; }
+}
+
+
+
+/* ─────────────────────────────────────────────────────────────
+   Billy 6/4: White topbar with North Sky blue (#0052cc) info
+   boxes, to match the LeftRail tabstrip. Single override block
+   so we don't have to fight the three earlier .topbar rules.
+   ───────────────────────────────────────────────────────────── */
+.topbar {
+  background: #ffffff !important;
+  background-image: none !important;
+  border-bottom: 1px solid rgba(0, 82, 204, 0.25) !important;
+  box-shadow:
+    inset 0 -1px 0 rgba(0, 82, 204, 0.15),
+    0 2px 0 0 #0052cc,
+    0 3px 10px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Remove the dark accent bars on the topbar edges */
+.topbar::before,
+.topbar::after { display: none !important; }
+
+/* User chip + nav text on the white topbar */
+.topbar h1,
+.topbar nav a {
+  color: #0052cc !important;
+}
+
+/* Smartsheet job info boxes — blue text on white tinted card */
+.topbar .job-info-field,
+.topbar .job-info-tc,
+.topbar .job-info-status {
+  background: rgba(0, 82, 204, 0.04) !important;
+  border: 1px solid rgba(0, 82, 204, 0.35) !important;
+}
+
+.topbar .job-info-field__label,
+.topbar .job-info-status__label {
+  color: #0052cc !important;
+}
+
+.topbar .job-info-field__value,
+.topbar .job-info-tc__text {
+  color: #0052cc !important;
+}
+
+.topbar .job-info-field__value--empty {
+  color: rgba(0, 82, 204, 0.45) !important;
+}
+
+/* TC REQ checkbox box uses the same blue */
+.topbar .job-info-tc input[type="checkbox"] {
+  accent-color: #0052cc;
+}
+
+/* STATUS pill — blue outline on white */
+.topbar .job-info-status__pill {
+  background: rgba(0, 82, 204, 0.08) !important;
+  border: 1px solid rgba(0, 82, 204, 0.55) !important;
+  color: #0052cc !important;
+}
+
+/* Search bar pill on the white topbar — keep it readable */
+.topbar .topbar-search-input,
+.topbar .topbar-search {
+  background: rgba(0, 82, 204, 0.06) !important;
+  border-color: rgba(0, 82, 204, 0.35) !important;
+  color: #0052cc !important;
+}
+.topbar .topbar-search-input::placeholder {
+  color: rgba(0, 82, 204, 0.55) !important;
+}
+
+/* User chip / log out link on the right edge */
+.topbar .user-chip,
+.topbar .user-chip a,
+.topbar .topbar-user,
+.topbar .topbar-user a {
+  color: #0052cc !important;
+}
+
+/* ── Neon search bar ─────────────────────────────────────────────
+   Pure black pill with a bright cyan-blue glowing outline and
+   inner reflection. Matches the neon magnifier icon. Overrides the
+   chrome-bezel look while keeping all layout intact. */
+.search-form--neon {
+  background: #000 !important;
+  border: 1.5px solid #1fb6ff !important;
+  border-radius: 999px !important;
+  box-shadow:
+    0 0 0 1px rgba(31,182,255,0.35),
+    0 0 6px rgba(31,182,255,0.65),
+    0 0 14px rgba(31,182,255,0.55),
+    0 0 28px rgba(31,182,255,0.35),
+    inset 0 0 8px rgba(31,182,255,0.18) !important;
+  padding: 4px 8px 4px 14px;
+  height: 40px;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.search-form--neon:focus-within {
+  border-color: #6ee0ff !important;
+  box-shadow:
+    0 0 0 1px rgba(110,224,255,0.55),
+    0 0 8px rgba(110,224,255,0.75),
+    0 0 22px rgba(31,182,255,0.7),
+    0 0 40px rgba(31,182,255,0.45),
+    inset 0 0 12px rgba(31,182,255,0.25) !important;
+}
+.search-form--neon .search-form__input {
+  color: #e9faff !important;
+  background: transparent !important;
+  text-shadow: 0 0 4px rgba(31,182,255,0.45);
+}
+.search-form--neon .search-form__input::placeholder {
+  color: #5ea7c8 !important;
+}
+.search-form--neon .search-form__icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 8px;
+}
+.search-form--neon .search-form__clear {
+  color: #7fe5ff !important;
+  text-shadow: 0 0 4px rgba(31,182,255,0.7);
+}
+.search-form--neon .search-form__clear:hover {
+  color: #fff !important;
+}
+.search-form--neon .search-form__submit {
+  background: linear-gradient(180deg, #1fb6ff 0%, #0084d4 100%) !important;
+  border: 1px solid #6ee0ff !important;
+  color: #001019 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.45),
+    0 0 8px rgba(31,182,255,0.7),
+    0 0 16px rgba(31,182,255,0.45) !important;
+  text-shadow: 0 0 2px rgba(255,255,255,0.6);
+}
+.search-form--neon .search-form__submit:hover:not(:disabled) {
+  background: linear-gradient(180deg, #6ee0ff 0%, #1fb6ff 100%) !important;
+}
+/* Edit 10 fix: magnifier IS the submit button (no separate Go). */
+.search-form__submit--icon {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.search-form__submit--icon svg { display: block; }
+
+/* Disable Vercel Toolbar strobing / hide it if it's glitching out */
+.vercel-live-feedback, cgw-writer-modal, #vercel-live-feedback {
+  display: none !important;
+  animation: none !important;
 }

@@ -1,12 +1,68 @@
+import { distM, GOLD_PLANT_SEEDS, expandHouseAddresses } from "../services/ziplyPlantUtils.js";
 // Jobs read/write endpoints. Frontend consumes these to render the Jobs Map + cards.
 import { Router } from "express";
+import { waitUntil } from "@vercel/functions";
 import { randomUUID } from "crypto";
-import { db } from "../lib/firestore.js";
-import { geocodeAddress } from "../lib/geocode.js";
-import { getSheet, buildColumnsById } from "../lib/smartsheet.js";
+import { db, storageBucket } from "../lib/firestore.js";
+import {
+  geocodeAddress,
+  buildAddressString,
+  cityCenterFallback,
+} from "../lib/geocode.js";
+import { routeAlongRoads } from "../lib/directions.js";
+
+import {
+  registerPlant,
+  orderControls,
+  buildRegisteredLateral,
+  type SheetControl,
+} from "../services/ziplySheetRegister.js";
+import {
+  getSheet,
+  buildColumnsById,
+  buildColumnsByTitle,
+  updateRowCells,
+  findRowByWorkOrder,
+} from "../lib/smartsheet.js";
 import { normalizeRow } from "../services/jobsSync.js";
+import { recordAuditEvent } from "../services/auditEventService.js";
 import { getEnv } from "../config/env.js";
-import type { Job } from "@nsc/types";
+import {
+  parseZiplyPrint,
+  parseZiplyPermit,
+  ZiplyPrintParseError,
+} from "../services/ziplyParser.js";
+import type { DigShape, Job, PolygonData, PrintOverlayDoc, ZiplyObjectStatus, ZiplySectionKind } from "@nsc/types";
+import type { ControlPoint } from "../services/ziplyAffine.js";
+
+type ZiplyPermitFile = NonNullable<
+  NonNullable<Job["ziplyPrintLayer"]>["permitFiles"]
+>[number];
+
+const PERMIT_TYPE_KEYS = [
+  "cityRow",
+  "wsdot",
+  "county",
+  "railroad",
+  "pa",
+  "tcp",
+  "other",
+] as const;
+
+/** Pull street name from "18154 Metron Rd, Arlington, WA". */
+function extractStreetFromAddress(addr: string | null | undefined): string | null {
+  if (!addr?.trim()) return null;
+  // Strip leading house number
+  const withoutNum = addr
+    .trim()
+    .replace(/^\d+[A-Za-z]?\s+/, "")
+    .split(",")[0]
+    ?.trim();
+  if (!withoutNum || withoutNum.length < 3) return null;
+  // Drop state/zip if still glued
+  if (/^(WA|Washington)\b/i.test(withoutNum)) return null;
+  return withoutNum;
+}
 
 const router = Router();
 
@@ -97,6 +153,8 @@ router.get("/jobs/search", async (req, res, next) => {
               cachedAt: Date.now(),
               status: "OK",
             };
+            await db().collection("jobs").doc(h.jobId).update({ geocode: h.geocode }).catch(() => {});
+            invalidateJobsCache();
           }
         } catch {
           // Best-effort — silent failure leaves geocode null.
@@ -227,11 +285,123 @@ router.get("/jobs", async (req, res, next) => {
           ? all.filter((j) => !j.inTracker)
           : all;
 
+    const etag = `W/"jobs-${jobsCache?.ts ?? now}-${jobs.length}"`;
+    res.setHeader("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+    res.setHeader("ETag", etag);
+
+    if (req.headers["if-none-match"] === etag) {
+      res.status(304).end();
+      return;
+    }
+
     res.json({
       jobs,
       count: jobs.length,
       stale,
       cacheAgeMs,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Static /jobs/* paths MUST be registered before /jobs/:jobId or Express
+// treats names like "ziply-fidelity" as a jobId and returns 404 Job not found.
+
+// GET /api/jobs/ziply-fidelity — fleet CAD fidelity QA report
+router.get("/jobs/ziply-fidelity", async (_req, res, next) => {
+  try {
+    const { summarizeFleetFidelity } = await import("../services/ziplyFidelity.js");
+    const snap = await db()
+      .collection("jobs")
+      .where("customerProject", "==", "Ziply")
+      .get();
+    // Exclude off-tracker rows so counts match the live Ziply sheet.
+    const jobs = snap.docs
+      .map((d) => d.data() as Job)
+      .filter((j) => j.inTracker !== false);
+    res.json({ ok: true, ...summarizeFleetFidelity(jobs) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/ziply-metrics — Ziply contract KPIs
+router.get("/jobs/ziply-metrics", async (_req, res, next) => {
+  try {
+    const snap = await db().collection("jobs").where("customerProject", "==", "Ziply").get();
+    // Exclude off-tracker rows so KPIs match the live sheet.
+    const jobs = snap.docs
+      .map((d) => d.data() as Job)
+      .filter((j) => j.inTracker !== false);
+
+    let totalBoreEst = 0;
+    let totalBoreComp = 0;
+    let totalPlacingEst = 0;
+    let totalPlacingComp = 0;
+    let totalAerialEst = 0;
+    let totalAerialComp = 0;
+    let totalDropsEst = 0;
+    let totalDropsComp = 0;
+
+    const hubProgress: Record<string, { total: number; completed: number }> = {};
+    const crewPerformance: Record<
+      string,
+      { completedBore: number; completedPlacing: number; completedAerial: number }
+    > = {};
+
+    for (const j of jobs) {
+      totalBoreEst += j.estBoreFt ?? 0;
+      totalBoreComp += j.completedBoreFt ?? 0;
+      totalPlacingEst += j.estPlacingFt ?? 0;
+      totalPlacingComp += j.completedPlacingFt ?? 0;
+      totalAerialEst += j.estAerialFt ?? 0;
+      totalAerialComp += j.completedAerialFt ?? 0;
+
+      totalDropsEst += j.homesPassed ?? 0;
+      if (j.jobStatus === "Billing Complete" || j.jobStatus === "All Construction Complete") {
+        totalDropsComp += j.homesPassed ?? 0;
+      }
+
+      const hub = j.hubNumber || "Unknown Hub";
+      if (!hubProgress[hub]) hubProgress[hub] = { total: 0, completed: 0 };
+      hubProgress[hub].total += (j.estBoreFt ?? 0) + (j.estPlacingFt ?? 0) + (j.estAerialFt ?? 0);
+      hubProgress[hub].completed +=
+        (j.completedBoreFt ?? 0) + (j.completedPlacingFt ?? 0) + (j.completedAerialFt ?? 0);
+
+      const crew = j.crewName || "Unassigned";
+      if (!crewPerformance[crew]) {
+        crewPerformance[crew] = { completedBore: 0, completedPlacing: 0, completedAerial: 0 };
+      }
+      crewPerformance[crew].completedBore += j.completedBoreFt ?? 0;
+      crewPerformance[crew].completedPlacing += j.completedPlacingFt ?? 0;
+      crewPerformance[crew].completedAerial += j.completedAerialFt ?? 0;
+    }
+
+    const ticketsSnap = await db().collection("digTickets").get();
+    const now = Date.now();
+    const ziplyJobIds = new Set(jobs.map((j) => j.jobId));
+    const outstanding811s = ticketsSnap.docs
+      .map((d) => d.data() as import("@nsc/types").DigTicket)
+      .filter((t) => ziplyJobIds.has(t.jobId))
+      .filter((t) => !t.dates?.expiresAt || t.dates.expiresAt <= now || !t.readyToDig)
+      .length;
+
+    const hubs = Object.entries(hubProgress).map(([name, stats]) => {
+      const pct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+      return { name, pct, completed: stats.completed, total: stats.total };
+    });
+
+    res.json({
+      summary: {
+        bore: { estimated: totalBoreEst, completed: totalBoreComp },
+        placing: { estimated: totalPlacingEst, completed: totalPlacingComp },
+        aerial: { estimated: totalAerialEst, completed: totalAerialComp },
+        drops: { estimated: totalDropsEst, completed: totalDropsComp },
+      },
+      hubs,
+      crews: crewPerformance,
+      outstanding811s,
     });
   } catch (err) {
     next(err);
@@ -251,6 +421,84 @@ router.get("/jobs/:jobId", async (req, res, next) => {
     next(err);
   }
 });
+
+// PUT /api/jobs/:jobId/dig-polygon — save (or clear) the 811 excavation
+// dig shape William drew for a job. Body: { polygon: DigShape | null }.
+// The client computes area/perimeter/bounds/vertices (via @nsc/types geo
+// helpers) so the HUD and the persisted document always agree; we validate
+// the discriminated union then persist as-is.
+router.put("/jobs/:jobId/dig-polygon", async (req, res, next) => {
+  try {
+    const jobId = req.params.jobId;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const body = req.body as { polygon?: (DigShape | PolygonData) | null };
+    const shape = body.polygon ?? null;
+
+    if (shape !== null) {
+      const err = validateDigShape(shape);
+      if (err) {
+        res.status(400).json({ error: err });
+        return;
+      }
+    }
+
+    await ref.update({ digPolygon: shape });
+    invalidateJobsCache();
+
+    res.json({ jobId, digPolygon: shape });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Validate a DigShape (or legacy bare PolygonData). Returns an error string
+// or null when valid. All three tools carry a rendered `vertices` ring, so we
+// require that; radius/route additionally carry their source parameters.
+function validateDigShape(shape: DigShape | PolygonData): string | null {
+  const isLatLngArray = (v: unknown, min: number): boolean =>
+    Array.isArray(v) &&
+    v.length >= min &&
+    v.every(
+      (p) =>
+        p &&
+        typeof (p as { lat: unknown }).lat === "number" &&
+        typeof (p as { lng: unknown }).lng === "number"
+    );
+
+  if (!isLatLngArray((shape as { vertices?: unknown }).vertices, 3)) {
+    return "shape.vertices must be an array of >=3 {lat,lng}";
+  }
+  const type = (shape as Partial<DigShape>).type;
+  if (type === "radius") {
+    const s = shape as { center?: unknown; radiusFt?: unknown };
+    if (
+      !s.center ||
+      typeof (s.center as { lat: unknown }).lat !== "number" ||
+      typeof (s.center as { lng: unknown }).lng !== "number"
+    ) {
+      return "radius shape requires a {lat,lng} center";
+    }
+    if (typeof s.radiusFt !== "number" || s.radiusFt <= 0 || s.radiusFt > 100) {
+      return "radiusFt must be a number in (0, 100]";
+    }
+  } else if (type === "route") {
+    const s = shape as { path?: unknown; widthFt?: unknown };
+    if (!isLatLngArray(s.path, 2)) {
+      return "route shape requires a path of >=2 {lat,lng}";
+    }
+    if (typeof s.widthFt !== "number" || s.widthFt <= 0 || s.widthFt > 500) {
+      return "widthFt must be a number in (0, 500]";
+    }
+  }
+  // polygon and legacy (no type) pass with just the vertices check.
+  return null;
+}
 
 // POST /api/jobs — create a manual job record (not from Smartsheet)
 router.post("/jobs", async (req, res, next) => {
@@ -374,6 +622,2779 @@ router.patch("/jobs/:jobId/location", async (req, res, next) => {
     invalidateJobsCache();
 
     res.json({ ok: true, customCoordinates });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+type ZiplyStorageFileRequest = {
+  storagePath?: unknown;
+  downloadUrl?: unknown;
+  contentType?: unknown;
+  name?: unknown;
+  size?: unknown;
+  storageBucket?: unknown;
+};
+
+const ZIPLY_SUPPORTED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+]);
+
+function normalizeMimeType(value: unknown): string {
+  const mime = typeof value === "string" ? value.split(";")[0]!.trim().toLowerCase() : "";
+  return mime || "application/octet-stream";
+}
+
+function bufferToDataUrl(buffer: Buffer, contentType: string): string {
+  const mimeType = normalizeMimeType(contentType);
+  if (!ZIPLY_SUPPORTED_MIME_TYPES.has(mimeType)) {
+    throw new Error(`Unsupported file type: ${mimeType}. Use PDF or JPEG/PNG/WEBP.`);
+  }
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+async function downloadZiplyStorageFile(fileRef: ZiplyStorageFileRequest): Promise<string> {
+  const storagePath = getString(fileRef.storagePath);
+  const bucketName = getString(fileRef.storageBucket);
+  const providedContentType = getString(fileRef.contentType);
+  const downloadUrl = getString(fileRef.downloadUrl);
+
+  if (storagePath) {
+    try {
+      const file = storageBucket(bucketName).file(storagePath);
+      const [[buffer], [metadata]] = await Promise.all([file.download(), file.getMetadata()]);
+      const contentType = normalizeMimeType(metadata.contentType ?? providedContentType);
+      return bufferToDataUrl(buffer, contentType);
+    } catch (err) {
+      if (!downloadUrl) throw err;
+    }
+  }
+
+  if (!downloadUrl) {
+    throw new Error("storagePath or downloadUrl required for each uploaded print");
+  }
+
+  const response = await fetch(downloadUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to download uploaded print: HTTP ${response.status}`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const contentType = normalizeMimeType(response.headers.get("content-type") ?? providedContentType);
+  return bufferToDataUrl(buffer, contentType);
+}
+
+async function resolveZiplyPrintDataUrls(body: {
+  dataUrl?: unknown;
+  dataUrls?: unknown;
+  storageFiles?: unknown;
+  storagePaths?: unknown;
+  downloadUrls?: unknown;
+}): Promise<string[]> {
+  const legacyDataUrls = Array.isArray(body.dataUrls)
+    ? body.dataUrls.filter((value): value is string => typeof value === "string")
+    : typeof body.dataUrl === "string"
+      ? [body.dataUrl]
+      : [];
+  if (legacyDataUrls.length > 0) return legacyDataUrls;
+
+  const fileRefs: ZiplyStorageFileRequest[] = [];
+  if (Array.isArray(body.storageFiles)) {
+    fileRefs.push(...body.storageFiles.filter((value): value is ZiplyStorageFileRequest => value !== null && typeof value === "object"));
+  }
+  if (Array.isArray(body.storagePaths)) {
+    fileRefs.push(...body.storagePaths.filter((value): value is string => typeof value === "string").map((storagePath) => ({ storagePath })));
+  }
+  if (Array.isArray(body.downloadUrls)) {
+    fileRefs.push(...body.downloadUrls.filter((value): value is string => typeof value === "string").map((downloadUrl) => ({ downloadUrl })));
+  }
+
+  if (fileRefs.length === 0) return [];
+  return Promise.all(fileRefs.map(downloadZiplyStorageFile));
+}
+
+type ZiplyIngestRequestBody = {
+  dataUrl?: unknown;
+  dataUrls?: unknown;
+  storageFiles?: unknown;
+  storagePaths?: unknown;
+  downloadUrls?: unknown;
+};
+
+function sanitizeZiplyStorageFiles(body: ZiplyIngestRequestBody) {
+  const files: Array<{
+    storagePath?: string;
+    downloadUrl?: string;
+    contentType?: string;
+    name?: string;
+    size?: number;
+    storageBucket?: string;
+  }> = [];
+
+  if (Array.isArray(body.storageFiles)) {
+    for (const value of body.storageFiles) {
+      if (value === null || typeof value !== "object") continue;
+      const file = value as ZiplyStorageFileRequest;
+      const storagePath = getString(file.storagePath);
+      const downloadUrl = getString(file.downloadUrl);
+      if (!storagePath && !downloadUrl) continue;
+      const size = typeof file.size === "number" && Number.isFinite(file.size) ? file.size : undefined;
+      files.push({
+        storagePath,
+        downloadUrl,
+        contentType: getString(file.contentType),
+        name: getString(file.name),
+        size,
+        storageBucket: getString(file.storageBucket),
+      });
+    }
+  }
+
+  if (Array.isArray(body.storagePaths)) {
+    for (const value of body.storagePaths) {
+      const storagePath = getString(value);
+      if (storagePath) files.push({ storagePath });
+    }
+  }
+
+  if (Array.isArray(body.downloadUrls)) {
+    for (const value of body.downloadUrls) {
+      const downloadUrl = getString(value);
+      if (downloadUrl) files.push({ downloadUrl });
+    }
+  }
+
+  // Legacy dataUrl/dataUrls payloads can be large, so never mirror them back into
+  // Firestore; keep only a count so operators can tell that an ingest was started.
+  const legacyDataUrlCount = Array.isArray(body.dataUrls)
+    ? body.dataUrls.filter((value) => typeof value === "string").length
+    : typeof body.dataUrl === "string"
+      ? 1
+      : 0;
+
+  return { files, legacyDataUrlCount };
+}
+
+export async function processZiplyIngest(jobId: string, body: ZiplyIngestRequestBody): Promise<void> {
+  const ref = db().collection("jobs").doc(jobId);
+
+  try {
+    const urls = await resolveZiplyPrintDataUrls(body);
+    if (urls.length === 0) {
+      throw new Error("storageFiles required");
+    }
+
+    const parsed = await parseZiplyPrint(urls);
+
+    const doc = await ref.get();
+    if (!doc.exists) {
+      throw new Error("Job not found");
+    }
+    const existing = doc.data() as Job;
+
+    // ── Georeferencing (spec §1) ─────────────────────────────────────────
+    // Place the hub from its print address (falling back to the job's own
+    // geocode) and each terminal from its first served address. Geocoding is
+    // best-effort: any failure leaves that object's coords null so the client
+    // can fall back to a ring layout around the hub.
+    const geoCache = new Map<string, { lat: number; lng: number } | null>();
+    const geocodeOne = async (raw: string | null): Promise<{ lat: number; lng: number } | null> => {
+      const addr = buildAddressString({ address: raw, city: existing.city, zipCode: existing.zipCode });
+      if (!addr) return null;
+      if (geoCache.has(addr)) return geoCache.get(addr)!;
+      const g = await geocodeAddress(addr);
+      const coords = g.status === "OK" ? { lat: g.lat, lng: g.lng } : null;
+      geoCache.set(addr, coords);
+      return coords;
+    };
+
+    // Resolve a usable map anchor using priority:
+    // 1. Plan view intersection (most accurate — exactly where the hub pole is)
+    // 2. hubAddress string (AI-extracted from plan view)
+    // 3. Existing job geocode
+    // 4. Job address field
+    const si = (parsed as any).hubStreetIntersection;
+    const intersectionAddr = si?.street1 && si?.street2
+      ? `${si.street1} & ${si.street2}, ${parsed.projectCity || existing.city || ""}, WA`
+      : si?.street1
+        ? `${si.street1}, ${parsed.projectCity || existing.city || ""}, WA`
+        : null;
+
+    let hubCoords = intersectionAddr ? await geocodeOne(intersectionAddr) : null;
+    if (!hubCoords) hubCoords = await geocodeOne(parsed.hubAddress ?? null);
+    if (!hubCoords && existing.geocode?.status === "OK" && existing.geocode.lat && existing.geocode.lng) {
+      hubCoords = { lat: existing.geocode.lat, lng: existing.geocode.lng };
+    }
+    if (!hubCoords) {
+      const jobAddr = buildAddressString({
+        address: existing.address,
+        city: existing.city,
+        zipCode: existing.zipCode,
+      });
+      if (jobAddr) {
+        const g = await geocodeAddress(jobAddr);
+        if (g.status === "OK") hubCoords = { lat: g.lat, lng: g.lng };
+      }
+    }
+
+    const mainlineStreet =
+      parsed.mainlineStreet ??
+      parsed.mapObjects?.mainlineStreet ??
+      extractStreetFromAddress(parsed.hubAddress) ??
+      extractStreetFromAddress(existing.address) ??
+      null;
+    const projectCity =
+      parsed.projectCity ?? existing.city ?? null;
+
+    const rawTerminals = parsed.mapObjects?.terminals ?? [];
+    const terminals = [];
+    for (const t of rawTerminals) {
+      // Expand house numbers to geocodable addresses using mainline street + city
+      const houseNums = t.houseNumbers ?? [];
+      const expanded = [
+        ...(t.addressesServed ?? []),
+        ...houseNums.map((h) => {
+          const n = String(h).trim();
+          if (!n) return null;
+          if (/\d+\s+\w+/.test(n) && /st|rd|ave|dr|ln|way|blvd|ct|pl|metron/i.test(n)) {
+            return projectCity ? `${n}, ${projectCity}, WA` : n;
+          }
+          if (mainlineStreet) {
+            return `${n} ${mainlineStreet}, ${projectCity || "WA"}, WA`;
+          }
+          return projectCity ? `${n}, ${projectCity}, WA` : n;
+        }),
+      ].filter((a): a is string => !!a && a.trim().length > 0);
+
+      let coords: { lat: number; lng: number } | null = null;
+      for (const a of expanded) {
+        coords = await geocodeOne(a);
+        if (coords) break;
+      }
+      // Do NOT pin all missing terminals on the hub (that creates a star of zero-length spokes)
+      terminals.push({
+        label: t.label,
+        type: t.type,
+        portCount: t.portCount ?? null,
+        footageFt: t.footageFt ?? null,
+        footageLabel: t.footageLabel ?? null,
+        dvftpRange: t.dvftpRange ?? null,
+        code: t.code ?? null,
+        fiberSpec: t.fiberSpec ?? null,
+        addressesServed: expanded.length ? expanded : t.addressesServed ?? null,
+        houseNumbers: houseNums.length ? houseNums : null,
+        sheetPage: t.sheetPage ?? null,
+        sequenceOrder: t.sequenceOrder ?? null,
+        side: t.side ?? null,
+        stationFt: typeof t.stationFt === "number" ? t.stationFt : null,
+        offsetFt: typeof t.offsetFt === "number" ? t.offsetFt : null,
+        sheetX: typeof t.sheetX === "number" ? t.sheetX : null,
+        sheetY: typeof t.sheetY === "number" ? t.sheetY : null,
+        crossStreet: typeof t.crossStreet === "string" ? t.crossStreet : null,
+        lat: coords?.lat ?? null,
+        lng: coords?.lng ?? null,
+        status: "planned" as ZiplyObjectStatus,
+      });
+    }
+
+    const cables = (parsed.mapObjects?.cables ?? []).map((c) => ({
+      label: c.label,
+      fiberCount: c.fiberCount,
+      lengthFt: c.lengthFt,
+      path: null as Array<{ lat: number; lng: number }> | null,
+      buildType: c.buildType ?? null,
+      role: c.role ?? null,
+      toTerminal: c.toTerminal ?? null,
+      routeStreets: c.routeStreets ?? (mainlineStreet ? [mainlineStreet] : null),
+      sheetPage: c.sheetPage ?? null,
+      sequenceOrder: c.sequenceOrder ?? null,
+      side: c.side ?? null,
+      stationFt: typeof c.stationFt === "number" ? c.stationFt : null,
+      status: "planned" as ZiplyObjectStatus,
+    }));
+
+    const now = Date.now();
+    const updates: Partial<Job> = {
+      hubNumber: parsed.hubId,
+      customerProject: "Ziply",
+      ziplyInspector: parsed.ziplyInspector ?? parsed.hubTypeSize,
+      homesPassed: parsed.drops?.total ?? null,
+      softscapeBuriedHomes: parsed.drops?.lu ?? null,
+      softscapeAerialHomes: parsed.drops?.mdu ?? null,
+      nscProjectNotes: parsed.specialNotes ?? null,
+      lastSyncedAt: now,
+      ziplyIngest: {
+        ...(existing.ziplyIngest ?? {}),
+        status: "complete",
+        updatedAt: now,
+        completedAt: now,
+        errorMessage: null,
+        errorCode: null,
+        parsed,
+      },
+      ziplyPrintLayer: {
+        hubId: parsed.hubId,
+        hubTypeSize: parsed.hubTypeSize,
+        terminalCount: parsed.terminalCount,
+        fiberCountsPerCable: parsed.fiberCountsPerCable,
+        drops: parsed.drops,
+        permittedExcavationMethods: parsed.permittedExcavationMethods,
+        strandType: parsed.strandType,
+        conduitSize: parsed.conduitSize,
+        specialNotes: parsed.specialNotes,
+        permits: parsed.permits,
+        mapObjects: {
+          hub: {
+            lat: hubCoords?.lat ?? null,
+            lng: hubCoords?.lng ?? null,
+            status: "planned",
+            poleId: parsed.hubPoleId ?? null,
+            poleStreet: parsed.hubPoleStreet ?? parsed.hubStreetIntersection?.street1 ?? null,
+            intersection: parsed.hubStreetIntersection
+              ? [parsed.hubStreetIntersection.street1, parsed.hubStreetIntersection.street2].filter(Boolean).join(" & ")
+              : null,
+            address: parsed.hubAddress ?? null,
+          },
+          mainlineStreet,
+          backbonePath: null,
+          cables,
+          terminals,
+          notes: parsed.mapObjects?.notes ?? null,
+        },
+        // Preserve any permit docs already uploaded on this job.
+        uploadedPermitDocs: existing.ziplyPrintLayer?.uploadedPermitDocs ?? {},
+        permitFiles: existing.ziplyPrintLayer?.permitFiles ?? [],
+      },
+    };
+
+    // If we resolved hub coords and the job never had a geocode, cache it so
+    // pins + print layer stay aligned after future syncs.
+    if (hubCoords && !(existing.geocode?.status === "OK")) {
+      updates.geocode = {
+        lat: hubCoords.lat,
+        lng: hubCoords.lng,
+        formattedAddress: parsed.hubAddress ?? existing.address ?? "",
+        sourceAddress: parsed.hubAddress ?? existing.address ?? "",
+        cachedAt: now,
+        status: "OK",
+      };
+    }
+    // Fill blank job address/city from print title block (Arlington Metron etc.)
+    if (parsed.hubAddress && !existing.address) {
+      updates.address = parsed.hubAddress;
+    }
+    if (projectCity && !existing.city) {
+      updates.city = projectCity;
+    }
+
+    await ref.update(updates);
+    invalidateJobsCache();
+
+    // Auto-run arterial CAD enhance after successful parse (best-effort).
+    try {
+      const fresh = (await ref.get()).data() as Job;
+      if (fresh?.ziplyPrintLayer?.mapObjects) {
+        await enhanceZiplyPrintDetail(fresh);
+      }
+    } catch (enhanceErr) {
+      console.warn(`[ziply-ingest] auto-enhance failed for ${jobId}`, enhanceErr);
+    }
+  } catch (err) {
+    const now = Date.now();
+    const statusCode = err instanceof ZiplyPrintParseError ? err.statusCode : undefined;
+    const errorCode = err instanceof ZiplyPrintParseError ? err.code : undefined;
+    const message = err instanceof Error ? err.message : "Unknown Ziply ingest error";
+    console.error(`[ziply-ingest] Background ingest failed for job ${jobId}:`, err);
+    try {
+      await ref.update({
+        "ziplyIngest.status": "failed",
+        "ziplyIngest.updatedAt": now,
+        "ziplyIngest.failedAt": now,
+        "ziplyIngest.errorMessage": message,
+        "ziplyIngest.errorCode": errorCode ?? null,
+        "ziplyIngest.statusCode": statusCode ?? null,
+        lastSyncedAt: now,
+      });
+      invalidateJobsCache();
+    } catch (updateErr) {
+      console.error(`[ziply-ingest] Failed to write error status for job ${jobId}:`, updateErr);
+    }
+  }
+}
+
+function isValidLatLng(lat: unknown, lng: unknown): boolean {
+  return (
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180
+  );
+}
+
+type RepairResult = {
+  jobId: string;
+  workOrder?: string | null;
+  repaired: boolean;
+  reason: string;
+  lat?: number;
+  lng?: number;
+  terminalsFixed?: number;
+};
+
+/**
+ * Fill missing hub/terminal lat/lng for an already-ingested Ziply print so it
+ * shows on the map without re-running Gemini.
+ */
+async function repairZiplyPrintLocation(job: Job, targetAddress?: string): Promise<RepairResult> {
+  const jobId = job.jobId;
+  const mo = job.ziplyPrintLayer?.mapObjects;
+  if (!mo) {
+    return { jobId, workOrder: job.workOrder, repaired: false, reason: "no_mapObjects" };
+  }
+
+  const hubAlready = isValidLatLng(mo.hub?.lat, mo.hub?.lng);
+  const geoAlready =
+    job.geocode?.status === "OK" && isValidLatLng(job.geocode.lat, job.geocode.lng);
+
+  const geoCache = new Map<string, { lat: number; lng: number } | null>();
+  const geocodeOne = async (raw: string | null): Promise<{ lat: number; lng: number } | null> => {
+    if (!raw?.trim()) return null;
+    // Try raw string as-is first (often already "123 Main St, Arlington, WA")
+    const direct = raw.trim();
+    const built = buildAddressString({
+      address: raw,
+      city: job.city,
+      zipCode: job.zipCode,
+    });
+    const attempts = [direct, built].filter(
+      (a, i, arr): a is string => !!a && arr.indexOf(a) === i
+    );
+    for (const addr of attempts) {
+      if (geoCache.has(addr)) {
+        const hit = geoCache.get(addr)!;
+        if (hit) return hit;
+        continue;
+      }
+      const g = await geocodeAddress(addr);
+      const coords = g.status === "OK" ? { lat: g.lat, lng: g.lng } : null;
+      geoCache.set(addr, coords);
+      if (coords) return coords;
+    }
+    return null;
+  };
+
+  // Prefer target override, then existing good coords, then geocode candidates.
+  let hubCoords: { lat: number; lng: number } | null = null;
+  let repairSource = "";
+  
+  if (targetAddress?.trim()) {
+    const coords = await geocodeOne(targetAddress);
+    if (coords) {
+      hubCoords = coords;
+      repairSource = "manual_override";
+    }
+  }
+
+  if (!hubCoords && hubAlready) {
+    hubCoords = { lat: mo.hub!.lat as number, lng: mo.hub!.lng as number };
+    repairSource = "hub_existing";
+  } else if (!hubCoords && geoAlready) {
+    hubCoords = { lat: job.geocode!.lat, lng: job.geocode!.lng };
+    repairSource = "job_geocode";
+  }
+
+  if (!hubCoords) {
+    const parsed = job.ziplyIngest?.parsed as {
+      hubAddress?: string | null;
+      mapObjects?: { terminals?: Array<{ addressesServed?: string[] | null }> };
+    } | null | undefined;
+    // First terminal street address often geocodes when hub address is missing
+    const firstTermAddr =
+      mo.terminals?.flatMap((t) => t.addressesServed ?? []).find((a) => a?.trim()) ??
+      parsed?.mapObjects?.terminals
+        ?.flatMap((t) => t.addressesServed ?? [])
+        .find((a) => a?.trim()) ??
+      null;
+
+    const candidates = [
+      parsed?.hubAddress ?? null,
+      job.address,
+      firstTermAddr,
+      [job.address, job.city, "WA", job.zipCode].filter(Boolean).join(", ") || null,
+      job.city ? `${job.city}, Washington` : null,
+      job.city ? `${job.city}, WA, USA` : null,
+      job.workOrder && job.city ? `${job.workOrder}, ${job.city}, WA` : null,
+    ];
+    for (const c of candidates) {
+      hubCoords = await geocodeOne(c);
+      if (hubCoords) {
+        repairSource = `geocode:${(c ?? "").slice(0, 48)}`;
+        break;
+      }
+    }
+  }
+
+  // Last resort: pin to known North Metro city center so the print is visible
+  if (!hubCoords) {
+    const parsed = job.ziplyIngest?.parsed as { hubAddress?: string | null } | null | undefined;
+    const fallback = cityCenterFallback(job.city, [
+      job.address,
+      parsed?.hubAddress,
+      job.workOrder,
+      job.nscProjectNotes,
+    ]);
+    if (fallback) {
+      hubCoords = { lat: fallback.lat, lng: fallback.lng };
+      repairSource = fallback.source;
+    }
+  }
+
+  if (!hubCoords) {
+    return {
+      jobId,
+      workOrder: job.workOrder,
+      repaired: false,
+      reason: "geocode_failed",
+    };
+  }
+
+  let terminalsFixed = 0;
+  const rawTerms = mo.terminals ?? [];
+  const fixedTerminals = [];
+  for (let i = 0; i < rawTerms.length; i++) {
+    const t = rawTerms[i]!;
+    if (isValidLatLng(t.lat, t.lng)) {
+      fixedTerminals.push(t);
+      continue;
+    }
+    const firstAddr = t.addressesServed?.[0] ?? null;
+    const c = firstAddr ? await geocodeOne(firstAddr) : null;
+    terminalsFixed++;
+    if (c) {
+      fixedTerminals.push({ ...t, lat: c.lat, lng: c.lng });
+    } else {
+      // Ring around hub so each terminal is distinct and spokes still draw
+      const angle = (i * 2 * Math.PI) / Math.max(rawTerms.length, 1);
+      const r = 0.00035;
+      fixedTerminals.push({
+        ...t,
+        lat: hubCoords.lat + r * Math.sin(angle),
+        lng: hubCoords.lng + r * Math.cos(angle),
+      });
+    }
+  }
+
+  const now = Date.now();
+  const layer = {
+    ...job.ziplyPrintLayer!,
+    mapObjects: {
+      ...mo,
+      hub: {
+        ...(mo.hub ?? {}),
+        lat: hubCoords.lat,
+        lng: hubCoords.lng,
+        status: mo.hub?.status ?? ("planned" as const),
+      },
+      terminals: fixedTerminals,
+      cables: mo.cables ?? [],
+      notes: mo.notes ?? null,
+    },
+  };
+
+  const updates: Record<string, unknown> = {
+    ziplyPrintLayer: layer,
+    lastSyncedAt: now,
+    customerProject: "Ziply",
+  };
+  if (!geoAlready) {
+    updates.geocode = {
+      lat: hubCoords.lat,
+      lng: hubCoords.lng,
+      formattedAddress: job.address ?? "",
+      sourceAddress: job.address ?? "",
+      cachedAt: now,
+      status: "OK",
+    };
+  }
+
+  await db().collection("jobs").doc(jobId).update(updates);
+  return {
+    jobId,
+    workOrder: job.workOrder,
+    repaired: true,
+    reason: hubAlready
+      ? "terminals_only"
+      : repairSource.startsWith("city_center")
+        ? `hub_city_fallback:${repairSource}`
+        : "hub_and_anchor",
+    lat: hubCoords.lat,
+    lng: hubCoords.lng,
+    terminalsFixed,
+  };
+}
+
+/** Run async work over items with a concurrency cap (scalability / API rate). */
+async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from(
+    { length: Math.min(Math.max(1, concurrency), items.length) },
+    async () => {
+      while (true) {
+        const i = next++;
+        if (i >= items.length) return;
+        results[i] = await fn(items[i]!, i);
+      }
+    }
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+function projectAlongBackbone(
+  start: { lat: number; lng: number },
+  lengthFt: number,
+  backbone: Array<{ lat: number; lng: number }>
+): Array<{ lat: number; lng: number }> {
+  if (backbone.length < 2) {
+    // Fallback: project North
+    const latOffset = lengthFt / 364000;
+    return [start, { lat: start.lat + latOffset, lng: start.lng }];
+  }
+  // Find closest point on backbone
+  let closestIdx = 0;
+  let minD = Infinity;
+  for (let i = 0; i < backbone.length; i++) {
+    const d = distM(start, backbone[i]!);
+    if (d < minD) {
+      minD = d;
+      closestIdx = i;
+    }
+  }
+  // Use direction between closest point and next (or prev) backbone point
+  const nextIdx = closestIdx < backbone.length - 1 ? closestIdx + 1 : closestIdx - 1;
+  const pt1 = backbone[closestIdx]!;
+  const pt2 = backbone[nextIdx]!;
+  const dy = pt2.lat - pt1.lat;
+  const dx = pt2.lng - pt1.lng;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) {
+    const latOffset = lengthFt / 364000;
+    return [start, { lat: start.lat + latOffset, lng: start.lng }];
+  }
+  const ratio = (lengthFt / 3.28084) / 111320; // feet to meters to degrees approx
+  const endLat = start.lat + (dy / len) * ratio;
+  const endLng = start.lng + (dx / len) * (ratio / Math.cos((start.lat * Math.PI) / 180));
+  return [start, { lat: endLat, lng: endLng }];
+}
+
+export async function enhanceZiplyPrintDetail(job: Job): Promise<{
+  jobId: string;
+  workOrder?: string | null;
+  enhanced: boolean;
+  reason: string;
+  terminalsGeocoded: number;
+  cablesPathed: number;
+  waypointsGeocoded: number;
+  dropsPlaced: number;
+}> {
+  const jobId = job.jobId;
+  const mo = job.ziplyPrintLayer?.mapObjects;
+  if (!mo) {
+    return {
+      jobId,
+      workOrder: job.workOrder,
+      enhanced: false,
+      reason: "no_mapObjects",
+      terminalsGeocoded: 0,
+      cablesPathed: 0,
+      waypointsGeocoded: 0,
+      dropsPlaced: 0,
+    };
+  }
+
+  const city = job.city;
+  const zip = job.zipCode;
+  const geoCache = new Map<string, { lat: number; lng: number } | null>();
+  const geocodeOne = async (raw: string | null): Promise<{ lat: number; lng: number } | null> => {
+    if (!raw?.trim()) return null;
+    // Already looks like "street, city" or just street
+    const addr =
+      buildAddressString({ address: raw, city, zipCode: zip }) ??
+      `${raw.trim()}, ${city || "WA"}`;
+    if (geoCache.has(addr)) return geoCache.get(addr)!;
+    const g = await geocodeAddress(addr);
+    const coords = g.status === "OK" ? { lat: g.lat, lng: g.lng } : null;
+    geoCache.set(addr, coords);
+    return coords;
+  };
+
+  // Hub
+  let hubCoords: { lat: number; lng: number } | null = null;
+  if (isValidLatLng(mo.hub?.lat, mo.hub?.lng)) {
+    hubCoords = { lat: mo.hub!.lat as number, lng: mo.hub!.lng as number };
+  } else if (job.geocode?.status === "OK" && isValidLatLng(job.geocode.lat, job.geocode.lng)) {
+    hubCoords = { lat: job.geocode.lat, lng: job.geocode.lng };
+  } else {
+    const parsed = job.ziplyIngest?.parsed as { hubAddress?: string | null } | undefined;
+    for (const c of [parsed?.hubAddress, job.address, city ? `${city}, WA` : null]) {
+      hubCoords = await geocodeOne(c ?? null);
+      if (hubCoords) break;
+    }
+  }
+  if (!hubCoords) {
+    return {
+      jobId,
+      workOrder: job.workOrder,
+      enhanced: false,
+      reason: "geocode_failed",
+      terminalsGeocoded: 0,
+      cablesPathed: 0,
+      waypointsGeocoded: 0,
+      dropsPlaced: 0,
+    };
+  }
+
+  // Terminals — keep real coords; leave null until expand/geocode (no early fan)
+  type ZiplyTerm = NonNullable<NonNullable<Job["ziplyPrintLayer"]>["mapObjects"]>["terminals"][number];
+  type ZiplyCable = NonNullable<NonNullable<Job["ziplyPrintLayer"]>["mapObjects"]>["cables"][number];
+  let terminalsGeocoded = 0;
+  const terminals: ZiplyTerm[] = (mo.terminals ?? []).map((t) => {
+    const lat = isValidLatLng(t.lat, t.lng) ? (t.lat as number) : null;
+    const lng = isValidLatLng(t.lat, t.lng) ? (t.lng as number) : null;
+    return { ...t, lat, lng };
+  });
+
+  const termByLabel = new Map(terminals.map((t) => [t.label, t]));
+  const findTerm = (label: string | null | undefined, fallbackIdx: number) => {
+    if (label && termByLabel.has(label)) return termByLabel.get(label)!;
+    if (label) {
+      const num = label.replace(/\D/g, "");
+      if (num) {
+        for (const [lab, t] of termByLabel) {
+          if (lab.replace(/\D/g, "") === num) return t;
+        }
+      }
+    }
+    return terminals[fallbackIdx % Math.max(terminals.length, 1)] ?? null;
+  };
+
+  // ── Master plant CAD (Booker arterial + parcel laterals) ────────────────
+  const parsedMeta = job.ziplyIngest?.parsed as {
+    hubAddress?: string | null;
+    mainlineStreet?: string | null;
+    projectCity?: string | null;
+  } | null;
+
+  const gold = GOLD_PLANT_SEEDS.find((s) =>
+    s.match({
+      address: job.address ?? parsedMeta?.hubAddress,
+      city: job.city ?? parsedMeta?.projectCity,
+      workOrder: job.workOrder,
+      hubId: job.ziplyPrintLayer?.hubId ?? job.hubNumber,
+      notes: job.nscProjectNotes,
+    })
+  );
+
+  let mainlineStreet =
+    mo.mainlineStreet ??
+    parsedMeta?.mainlineStreet ??
+    gold?.mainlineStreet ??
+    extractStreetFromAddress(parsedMeta?.hubAddress) ??
+    extractStreetFromAddress(job.address) ??
+    null;
+  if (!mainlineStreet && gold?.mainlineStreet) mainlineStreet = gold.mainlineStreet;
+
+  const effectiveCity = city || gold?.city || parsedMeta?.projectCity || null;
+
+  // Gold-standard house numbers when AI under-extracted plan sheets
+  if (gold && gold.houseNumbers.length > 0) {
+    const haveHouses = terminals.some(
+      (t) => (t.houseNumbers?.length ?? 0) > 0 || (t.addressesServed?.length ?? 0) > 0
+    );
+    if (!haveHouses || terminals.length < Math.min(4, gold.houseNumbers.length)) {
+      for (const hn of gold.houseNumbers) {
+        const exists = terminals.some(
+          (t) =>
+            t.houseNumbers?.includes(hn) ||
+            t.addressesServed?.some((a) => a.includes(hn)) ||
+            t.label.includes(hn)
+        );
+        if (exists) continue;
+        const seq = gold.houseNumbers.indexOf(hn) + 1;
+        terminals.push({
+          label: `LOT-${hn}`,
+          type: "service",
+          portCount: null,
+          footageFt: null,
+          footageLabel: null,
+          dvftpRange: null,
+          code: null,
+          fiberSpec: null,
+          addressesServed: expandHouseAddresses(
+            [hn],
+            mainlineStreet,
+            effectiveCity,
+            null
+          ),
+          houseNumbers: [hn],
+          sequenceOrder: seq,
+          stationFt: seq * 100,
+          side: seq % 2 === 0 ? "right" : "left",
+          lat: null,
+          lng: null,
+          status: "planned" as ZiplyObjectStatus,
+        });
+      }
+    }
+  }
+
+  // Prefer gold hub address for re-geocode if hub still weak
+  if (gold?.hubAddress) {
+    const gHub = await geocodeOne(gold.hubAddress);
+    if (gHub) {
+      // Only override if current hub is far from gold hub (>250m) or missing
+      if (!isValidLatLng(hubCoords.lat, hubCoords.lng) || distM(hubCoords, gHub) > 250) {
+        hubCoords = gHub;
+      }
+    }
+  }
+
+  // Expand addresses on all; geocode missing in parallel (cap concurrency)
+  await mapPool(terminals, 5, async (t, ti) => {
+    const addrs = expandHouseAddresses(
+      t.houseNumbers,
+      mainlineStreet,
+      effectiveCity,
+      t.addressesServed
+    );
+    let lat = isValidLatLng(t.lat, t.lng) ? (t.lat as number) : null;
+    let lng = isValidLatLng(t.lat, t.lng) ? (t.lng as number) : null;
+    if (lat == null || lng == null) {
+      for (const a of addrs) {
+        const g = await geocodeOne(a);
+        if (g) {
+          lat = g.lat;
+          lng = g.lng;
+          terminalsGeocoded++;
+          break;
+        }
+      }
+    }
+    terminals[ti] = {
+      ...t,
+      addressesServed: addrs.length ? addrs : t.addressesServed,
+      lat,
+      lng,
+    };
+    return null;
+  });
+
+  // Place still-missing terminals along mainline offset (never all on hub)
+  let fanIdx = 0;
+  for (let ti = 0; ti < terminals.length; ti++) {
+    const t = terminals[ti]!;
+    if (isValidLatLng(t.lat, t.lng)) continue;
+    const n = Math.max(terminals.length, 4);
+    const along = ((fanIdx + 1) / (n + 1) - 0.5) * 0.004; // ~400m span
+    const side = fanIdx % 2 === 0 ? 1 : -1;
+    const lat = hubCoords.lat + along;
+    const lng = hubCoords.lng + side * 0.00035;
+    terminals[ti] = { ...t, lat, lng };
+    terminalsGeocoded++;
+    fanIdx++;
+  }
+
+  // Refresh label map after gold + geocode
+  termByLabel.clear();
+  for (const t of terminals) termByLabel.set(t.label, t);
+
+  // Apply manual field pins (highest priority control truth)
+  const manualPins = mo.manualPins ?? [];
+  for (const pin of manualPins) {
+    if (!isValidLatLng(pin.lat, pin.lng)) continue;
+    if (pin.kind === "hub") {
+      hubCoords = { lat: pin.lat, lng: pin.lng };
+    } else if (pin.kind === "terminal") {
+      const idx = terminals.findIndex((t) => t.label === pin.ref);
+      if (idx >= 0) {
+        terminals[idx] = {
+          ...terminals[idx]!,
+          lat: pin.lat,
+          lng: pin.lng,
+          manualPin: true,
+          sheetX: pin.sheetX ?? terminals[idx]!.sheetX,
+          sheetY: pin.sheetY ?? terminals[idx]!.sheetY,
+        };
+      }
+    }
+  }
+
+  // Cross-street geocode: laterals that leave mainline onto named streets
+  for (let ti = 0; ti < terminals.length; ti++) {
+    const t = terminals[ti]!;
+    const cross = t.crossStreet?.trim();
+    if (!cross) continue;
+    if (isValidLatLng(t.lat, t.lng) && t.manualPin) continue;
+    const hn = t.houseNumbers?.[0];
+    const crossAddr = hn
+      ? `${hn} ${cross}, ${effectiveCity || city || "WA"}, WA`
+      : `${cross}, ${effectiveCity || city || "WA"}, WA`;
+    const g = await geocodeOne(crossAddr);
+    if (g) {
+      // Only adopt if closer to hub than 1.4km or replaces missing
+      if (!isValidLatLng(t.lat, t.lng) || distM(hubCoords, g) < 1400) {
+        terminals[ti] = { ...t, lat: g.lat, lng: g.lng };
+        terminalsGeocoded++;
+      }
+    }
+  }
+
+  // Control points = every geocoded terminal (+ hub) — plan-sheet registration truth
+  const controls: SheetControl[] = [];
+  controls.push({
+    id: "hub",
+    kind: "hub",
+    label: job.ziplyPrintLayer?.hubId || "FDH",
+    lat: hubCoords.lat,
+    lng: hubCoords.lng,
+    sequenceOrder: 0,
+    stationFt: 0,
+    manual: manualPins.some((p) => p.kind === "hub"),
+  });
+  for (const t of terminals) {
+    if (!isValidLatLng(t.lat, t.lng)) continue;
+    controls.push({
+      id: t.label,
+      kind: "terminal",
+      label: t.label,
+      lat: t.lat as number,
+      lng: t.lng as number,
+      stationFt: t.stationFt ?? null,
+      offsetFt: t.offsetFt ?? null,
+      side: t.side === "left" || t.side === "right" ? t.side : null,
+      sequenceOrder: t.sequenceOrder ?? null,
+      footageFt: t.footageFt ?? null,
+      sheetX: t.sheetX ?? null,
+      sheetY: t.sheetY ?? null,
+      crossStreet: t.crossStreet ?? null,
+      manual: !!t.manualPin || manualPins.some((p) => p.kind === "terminal" && p.ref === t.label),
+    });
+  }
+
+  // Road-snap backbone through ordered controls (without intermediate waypoints to prevent zig-zagging)
+  const orderedCtrls = orderControls(controls, hubCoords);
+  let roadBackbone: Array<{ lat: number; lng: number }> | null = null;
+  if (orderedCtrls.length >= 2) {
+    const origin = { lat: orderedCtrls[0]!.lat, lng: orderedCtrls[0]!.lng };
+    const dest = {
+      lat: orderedCtrls[orderedCtrls.length - 1]!.lat,
+      lng: orderedCtrls[orderedCtrls.length - 1]!.lng,
+    };
+    roadBackbone = await routeAlongRoads(origin, dest, {
+      mode: "walking",
+    });
+  }
+
+  // Sheet registration — control points + true polyline joins (not star spokes)
+  const plant = registerPlant(hubCoords, controls, {
+    mainlineStreet,
+    padMeters: 45,
+    roadBackbone,
+  });
+  const backbonePath = plant.backbone;
+  const geometrySource =
+    plant.fidelity === "control_registered"
+      ? roadBackbone && roadBackbone.length >= 3
+        ? ("road_snapped" as const)
+        : ("control_registered" as const)
+      : ("synthetic" as const);
+
+  let cablesPathed = 0;
+  let waypointsGeocoded = 0;
+  const roadsRouted = roadBackbone ? 1 : 0;
+  const lateralByLabel = new Map(plant.laterals.map((l) => [l.label, l.path]));
+  const cables: ZiplyCable[] = [];
+
+  // Prefer registered lateral geometry — no per-lateral Directions soup
+  const sourceCables = mo.cables ?? [];
+  for (let i = 0; i < sourceCables.length; i++) {
+    const c = sourceCables[i]!;
+    const term = findTerm(c.toTerminal ?? c.label, i);
+    const termPos =
+      term && isValidLatLng(term.lat, term.lng)
+        ? { lat: term.lat as number, lng: term.lng as number }
+        : null;
+
+    const role =
+      c.role ??
+      (c.label.toLowerCase().includes("main") || c.label.toLowerCase().includes("feeder")
+        ? "mainline"
+        : "lateral");
+
+    let path: Array<{ lat: number; lng: number }> | null = null;
+    if (role === "mainline" || role === "feeder") {
+      path = backbonePath;
+      cablesPathed++;
+    } else if ((c.role as string) === "duct" || c.buildType === "bore" || c.buildType === "trench") {
+      // Bores/trenches/ducts — snap starting point to nearest terminal or hub on the same page,
+      // and project path along the backbone street direction for the given lengthFt.
+      let refPos: { lat: number; lng: number } | null = null;
+      if (isValidLatLng(hubCoords.lat, hubCoords.lng) && (c.sheetPage === 6 || String(c.sheetPage) === "6" || !c.sheetPage)) {
+        refPos = hubCoords;
+      } else {
+        const pageTerms = terminals.filter(
+          (t) => String(t.sheetPage) === String(c.sheetPage) && isValidLatLng(t.lat, t.lng)
+        );
+        if (pageTerms.length > 0) {
+          refPos = { lat: pageTerms[0]!.lat as number, lng: pageTerms[0]!.lng as number };
+        } else if (isValidLatLng(hubCoords.lat, hubCoords.lng)) {
+          refPos = hubCoords;
+        }
+      }
+      if (refPos && c.lengthFt && backbonePath.length >= 2) {
+        path = projectAlongBackbone(refPos, c.lengthFt, backbonePath);
+        cablesPathed++;
+      }
+    } else {
+      const synth =
+        (term && lateralByLabel.get(term.label)) ??
+        lateralByLabel.get(c.label) ??
+        null;
+      if (synth && synth.length >= 2) {
+        path = synth;
+        cablesPathed++;
+      } else if (termPos) {
+        // Build on-the-fly registered lateral from control
+        const ctrl: SheetControl = {
+          id: term?.label ?? c.label,
+          kind: "terminal",
+          label: term?.label ?? c.label,
+          lat: termPos.lat,
+          lng: termPos.lng,
+          stationFt: term?.stationFt ?? c.stationFt ?? null,
+          offsetFt: term?.offsetFt ?? null,
+          side:
+            term?.side === "left" || term?.side === "right"
+              ? term.side
+              : c.side === "left" || c.side === "right"
+                ? c.side
+                : null,
+          sequenceOrder: term?.sequenceOrder ?? c.sequenceOrder ?? null,
+          footageFt: term?.footageFt ?? c.lengthFt ?? null,
+        };
+        path = buildRegisteredLateral(backbonePath, ctrl).path;
+        cablesPathed++;
+      }
+    }
+
+    cables.push({
+      ...c,
+      role,
+      path,
+      routeStreets: c.routeStreets ?? (mainlineStreet ? [mainlineStreet] : null),
+      status: c.status ?? ("planned" as ZiplyObjectStatus),
+    });
+  }
+
+  // Always one canonical mainline
+  const hasMainline = cables.some((c) => c.role === "mainline" || c.role === "feeder");
+  if (!hasMainline && backbonePath.length >= 2) {
+    cables.unshift({
+      label: mainlineStreet ? `MAINLINE · ${mainlineStreet}` : "MAINLINE",
+      fiberCount: "",
+      lengthFt: null,
+      path: backbonePath,
+      buildType: "trench",
+      role: "mainline",
+      toTerminal: null,
+      routeStreets: mainlineStreet ? [mainlineStreet] : null,
+      status: "planned" as ZiplyObjectStatus,
+    });
+    cablesPathed++;
+  } else {
+    for (let i = 0; i < cables.length; i++) {
+      if (cables[i]!.role === "mainline" || cables[i]!.role === "feeder") {
+        cables[i] = { ...cables[i]!, path: backbonePath };
+      }
+    }
+  }
+
+  // Lateral for every located control not already covered
+  const covered = new Set(
+    cables.map((c) => c.toTerminal).filter((x): x is string => !!x)
+  );
+  for (const lat of plant.laterals) {
+    if (covered.has(lat.label)) continue;
+    if (cables.some((c) => c.toTerminal === lat.label || c.label === lat.label)) continue;
+    const term = terminals.find((t) => t.label === lat.label);
+    cables.push({
+      label: lat.label.startsWith("LOT-") ? `LAT-${lat.label.slice(4)}` : lat.label,
+      fiberCount: "",
+      lengthFt: term?.footageFt ?? null,
+      path: lat.path,
+      buildType: "bore",
+      role: "lateral",
+      toTerminal: lat.label,
+      routeStreets: mainlineStreet ? [mainlineStreet] : null,
+      stationFt: term?.stationFt ?? null,
+      side: term?.side ?? null,
+      sequenceOrder: term?.sequenceOrder ?? null,
+      status: "planned" as ZiplyObjectStatus,
+    });
+    cablesPathed++;
+  }
+
+  // Write registered coords back onto terminals (control positions)
+  for (const tp of plant.terminalPositions) {
+    const idx = terminals.findIndex((t) => t.label === tp.label);
+    if (idx >= 0) {
+      terminals[idx] = { ...terminals[idx]!, lat: tp.lat, lng: tp.lng };
+    }
+  }
+
+  console.info(
+    `[ziply-enhance] job=${jobId} fidelity=${plant.fidelity} source=${geometrySource} ` +
+      `controls=${plant.controlCount} residualM=${plant.residualRm?.toFixed(1) ?? "?"} ` +
+      `cables=${cablesPathed} roads=${roadsRouted} backbone=${backbonePath.length} ` +
+      `mainline=${mainlineStreet ?? "?"} gold=${gold?.projectLabel ?? "none"}`
+  );
+
+  // Drops = geocoded house addresses (print-accurate parcels). Cap for enhance time.
+  const MAX_DROPS = 48;
+  const dropSites: Array<{
+    address: string;
+    lat: number;
+    lng: number;
+    terminalLabel?: string | null;
+    kind?: "lu" | "mdu" | "bu" | "unknown" | null;
+  }> = [];
+  const dropSeen = new Set<string>();
+  type DropJob = { address: string; terminalLabel: string; reuse?: { lat: number; lng: number } };
+  const dropJobs: DropJob[] = [];
+  for (const t of terminals) {
+    for (const addr of t.addressesServed ?? []) {
+      if (!addr?.trim()) continue;
+      const key = addr.trim().toLowerCase();
+      if (dropSeen.has(key)) continue;
+      dropSeen.add(key);
+      if (
+        isValidLatLng(t.lat, t.lng) &&
+        (t.addressesServed?.length ?? 0) === 1
+      ) {
+        dropJobs.push({
+          address: addr.trim(),
+          terminalLabel: t.label,
+          reuse: { lat: t.lat as number, lng: t.lng as number },
+        });
+      } else {
+        dropJobs.push({ address: addr.trim(), terminalLabel: t.label });
+      }
+      if (dropJobs.length >= MAX_DROPS) break;
+    }
+    if (dropJobs.length >= MAX_DROPS) break;
+  }
+  if (gold && dropJobs.length < MAX_DROPS) {
+    for (const hn of gold.houseNumbers) {
+      const addrs = expandHouseAddresses([hn], mainlineStreet, effectiveCity, null);
+      for (const addr of addrs) {
+        const key = addr.toLowerCase();
+        if (dropSeen.has(key)) continue;
+        dropSeen.add(key);
+        dropJobs.push({ address: addr, terminalLabel: `LOT-${hn}` });
+        if (dropJobs.length >= MAX_DROPS) break;
+      }
+      if (dropJobs.length >= MAX_DROPS) break;
+    }
+  }
+  const placedDrops = await mapPool(dropJobs, 5, async (dj) => {
+    let g = dj.reuse ?? null;
+    if (!g) {
+      g = await geocodeOne(dj.address);
+      if (g) waypointsGeocoded++;
+    }
+    if (!g) return null;
+    return {
+      address: dj.address,
+      lat: g.lat,
+      lng: g.lng,
+      terminalLabel: dj.terminalLabel,
+      kind: "lu" as const,
+    };
+  });
+  for (const d of placedDrops) {
+    if (d) dropSites.push(d);
+  }
+
+  const now = Date.now();
+  const layer = {
+    ...job.ziplyPrintLayer!,
+    printGeometryEnhancedAt: now,
+    mapObjects: {
+      ...mo,
+      hub: {
+        ...(mo.hub ?? {}),
+        lat: hubCoords.lat,
+        lng: hubCoords.lng,
+        status: mo.hub?.status ?? ("planned" as const),
+      },
+      mainlineStreet,
+      backbonePath,
+      geometrySource,
+      geometryResidualM: plant.residualRm ?? null,
+      terminals,
+      cables,
+      dropSites,
+      manualPins: mo.manualPins ?? [],
+      notes: mo.notes ?? null,
+    },
+  };
+
+  const updates: Record<string, unknown> = {
+    ziplyPrintLayer: layer,
+    lastSyncedAt: now,
+    customerProject: "Ziply",
+  };
+  if (!(job.geocode?.status === "OK" && isValidLatLng(job.geocode.lat, job.geocode.lng))) {
+    updates.geocode = {
+      lat: hubCoords.lat,
+      lng: hubCoords.lng,
+      formattedAddress: job.address ?? "",
+      sourceAddress: job.address ?? "",
+      cachedAt: now,
+      status: "OK",
+    };
+  }
+
+  await db().collection("jobs").doc(jobId).update(updates);
+  return {
+    jobId,
+    workOrder: job.workOrder,
+    enhanced: true,
+    reason: "ok",
+    terminalsGeocoded,
+    cablesPathed,
+    waypointsGeocoded,
+    dropsPlaced: dropSites.length,
+  };
+}
+
+// POST /api/jobs/:jobId/ziply-repair-print — re-geocode hub/terminals for an
+// already-ingested print (no Gemini). Makes old prints visible on the map.
+router.post("/jobs/:jobId/ziply-repair-print", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    if ((job.customerProject ?? "").trim().toLowerCase() !== "ziply" && !job.ziplyPrintLayer?.mapObjects) {
+      res.status(400).json({ error: "Not a Ziply job" });
+      return;
+    }
+    if (!job.ziplyPrintLayer?.mapObjects) {
+      res.status(400).json({
+        error: "No print layer on this job — upload/ingest a print first",
+      });
+      return;
+    }
+    const targetAddress = typeof req.body?.address === "string" ? req.body.address : undefined;
+    const repaired = await repairZiplyPrintLocation(job, targetAddress);
+    if (!repaired.repaired) {
+      res.json({
+        ok: false,
+        repaired: false,
+        enhanced: false,
+        reason: repaired.reason,
+        jobId: repaired.jobId,
+        workOrder: repaired.workOrder,
+        terminalsGeocoded: 0,
+        cablesPathed: 0,
+        waypointsGeocoded: 0,
+        dropsPlaced: 0,
+      });
+      return;
+    }
+    const fresh = (await ref.get()).data() as Job;
+    const enhanced = await enhanceZiplyPrintDetail(fresh);
+    invalidateJobsCache();
+    res.json({
+      ok: true,
+      repaired: true,
+      ...enhanced,
+      // Keep repair placement reason when enhance succeeds (e.g. city_center fallback)
+      reason: enhanced.enhanced ? repaired.reason : enhanced.reason,
+      lat: repaired.lat,
+      lng: repaired.lng,
+      terminalsFixed: repaired.terminalsFixed,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/ziply-enhance-prints — batch rebuild plant CAD (Phase A)
+// Body optional: { limit?: number, onlyStale?: boolean }
+router.post("/jobs/ziply-enhance-prints", async (req, res, next) => {
+  try {
+    const body = (req.body ?? {}) as { limit?: number; onlyStale?: boolean };
+    const limit = Math.min(Math.max(body.limit ?? 25, 1), 80);
+    const onlyStale = body.onlyStale !== false;
+    const snap = await db()
+      .collection("jobs")
+      .where("customerProject", "==", "Ziply")
+      .get();
+    const candidates = snap.docs
+      .map((d) => d.data() as Job)
+      .filter((j) => j.ziplyPrintLayer?.mapObjects)
+      .filter((j) => {
+        if (!onlyStale) return true;
+        const src = j.ziplyPrintLayer?.mapObjects?.geometrySource;
+        return !j.ziplyPrintLayer?.printGeometryEnhancedAt || src === "synthetic" || !src;
+      })
+      .slice(0, limit);
+
+    const results: Array<Record<string, unknown>> = [];
+    let enhanced = 0;
+    let failed = 0;
+    for (const job of candidates) {
+      try {
+        const r = await enhanceZiplyPrintDetail(job);
+        if (r.enhanced) enhanced++;
+        else failed++;
+        results.push(r);
+      } catch (e) {
+        failed++;
+        results.push({
+          jobId: job.jobId,
+          enhanced: false,
+          reason: e instanceof Error ? e.message : "error",
+        });
+      }
+    }
+    invalidateJobsCache();
+    res.json({
+      ok: true,
+      attempted: candidates.length,
+      enhanced,
+      failed,
+      results,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/:jobId/ziply-fidelity — single job fidelity
+router.get("/jobs/:jobId/ziply-fidelity", async (req, res, next) => {
+  try {
+    const { reportJobFidelity } = await import("../services/ziplyFidelity.js");
+    const doc = await db().collection("jobs").doc(req.params.jobId).get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    res.json({ ok: true, report: reportJobFidelity(doc.data() as Job) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-control-pin — field control pin (Phase C)
+router.post("/jobs/:jobId/ziply-control-pin", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { kind, ref, lat, lng, sheetX, sheetY, reenhance } = req.body as {
+      kind?: "hub" | "terminal" | "cable";
+      ref?: string;
+      lat?: number;
+      lng?: number;
+      sheetX?: number | null;
+      sheetY?: number | null;
+      reenhance?: boolean;
+    };
+    if (!kind || !ref || !isValidLatLng(lat, lng)) {
+      res.status(400).json({ error: "kind, ref, lat, lng required" });
+      return;
+    }
+    const dbRef = db().collection("jobs").doc(jobId);
+    const doc = await dbRef.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const mo = job.ziplyPrintLayer?.mapObjects;
+    if (!mo) {
+      res.status(400).json({ error: "No print layer" });
+      return;
+    }
+    const pins = [...(mo.manualPins ?? [])].filter(
+      (p) => !(p.kind === kind && p.ref === ref)
+    );
+    pins.push({
+      kind,
+      ref,
+      lat: lat as number,
+      lng: lng as number,
+      sheetX: sheetX ?? null,
+      sheetY: sheetY ?? null,
+      pinnedAt: Date.now(),
+      pinnedBy: (req as { authUser?: { email?: string }; user?: { email?: string } }).authUser?.email ?? (req as { user?: { email?: string } }).user?.email ?? null,
+    });
+    // Mirror onto terminal/hub immediately
+    if (kind === "hub") {
+      mo.hub = { ...(mo.hub ?? {}), lat: lat as number, lng: lng as number };
+    } else if (kind === "terminal") {
+      const terms = [...(mo.terminals ?? [])];
+      const ti = terms.findIndex((t) => t.label === ref);
+      if (ti >= 0) {
+        terms[ti] = {
+          ...terms[ti]!,
+          lat: lat as number,
+          lng: lng as number,
+          manualPin: true,
+        };
+        mo.terminals = terms;
+      }
+    }
+    mo.manualPins = pins;
+    await dbRef.update({
+      ziplyPrintLayer: { ...job.ziplyPrintLayer, mapObjects: mo },
+      lastSyncedAt: Date.now(),
+    });
+    invalidateJobsCache();
+
+    let enhanceResult: unknown = null;
+    if (reenhance !== false) {
+      const fresh = (await dbRef.get()).data() as Job;
+      try {
+        enhanceResult = await enhanceZiplyPrintDetail(fresh);
+        invalidateJobsCache();
+      } catch (e) {
+        enhanceResult = { enhanced: false, reason: e instanceof Error ? e.message : "enhance failed" };
+      }
+    }
+    res.json({ ok: true, jobId, pin: pins[pins.length - 1], enhance: enhanceResult });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/jobs/:jobId/ziply-cable-path — field edit of a single cable polyline.
+ * Body: { label: string, path: Array<{lat,lng}> }
+ * Lets operators correct laterals until they match the print.
+ */
+router.post("/jobs/:jobId/ziply-cable-path", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { label, path, role } = req.body as {
+      label?: string;
+      path?: Array<{ lat: number; lng: number }>;
+      role?: "mainline" | "lateral" | "feeder" | null;
+    };
+    if (!label?.trim() || !Array.isArray(path) || path.length < 2) {
+      res.status(400).json({ error: "label and path (≥2 points) required" });
+      return;
+    }
+    const clean = path.filter(
+      (p) =>
+        typeof p.lat === "number" &&
+        typeof p.lng === "number" &&
+        Number.isFinite(p.lat) &&
+        Number.isFinite(p.lng) &&
+        !(p.lat === 0 && p.lng === 0)
+    );
+    if (clean.length < 2) {
+      res.status(400).json({ error: "path needs ≥2 valid coordinates" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const mo = job.ziplyPrintLayer?.mapObjects;
+    if (!mo) {
+      res.status(400).json({ error: "No print layer" });
+      return;
+    }
+
+    const cables = [...(mo.cables ?? [])];
+    const idx = cables.findIndex(
+      (c) => c.label === label || c.toTerminal === label
+    );
+    if (idx >= 0) {
+      cables[idx] = {
+        ...cables[idx]!,
+        path: clean,
+        role: role ?? cables[idx]!.role ?? "lateral",
+      };
+    } else {
+      cables.push({
+        label,
+        fiberCount: "",
+        lengthFt: null,
+        path: clean,
+        buildType: "bore",
+        role: role ?? "lateral",
+        toTerminal: label,
+        status: "planned",
+      });
+    }
+
+    const isMain = role === "mainline" || cables[idx]?.role === "mainline";
+    await ref.update({
+      ziplyPrintLayer: {
+        ...job.ziplyPrintLayer,
+        mapObjects: {
+          ...mo,
+          cables,
+          backbonePath: isMain ? clean : mo.backbonePath,
+        },
+      },
+      lastSyncedAt: Date.now(),
+    });
+    invalidateJobsCache();
+    res.json({ ok: true, jobId, label, points: clean.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/ziply-repair-prints — batch-repair all Ziply jobs that have
+// print mapObjects but missing/unusable coordinates.
+router.post("/jobs/ziply-repair-prints", async (_req, res, next) => {
+  try {
+    const snap = await db().collection("jobs").where("customerProject", "==", "Ziply").get();
+    const results: RepairResult[] = [];
+    let repaired = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const doc of snap.docs) {
+      const job = doc.data() as Job;
+      if (!job.ziplyPrintLayer?.mapObjects) {
+        skipped++;
+        continue;
+      }
+      // Always attempt if hub missing or geocode missing — repairZiplyPrintLocation is idempotent-ish
+      const hubOk = isValidLatLng(
+        job.ziplyPrintLayer.mapObjects.hub?.lat,
+        job.ziplyPrintLayer.mapObjects.hub?.lng
+      );
+      const geoOk =
+        job.geocode?.status === "OK" &&
+        isValidLatLng(job.geocode.lat, job.geocode.lng);
+      if (hubOk && geoOk) {
+        skipped++;
+        continue;
+      }
+      try {
+        const r = await repairZiplyPrintLocation(job);
+        results.push(r);
+        if (r.repaired) repaired++;
+        else if (r.reason === "geocode_failed") failed++;
+        else skipped++;
+      } catch (e) {
+        failed++;
+        results.push({
+          jobId: job.jobId,
+          workOrder: job.workOrder,
+          repaired: false,
+          reason: e instanceof Error ? e.message : "error",
+        });
+      }
+    }
+
+    invalidateJobsCache();
+    res.json({
+      ok: true,
+      repaired,
+      skipped,
+      failed,
+      results: results.filter((r) => r.repaired || r.reason === "geocode_failed"),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-ingest — starts async Ziply FTTH print parsing.
+router.post("/jobs/:jobId/ziply-ingest", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const body = req.body as ZiplyIngestRequestBody;
+    const { files, legacyDataUrlCount } = sanitizeZiplyStorageFiles(body);
+    if (files.length === 0 && legacyDataUrlCount === 0) {
+      res.status(400).json({ error: "storageFiles required" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const now = Date.now();
+    await ref.update({
+      ziplyIngest: {
+        status: "processing",
+        startedAt: now,
+        updatedAt: now,
+        storageFiles: files,
+        legacyDataUrlCount,
+        errorMessage: null,
+        errorCode: null,
+      },
+      lastSyncedAt: now,
+    });
+    invalidateJobsCache();
+
+    waitUntil(processZiplyIngest(jobId, body));
+
+    res.status(202).json({ ok: true, jobId, status: "processing" });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-print-markups — Persist drawings made on the print
+router.post("/jobs/:jobId/ziply-print-markups", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { markups } = req.body;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    await ref.update({
+      "ziplyPrintLayer.printMarkups": markups || [],
+      lastSyncedAt: Date.now(),
+    });
+    invalidateJobsCache();
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-print/affine-align — 2-Point Web Mercator Affine Georeferencing
+router.post("/jobs/:jobId/ziply-print/affine-align", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { cp1, cp2 } = req.body as { cp1: ControlPoint; cp2: ControlPoint };
+
+    if (!cp1?.pdf || !cp1?.map || !cp2?.pdf || !cp2?.map) {
+      res.status(400).json({ error: "Two valid control points (cp1, cp2) with pdf and map coordinates are required." });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const { compute2PointAffineMatrix, transformPdfToLatLng } = await import("../services/ziplyAffine.js");
+    const matrix = compute2PointAffineMatrix(cp1, cp2);
+
+    const job = doc.data() as Job;
+    const layer = (job.ziplyPrintLayer ?? {}) as Record<string, unknown>;
+    const mapObjects = (layer.mapObjects ?? {}) as Record<string, unknown>;
+
+    // Transform hub position if available in PDF coords
+    let transformedHub = mapObjects.hub;
+    if (mapObjects.hub) {
+      const h = mapObjects.hub as { lat?: number; lng?: number; pdfX?: number; pdfY?: number };
+      if (typeof h.pdfX === "number" && typeof h.pdfY === "number") {
+        const coords = transformPdfToLatLng(h.pdfX, h.pdfY, matrix);
+        transformedHub = { ...h, lat: coords.lat, lng: coords.lng };
+      }
+    }
+
+    // Transform terminals
+    const rawTerminals = (mapObjects.terminals ?? []) as Array<Record<string, unknown>>;
+    const transformedTerminals = rawTerminals.map((t) => {
+      if (typeof t.pdfX === "number" && typeof t.pdfY === "number") {
+        const coords = transformPdfToLatLng(t.pdfX as number, t.pdfY as number, matrix);
+        return { ...t, lat: coords.lat, lng: coords.lng };
+      }
+      return t;
+    });
+
+    const updatedLayer = {
+      ...layer,
+      affineMatrix: matrix,
+      controlPoints: [cp1, cp2],
+      mapObjects: {
+        ...mapObjects,
+        hub: transformedHub,
+        terminals: transformedTerminals,
+      },
+      georeferencedAt: Date.now(),
+    };
+
+    await ref.update({
+      ziplyPrintLayer: updatedLayer,
+      lastSyncedAt: Date.now(),
+    });
+
+    invalidateJobsCache();
+    res.json({
+      ok: true,
+      jobId,
+      matrix,
+      transformedTerminals: transformedTerminals.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-object-status — Persist one map object's build
+// status (spec §4). kind identifies the family; ref matches the object's label
+// (or "hub" for the FDH). Writes into ziplyPrintLayer.mapObjects.
+router.post("/jobs/:jobId/ziply-object-status", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { kind, ref: objectRef, status } = req.body as {
+      kind?: "hub" | "terminal" | "cable";
+      ref?: string;
+      status?: ZiplyObjectStatus;
+    };
+    const validStatus: ZiplyObjectStatus[] = ["planned", "in_progress", "complete"];
+    if (!kind || !status || !validStatus.includes(status)) {
+      res.status(400).json({ error: "kind and valid status required" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer;
+    if (!layer?.mapObjects) {
+      res.status(400).json({ error: "Job has no ziply map objects to update" });
+      return;
+    }
+
+    const mapObjects = layer.mapObjects;
+    if (kind === "hub") {
+      mapObjects.hub = { ...(mapObjects.hub ?? {}), status };
+    } else if (kind === "terminal") {
+      const t = mapObjects.terminals?.find((x) => x.label === objectRef);
+      if (!t) {
+        res.status(404).json({ error: `Terminal ${objectRef} not found` });
+        return;
+      }
+      t.status = status;
+    } else {
+      const c = mapObjects.cables?.find((x) => x.label === objectRef);
+      if (!c) {
+        res.status(404).json({ error: `Cable ${objectRef} not found` });
+        return;
+      }
+      c.status = status;
+    }
+
+    await ref.update({ ziplyPrintLayer: layer, lastSyncedAt: Date.now() });
+    invalidateJobsCache();
+
+    res.json({ ok: true, jobId, ziplyPrintLayer: layer });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-production — Logs daily progress and updates Smartsheet row
+router.post("/jobs/:jobId/ziply-production", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { completedBoreFt, completedPlacingFt, completedAerialFt, notes } = req.body as {
+      completedBoreFt?: number;
+      completedPlacingFt?: number;
+      completedAerialFt?: number;
+      notes?: string;
+    };
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+
+    // Cumulative production ft
+    const newBore = (job.completedBoreFt ?? 0) + (completedBoreFt ?? 0);
+    const newPlacing = (job.completedPlacingFt ?? 0) + (completedPlacingFt ?? 0);
+    const newAerial = (job.completedAerialFt ?? 0) + (completedAerialFt ?? 0);
+
+    const updates: Partial<Job> = {
+      completedBoreFt: newBore,
+      completedPlacingFt: newPlacing,
+      completedAerialFt: newAerial,
+      lastSyncedAt: Date.now(),
+    };
+    if (notes) {
+      updates.nscProjectNotes = notes;
+    }
+
+    await ref.update(updates);
+    invalidateJobsCache();
+
+    // Opt-in Smartsheet write-back (Phase D) — body.syncSmartsheet === true
+    let smartsheet: { ok: boolean; error?: string } | null = null;
+    const { syncSmartsheet } = req.body as { syncSmartsheet?: boolean };
+    if (syncSmartsheet === true && job.workOrder) {
+      try {
+        const sheet = await getSheet();
+        const row = findRowByWorkOrder(sheet, job.workOrder);
+        if (!row) {
+          smartsheet = { ok: false, error: "work_order_not_found" };
+        } else {
+          const cells: Record<string, string | number | null> = {};
+          // Best-effort common column titles (sheet schemas vary)
+          const tryTitles: Array<[string, number]> = [
+            ["Completed Bore Ft", newBore],
+            ["Completed Bore", newBore],
+            ["Bore Completed", newBore],
+            ["Completed Placing Ft", newPlacing],
+            ["Completed Placing", newPlacing],
+            ["Completed Aerial Ft", newAerial],
+            ["Completed Aerial", newAerial],
+          ];
+          const byTitle = buildColumnsByTitle(sheet);
+          for (const [title, value] of tryTitles) {
+            if (byTitle.has(title) && !Object.keys(cells).includes(title)) {
+              // only first match per metric family
+              if (
+                title.toLowerCase().includes("bore") &&
+                !Object.keys(cells).some((k) => k.toLowerCase().includes("bore"))
+              ) {
+                cells[title] = value;
+              } else if (
+                title.toLowerCase().includes("placing") &&
+                !Object.keys(cells).some((k) => k.toLowerCase().includes("placing"))
+              ) {
+                cells[title] = value;
+              } else if (
+                title.toLowerCase().includes("aerial") &&
+                !Object.keys(cells).some((k) => k.toLowerCase().includes("aerial"))
+              ) {
+                cells[title] = value;
+              }
+            }
+          }
+          if (Object.keys(cells).length === 0) {
+            smartsheet = { ok: false, error: "no_matching_columns" };
+          } else {
+            await updateRowCells(row.id, cells, sheet);
+            smartsheet = { ok: true };
+          }
+        }
+      } catch (e) {
+        smartsheet = {
+          ok: false,
+          error: e instanceof Error ? e.message : "smartsheet_error",
+        };
+      }
+    }
+
+    res.json({
+      ok: true,
+      jobId,
+      completedBoreFt: newBore,
+      completedPlacingFt: newPlacing,
+      completedAerialFt: newAerial,
+      smartsheet,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/schedule — Update schedule dates and crew assignment
+router.post("/jobs/:jobId/schedule", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { scheduleDate, endDate, constructionCrewForeman } = req.body as {
+      scheduleDate?: string | null;
+      endDate?: string | null;
+      constructionCrewForeman?: string | null;
+    };
+
+    let ref = db().collection("jobs").doc(jobId);
+    let doc = await ref.get();
+    if (!doc.exists) {
+      // Fallback: the client might have passed a workOrder instead of a doc ID.
+      const snap = await db().collection("jobs").where("workOrder", "==", jobId).limit(1).get();
+      if (!snap.empty) {
+        ref = snap.docs[0].ref;
+        doc = snap.docs[0];
+      } else {
+        res.status(404).json({ error: "Job not found" });
+        return;
+      }
+    }
+
+    const updates: Partial<Job> = {
+      lastSyncedAt: Date.now(),
+    };
+    if (scheduleDate !== undefined) updates.scheduleDate = scheduleDate;
+    if (endDate !== undefined) updates.actualCompletionDate = endDate;
+    if (constructionCrewForeman !== undefined) updates.constructionCrewForeman = constructionCrewForeman;
+
+    await ref.update(updates);
+    invalidateJobsCache();
+
+    res.json({ ok: true, jobId, scheduleDate, endDate, constructionCrewForeman });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/marking-instructions — Generate 811 marking instructions
+router.post("/jobs/:jobId/marking-instructions", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    let ref = db().collection("jobs").doc(jobId);
+    let doc = await ref.get();
+    
+    if (!doc.exists) {
+      const snap = await db().collection("jobs").where("workOrder", "==", jobId).limit(1).get();
+      if (!snap.empty) {
+        ref = snap.docs[0].ref;
+        doc = snap.docs[0];
+      } else {
+        res.status(404).json({ error: "Job not found" });
+        return;
+      }
+    }
+
+    const job = doc.data() as Job;
+    const shape = (job as any).digPolygon as DigShape | undefined;
+    
+    let instructions = `Please locate and mark all underground utilities for FTTH construction. `;
+    instructions += `Project: ${job.customerProject || "Ziply"} ${job.workOrder || ""}. `;
+    
+    if (job.address) {
+      instructions += `Location: ${job.address}, ${job.city || ""}. `;
+    }
+
+    if (shape) {
+      if (shape.type === "radius") {
+        instructions += `Scope: A ${Math.round(Math.sqrt(shape.areaSqFt / Math.PI))} ft radius around the specified coordinates. `;
+      } else if (shape.type === "route") {
+        instructions += `Scope: A route of approximately ${Math.round(shape.perimeterFt / 2)} ft in length. Mark 10ft on both sides of route. `;
+      } else {
+        instructions += `Scope: A polygon area of approximately ${Math.round(shape.areaSqFt)} sq ft. `;
+      }
+    }
+    
+    if (job.workType) {
+      instructions += `Work involves: ${job.workType}. `;
+    }
+    
+    instructions += `Method of excavation: Directional boring and trenching. `;
+
+    res.json({ instructions });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/permits — legacy base64 upload (kept for old UI).
+// Prefer POST /ziply-permit-ingest (Storage + AI parse).
+router.post("/jobs/:jobId/permits", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { permitType, fileDataUrl } = req.body as {
+      permitType: string;
+      fileDataUrl: string;
+    };
+
+    if (!permitType || !fileDataUrl) {
+      res.status(400).json({ error: "permitType and fileDataUrl are required" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer || {
+      hubId: job.hubNumber || null,
+      hubTypeSize: null,
+      terminalCount: null,
+      uploadedPermitDocs: {},
+    };
+
+    const uploadedDocs = { ...(layer.uploadedPermitDocs || {}) };
+    // Do not store huge base64 blobs in Firestore — reject oversized payloads.
+    if (fileDataUrl.length > 900_000) {
+      res.status(400).json({
+        error:
+          "Permit file too large for legacy upload. Use the new ENHANCE permit upload (Storage).",
+      });
+      return;
+    }
+    uploadedDocs[permitType] = fileDataUrl;
+
+    await ref.update({
+      ziplyPrintLayer: {
+        ...layer,
+        uploadedPermitDocs: uploadedDocs,
+      },
+      lastSyncedAt: Date.now(),
+    });
+    invalidateJobsCache();
+
+    res.json({ ok: true, jobId, permitType });
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function processZiplyPermitIngest(
+  jobId: string,
+  permitFileId: string,
+  permitType: string,
+  body: ZiplyIngestRequestBody
+): Promise<void> {
+  const ref = db().collection("jobs").doc(jobId);
+  try {
+    const urls = await resolveZiplyPrintDataUrls(body);
+    if (urls.length === 0) throw new Error("storageFiles required");
+
+    const parsed = await parseZiplyPermit(urls, permitType);
+    const doc = await ref.get();
+    if (!doc.exists) throw new Error("Job not found");
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer ?? {
+      hubId: job.hubNumber || null,
+      hubTypeSize: null,
+      terminalCount: null,
+    };
+
+    const files: ZiplyPermitFile[] = [...(layer.permitFiles ?? [])];
+    const idx = files.findIndex((f) => f.id === permitFileId);
+    if (idx < 0) throw new Error("permit file record missing");
+
+    const typeKey =
+      (parsed.permitTypeKey &&
+      PERMIT_TYPE_KEYS.includes(parsed.permitTypeKey as (typeof PERMIT_TYPE_KEYS)[number])
+        ? parsed.permitTypeKey
+        : permitType) || "other";
+
+    files[idx] = {
+      ...files[idx]!,
+      permitType: typeKey,
+      ingestStatus: "complete",
+      errorMessage: null,
+      parsed: {
+        permitNumber: parsed.permitNumber,
+        permitTypeKey: typeKey,
+        issuingAgency: parsed.issuingAgency,
+        status: parsed.status,
+        issueDate: parsed.issueDate,
+        expirationDate: parsed.expirationDate,
+        workStartDate: parsed.workStartDate,
+        workEndDate: parsed.workEndDate,
+        workHours: parsed.workHours,
+        workLocation: parsed.workLocation,
+        streets: parsed.streets,
+        excavationMethods: parsed.excavationMethods,
+        trafficControlRequired: parsed.trafficControlRequired,
+        conditions: parsed.conditions,
+        restrictions: parsed.restrictions,
+        contacts: parsed.contacts,
+        summary: parsed.summary,
+      },
+    };
+
+    // Roll parsed status into the permits status board when we know the slot.
+    const permits = { ...(layer.permits ?? {}) } as NonNullable<
+      NonNullable<Job["ziplyPrintLayer"]>["permits"]
+    >;
+    if (
+      typeKey !== "other" &&
+      (typeKey === "cityRow" ||
+        typeKey === "wsdot" ||
+        typeKey === "county" ||
+        typeKey === "railroad" ||
+        typeKey === "pa" ||
+        typeKey === "tcp")
+    ) {
+      permits[typeKey] = parsed.status ?? "Approved";
+    }
+
+    // Keep a stable download URL on the legacy map for "VIEW DOC" buttons.
+    const uploadedDocs = { ...(layer.uploadedPermitDocs ?? {}) };
+    const downloadUrl = files[idx]!.downloadUrl;
+    if (downloadUrl && typeKey !== "other") {
+      uploadedDocs[typeKey] = downloadUrl;
+    }
+
+    // Merge excavation methods onto print layer if permit lists them.
+    let excav = layer.permittedExcavationMethods ?? [];
+    if (parsed.excavationMethods?.length) {
+      const set = new Set([...(excav ?? []), ...parsed.excavationMethods]);
+      excav = Array.from(set);
+    }
+
+    await ref.update({
+      ziplyPrintLayer: {
+        ...layer,
+        permits,
+        permittedExcavationMethods: excav,
+        uploadedPermitDocs: uploadedDocs,
+        permitFiles: files,
+      },
+      lastSyncedAt: Date.now(),
+      customerProject: job.customerProject || "Ziply",
+    });
+    invalidateJobsCache();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Permit ingest failed";
+    console.error(`[ziply-permit-ingest] failed job=${jobId} file=${permitFileId}`, err);
+    try {
+      const doc = await ref.get();
+      if (!doc.exists) return;
+      const job = doc.data() as Job;
+      const layer = job.ziplyPrintLayer;
+      if (!layer?.permitFiles) return;
+      const files = layer.permitFiles.map((f) =>
+        f.id === permitFileId
+          ? { ...f, ingestStatus: "failed" as const, errorMessage: message }
+          : f
+      );
+      await ref.update({
+        ziplyPrintLayer: { ...layer, permitFiles: files },
+        lastSyncedAt: Date.now(),
+      });
+      invalidateJobsCache();
+    } catch {
+      /* ignore secondary failure */
+    }
+  }
+}
+
+// POST /api/jobs/:jobId/ziply-permit-ingest — upload metadata already in Storage;
+// AI-parse the permit and attach structured fields to the job.
+router.post("/jobs/:jobId/ziply-permit-ingest", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const body = req.body as ZiplyIngestRequestBody & { permitType?: string };
+    const permitTypeRaw = String(body.permitType ?? "other").trim() || "other";
+    const permitType = PERMIT_TYPE_KEYS.includes(
+      permitTypeRaw as (typeof PERMIT_TYPE_KEYS)[number]
+    )
+      ? permitTypeRaw
+      : "other";
+
+    const { files, legacyDataUrlCount } = sanitizeZiplyStorageFiles(body);
+    if (files.length === 0 && legacyDataUrlCount === 0) {
+      res.status(400).json({ error: "storageFiles required" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer ?? {
+      hubId: job.hubNumber || null,
+      hubTypeSize: null,
+      terminalCount: null,
+    };
+
+    const first = files[0];
+    const permitFileId = randomUUID();
+    const now = Date.now();
+    const record: ZiplyPermitFile = {
+      id: permitFileId,
+      permitType,
+      name: first?.name || "permit.pdf",
+      downloadUrl: first?.downloadUrl || "",
+      storagePath: first?.storagePath ?? null,
+      contentType: first?.contentType ?? null,
+      size: first?.size ?? null,
+      uploadedAt: now,
+      ingestStatus: "processing",
+      errorMessage: null,
+      parsed: null,
+    };
+
+    const permitFiles = [...(layer.permitFiles ?? []), record];
+    const uploadedDocs = { ...(layer.uploadedPermitDocs ?? {}) };
+    if (record.downloadUrl && permitType !== "other") {
+      uploadedDocs[permitType] = record.downloadUrl;
+    }
+
+    await ref.update({
+      ziplyPrintLayer: {
+        ...layer,
+        permitFiles,
+        uploadedPermitDocs: uploadedDocs,
+      },
+      lastSyncedAt: now,
+      customerProject: job.customerProject || "Ziply",
+    });
+    invalidateJobsCache();
+
+    waitUntil(processZiplyPermitIngest(jobId, permitFileId, permitType, body));
+
+    res.status(202).json({
+      ok: true,
+      jobId,
+      permitFileId,
+      status: "processing",
+      permitType,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/ziply-section-crew — assign a live crew to one
+// hub/terminal/cable section. This deliberately keys by hub + section ref so a
+// calendar/Gantt schedule can layer over the same objects later.
+router.post("/jobs/:jobId/ziply-section-crew", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { kind, ref: objectRef, crewName } = req.body as {
+      kind?: ZiplySectionKind;
+      ref?: string;
+      crewName?: string | null;
+    };
+    if (!kind || !["hub", "terminal", "cable"].includes(kind) || !objectRef) {
+      res.status(400).json({ error: "kind and ref are required" });
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const layer = job.ziplyPrintLayer;
+    const mapObjects = layer?.mapObjects;
+    if (!layer || !mapObjects) {
+      res.status(400).json({ error: "Job has no Ziply map objects to assign" });
+      return;
+    }
+
+    const assignedAt = Date.now();
+    const cleanCrew = typeof crewName === "string" && crewName.trim() ? crewName.trim() : null;
+    if (kind === "terminal") {
+      const t = mapObjects.terminals?.find((x) => x.label === objectRef);
+      if (!t) {
+        res.status(404).json({ error: `Terminal ${objectRef} not found` });
+        return;
+      }
+      t.crewName = cleanCrew;
+      t.crewAssignedAt = cleanCrew ? assignedAt : null;
+    } else if (kind === "cable") {
+      const c = mapObjects.cables?.find((x) => x.label === objectRef);
+      if (!c) {
+        res.status(404).json({ error: `Cable ${objectRef} not found` });
+        return;
+      }
+      c.crewName = cleanCrew;
+      c.crewAssignedAt = cleanCrew ? assignedAt : null;
+    } else {
+      job.crewName = cleanCrew;
+    }
+
+    await ref.update({
+      ...(kind === "hub" ? { crewName: cleanCrew } : { ziplyPrintLayer: layer }),
+      lastSyncedAt: assignedAt,
+    });
+    invalidateJobsCache();
+    res.json({ ok: true, jobId, kind, ref: objectRef, crewName: cleanCrew, assignedAt });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Print Overlay (Stages 1–5) ──────────────────────────────────────────────
+// Job-scoped, non-destructive overlay metadata (source PDFs, split page
+// records, reversible crop rects, draft transforms + alignments). Binaries
+// (original PDFs, page preview PNGs) live in Firebase Storage; only Storage
+// references + small metadata are persisted here — never giant base64 blobs.
+// This is the Stage 1–5 draft document; the Stage 6 final "lock" state is
+// intentionally NOT modeled or persisted by this route.
+
+// GET /api/jobs/:jobId/print-overlay — read the saved overlay doc (or null).
+router.get("/jobs/:jobId/print-overlay", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const data = doc.data() as { printOverlay?: PrintOverlayDoc | null };
+    res.json({ jobId, printOverlay: data.printOverlay ?? null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/jobs/:jobId/print-overlay — save (or clear, with null) the overlay
+// draft. Body: { doc: PrintOverlayDoc | null }.
+router.put("/jobs/:jobId/print-overlay", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    const body = req.body as { doc?: PrintOverlayDoc | null };
+    const incoming = body.doc ?? null;
+    if (incoming !== null) {
+      const err = validatePrintOverlayDoc(incoming);
+      if (err) {
+        res.status(400).json({ error: err });
+        return;
+      }
+    }
+
+    const updatedBy = (req as { authUser?: { email?: string }; user?: { email?: string } }).authUser?.email ?? (req as { user?: { email?: string } }).user?.email ?? null;
+    const saved: PrintOverlayDoc | null = incoming
+      ? { ...incoming, jobId, updatedAt: Date.now(), updatedBy }
+      : null;
+
+    await ref.update({ printOverlay: saved });
+    invalidateJobsCache();
+    res.json({ jobId, printOverlay: saved });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Validate a PrintOverlayDoc at the persistence boundary. Guards against giant
+// base64 previews (Firestore 1 MiB doc limit) and malformed page records.
+function validatePrintOverlayDoc(d: PrintOverlayDoc): string | null {
+  if (!d || typeof d !== "object") return "doc must be an object";
+  if (d.schemaVersion !== 1) return "schemaVersion must be 1";
+  if (!Array.isArray(d.sources)) return "sources must be an array";
+  if (!Array.isArray(d.pages)) return "pages must be an array";
+  if (typeof d.transforms !== "object" || d.transforms === null) {
+    return "transforms must be an object";
+  }
+  if (typeof d.alignments !== "object" || d.alignments === null) {
+    return "alignments must be an object";
+  }
+  for (const p of d.pages) {
+    if (typeof p.id !== "string" || !p.id) return "page.id must be a non-empty string";
+    if (typeof p.pageNumber !== "number" || p.pageNumber < 1) {
+      return `page ${p.id}: pageNumber must be a positive number`;
+    }
+    if (typeof p.previewUrl === "string" && p.previewUrl.length > 5000000) {
+      return `page ${p.id}: previewUrl exceeds maximum allowed length`;
+    }
+    if (p.crop) {
+      const c = p.crop;
+      const inRange = [c.x, c.y, c.width, c.height].every(
+        (n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1
+      );
+      if (!inRange || c.width <= 0 || c.height <= 0) {
+        return `page ${p.id}: crop must be normalized (0..1) with positive size`;
+      }
+      if (c.x + c.width > 1.0001 || c.y + c.height > 1.0001) {
+        return `page ${p.id}: crop bounds (x+width, y+height) must not exceed 1`;
+      }
+    }
+  }
+  return null;
+}
+
+// ─── Phase 1: NSMS Job Control Endpoints ─────────────────────────────────────
+
+// POST /api/jobs/:jobId/provision — Idempotently provision Google Drive hierarchy
+router.post("/jobs/:jobId/provision", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const ref = db().collection("jobs").doc(jobId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const job = doc.data() as Job;
+    const { provisionJobDriveHierarchy } = await import("../services/driveProvisioner.js");
+    const hierarchy = await provisionJobDriveHierarchy(
+      jobId,
+      job.workOrder,
+      job.buildReference ?? null
+    );
+    // Never persist a fake driveFolderId. The no-op provisioner returns
+    // provisioned:false; callers that treat that as success would silently
+    // corrupt Job records.
+    res.json({ ok: true, hierarchy });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/:jobId/timeline — Retrieve immutable audit activity ledger
+router.get("/jobs/:jobId/timeline", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { listJobAuditEvents } = await import("../services/auditEventService.js");
+    const events = await listJobAuditEvents(jobId);
+    res.json({ ok: true, events });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Phase 2: Earth Bridge KML & Review Console Endpoints ────────────────────
+//
+// The two GET /earth/... .kml routes are public paths (see isPublicApiPath)
+// because Google Earth cannot send Authorization headers on Network Link
+// fetches. They authenticate themselves via a signed HMAC token in the query
+// string, verified inline before any data is read. Every other Earth route
+// still requires a Firebase Bearer token through the standard middleware.
+
+/** Read all currently active drawing objects for a job. Unions the legacy
+ *  `asbuilt/current` doc with any per-user `asbuilt/{ownerSlug}` docs so the
+ *  Earth feed sees everything the map sees. */
+async function loadActiveJobObjects(jobId: string): Promise<any[]> {
+  const asbuiltSnaps = await db().collection("jobs").doc(jobId).collection("asbuilt").get();
+  const merged: any[] = [];
+  asbuiltSnaps.forEach((d) => {
+    const data = d.data();
+    const objs = Array.isArray(data?.objects) ? (data.objects as any[]) : [];
+    for (const o of objs) merged.push(o);
+  });
+  return merged;
+}
+
+// POST /api/jobs/:jobId/earth/network-link — Mint a signed KML Network Link URL
+//
+// Called by the EarthDesignPanel to hand the operator the URL to paste into
+// Google Earth Desktop or open via earth.google.com. The URL contains a signed
+// HMAC token so Earth's periodic refresh keeps working for `ttlDays` days.
+router.post("/jobs/:jobId/earth/network-link", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { ttlDays } = (req.body ?? {}) as { ttlDays?: number };
+    const ref = db().collection("jobs").doc(jobId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    const { signFeedToken } = await import("../services/kmlService.js");
+    const ttlMs = Math.max(1, Math.min(365, ttlDays ?? 30)) * 24 * 60 * 60 * 1000;
+    const token = signFeedToken(jobId, ttlMs);
+    const host = req.get("host") || "nsc-app-map.vercel.app";
+    const networkLinkUrl = `https://${host}/api/earth/network-link/${encodeURIComponent(jobId)}.kml?token=${encodeURIComponent(token)}`;
+    res.json({ ok: true, networkLinkUrl, token, expiresAt: Date.now() + ttlMs });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/earth/network-link/:jobId.kml — Live Network Link manifest (public)
+router.get("/earth/network-link/:jobId.kml", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const token = String(req.query.token ?? "");
+    const { verifyFeedToken, generateJobNetworkLinkKml, signFeedToken } = await import(
+      "../services/kmlService.js"
+    );
+    if (!verifyFeedToken(token, jobId)) {
+      res.status(401).send("Invalid or expired feed token");
+      return;
+    }
+    const ref = db().collection("jobs").doc(jobId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).send("Job not found");
+      return;
+    }
+    const job = snap.data() as Job;
+    // Re-sign so the embedded layer URL doesn't inherit the manifest's short
+    // remaining TTL — it always gets a fresh 30-day signed URL.
+    const layerToken = signFeedToken(jobId);
+    const host = req.get("host") || "nsc-app-map.vercel.app";
+    const kml = generateJobNetworkLinkKml(job, host, layerToken);
+    res.setHeader("Content-Type", "application/vnd.google-earth.kml+xml");
+    res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
+    res.setHeader("Content-Disposition", `inline; filename="job_${jobId}_network_link.kml"`);
+    res.send(kml);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/earth/layers/:jobId/all.kml — Dynamic Layer KML feed (public)
+router.get("/earth/layers/:jobId/all.kml", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const token = String(req.query.token ?? "");
+    const layerParam = String(req.query.layer ?? "all");
+    const layerCode = (["all", "earth_design", "asbuilt", "pdf_markup", "other"] as const)
+      .includes(layerParam as any)
+      ? (layerParam as any)
+      : "all";
+
+    const { verifyFeedToken, generateJobLayersKml } = await import("../services/kmlService.js");
+    if (!verifyFeedToken(token, jobId)) {
+      res.status(401).send("Invalid or expired feed token");
+      return;
+    }
+
+    const ref = db().collection("jobs").doc(jobId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).send("Job not found");
+      return;
+    }
+    const job = snap.data() as Job;
+
+    const markups = await loadActiveJobObjects(jobId);
+    const kml = generateJobLayersKml(job, markups, layerCode);
+    res.setHeader("Content-Type", "application/vnd.google-earth.kml+xml");
+    // Earth honors refreshInterval; still, allow no proxy caching between
+    // Earth and us so operator edits show up on the next poll.
+    res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
+    res.setHeader("Content-Disposition", `inline; filename="job_${jobId}_layers.kml"`);
+    res.send(kml);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/earth/submissions — Upload KML/KMZ candidate submission
+router.post("/jobs/:jobId/earth/submissions", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const body = (req.body ?? {}) as {
+      kmlText?: string;
+      kmzBase64?: string;
+      submittedBy?: string;
+    };
+    if (!body.kmlText && !body.kmzBase64) {
+      res.status(400).json({ error: "Provide kmlText or kmzBase64" });
+      return;
+    }
+    const submittedBy =
+      body.submittedBy?.trim() || req.authUser?.email || "unknown";
+    const { createCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const revision = await createCandidateRevision(
+      jobId,
+      { kmlText: body.kmlText, kmzBase64: body.kmzBase64 },
+      submittedBy
+    );
+    res.json({ ok: true, revision });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobs/:jobId/earth/revisions — List candidate design revisions
+router.get("/jobs/:jobId/earth/revisions", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const snap = await db()
+      .collection("jobs")
+      .doc(jobId)
+      .collection("earthRevisions")
+      .orderBy("submittedAt", "desc")
+      .limit(50)
+      .get();
+    const revisions = snap.docs.map((d) => d.data());
+    res.json({ ok: true, revisions });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/earth/revisions/:revisionId/approve — Transactional approval
+router.post("/jobs/:jobId/earth/revisions/:revisionId/approve", async (req, res, next) => {
+  try {
+    const { jobId, revisionId } = req.params;
+    const approvedBy = req.authUser?.email || "unknown";
+    const { approveCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const result = await approveCandidateRevision(jobId, revisionId, approvedBy);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobs/:jobId/earth/revisions/:revisionId/reject — Reject with reason
+router.post("/jobs/:jobId/earth/revisions/:revisionId/reject", async (req, res, next) => {
+  try {
+    const { jobId, revisionId } = req.params;
+    const { reason } = (req.body ?? {}) as { reason?: string };
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ error: "reason is required" });
+      return;
+    }
+    const rejectedBy = req.authUser?.email || "unknown";
+    const { rejectCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const result = await rejectCandidateRevision(jobId, revisionId, rejectedBy, reason);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Sheet Registrations (NSMS Phase 3) ─────────────────────────────────────
+// PDF-affine registrations bind a paper print's page-space to WGS84 so that
+// markup drawings can be projected onto the map. The client (printGeoreference)
+// computes the transform; the server enforces schema + append-only semantics
+// and writes an audit trail.
+
+router.get("/jobs/:jobId/sheet-registrations", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const documentId = typeof req.query.documentId === "string" ? req.query.documentId : undefined;
+    const pageNumberRaw = typeof req.query.pageNumber === "string" ? Number(req.query.pageNumber) : undefined;
+    const pageNumber = pageNumberRaw !== undefined && Number.isInteger(pageNumberRaw) ? pageNumberRaw : undefined;
+    const { listSheetRegistrations } = await import("../services/sheetRegistrationService.js");
+    const registrations = await listSheetRegistrations(jobId, { documentId, pageNumber });
+    res.json({ ok: true, registrations });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/jobs/:jobId/sheet-registrations", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const createdBy = req.authUser?.email || "unknown";
+    const body = (req.body ?? {}) as Partial<{
+      documentId: string;
+      pageNumber: number;
+      method: "corner" | "control-point" | "warp";
+      controlPoints: Array<{ sheet: { x: number; y: number }; geographic: { lat: number; lng: number } }>;
+      transform: { scale: number; rotationRad: number; tx: number; ty: number };
+      rmsError: number;
+      confidence: "low" | "medium" | "high";
+    }>;
+    const { createSheetRegistration } = await import("../services/sheetRegistrationService.js");
+    const registration = await createSheetRegistration({
+      jobId,
+      documentId: body.documentId ?? "",
+      pageNumber: body.pageNumber ?? 0,
+      method: (body.method ?? "control-point") as "corner" | "control-point" | "warp",
+      controlPoints: body.controlPoints ?? [],
+      transform: body.transform ?? { scale: 0, rotationRad: 0, tx: 0, ty: 0 },
+      rmsError: body.rmsError,
+      confidence: (body.confidence ?? "medium") as "low" | "medium" | "high",
+      createdBy,
+    });
+    res.json({ ok: true, registration });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete("/jobs/:jobId/sheet-registrations/:registrationId", async (req, res, next) => {
+  try {
+    const { jobId, registrationId } = req.params;
+    const deletedBy = req.authUser?.email || "unknown";
+    const { deleteSheetRegistration } = await import("../services/sheetRegistrationService.js");
+    const result = await deleteSheetRegistration(jobId, registrationId, deletedBy);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Print-Overlay → Earth Revision Bridge (NSMS Phase 3) ───────────────────
+// The client projects sheet-space markup drawings to WGS84 using an active
+// SheetRegistration and serializes the result to KML. This route accepts that
+// KML and funnels it through the same createCandidateRevision pipeline used
+// by the Google Earth Bridge, but tags the revision as source="pdf-markup".
+// Approval then flows through the existing RevisionReviewConsole → canonical
+// geoFeatures fan-out, so the review UX and audit trail are shared.
+
+router.post("/jobs/:jobId/print-overlay/promote-to-earth-revision", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const submittedBy = req.authUser?.email || "unknown";
+    const body = (req.body ?? {}) as { kmlText?: string; documentId?: string; sheetRegistrationId?: string };
+    if (!body.kmlText || typeof body.kmlText !== "string" || !body.kmlText.trim()) {
+      res.status(400).json({ error: "kmlText required (WGS84-projected drawings serialized to KML)" });
+      return;
+    }
+    const { createCandidateRevision } = await import("../services/kmlIngestionService.js");
+    const revision = await createCandidateRevision(
+      jobId,
+      { kmlText: body.kmlText },
+      submittedBy,
+      "pdf-markup"
+    );
+    await recordAuditEvent(jobId, {
+      eventType: "earth_submission_received",
+      summary: `PDF markup promoted to Earth revision (${revision.featureCount} features, source=pdf-markup)`,
+      userEmail: submittedBy,
+      metadata: {
+        revisionId: revision.id,
+        source: "pdf-markup",
+        featureCount: revision.featureCount,
+        documentId: body.documentId ?? null,
+        sheetRegistrationId: body.sheetRegistrationId ?? null,
+        warnings: revision.warnings,
+      },
+    });
+    res.json({ ok: true, revision });
   } catch (err) {
     next(err);
   }

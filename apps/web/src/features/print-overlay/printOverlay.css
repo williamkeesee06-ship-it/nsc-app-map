@@ -1,0 +1,1066 @@
+/* Print Overlay Studio — premium light-mode chrome.
+ *
+ * The studio docks panels at the screen edges and leaves the center clear so
+ * the real Google Map underneath stays fully navigable (pan/zoom). Only the
+ * docked chrome captures pointer events; the working center does not. */
+
+.po-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  pointer-events: none; /* center stays clear so the map is navigable */
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #0f172a;
+}
+
+.po-root button {
+  font-family: inherit;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.po-topbar {
+  pointer-events: auto;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+
+}
+
+.po-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0;
+  color: #0f172a;
+}
+
+.po-title__accent {
+  color: #0284c7;
+}
+
+.po-phasehint {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  flex: 1;
+  text-align: center;
+}
+
+.po-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.po-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.po-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.po-btn:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}
+.po-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.po-btn--primary {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.3);
+}
+.po-btn--primary:hover:not(:disabled) {
+  background: #0369a1;
+  border-color: #0369a1;
+}
+.po-btn--danger {
+  color: #b91c1c;
+  border-color: #fca5a5;
+  background: #fff;
+}
+.po-btn--danger:hover:not(:disabled) {
+  background: #fef2f2;
+}
+.po-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: #475569;
+}
+.po-btn--ghost:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+/* ── Right control panel (Stage 4/5) ─────────────────────────────────────── */
+.po-panel {
+  pointer-events: auto;
+  position: absolute;
+  top: 72px;
+  right: 16px;
+  width: 300px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.po-panel__section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #334155;
+  margin: 0;
+}
+
+.po-field label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+.po-field label b {
+  color: #0f172a;
+  font-weight: 800;
+}
+.po-field input[type="range"] {
+  width: 100%;
+  accent-color: #0284c7;
+}
+.po-field__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.po-field__num {
+  width: 72px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.po-divider {
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.po-quality {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+}
+.po-quality--warn {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.po-anchor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.po-anchor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+.po-anchor--done {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.po-anchor--active {
+  border-color: #0284c7;
+  background: #f0f9ff;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+.po-anchor__label {
+  font-weight: 700;
+  color: #334155;
+}
+.po-anchor__state {
+  color: #64748b;
+}
+
+/* ── Bottom carousel (Stage 2) ───────────────────────────────────────────── */
+.po-carousel {
+  pointer-events: auto;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  min-height: 116px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  overflow-x: auto;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -1px 3px rgba(15, 23, 42, 0.06);
+
+}
+
+.po-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 120px;
+  height: 88px;
+  border-radius: 8px;
+  border: 2px solid #e2e8f0;
+  background: #f8fafc;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.po-thumb:hover {
+  border-color: #7dd3fc;
+}
+.po-thumb--active {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18);
+}
+.po-thumb:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}
+.po-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+.po-thumb__label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.7);
+  padding: 2px 5px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.po-thumb__badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.po-thumb__badge--crop {
+  background: #0284c7;
+  color: #fff;
+}
+.po-thumb__badge--skip {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+/* ── Centered dialogs (source chooser, processing, crop) ─────────────────── */
+.po-scrim {
+  pointer-events: auto;
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.po-dialog {
+  width: 100%;
+  max-width: 520px;
+  max-height: 84vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.po-dialog--wide {
+  max-width: 860px;
+}
+
+.po-dialog__title {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0;
+  color: #0f172a;
+}
+.po-dialog__subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.po-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.po-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.po-source:hover {
+  border-color: #0284c7;
+  background: #f0f9ff;
+}
+.po-source:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}
+.po-source__name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.po-source__meta {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.po-upload {
+  border: 2px dashed #bae6fd;
+  background: #f0f9ff;
+  color: #0369a1;
+  border-radius: 10px;
+  padding: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.po-upload:hover {
+  border-color: #0284c7;
+}
+
+.po-error {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.po-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  text-align: center;
+}
+.po-progress__bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+.po-progress__fill {
+  height: 100%;
+  background: #0284c7;
+  transition: width 0.2s ease;
+}
+.po-progress__text {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.po-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #bae6fd;
+  border-top-color: #0284c7;
+  border-radius: 50%;
+  animation: po-spin 0.9s linear infinite;
+}
+@keyframes po-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.po-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── Crop editor ─────────────────────────────────────────────────────────── */
+.po-crop-stage {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.po-crop-canvas {
+  position: relative;
+  user-select: none;
+  touch-action: none;
+}
+.po-crop-canvas img {
+  display: block;
+  max-width: 100%;
+  max-height: 56vh;
+  background: #fff;
+}
+.po-crop-shade {
+  position: absolute;
+  background: rgba(15, 23, 42, 0.45);
+  pointer-events: none;
+}
+.po-crop-rect {
+  position: absolute;
+  border: 2px solid #0284c7;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
+  cursor: move;
+  touch-action: none;
+}
+.po-crop-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #0284c7;
+  border-radius: 3px;
+  touch-action: none;
+}
+
+/* ── Map overlay image (Stage 4/5) ───────────────────────────────────────── */
+.po-map-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  pointer-events: auto;
+  cursor: grab;
+  outline: 2px solid rgba(2, 132, 199, 0.8);
+}
+.po-map-overlay--dragging {
+  cursor: grabbing;
+}
+.po-map-overlay--locked {
+  cursor: default;
+  outline: none !important;
+  pointer-events: none;
+}
+.po-map-overlay--locked .po-map-overlay-badge {
+  pointer-events: auto !important;
+}
+.po-map-overlay img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Anchor markers rendered on the page overlay during georeferencing. */
+.po-anchor-dot {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.po-anchor-dot--a {
+  background: #0284c7;
+}
+.po-anchor-dot--b {
+  background: #7c3aed;
+}
+.po-anchor-dot--c {
+  background: #16a34a;
+}
+
+/* ── Interactive resize / rotate handles (Stage 4) ───────────────────────── */
+/* Anchored at a page-space corner; the inner handle is counter-scaled by the
+ * overlay's current on-screen scale (--po-inv, set imperatively in draw) so it
+ * stays a constant size regardless of map zoom / sheet scale. */
+.po-handle-anchor {
+  position: absolute;
+  width: 0;
+  height: 0;
+  transform: scale(var(--po-inv, 1));
+  transform-origin: center;
+  pointer-events: none;
+}
+.po-handle {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+}
+.po-handle--resize {
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  background: #fff;
+  border: 2px solid #0284c7;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.3);
+  cursor: nwse-resize;
+}
+.po-handle--ne,
+.po-handle--sw {
+  cursor: nesw-resize;
+}
+.po-handle--rotate {
+  width: 18px;
+  height: 18px;
+  top: -36px;
+  left: -9px;
+  background: #0284c7;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.5);
+  cursor: grab;
+}
+
+/* ── Draft auto-save status chip (top bar) ───────────────────────────────── */
+.po-draftstatus {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  min-width: 0;
+  white-space: nowrap;
+}
+.po-draftstatus--saving {
+  color: #0369a1;
+}
+.po-draftstatus--saved {
+  color: #16a34a;
+}
+.po-draftstatus--error {
+  color: #b91c1c;
+}
+
+.po-quality--good {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+/* ── Carousel thumb: click target + remove/restore action (decision 4) ───── */
+.po-thumb__hit {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.po-thumb__hit:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}
+.po-thumb__action {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+  cursor: pointer;
+}
+.po-thumb__action:hover {
+  background: #fff;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+.po-thumb--excluded {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+.po-thumb--excluded .po-thumb__action:hover {
+  color: #16a34a;
+  border-color: #86efac;
+}
+.po-thumb__removed {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.45);
+  padding: 4px;
+}
+
+/* ── Split-view anchor preview (decision 9) ──────────────────────────────── */
+.po-anchorview {
+  pointer-events: auto;
+  position: absolute;
+  top: 72px;
+  left: 16px;
+  width: 320px;
+  max-height: calc(100vh - 220px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 12px;
+}
+.po-anchorview__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0369a1;
+}
+.po-anchorview__stage {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+.po-anchorview__stage img {
+  display: block;
+  width: 100%;
+  max-height: 46vh;
+  object-fit: contain;
+  background: #fff;
+  cursor: crosshair;
+}
+.po-anchorview__hint {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* ── Inline crop dock (decision 5 — not a separate modal) ─────────────────── */
+.po-cropdock {
+  pointer-events: auto;
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 340px));
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  z-index: 3;
+}
+.po-cropdock__panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.22);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Blended HUD & Left Rail Styles ──────────────────────────────────────── */
+
+.po-leftrail {
+  pointer-events: auto;
+  position: absolute;
+  top: 72px;
+  left: 16px;
+  width: 320px;
+  bottom: 132px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.po-panel--right {
+  pointer-events: auto;
+  position: absolute;
+  top: 68px;
+  right: 16px;
+  width: 330px;
+  max-height: calc(100vh - 145px);
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
+}
+
+/* Custom Sleek Scrollbar for Right Rail Panel */
+.po-panel--right::-webkit-scrollbar {
+  width: 6px;
+}
+.po-panel--right::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 4px;
+}
+.po-panel--right::-webkit-scrollbar-thumb {
+  background: #0284c7;
+  border-radius: 4px;
+}
+.po-panel--right::-webkit-scrollbar-thumb:hover {
+  background: #38bdf8;
+}
+
+/* Dark HUD Button & Control Overrides inside Right Rail Panel */
+.po-panel--right .po-btn {
+  background: #1e293b;
+  color: #f8fafc;
+  border: 1px solid #475569;
+  border-radius: 9999px;
+  font-weight: 700;
+  padding: 6px 14px;
+  transition: all 0.15s ease-in-out;
+}
+.po-panel--right .po-btn:hover:not(:disabled) {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+.po-panel--right .po-btn--primary {
+  background: #0033A0;
+  border-color: #0033A0;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 51, 160, 0.4);
+}
+.po-panel--right .po-btn--primary:hover:not(:disabled) {
+  background: #0284c7;
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+.po-panel--right .po-btn--locked {
+  background: #dc2626 !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.6) !important;
+}
+.po-panel--right .po-btn--ghost {
+  background: transparent;
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+  border-radius: 9999px;
+}
+.po-panel--right .po-btn--ghost:hover {
+  background: rgba(2, 132, 199, 0.2);
+  border-color: #0284c7;
+  color: #ffffff;
+}
+.po-panel--right .po-anchor {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+}
+.po-panel--right .po-anchor--done {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+}
+.po-panel--right .po-anchor--active {
+  border-color: #0284c7;
+  background: rgba(2, 132, 199, 0.25);
+  box-shadow: 0 0 12px rgba(2, 132, 199, 0.4);
+}
+.po-panel--right .po-anchor__label {
+  color: #f1f5f9;
+  font-weight: 700;
+}
+.po-panel--right .po-quality {
+  background: #1e293b;
+  border: 1px solid #0284c7;
+  color: #38bdf8;
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.po-panel--right .po-quality--good {
+  border-color: #10b981;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+}
+.po-panel--right .po-quality--warn {
+  border-color: #f59e0b;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.15);
+}
+.po-panel--right input[type="range"] {
+  accent-color: #06b6d4;
+}
+
+.hud-tab-bar {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 12px;
+}
+
+.hud-tab {
+  flex: 1;
+  padding: 8px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  text-align: center;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-bottom-color 0.15s;
+}
+
+.hud-tab--active {
+  color: #06b6d4;
+  border-bottom-color: #06b6d4;
+}
+
+.hud-nudge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 140px;
+  margin: 0 auto 12px auto;
+}
+
+.hud-nudge-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #1e293b;
+  border: 1px solid #475569;
+  color: #f1f5f9;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.hud-nudge-btn:hover {
+  background: #334155;
+  border-color: #06b6d4;
+  color: #06b6d4;
+}
+
+.hud-control-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.parser-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.parser-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.parser-item:hover {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(6, 182, 212, 0.3);
+}
+
+.parser-item--placed {
+  opacity: 0.6;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.parser-item--armed {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+}
+
+.parser-tag {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.parser-tag--terminal { background: rgba(6, 182, 212, 0.15); color: #22d3ee; }
+.parser-tag--pole { background: rgba(234, 179, 8, 0.15); color: #facc15; }
+.parser-tag--handhole { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+.parser-tag--splitter { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+.parser-tag--flowerpot { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+
+/* Structure Overlay Badges */
+.po-structure-badge {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.po-structure-badge:hover {
+  transform: translate(-50%, -105%) scale(1.08);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+.po-structure-badge--unplaced {
+  background: rgba(15, 23, 42, 0.92);
+  color: #38bdf8;
+  border: 1.5px solid #06b6d4;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+}
+.po-structure-badge--placed {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid #10b981;
+  opacity: 0.8;
+}
+.po-badge-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(6, 182, 212, 0.3);
+  color: #22d3ee;
+  font-size: 9px;
+  font-weight: 900;
+}
+.po-badge-action {
+  background: #0284c7;
+  color: #ffffff;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  font-size: 9px;
+  font-weight: 800;
+  margin-left: 2px;
+}
+
+

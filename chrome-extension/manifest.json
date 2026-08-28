@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "NSC 811 Autofill",
+  "version": "1.1.0",
+  "description": "Official NSC Map App 811 filing helper. Autofills the ITIC wizard from job data (uses your logged-in ITIC session). Stops at the map-draw step so you control the dig shape, then can sync the locate number back to the app.",
+  "permissions": ["storage", "scripting"],
+  "host_permissions": [
+    "https://wa.itic.occinc.com/*",
+    "https://nsc-app-map.vercel.app/*",
+    "http://localhost:5173/*",
+    "http://127.0.0.1:5173/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://nsc-app-map.vercel.app/*",
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*"
+      ],
+      "js": ["content-nsc.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://wa.itic.occinc.com/*"],
+      "js": ["content-itic.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "NSC 811 Autofill"
+  }
+}
