@@ -334,4 +334,49 @@ router.post("/jobs", async (req, res, next) => {
   }
 });
 
+// PATCH /api/jobs/:jobId/location — save custom pin coordinate override
+router.patch("/jobs/:jobId/location", async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const body = req.body as { lat?: number; lng?: number; reset?: boolean };
+    if (!jobId) {
+      res.status(400).json({ error: "jobId is required" });
+      return;
+    }
+
+    const docRef = db().collection("jobs").doc(jobId);
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      res.status(404).json({ error: `Job ${jobId} not found` });
+      return;
+    }
+
+    if (body.reset) {
+      await docRef.update({
+        customCoordinates: null,
+        lastSyncedAt: Date.now(),
+      });
+      invalidateJobsCache();
+      res.json({ ok: true, customCoordinates: null });
+      return;
+    }
+
+    if (typeof body.lat !== "number" || typeof body.lng !== "number") {
+      res.status(400).json({ error: "lat and lng numbers are required" });
+      return;
+    }
+
+    const customCoordinates = { lat: body.lat, lng: body.lng };
+    await docRef.update({
+      customCoordinates,
+      lastSyncedAt: Date.now(),
+    });
+    invalidateJobsCache();
+
+    res.json({ ok: true, customCoordinates });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

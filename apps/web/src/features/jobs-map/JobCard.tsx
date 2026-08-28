@@ -210,6 +210,35 @@ export default function JobCard({ job, onClose, variant = "popup" }: Props) {
       <Row label="Address" value={job.address} />
       <Row label="City" value={job.city} />
 
+      <div className="job-card__row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 12px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        <span style={{ fontSize: 11, color: "#8a94a6", textTransform: "uppercase", letterSpacing: "0.05em" }}>Pin Position</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 11, color: job.customCoordinates ? "#ffcc00" : "#39ff7a", fontWeight: 600 }}>
+            {job.customCoordinates ? "Custom Override" : "Auto Snapped"}
+          </span>
+          {job.customCoordinates && (
+            <button
+              onClick={async () => {
+                await api.resetJobLocation(job.jobId);
+                window.dispatchEvent(new Event("nsc:jobs-reload"));
+              }}
+              style={{
+                background: "rgba(255,204,0,0.15)",
+                border: "1px solid rgba(255,204,0,0.4)",
+                color: "#ffcc00",
+                fontSize: 10,
+                padding: "2px 6px",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+              title="Reset pin to address geocode / route"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
       <EditableRow
         label="Crew / Foreman"
         value={foreman}

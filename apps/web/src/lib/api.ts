@@ -86,6 +86,18 @@ export const api = {
     }),
   syncStatus: () => request<{ lastRun: SyncRun | null }>(`/api/sync/status`),
 
+  // Manual coordinate overrides (takes priority on map markers)
+  updateJobLocation: (jobId: string, lat: number, lng: number) =>
+    request<{ ok: boolean; customCoordinates: { lat: number; lng: number } }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/location`,
+      { method: "PATCH", body: JSON.stringify({ lat, lng }) }
+    ),
+  resetJobLocation: (jobId: string) =>
+    request<{ ok: boolean; customCoordinates: null }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/location`,
+      { method: "PATCH", body: JSON.stringify({ reset: true }) }
+    ),
+
   // User preferences (Billy 5/25) — cross-device sync of filters, panel widths, etc.
   getPrefs: (username: string) =>
     request<{ prefs: Record<string, unknown> }>(`/api/prefs/${encodeURIComponent(username)}`),

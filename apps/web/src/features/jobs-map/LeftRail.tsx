@@ -40,7 +40,7 @@ export default function LeftRail({
   availableSupervisors,
 }: Props) {
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
-  const [activeTab, setActiveTab] = useState<TabId>('telecom'); // Default to tools
+  const [activeTab, setActiveTab] = useState<TabId>('annotate'); // Default to Annotate tab with Select tool active
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(DEFAULT_WIDTH);

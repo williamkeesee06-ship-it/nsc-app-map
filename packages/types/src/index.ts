@@ -240,6 +240,8 @@ export interface Job {
   lastSyncedAt: number;
   // Geocode result (lat/lng for the map)
   geocode: JobGeocode | null;
+  // Manual coordinate override (takes priority over geocode / auto-snapped line center)
+  customCoordinates?: LatLng | null;
 }
 
 export interface SyncRun {

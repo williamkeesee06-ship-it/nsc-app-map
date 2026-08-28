@@ -247,17 +247,28 @@ function createLabelMarker(
   if (!text) return null;
   const pos = labelPositionForObj(obj);
   if (!pos) return null;
+
+  const cleanText = text.trim();
+  const width = Math.max(48, Math.ceil(cleanText.length * 7 + 16));
+  const height = 20;
+  const strokeColor = obj.style.strokeColor || "#39ff7a";
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="4"
+        fill="rgba(10, 16, 26, 0.9)" stroke="${strokeColor}" stroke-width="1.2"/>
+  <text x="${width / 2}" y="${height / 2 + 3.5}" text-anchor="middle"
+        fill="#f1f5f9" font-size="10" font-weight="700"
+        font-family="JetBrains Mono, monospace" letter-spacing="0.03em">${cleanText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>
+</svg>`;
+
   return new google.maps.Marker({
     position: new google.maps.LatLng(pos.lat, pos.lng),
     map,
-    label: {
-      text,
-      color: "#f4f8ff",
-      fontSize: "12px",
-      fontWeight: "700",
-      fontFamily: "ui-monospace, monospace",
+    icon: {
+      url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(width, height),
+      anchor: new google.maps.Point(width / 2, height / 2),
     },
-    icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
     clickable: false,
     draggable: false,
     zIndex: 6,

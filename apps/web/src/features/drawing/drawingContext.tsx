@@ -190,8 +190,8 @@ interface HistoryEntry {
 
 function initState(): DrawingState {
   return {
-    activeTool: null,
-    style: defaultStyleForTool("line"),
+    activeTool: "select",   // Default to Select tool (still allows panning)
+    style: defaultStyleForTool("select"),
     objects: [],
     layers: [],
     activeLayerId: null,

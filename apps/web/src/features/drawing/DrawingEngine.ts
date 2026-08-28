@@ -83,6 +83,18 @@ export class DrawingEngine {
     this.deactivate();
     this.tool = tool;
     this.style = style;
+
+    if (tool === "select") {
+      // Select tool: normal map panning + object selection
+      this.map.setOptions({
+        draggableCursor: "default",
+        draggable: true,           // Explicitly allow panning
+        disableDoubleClickZoom: false,
+      });
+      // No special drawing listeners for pure select mode
+      return;
+    }
+
     this.map.setOptions({ draggableCursor: this.cursorFor(tool) });
 
     if (this.isPolylineTool(tool) || tool === "polygon" || tool === "measure") {
