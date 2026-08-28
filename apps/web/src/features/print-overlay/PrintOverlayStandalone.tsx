@@ -163,6 +163,16 @@ function StandaloneInner({
           <MapHandle mapRef={mapRef} />
           <DrawingOverlay />
           <MapTypeApplier forceLight={true} />
+          <PrintOverlayStudio
+            job={job}
+            onClose={() => {
+              if (window.opener) {
+                window.close();
+              } else {
+                navigate(`/jobs/${jobId}`);
+              }
+            }}
+          />
         </Map>
       </div>
 
@@ -170,18 +180,6 @@ function StandaloneInner({
       <div style={{ position: "absolute", top: 16, right: 16, zIndex: 1000 }}>
         <MapTypeToggle />
       </div>
-
-      {/* Print Overlay Studio */}
-      <PrintOverlayStudio
-        job={job}
-        onClose={() => {
-          if (window.opener) {
-            window.close();
-          } else {
-            navigate(`/jobs/${jobId}`);
-          }
-        }}
-      />
     </div>
   );
 }
