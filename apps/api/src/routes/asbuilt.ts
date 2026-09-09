@@ -2,6 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../lib/firestore.js";
 import { emptyAsbuilt, type AsbuiltDoc } from "@nsc/types";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = Router();
 
@@ -48,7 +54,7 @@ const JobLayerSchema = z.object({
 // ---- Phase 3 schema (AsBuiltDocument — schemaVersion:2) ----
 const DrawingStyleSchema = z.object({
   strokeColor: z.string(),
-  strokeWidth: z.number().min(1).max(10),
+  strokeWidth: z.number().min(1).max(50),
   strokeStyle: z.enum(["solid", "dashed", "dotted"]),
   fill: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("none") }),
@@ -68,7 +74,7 @@ const DrawingStyleSchema = z.object({
   userLabel: z.string().optional(),
   description: z.string().optional(),
   layerId: z.string().optional(),
-});
+}).passthrough();
 
 const VertexSchema = z.object({ lat: z.number(), lng: z.number() });
 const BoundsSchema = z.object({ n: z.number(), s: z.number(), e: z.number(), w: z.number() });
@@ -76,7 +82,20 @@ const BoundsSchema = z.object({ n: z.number(), s: z.number(), e: z.number(), w: 
 const DrawingObjectSchema = z.discriminatedUnion("tool", [
   z.object({
     id: z.string(),
-    tool: z.enum(["placed_cable", "removed_cable", "line", "arrow", "polygon", "freehand", "measure"]),
+    tool: z.enum([
+      "placed_cable",
+      "removed_cable",
+      "line",
+      "arrow",
+      "polygon",
+      "freehand",
+      "measure",
+      "highlighter",
+      "ziply_feeder",
+      "ziply_distribution",
+      "ziply_drop",
+      "ziply_bore",
+    ]),
     vertices: z.array(VertexSchema),
     style: DrawingStyleSchema,
   }),
@@ -111,6 +130,18 @@ const DrawingObjectSchema = z.discriminatedUnion("tool", [
       "pole_new", "pole_removed",
       "cabinet_new", "cabinet_removed",
       "anchor_new", "anchor_removed",
+      "splice",
+      "ziply_hub",
+      "ziply_terminal",
+      "ziply_address",
+      "ziply_pole",
+      "ziply_handhole",
+      "ziply_flower_pot",
+      "ziply_splitter",
+      "ziply_riser",
+      "ziply_slack_loop",
+      "flower_pot_new",
+      "flower_pot_removed",
     ]),
     position: VertexSchema,
     label: z.string().optional(),
@@ -154,7 +185,8 @@ function legacyDocRef(jobId: string) {
 // (no owner)     → defaults to legacy behaviour: legacy `current` docs only.
 router.get("/asbuilt", async (req, res, next) => {
   try {
-    const owner = typeof req.query.owner === "string" ? req.query.owner : "";
+    const ownerQuery = typeof req.query.owner === "string" ? req.query.owner.trim() : "";
+    const owner = ownerQuery || LEGACY_OWNER_NAME;
     const wantAll = owner === "*";
     const ownerSlug = owner && !wantAll ? slugifyOwner(owner) : "";
     const snap = await db().collectionGroup("asbuilt").get();
@@ -171,12 +203,10 @@ router.get("/asbuilt", async (req, res, next) => {
       if (id === "current") {
         // Legacy global doc — counts as Billy Keesee.
         ownerName = ownerName ?? LEGACY_OWNER_NAME;
-        if (wantAll) include = true;
-        else if (!ownerSlug) include = true; // back-compat: no owner filter
-        else if (ownerSlug === LEGACY_OWNER) include = true;
+        if (wantAll || !ownerSlug || ownerSlug === LEGACY_OWNER) include = true;
       } else {
         if (wantAll) include = true;
-        else if (ownerSlug && id === ownerSlug) include = true;
+        else if (ownerSlug && (id === ownerSlug || ownerSlug === LEGACY_OWNER)) include = true;
       }
       if (!include) return;
 
@@ -188,6 +218,16 @@ router.get("/asbuilt", async (req, res, next) => {
         owner: ownerName,
       });
     });
+
+    const etag = `W/"asbuilt-${docs.length}"`;
+    res.setHeader("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+    res.setHeader("ETag", etag);
+
+    if (req.headers["if-none-match"] === etag) {
+      res.status(304).end();
+      return;
+    }
+
     res.json({ docs, count: docs.length });
   } catch (err) {
     next(err);
@@ -197,31 +237,23 @@ router.get("/asbuilt", async (req, res, next) => {
 router.get("/asbuilt/:jobId", async (req, res, next) => {
   try {
     const { jobId } = req.params;
-    const owner = typeof req.query.owner === "string" ? req.query.owner : "";
-    // If no owner specified, fall back to legacy `current` (pre-scoping behaviour).
-    if (!owner) {
-      const snap = await legacyDocRef(jobId).get();
-      if (!snap.exists) {
-        res.json(emptyAsbuilt(jobId));
-        return;
-      }
-      res.json(snap.data() as AsbuiltDoc);
-      return;
-    }
-    // Per-owner read.
-    const snap = await docRef(jobId, owner).get();
+    const ownerQuery = typeof req.query.owner === "string" ? req.query.owner.trim() : "";
+    const owner = ownerQuery || LEGACY_OWNER_NAME;
+    const ownerSlug = slugifyOwner(owner);
+
+    res.setHeader("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+
+    // Try target owner doc first
+    const snap = await docRef(jobId, ownerSlug).get();
     if (snap.exists) {
       res.json(snap.data() as AsbuiltDoc);
       return;
     }
-    // Billy fallback: if Billy has no per-owner doc yet but the legacy doc
-    // exists, return that — it predates per-supervisor scoping and belongs to him.
-    if (slugifyOwner(owner) === LEGACY_OWNER) {
-      const legacy = await legacyDocRef(jobId).get();
-      if (legacy.exists) {
-        res.json(legacy.data() as AsbuiltDoc);
-        return;
-      }
+    // Fall back to legacy `current` doc
+    const legacy = await legacyDocRef(jobId).get();
+    if (legacy.exists) {
+      res.json(legacy.data() as AsbuiltDoc);
+      return;
     }
     res.json(emptyAsbuilt(jobId));
   } catch (err) {
@@ -307,6 +339,23 @@ router.put("/asbuilt/:jobId", async (req, res, next) => {
       await target.set({ ...parsed.data, ownerName }, { merge: false });
       res.json(parsed.data);
     }
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/asbuilt/save-geojson", async (req, res, next) => {
+  try {
+    const { geojson, projectId } = req.body;
+    if (!geojson || !projectId) {
+      res.status(400).json({ error: "Missing geojson or projectId" });
+      return;
+    }
+    const targetDir = path.join(__dirname, "../../../web/public/experiments/lake-stevens", projectId.toLowerCase());
+    await fs.promises.mkdir(targetDir, { recursive: true });
+    const targetPath = path.join(targetDir, "platform.geojson");
+    await fs.promises.writeFile(targetPath, JSON.stringify(geojson, null, 2));
+    res.json({ ok: true, path: targetPath });
   } catch (err) {
     next(err);
   }

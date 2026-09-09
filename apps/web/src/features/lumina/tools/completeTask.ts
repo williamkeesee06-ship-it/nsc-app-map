@@ -7,6 +7,8 @@
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 
+import { request } from "../../../lib/api.js";
+
 interface CompleteTaskInput {
   taskId: string;
 }
@@ -24,19 +26,14 @@ async function run(
     return { ok: false, message: "completeTask requires a taskId." };
   }
 
-  const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`, {
-    method: "DELETE",
-  });
-
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = (await res.json()) as { error?: string };
-      detail = j.error ?? "";
-    } catch { /* ignore */ }
+  try {
+    await request(`/api/tasks/${encodeURIComponent(taskId)}`, {
+      method: "DELETE",
+    });
+  } catch (err) {
     return {
       ok: false,
-      message: `completeTask failed (${res.status}).${detail ? " " + detail : ""}`,
+      message: `completeTask failed. ${(err as Error).message}`,
     };
   }
 

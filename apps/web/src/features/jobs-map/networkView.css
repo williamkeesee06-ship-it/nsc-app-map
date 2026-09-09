@@ -1,0 +1,57 @@
+/* ─── Network View illumination ───────────────────────────────────────────
+ * Every rule below is gated on `[data-map-theme="network"]`. In "light" mode
+ * these rules do nothing and the map behaves exactly as it always has.
+ *
+ * The cable-halo / cable-core CSS vars are written to <html> by
+ * networkView.ts on every zoom band. Polylines are drawn as two paint layers
+ * (halo behind, core on top) — the CSS here is for SVG overlays + drawing-
+ * layer paths. Google's canvas-rendered Polyline can't take drop-shadow
+ * filters directly; that layer picks up the same numbers via TS reading
+ * getComputedStyle on the root (see AllJobsMarkupsOverlay + DrawingOverlay).
+ */
+
+/* Dim POI/road labels a touch further so cables carry the contrast. */
+[data-map-theme="network"] .gm-style {
+  background: #060a12;
+}
+
+/* Structure icons dissolve continuously — driven by --icon-opacity/scale. */
+[data-map-theme="network"] .network-icon {
+  opacity: var(--icon-opacity, 1);
+  transform-origin: center center;
+  transform: scale(var(--map-zoom-scale, 1));
+  transition: opacity 120ms linear, transform 120ms linear;
+  pointer-events: var(--icon-pointer-events, auto);
+}
+
+/* Faded structures shouldn't swallow clicks meant for the line under them. */
+[data-map-theme="network"].zoom-far .network-icon,
+[data-map-theme="network"].zoom-micro .network-icon {
+  --icon-pointer-events: none;
+}
+
+/* SVG-based cable paths (drawings inside custom OverlayView SVGs). The Google
+ * Maps Polyline is canvas — this rule reaches drawings we render as SVG. */
+[data-map-theme="network"] .cad-cable-path {
+  filter: drop-shadow(0 0 var(--cable-glow, 1.5px) currentColor);
+  stroke-width: var(--cable-weight, 2px);
+  transition: stroke-width 120ms linear, filter 120ms linear;
+}
+
+/* Zoom-band gates for anything the SVG layer wants to key off of. */
+[data-map-theme="network"].zoom-micro .cable-lateral,
+[data-map-theme="network"].zoom-trunk-only .cable-lateral {
+  opacity: 0.38;
+}
+
+/* Job markers in Network View sit against a very dark basemap. Give their
+ * pin body a subtle bloom so they read as objects and not scratches. */
+[data-map-theme="network"] .job-marker-glow {
+  filter: drop-shadow(0 0 6px rgba(120, 220, 255, 0.55));
+}
+
+/* Print overlay images take on a slight cool cast so they compose against
+ * the dark basemap instead of glowing white. */
+[data-map-theme="network"] .print-overlay-canvas {
+  filter: brightness(0.9) contrast(1.05) saturate(0.9);
+}

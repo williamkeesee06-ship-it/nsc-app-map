@@ -15,7 +15,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
-import type { DrawingObject } from "@nsc/types";
+import type { DrawingObject, DrawingStyle } from "@nsc/types";
+import type { PlatformFeature } from "../ziply/FeatureDetailSheet.js";
 import { api } from "../../lib/api.js";
 import { useDrawing } from "./drawingContext.js";
 import { useAuth } from "../auth/authContext.js";
@@ -31,14 +32,14 @@ import MarkupPhotosPopup from "./MarkupPhotosPopup.js";
 import {
   rebuildAllLabels as sharedRebuildAllLabels,
   clearAllLabels as sharedClearAllLabels,
+  MIN_LABEL_ZOOM,
 } from "./DrawingOverlayLabels.js";
+import { attachNetworkHalo } from "../jobs-map/networkHalo.js";
 
 const PLACED_COLOR  = "#39ff7a";
 const REMOVED_COLOR = "#ff2d4a";
 const ZOOM_REF = 17;
 const BASE_SIZE = 24; // matches DrawingOverlay (was ICON_SIZE = 32)
-// Phase 9.7: labels visible at zoom ≥16 (lowered from 18) — must match DrawingOverlay
-const MIN_LABEL_ZOOM = 16;
 
 type OverlayRef =
   | google.maps.Polyline
@@ -54,17 +55,35 @@ const POINT_TOOLS = new Set([
   "pole_new", "pole_removed",
   "cabinet_new", "cabinet_removed",
   "anchor_new", "anchor_removed",
-  // Edit 3: splice point — single position, diamond + SP icon.
   "splice",
+  "ziply_hub",
+  "ziply_terminal",
+  "ziply_address",
+  "ziply_pole",
+  "ziply_handhole",
+  "ziply_splitter",
+  "ziply_riser",
+  "ziply_slack_loop",
 ]);
 
 function isPointTool(tool: string): boolean {
-  return POINT_TOOLS.has(tool);
+  if (!tool) return false;
+  const t = tool.toLowerCase();
+  return (
+    t.includes("pole") ||
+    t.includes("mh") ||
+    t.includes("hh") ||
+    t.includes("ped") ||
+    t.includes("cabinet") ||
+    t.includes("anchor") ||
+    t.includes("splice") ||
+    t.includes("flower") ||
+    t.startsWith("ziply_") ||
+    POINT_TOOLS.has(tool)
+  );
 }
 
 function computeSymbolPx(zoom: number, pointSize: number): number {
-  // Smoother half-octave scaling, capped at 40px (was 96). Keeps poles
-  // icon-sized at all zoom levels instead of bloating to fill the screen.
   const raw = BASE_SIZE * Math.pow(1.41, zoom - ZOOM_REF) * pointSize;
   return Math.round(Math.max(8, Math.min(40, raw)));
 }
@@ -72,33 +91,57 @@ function computeSymbolPx(zoom: number, pointSize: number): number {
 function styleToPolylineOpts(obj: DrawingObject & { vertices: unknown }): Partial<google.maps.PolylineOptions> {
   const tool = obj.tool as string;
   const style = obj.style;
-  if (tool === "placed_cable") {
-    return { strokeColor: PLACED_COLOR, strokeWeight: style.strokeWidth, strokeOpacity: style.opacity };
+
+  // NSMS Binding Rule: Line always renders with exact saved user style
+  const color = style.strokeColor || "#1ea7ff";
+  const opacity = style.opacity ?? 0.9;
+  const weight = style.strokeWidth ?? 3;
+  let icons: google.maps.IconSequence[] | undefined = undefined;
+
+  if (style.animateFlow && (tool === "placed_cable" || tool === "line" || tool === "arrow" || tool.startsWith("ziply_"))) {
+    return {
+      strokeColor: color,
+      strokeWeight: weight,
+      strokeOpacity: opacity,
+      icons: [{
+        icon: {
+          path: "M 0,-1.5 0,1.5",
+          strokeOpacity: 1,
+          scale: weight * 1.2,
+          strokeColor: color,
+        },
+        offset: "0px",
+        repeat: "30px"
+      }]
+    };
   }
+
   if (tool === "removed_cable") {
     const xSymbol: google.maps.Symbol = {
       path: "M -1,-1 1,1 M -1,1 1,-1",
       strokeColor: REMOVED_COLOR,
-      strokeWeight: Math.max(2, style.strokeWidth - 1),
-      scale: Math.max(3, style.strokeWidth + 1),
+      strokeWeight: Math.max(2, weight - 1),
+      scale: Math.max(3, weight + 1),
     };
     return {
-      strokeColor: REMOVED_COLOR,
-      strokeWeight: style.strokeWidth,
-      strokeOpacity: style.opacity,
+      strokeColor: color,
+      strokeWeight: weight,
+      strokeOpacity: opacity,
       icons: [{ icon: xSymbol, offset: "0", repeat: "60px" }],
     };
   }
+
+  if (style.strokeStyle === "dashed") {
+    icons = [{ icon: { path: "M 0,-1 0,1", strokeOpacity: opacity, scale: weight }, offset: "0", repeat: "12px" }];
+  } else if (style.strokeStyle === "dotted") {
+    icons = [{ icon: { path: "M 0,0 0,0.01", strokeOpacity: opacity, scale: weight }, offset: "0", repeat: "6px" }];
+  }
+
   return {
-    strokeColor: style.strokeColor,
-    strokeWeight: style.strokeWidth,
-    strokeOpacity: style.opacity,
-    icons:
-      style.strokeStyle === "dashed"
-        ? [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: style.strokeWidth }, offset: "0", repeat: "12px" }]
-        : style.strokeStyle === "dotted"
-        ? [{ icon: { path: "M 0,0 0,0.01", strokeOpacity: 1, scale: style.strokeWidth }, offset: "0", repeat: "6px" }]
-        : undefined,
+    strokeColor: color,
+    strokeWeight: weight,
+    strokeOpacity: opacity,
+    icons,
   };
 }
 
@@ -119,20 +162,30 @@ function createReadOnlyOverlay(
   obj: DrawingObject,
   map: google.maps.Map,
   zoom: number,
-  onClick: (() => void) | null,
+  onClick: ((screenXY: { x: number; y: number }) => void) | null,
   /** Callback to register auxiliary overlays (e.g. callout leader polyline)
    *  so the parent can dispose them on clear/unmount. */
   registerAux?: (overlay: OverlayRef) => void,
-  onRightClick?: RightClickHandler
+  onRightClick?: RightClickHandler,
+  onHover?: (info: { x: number; y: number; crew: string; time: string } | null) => void
 ): OverlayRef | null {
   if (obj.style.hidden) return null;
   const clickable = onClick !== null;
 
   // Helper to attach a click listener if the overlay is clickable.
+  // We forward the click's screen coordinates so a floating detail card can
+  // anchor itself next to the cursor.
   function wireClick<T extends { addListener: (e: string, fn: ((e?: google.maps.MapMouseEvent) => void)) => unknown }>(
     overlay: T
   ): T {
-    if (clickable && onClick) overlay.addListener("click", () => onClick());
+    if (clickable && onClick) {
+      overlay.addListener("click", (e?: google.maps.MapMouseEvent) => {
+        const dom = (e as (google.maps.MapMouseEvent & { domEvent?: MouseEvent }) | undefined)?.domEvent;
+        const x = dom?.clientX ?? window.innerWidth / 2;
+        const y = dom?.clientY ?? window.innerHeight / 2;
+        onClick({ x, y });
+      });
+    }
     if (onRightClick) {
       overlay.addListener("rightclick", (e?: google.maps.MapMouseEvent) => {
         // Google Maps types declare domEvent as a wide union; cast on read.
@@ -158,13 +211,75 @@ function createReadOnlyOverlay(
         map,
       }));
     }
-    return wireClick(new google.maps.Polyline({
+    const polyline = new google.maps.Polyline({
       path: obj.vertices.map((v) => new google.maps.LatLng(v.lat, v.lng)),
       ...opts,
       zIndex: 4,
       clickable,
       map,
-    }));
+    });
+
+    // Network View halo companion. Attaches immediately for any line tool
+    // (cable, arrow, freehand — anything with vertices). Hides itself when
+    // Network View is off; no cost in Light mode.
+    {
+      const haloColor =
+        (opts as { strokeColor?: string }).strokeColor ||
+        obj.style?.strokeColor ||
+        "#00d4ff";
+      const halo = attachNetworkHalo(map, polyline, haloColor);
+      registerAux?.({
+        setMap: (m: google.maps.Map | null) => {
+          if (m === null) halo.dispose();
+        },
+      } as unknown as OverlayRef);
+    }
+
+    const statusLower = (obj.style.ziplyStatus || "").toLowerCase();
+    if (
+      (obj.tool === "placed_cable" ||
+        obj.tool === "ziply_feeder" ||
+        obj.tool === "ziply_distribution" ||
+        obj.tool === "ziply_drop" ||
+        obj.tool === "ziply_bore") &&
+      (statusLower === "complete" || statusLower === "completed")
+    ) {
+      // Glow polyline matching line color (green PLACED_COLOR default)
+      const glowColor = obj.style.strokeColor || PLACED_COLOR;
+      const glow = new google.maps.Polyline({
+        path: obj.vertices.map((v) => new google.maps.LatLng(v.lat, v.lng)),
+        strokeColor: glowColor,
+        strokeWeight: obj.style.strokeWidth * 3.5,
+        strokeOpacity: 0.35,
+        zIndex: 3,
+        clickable: false,
+        map,
+      });
+      registerAux?.(glow);
+      // mark it so the animation loop can find it
+      glow.set("isZiplyPulse", true);
+
+      // Tooltip handling
+      if (onHover && obj.style.ziplyCrewId && obj.style.ziplyTimestamp) {
+        polyline.addListener("mouseover", (e: any) => {
+          if (document.querySelector(".po-root")) return;
+          const dom = e.domEvent as MouseEvent | undefined;
+          if (dom) {
+            onHover({
+              x: dom.clientX,
+              y: dom.clientY,
+              crew: obj.style.ziplyCrewId!,
+              time: new Date(obj.style.ziplyTimestamp!).toLocaleString(),
+            });
+          }
+        });
+        polyline.addListener("mouseout", () => {
+          onHover(null);
+        });
+      }
+    }
+
+    return wireClick(polyline);
   }
 
   if ("bounds" in obj) {
@@ -272,7 +387,7 @@ function createReadOnlyOverlay(
   if ("position" in obj && !("text" in obj)) {
     const pointSize = obj.style.pointSize ?? 1.0;
     const px = computeSymbolPx(zoom, pointSize);
-    const baseIcon = iconForTool(obj.tool, obj.style.strokeColor, pointSize);
+    const baseIcon = iconForTool(obj.tool, obj.style.strokeColor, pointSize, obj.style.ziplyStatus);
     return wireClick(new google.maps.Marker({
       position: new google.maps.LatLng(obj.position.lat, obj.position.lng),
       map,
@@ -383,18 +498,13 @@ function createLabelMarker(
   map: google.maps.Map,
   onLabelDrag?: LabelDragHandler,
   onLabelClick?: LabelClickHandler,
-  // Billy 6/8: single-click on a label should open the job card (like the
-  // markup itself). Double-click opens the label edit popup.
   onLabelOpenJob?: () => void
 ): google.maps.Marker | null {
   const text = labelTextForObj(obj);
   if (!text) return null;
   const pos = labelPositionForObj(obj);
   if (!pos) return null;
-  // Point markups: offset label 30px to the right by default so it sits next
-  // to the symbol (callout style), not on top of it. Lines/shapes/text/callout
-  // already render their labels in the right spot — leave those alone unless
-  // the user has manually dragged the label (labelOffsetPx is set).
+
   const isPoint = "position" in obj && !("text" in obj);
   const off = obj.style.labelOffsetPx;
   let labelPos = pos;
@@ -403,18 +513,28 @@ function createLabelMarker(
   } else if (isPoint) {
     labelPos = pixelOffsetToLatLng(pos, 30, 0, map) ?? pos;
   }
-  const fontSize = obj.style.labelFontSize ? `${obj.style.labelFontSize}px` : "12px";
+
+  const cleanText = text.trim();
+  const width = Math.max(48, Math.ceil(cleanText.length * 7 + 16));
+  const height = 20;
+  const strokeColor = obj.style.strokeColor || "#39ff7a";
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="4"
+        fill="rgba(10, 16, 26, 0.9)" stroke="${strokeColor}" stroke-width="1.2"/>
+  <text x="${width / 2}" y="${height / 2 + 3.5}" text-anchor="middle"
+        fill="#f1f5f9" font-size="10" font-weight="700"
+        font-family="JetBrains Mono, monospace" letter-spacing="0.03em">${cleanText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>
+</svg>`;
+
   const marker = new google.maps.Marker({
     position: new google.maps.LatLng(labelPos.lat, labelPos.lng),
     map,
-    label: {
-      text,
-      color: obj.style.textColor ?? "#1A2332",
-      fontSize,
-      fontWeight: "700",
-      fontFamily: "ui-monospace, monospace",
+    icon: {
+      url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+      scaledSize: new google.maps.Size(width, height),
+      anchor: new google.maps.Point(width / 2, height / 2),
     },
-    icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
     clickable: !!(onLabelDrag || onLabelClick || onLabelOpenJob),
     draggable: !!onLabelDrag,
     zIndex: 6,
@@ -445,15 +565,113 @@ function createLabelMarker(
 
 const REFRESH_INTERVAL_MS = 15_000; // Solo desktop use: very frequent refresh so markups feel instantly persistent after saving. Network cost is tiny for personal use.
 
-interface AllJobsMarkupsOverlayProps {
-  /** Called when a markup is clicked. Receives the jobId it belongs to. */
-  onMarkupClick?: (jobId: string) => void;
+/**
+ * Convert a DrawingObject to a GeoJSON-style PlatformFeature so the shared
+ * FeatureDetailSheet + LeftRail pop-out can render it. We keep the raw
+ * DrawingObject on `_raw` for advanced consumers, but the properties bag is
+ * flat + friendly for display code.
+ */
+export function drawingObjectToFeature(
+  obj: DrawingObject,
+  jobId: string,
+  extra: { jobWorkOrder?: string; jobName?: string; hub?: string; city?: string } = {}
+): PlatformFeature {
+  const style = obj.style ?? ({} as DrawingStyle);
+  // Structure-family label — human readable for the card title.
+  const layer = (() => {
+    const t = obj.tool;
+    if (t.startsWith("ziply_")) return t.replace("ziply_", "");
+    if (t.startsWith("hh_")) return "handhole";
+    if (t.startsWith("mh_")) return "manhole";
+    if (t.startsWith("ped_")) return "pedestal";
+    if (t.startsWith("pole_") || t === "pole_new" || t === "pole_removed") return "pole";
+    if (t.startsWith("cabinet_")) return "cabinet";
+    if (t.startsWith("anchor_")) return "anchor";
+    if (t === "splice") return "splice";
+    if (t === "placed_cable" || t === "removed_cable") return "cable";
+    if (t === "flower_pot_new" || t === "flower_pot_removed") return "flower_pot";
+    return t;
+  })();
+
+  // Geometry — either a Point (structure markers) or LineString (cables/polylines).
+  let geometry: PlatformFeature["geometry"] = null;
+  let position: { lat: number; lng: number } | null = null;
+  if ("position" in obj && obj.position) {
+    position = obj.position;
+    geometry = { type: "Point", coordinates: [obj.position.lng, obj.position.lat] };
+  } else if ("anchor" in obj && obj.anchor) {
+    position = obj.anchor;
+    geometry = { type: "Point", coordinates: [obj.anchor.lng, obj.anchor.lat] };
+  } else if ("vertices" in obj && Array.isArray(obj.vertices)) {
+    geometry = {
+      type: "LineString",
+      coordinates: obj.vertices.map((v) => [v.lng, v.lat]),
+    };
+    if (obj.vertices[0]) position = obj.vertices[0];
+  } else if ("bounds" in obj && obj.bounds) {
+    const { n, s, e, w } = obj.bounds;
+    position = { lat: (n + s) / 2, lng: (e + w) / 2 };
+    geometry = { type: "Point", coordinates: [position.lng, position.lat] };
+  }
+
+  return {
+    type: "Feature",
+    id: obj.id,
+    properties: {
+      jobId,
+      layer,
+      tool: obj.tool,
+      label: (obj as { label?: string; text?: string }).label ?? (obj as { text?: string }).text,
+      strokeColor: style.strokeColor,
+      fillColor: style.fill && style.fill.kind === "solid" ? style.fill.color : undefined,
+      lat: position?.lat,
+      lng: position?.lng,
+      jobWorkOrder: extra.jobWorkOrder,
+      jobName: extra.jobName,
+      hub: extra.hub,
+      city: extra.city,
+      status: (style as unknown as { status?: string }).status,
+      _raw: obj,
+    },
+    geometry,
+  };
 }
 
-export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsOverlayProps = {}) {
+interface AllJobsMarkupsOverlayProps {
+  /** Legacy: called with just the jobId (kept for compat). */
+  onMarkupClick?: (jobId: string) => void;
+  /** New: called with the full PlatformFeature so a detail card can render.
+   *  Takes precedence over onMarkupClick when both are provided. */
+  onFeatureClick?: (feature: PlatformFeature, screenXY: { x: number; y: number }) => void;
+}
+
+export default function AllJobsMarkupsOverlay({ onMarkupClick, onFeatureClick }: AllJobsMarkupsOverlayProps = {}) {
   const map = useMap();
   const { state } = useDrawing();
   const overlaysRef = useRef<Map<string, OverlayRef>>(new Map());
+
+  // ── Cable Flow Animation Loop (#3) ───────────────────────────────────────
+  useEffect(() => {
+    let offset = 0;
+    const interval = setInterval(() => {
+      offset = (offset + 1.2) % 30;
+      overlaysRef.current.forEach((val) => {
+        if (val instanceof google.maps.Polyline) {
+          const icons = val.get("icons");
+          if (icons && icons.length > 0 && icons[0].icon && icons[0].repeat === "30px") {
+            icons[0].offset = `${offset}px`;
+            val.set("icons", icons);
+          }
+          if (val.get("isZiplyPulse")) {
+            const t = Date.now() / 500;
+            const op = 0.15 + 0.3 * (Math.sin(t) * 0.5 + 0.5);
+            val.setOptions({ strokeOpacity: op });
+          }
+        }
+      });
+    }, 40);
+    return () => clearInterval(interval);
+  }, []);
   const docsRef = useRef<Array<{ jobId: string; objects: DrawingObject[] }>>([]);
   // Billy 6/8: per-job label / callout-line containers so sharedRebuildAllLabels
   // can use its plain (non-prefixed) `${objId}_label` keys without collisions
@@ -491,6 +709,9 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
       }
     | null
   >(null);
+
+  // Hover tooltip for completed paths
+  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; crew: string; time: string } | null>(null);
 
   async function fetchAll() {
     try {
@@ -546,8 +767,19 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     const activeJobId = state.targetJobId;
     for (const doc of docsRef.current) {
       if (activeJobId && doc.jobId === activeJobId) continue; // active job is rendered by DrawingOverlay
-      // Click on any of this job's markups jumps to its card.
-      const handler = onMarkupClick ? () => onMarkupClick(doc.jobId) : null;
+      // Legacy label-click handler — clicking a text label still jumps to the
+      // job card since a label has no per-structure identity to feature-click.
+      const labelHandler: (() => void) | null = onMarkupClick
+        ? () => {
+            if (document.querySelector(".po-root")) return;
+            onMarkupClick(doc.jobId);
+          }
+        : null;
+      // Click-through routing for structure markers / polylines:
+      //   1. onFeatureClick (new): builds a PlatformFeature so a floating detail
+      //      card + LeftRail pop-out can render structure metadata.
+      //   2. onMarkupClick (legacy): plain jobId jump — kept for callers who
+      //      still just want to navigate to the job card.
       for (const obj of doc.objects) {
         try {
           let auxIdx = 0;
@@ -559,7 +791,18 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
             // (skip text-tool labels for now — photos belong on assets).
             setPhotos({ obj: target, jobId: doc.jobId, screen });
           };
-          const overlay = createReadOnlyOverlay(obj, map, zoom, handler, registerAux, rightClickHandler);
+          const handler = onFeatureClick
+            ? (screen: { x: number; y: number }) => {
+                if (document.querySelector(".po-root")) return;
+                onFeatureClick(drawingObjectToFeature(obj, doc.jobId), screen);
+              }
+            : onMarkupClick
+            ? () => {
+                if (document.querySelector(".po-root")) return;
+                onMarkupClick(doc.jobId);
+              }
+            : null;
+          const overlay = createReadOnlyOverlay(obj, map, zoom, handler, registerAux, rightClickHandler, setHoverInfo);
           if (overlay) overlaysRef.current.set(`${doc.jobId}:${obj.id}`, overlay);
         } catch {
           // skip malformed object
@@ -586,8 +829,43 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
         doc.objects,
         labelBag,
         calloutBag,
-        handler ? () => handler() : undefined
+        labelHandler ?? undefined
       );
+    }
+  }
+
+  function updateZoom() {
+    if (!map) return;
+    const zoom = map.getZoom() ?? ZOOM_REF;
+    const activeJobId = state.targetJobId;
+    for (const doc of docsRef.current) {
+      if (activeJobId && doc.jobId === activeJobId) continue;
+      for (const obj of doc.objects) {
+        if (!isPointTool(obj.tool) || obj.style.hidden) continue;
+        const marker = overlaysRef.current.get(`${doc.jobId}:${obj.id}`);
+        if (marker && marker instanceof google.maps.Marker) {
+          const pointSize = obj.style.pointSize ?? 1.0;
+          const px = computeSymbolPx(zoom, pointSize);
+          const icon = iconForTool(obj.tool, obj.style.strokeColor, pointSize, obj.style.ziplyStatus);
+          marker.setIcon({
+            ...icon,
+            size: new google.maps.Size(px, px),
+            scaledSize: new google.maps.Size(px, px),
+            anchor: new google.maps.Point(px / 2, px / 2),
+          });
+        }
+      }
+      const labelBag = labelsByJobRef.current.get(doc.jobId);
+      const calloutBag = calloutLinesByJobRef.current.get(doc.jobId);
+      if (labelBag && calloutBag) {
+        const labelHandler = onMarkupClick
+          ? () => {
+              if (document.querySelector(".po-root")) return;
+              onMarkupClick(doc.jobId);
+            }
+          : undefined;
+        sharedRebuildAllLabels(map, doc.objects, labelBag, calloutBag, labelHandler);
+      }
     }
   }
 
@@ -596,11 +874,11 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     if (!map) return;
     void fetchAll();
     const t = setInterval(() => void fetchAll(), REFRESH_INTERVAL_MS);
-    // Re-render on zoom change so labels appear/disappear with zoom
-    const zoomListener = map.addListener("zoom_changed", () => renderAll());
+    // Re-scale icons + labels on zoom change without destroying base polylines
+    const zoomListener = map.addListener("zoom_changed", updateZoom);
     return () => {
       clearInterval(t);
-      zoomListener.remove();
+      google.maps.event.removeListener(zoomListener);
       clearAll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -612,6 +890,13 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     renderAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.targetJobId]);
+
+  // Re-render when the click-handler identity changes so newly wired handlers
+  // attach to the existing overlays without waiting for the next data refresh.
+  useEffect(() => {
+    if (docsRef.current.length > 0) renderAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onFeatureClick, onMarkupClick]);
 
   // After a successful save (dirty→false while we have a target), re-fetch so
   // the global layer reflects the latest persisted state
@@ -692,25 +977,51 @@ export default function AllJobsMarkupsOverlay({ onMarkupClick }: AllJobsMarkupsO
     );
   }
 
-  if (!editing) return null;
-  const initialText = labelTextForObj(editing.obj) ?? "";
+  if (!editing && !hoverInfo) return null;
+
   return (
-    <LabelEditPopup
-      x={editing.screen.x}
-      y={editing.screen.y}
-      initial={{
-        text: initialText,
-        textColor: editing.obj.style.textColor ?? "#1A2332",
-        fontSize: editing.obj.style.labelFontSize ?? 12,
-        bg: editing.obj.style.labelBg ?? "",
-        border: editing.obj.style.labelBorder ?? "",
-        borderWidth: editing.obj.style.labelBorderWidth ?? 0,
-      }}
-      onSave={(values) => {
-        persistLabelEdit(editing.jobId, editing.obj, values);
-        setEditing(null);
-      }}
-      onCancel={() => setEditing(null)}
-    />
+    <>
+      {editing && (
+        <LabelEditPopup
+          x={editing.screen.x}
+          y={editing.screen.y}
+          initial={{
+            text: labelTextForObj(editing.obj) ?? "",
+            textColor: editing.obj.style.textColor ?? "#1A2332",
+            fontSize: editing.obj.style.labelFontSize ?? 12,
+            bg: editing.obj.style.labelBg ?? "",
+            border: editing.obj.style.labelBorder ?? "",
+            borderWidth: editing.obj.style.labelBorderWidth ?? 0,
+          }}
+          onSave={(values) => {
+            persistLabelEdit(editing.jobId, editing.obj, values);
+            setEditing(null);
+          }}
+          onCancel={() => setEditing(null)}
+        />
+      )}
+
+      {hoverInfo && (
+        <div style={{
+          position: "fixed",
+          top: hoverInfo.y - 45,
+          left: hoverInfo.x + 15,
+          background: "rgba(0, 15, 25, 0.9)",
+          border: "1px solid #00ffff",
+          borderRadius: 4,
+          padding: "6px 10px",
+          color: "#00ffff",
+          fontSize: 11,
+          fontFamily: "monospace",
+          zIndex: 10000,
+          boxShadow: "0 0 10px rgba(0, 255, 255, 0.3)",
+          pointerEvents: "none"
+        }}>
+          <div><strong>COMPLETED</strong></div>
+          <div>Crew: {hoverInfo.crew}</div>
+          <div>{hoverInfo.time}</div>
+        </div>
+      )}
+    </>
   );
 }

@@ -32,8 +32,12 @@ import {
 import { loadMemoriesForPrompt, type MemoryItem } from "./luminaMemories.js";
 import { db } from "../lib/firestore.js";
 import type { Job } from "@nsc/types";
+import { getEnv } from "../config/env.js";
+import { getSheet, buildColumnsById, rowToRecord } from "../lib/smartsheet.js";
+import { normalizeRow } from "../services/jobsSync.js";
 
 const router = Router();
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Wire types — what the client sends and what we send back.
@@ -85,6 +89,20 @@ interface ChatRequestBody {
   /** Dashboard briefing mode — bypasses the chat engine and returns computed
    *  bullets from live Firestore data instead of a Gemini turn. */
   mode?: string;
+  contract?: string;
+  drawingContext?: {
+    activeTool: string | null;
+    selectedIds: string[];
+    objectsCount: number;
+    dirty: boolean;
+    targetWorkOrder: string | null;
+    selectedObjects: Array<{
+      id: string;
+      tool: string;
+      properties?: Record<string, any>;
+      geometry?: any;
+    }>;
+  } | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -125,7 +143,180 @@ interface Candidate {
   text: string;
 }
 
-async function buildBriefing(username?: string): Promise<BriefingResponse> {
+async function buildZiplyBriefing(username?: string): Promise<BriefingResponse> {
+  const env = getEnv();
+  const sheetId = env.ZIPLY_SMARTSHEET_SHEET_ID;
+  let ziplyJobs: Job[] = [];
+
+  // Attempt real-time Smartsheet polling
+  if (sheetId) {
+    try {
+      const sheet = await getSheet({}, sheetId);
+      const colsById = buildColumnsById(sheet);
+      for (const row of sheet.rows) {
+        const job = normalizeRow(row, colsById, true);
+        if (job) ziplyJobs.push(job);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[lumina/briefing] smartsheet poll failed, falling back to Firestore:", err);
+      ziplyJobs = [];
+    }
+  }
+
+  // Fallback to Firestore if Smartsheet poll was empty or failed
+  if (ziplyJobs.length === 0) {
+    const snap = await db().collection("jobs").where("customerProject", "==", "Ziply").get();
+    snap.forEach((doc) => {
+      const j = doc.data() as Job;
+      // Skip off-tracker rows so Lumina reports live counts, not stale carry-over.
+      if (j.inTracker === false) return;
+      ziplyJobs.push(j);
+    });
+  }
+
+  // Filter to North Metro Area
+  const NORTH_METRO_CITIES = [
+    "lynnwood",
+    "everett",
+    "edmonds",
+    "lake stevens",
+    "snohomish",
+    "mukilteo",
+    "marysville",
+    "arlington",
+    "bothell",
+    "mill creek",
+    "mountlake terrace",
+    "woodway",
+    "monroe"
+  ];
+
+  const northMetroJobs = ziplyJobs.filter((job) => {
+    const base = (job.constructionBase ?? "").trim().toLowerCase();
+    if (base.includes("north metro") || base.includes("northmetro") || base.includes("n. metro")) {
+      return true;
+    }
+    const city = (job.city ?? "").trim().toLowerCase();
+    if (!city) return false;
+    if (NORTH_METRO_CITIES.includes(city)) return true;
+    return NORTH_METRO_CITIES.some(
+      (c) => city === c || city.startsWith(c + " ") || city.startsWith(c + ",") || city.includes(c)
+    );
+  });
+
+  const candidates: Candidate[] = [];
+
+  // 1 — New Jobs added recently (last 7 days based on dateReceived)
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const newJobs = northMetroJobs.filter((j) => {
+    if (!j.dateReceived) return false;
+    const parsed = Date.parse(j.dateReceived);
+    return !isNaN(parsed) && parsed >= sevenDaysAgo;
+  }).length;
+  if (newJobs > 0) {
+    candidates.push({
+      signal: newJobs * 10, // high priority
+      text: `${newJobs} new Ziply job${newJobs === 1 ? "" : "s"} added to the North Metro tracker this week.`,
+    });
+  }
+
+  // 2 — Active construction jobs (in progress)
+  const activeJobs = northMetroJobs.filter((j) => {
+    const status = (j.jobStatus ?? "").trim().toLowerCase();
+    return status === "in progress" || status === "in-progress" || status === "started";
+  }).length;
+  if (activeJobs > 0) {
+    candidates.push({
+      signal: activeJobs,
+      text: `${activeJobs} active construction project${activeJobs === 1 ? "" : "s"} currently in progress.`,
+    });
+  }
+
+  // 3 — Footage completion metrics
+  let totalEst = 0;
+  let totalComp = 0;
+  northMetroJobs.forEach((j) => {
+    const status = (j.jobStatus ?? "").trim().toLowerCase();
+    if (status === "completed" || status === "complete") return;
+    const est = (j.estBoreFt ?? 0) + (j.estPlacingFt ?? 0) + (j.estAerialFt ?? 0);
+    const comp = (j.completedBoreFt ?? 0) + (j.completedPlacingFt ?? 0) + (j.completedAerialFt ?? 0);
+    if (est > 0) {
+      totalEst += est;
+      totalComp += comp;
+    }
+  });
+  if (totalEst > 0) {
+    const pct = Math.round((totalComp / totalEst) * 100);
+    candidates.push({
+      signal: 8,
+      text: `Footage placed: ${totalComp.toLocaleString()} ft of ${totalEst.toLocaleString()} ft estimated (${pct}% complete).`,
+    });
+  }
+
+  // 4 — Outstanding Go-Backs / Gig Work from Firestore
+  try {
+    const gigsSnap = await db().collection("gigs").where("completed", "==", false).get();
+    const openGigs = gigsSnap.size;
+    if (openGigs > 0) {
+      candidates.push({
+        signal: openGigs * 4,
+        text: `${openGigs} outstanding gig work / go-back task${openGigs === 1 ? "" : "s"} remain open.`,
+      });
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("failed to count gigs for briefing:", err);
+  }
+
+  // 5 — Locates Expiring
+  const locatesExpiring = northMetroJobs.filter((j) => {
+    if (!j.locateExpires) return false;
+    const days = Math.round((j.locateExpires - Date.now()) / (24 * 60 * 60 * 1000));
+    return days >= 0 && days <= 7;
+  }).length;
+  if (locatesExpiring > 0) {
+    candidates.push({
+      signal: locatesExpiring * 5,
+      text: `${locatesExpiring} locate ticket${locatesExpiring === 1 ? "" : "s"} expiring within 7 days.`,
+    });
+  }
+
+  // 6 — Notes highlights: search for keywords in nscProjectNotes
+  const flagWords = ["hold", "blocked", "issue", "irrigation", "damage", "need"];
+  const notesAlerts: string[] = [];
+  for (const j of northMetroJobs) {
+    const notes = (j.nscProjectNotes ?? "").toLowerCase();
+    if (flagWords.some((word) => notes.includes(word))) {
+      notesAlerts.push(`${j.workOrder || j.jobId}: "${j.nscProjectNotes}"`);
+    }
+  }
+  if (notesAlerts.length > 0) {
+    const topAlert = notesAlerts[0];
+    candidates.push({
+      signal: 6,
+      text: `Outstanding task note: ${topAlert}`,
+    });
+  }
+
+  candidates.sort((a, b) => b.signal - a.signal);
+  const bullets =
+    candidates.length === 0
+      ? ["No critical Ziply updates flagged across North Metro today."]
+      : candidates.slice(0, 3).map((c) => c.text);
+
+  return {
+    greeting: `Operational briefing: Ziply North Metro area status and outstanding actions.`,
+    bullets,
+    modelTurnAt: Date.now(),
+  };
+}
+
+async function buildBriefing(username?: string, contract?: string): Promise<BriefingResponse> {
+  if (contract === "Ziply") {
+    return buildZiplyBriefing(username);
+  }
+
   const snap = await db().collection("jobs").get();
   const all: Job[] = [];
   snap.forEach((doc) => all.push(doc.data() as Job));
@@ -212,6 +403,14 @@ async function buildBriefing(username?: string): Promise<BriefingResponse> {
       text: `Crew ${crew} double-booked on ${date}.`,
     });
   }
+  // 6 — jobs in needs_fielding status.
+  const needsFielding = jobs.filter((j) => (j.secondaryJobStatus || "").trim().toLowerCase() === "needs fielding").length;
+  if (needsFielding > 0) {
+    candidates.push({
+      signal: needsFielding,
+      text: `${needsFielding} new job${needsFielding === 1 ? "" : "s"} waiting in Needs Fielding.`,
+    });
+  }
 
   // Top three by signal strength. If nothing fired, say so plainly.
   candidates.sort((a, b) => b.signal - a.signal);
@@ -220,9 +419,8 @@ async function buildBriefing(username?: string): Promise<BriefingResponse> {
       ? ["Nothing flagged across your jobs. All clear."]
       : candidates.slice(0, 3).map((c) => c.text);
 
-  const first = (username ?? "Billy Keesee").trim().split(/\s+/)[0] || "Billy";
   return {
-    greeting: `Good morning, ${first}.`,
+    greeting: `Operational briefing: current status, jobs, and upcoming requirements.`,
     bullets,
     modelTurnAt: Date.now(),
   };
@@ -325,7 +523,7 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
   // Dashboard briefing short-circuit — does not need history[] or Gemini.
   if (body?.mode === "dashboard_briefing") {
     try {
-      const briefing = await buildBriefing(body.username);
+      const briefing = await buildBriefing(body.username, body.contract);
       return res.json(briefing);
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -343,11 +541,20 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
   try {
     const genai = new GoogleGenerativeAI(apiKey);
 
-    // System prompt — same locks as Live mode, with username swapped in.
+    const nowStr = new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
+    const timeContext = `\n\n=====================================================================\n  SYSTEM CONTEXT\n=====================================================================\nThe current local time (Pacific Time) is: ${nowStr}\n`;
+
     const baseSys = LUMINA_SYSTEM_INSTRUCTION.replace(
       "Billy Keesee",
       body.username ? `${body.username}` : "Billy Keesee"
-    );
+    ) + timeContext;
+
+    // Phase 9.8 — Inject active drawing context from the map
+    const drawingContextStr = body.drawingContext
+      ? `\n\n=====================================================================\n  ACTIVE MAP DRAWING CONTEXT (Lumina is "watching" Billy draw)\n=====================================================================\n${JSON.stringify(body.drawingContext, null, 2)}\n`
+      : "";
+
+    const sysWithDrawing = baseSys + drawingContextStr;
 
     // Phase 5c — inject any durable memories Lumina has saved for this user.
     // We sort pinned-first, recently-updated next in loadMemoriesForPrompt.
@@ -363,33 +570,20 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       }
     }
     const sys = memories.length === 0
-      ? baseSys
-      : `${baseSys}\n\n${formatMemoryBlock(memories)}`;
+      ? sysWithDrawing
+      : `${sysWithDrawing}\n\n${formatMemoryBlock(memories)}`;
 
     const tools: Tool[] = [
       { functionDeclarations: normalizeToolDeclarations(LUMINA_FUNCTION_DECLARATIONS) },
     ];
 
     const model = genai.getGenerativeModel({
-      // Using 2.5-flash intentionally — the deprecated @google/generative-ai
-      // SDK does not surface/forward thoughtSignature, which Gemini 3.x
-      // thinking models REQUIRE on follow-up requests after a functionCall.
-      // Migrating to @google/genai is the proper fix — tracked separately.
-      // 2.5-flash still has excellent tool-calling and no signature needed.
       model: "gemini-2.5-flash",
       systemInstruction: { role: "system", parts: [{ text: sys }] },
       tools,
-      // No automatic function calling — we do roundtrips through the client
-      // so the same dispatchTool registry runs in both text and voice modes.
       toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
       generationConfig: {
         temperature: 0.3,
-        // 1024 was too tight — with a 14k-char system prompt + 30+ tool
-        // declarations, the model sometimes hits MAX_TOKENS while still
-        // emitting its hidden thought tokens, leaving no visible text.
-        // 4096 still produced occasional "(empty reply from model)" after
-        // a successful tool call; 8192 gives enough headroom for thought
-        // + summary on inbox/Smartsheet result sets.
         maxOutputTokens: 8192,
       },
     });
@@ -436,7 +630,7 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       contentsLen: cleaned.length,
       shape: cleaned.map((c) => ({
         role: c.role,
-        kinds: c.parts.map((p) => {
+        kinds: c.parts.map((p: any) => {
           if ((p as { functionCall?: unknown }).functionCall) return "call:" + ((p as { functionCall: { name: string } }).functionCall.name);
           if ((p as { functionResponse?: unknown }).functionResponse) return "resp:" + ((p as { functionResponse: { name: string } }).functionResponse.name);
           if ((p as { text?: string }).text) return "text(" + ((p as { text: string }).text.length) + ")";
@@ -444,42 +638,76 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
         }),
       })),
     });
-    const result = await model.generateContent({ contents: cleaned });
-    const response = result.response;
+    // Run one model turn and pull out either text or function calls. Returns
+    // the extracted shape so we can retry once on an empty STOP without
+    // duplicating the parsing logic.
+    async function runTurn(turnContents: Content[]) {
+      const result = await model.generateContent({ contents: turnContents });
+      const response = result.response;
+      const candidates = response.candidates ?? [];
+      const parts = candidates[0]?.content?.parts ?? [];
+      const finishReason = candidates[0]?.finishReason;
 
-    // Pull out either text or function calls.
-    const candidates = response.candidates ?? [];
-    const parts = candidates[0]?.content?.parts ?? [];
-    const finishReason = candidates[0]?.finishReason;
-
-    // eslint-disable-next-line no-console
-    console.log("[lumina/chat] turn complete", {
-      finishReason,
-      partCount: parts.length,
-      partKinds: parts.map((p) => {
-        if ((p as { functionCall?: unknown }).functionCall) return "call";
-        if ((p as { text?: string }).text) return "text";
-        return "other";
-      }),
-      promptFeedback: response.promptFeedback,
-    });
-
-    const fnCalls = parts
-      .filter((p): p is { functionCall: { name: string; args: Record<string, unknown>; thoughtSignature?: string } } =>
-        Boolean((p as { functionCall?: unknown }).functionCall)
-      )
-      .map((p) => {
-        const fc = p.functionCall;
-        // Capture thoughtSignature so the client can echo it back next turn.
-        // Required by Gemini 3.x — without it, the follow-up request 400s.
-        const out: ClientToolCall = {
-          id: cryptoRandomId(),
-          name: fc.name,
-          args: (fc.args ?? {}) as Record<string, unknown>,
-        };
-        if (fc.thoughtSignature) out.thoughtSignature = fc.thoughtSignature;
-        return out;
+      // eslint-disable-next-line no-console
+      console.log("[lumina/chat] turn complete", {
+        finishReason,
+        partCount: parts.length,
+        partKinds: parts.map((p: any) => {
+          if ((p as { functionCall?: unknown }).functionCall) return "call";
+          if ((p as { text?: string }).text) return "text";
+          return "other";
+        }),
+        promptFeedback: response.promptFeedback,
       });
+
+      const fnCalls = parts
+        .filter((p: any): p is { functionCall: { name: string; args: Record<string, unknown>; thoughtSignature?: string } } =>
+          Boolean((p as { functionCall?: unknown }).functionCall)
+        )
+        .map((p: any) => {
+          const fc = p.functionCall;
+          // Capture thoughtSignature so the client can echo it back next turn.
+          // Required by Gemini 3.x — without it, the follow-up request 400s.
+          const tc: ClientToolCall = {
+            id: cryptoRandomId(),
+            name: fc.name,
+            args: (fc.args ?? {}) as Record<string, unknown>,
+          };
+          if (fc.thoughtSignature) tc.thoughtSignature = fc.thoughtSignature;
+          return tc;
+        });
+
+      const turnText =
+        typeof response.text === "function"
+          ? response.text()
+          : (parts[0] as { text?: string } | undefined)?.text ?? "";
+
+      return { fnCalls, finishReason, text: turnText || "" };
+    }
+
+    let { fnCalls, finishReason, text } = await runTurn(cleaned);
+
+    // Empty STOP — the model finished cleanly but emitted zero text and zero
+    // function calls (observed for certain phrasings like "watch ping"). Do
+    // ONE retry with the same contents plus a nudge before falling back to a
+    // sentinel. Don't retry SAFETY/RECITATION/MAX_TOKENS — those have their
+    // own messages and a retry won't help.
+    if (fnCalls.length === 0 && !text && finishReason === "STOP") {
+      // eslint-disable-next-line no-console
+      console.warn("[lumina/chat] empty STOP — retrying once with nudge", {
+        contentsLen: cleaned.length,
+      });
+      const retryContents: Content[] = [
+        ...cleaned,
+        { role: "user", parts: [{ text: "Please respond." }] },
+      ];
+      const retry = await runTurn(retryContents);
+      if (retry.fnCalls.length > 0 || retry.text) {
+        fnCalls = retry.fnCalls;
+        text = retry.text;
+        finishReason = retry.finishReason;
+      }
+    }
 
     if (fnCalls.length > 0) {
       const out: ChatResponseBody = {
@@ -489,12 +717,9 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       return res.json(out);
     }
 
-    const text =
-      typeof response.text === "function" ? response.text() : (parts[0] as { text?: string } | undefined)?.text ?? "";
-
     // If the model returned absolutely nothing, surface a useful explanation
     // instead of the silent "(no reply)". Common causes: MAX_TOKENS,
-    // SAFETY, RECITATION, or empty candidates from a malformed turn.
+    // SAFETY, RECITATION, or an empty STOP that survived the retry above.
     let finalText = text || "";
     if (!finalText) {
       if (finishReason === "MAX_TOKENS") {
@@ -506,7 +731,7 @@ router.post("/lumina/chat", async (req: Request, res: Response) => {
       } else if (finishReason && finishReason !== "STOP") {
         finalText = `No reply produced (finish reason: ${finishReason}).`;
       } else {
-        finalText = "(empty reply from model)";
+        finalText = "I couldn't figure out how to respond — try rephrasing or being more specific.";
       }
     }
 

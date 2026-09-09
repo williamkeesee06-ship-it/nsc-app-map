@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-loadEnv({ path: resolve(__dirname, "../../../.env") });
+loadEnv({ path: resolve(__dirname, "../../../.env.local") });
 
 import { createApp } from "./app.js";
 

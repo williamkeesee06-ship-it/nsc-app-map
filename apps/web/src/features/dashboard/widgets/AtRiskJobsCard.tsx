@@ -3,6 +3,7 @@
 // real Job fields. Tapping a row opens that job's card on the map.
 
 import type { AtRiskJob } from "../hooks/useDashboardData.js";
+import Bezel from "../components/Bezel.js";
 
 export interface AtRiskJobsCardProps {
   atRiskJobs: AtRiskJob[];
@@ -15,9 +16,9 @@ function locationOf(job: AtRiskJob["job"]): string {
 
 export default function AtRiskJobsCard({ atRiskJobs, onOpenJob }: AtRiskJobsCardProps) {
   return (
-    <div className="card card--light atrisk-card">
+    <Bezel className="card atrisk-card" accent="#ff3b5c">
       <div className="card__header">
-        <h2 className="card__title">At-Risk Jobs</h2>
+        <h2 className="card__title atrisk-card__title">At-Risk Jobs</h2>
         <span className="atrisk-card__count">{atRiskJobs.length}</span>
       </div>
 
@@ -68,6 +69,6 @@ export default function AtRiskJobsCard({ atRiskJobs, onOpenJob }: AtRiskJobsCard
           </table>
         </div>
       )}
-    </div>
+    </Bezel>
   );
 }

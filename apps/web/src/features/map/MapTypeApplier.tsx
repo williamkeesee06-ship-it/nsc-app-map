@@ -25,9 +25,9 @@ const DEFAULT_PREFS: MapPreferences = {
   theme: "classic",
   dark: false,
   showRoadLabels: true,
-  showPoiLabels: true,
+  showPoiLabels: false,
   showCityLabels: true,
-  showTransit: true,
+  showTransit: false,
 };
 
 function loadPrefs(): MapPreferences {
@@ -36,13 +36,27 @@ function loadPrefs(): MapPreferences {
     if (raw) {
       const parsed = JSON.parse(raw);
       const theme: MapTheme = parsed.theme ?? (parsed.dark ? "dark" : "classic");
-      return { ...DEFAULT_PREFS, ...parsed, theme };
+      const mapType = parsed.mapType === "terrain" ? "roadmap" : (parsed.mapType ?? "roadmap");
+      return {
+        ...DEFAULT_PREFS,
+        ...parsed,
+        mapType,
+        theme,
+        showRoadLabels: mapType !== "satellite",
+        showPoiLabels: parsed.showPoiLabels ?? false,
+        showCityLabels: parsed.showCityLabels ?? true,
+        showTransit: parsed.showTransit ?? false,
+      };
     }
   } catch {}
   return { ...DEFAULT_PREFS };
 }
 
-export default function MapTypeApplier() {
+interface ApplierProps {
+  forceLight?: boolean;
+}
+
+export default function MapTypeApplier({ forceLight = false }: ApplierProps) {
   const map = useMap();
 
   useEffect(() => {
@@ -61,10 +75,13 @@ export default function MapTypeApplier() {
       // Satellite/hybrid imagery should not be re-colored — only style
       // roadmap/terrain base layers.
       const styleable = effectiveMapType === "roadmap" || effectiveMapType === "terrain";
+      
+      const themeToUse = forceLight && prefs.theme === "dark" ? "classic" : prefs.theme;
+      
       map.setOptions({
         styles: styleable
           ? getMapStyles({
-              theme: prefs.theme,
+              theme: themeToUse,
               showRoadLabels: prefs.showRoadLabels,
               showPoiLabels: prefs.showPoiLabels,
               showCityLabels: prefs.showCityLabels,

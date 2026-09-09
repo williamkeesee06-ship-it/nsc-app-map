@@ -1,0 +1,189 @@
+/* Anchors toggle + dropdown inside map chrome (never under app topbar) */
+.overwatch-root {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: auto;
+  z-index: 40;
+}
+
+/* Overwatch HUD Toggle Button */
+.overwatch-toggle {
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10, 15, 25, 0.85);
+  border: 1px solid rgba(62, 207, 107, 0.3);
+  border-radius: 8px;
+  padding: 8px 16px;
+  color: #3ecf6b;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+.overwatch-toggle:hover {
+  background: rgba(20, 30, 45, 0.95);
+  border-color: rgba(62, 207, 107, 0.6);
+  box-shadow: 0 0 15px rgba(62, 207, 107, 0.2);
+}
+
+.overwatch-toggle.active {
+  background: rgba(62, 207, 107, 0.1);
+  border-color: #3ecf6b;
+  box-shadow: 0 0 20px rgba(62, 207, 107, 0.3), inset 0 0 10px rgba(62, 207, 107, 0.1);
+}
+
+/* Overwatch HUD Dropdown — anchors under the toggle (map chrome) */
+.overwatch-hud-container {
+  position: absolute;
+  top: -240px; /* Hidden above toggle by default */
+  left: 0;
+  right: auto;
+  transform: none;
+  z-index: 39;
+  width: min(420px, calc(100vw - 100px));
+  max-width: 100%;
+  background: linear-gradient(180deg, rgba(15, 20, 30, 0.95) 0%, rgba(10, 15, 25, 0.85) 100%);
+  border: 1px solid rgba(62, 207, 107, 0.4);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(62, 207, 107, 0.15);
+  transition: top 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.overwatch-hud-container.open {
+  top: 48px;
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.overwatch-hud-content {
+  padding: 20px;
+  position: relative;
+}
+
+/* Cyberpunk-ish glowing top accent */
+.overwatch-hud-content::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150px;
+  height: 2px;
+  background: #3ecf6b;
+  box-shadow: 0 0 10px #3ecf6b, 0 0 20px #3ecf6b;
+}
+
+.hud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 12px;
+}
+
+.hud-header h3 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.live-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #ff4757;
+  letter-spacing: 1px;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #ff4757;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #ff4757;
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(255, 71, 87, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
+}
+
+.hud-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.metric-box {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.metric-box:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.metric-icon {
+  opacity: 0.8;
+}
+.jobs-icon { color: #3b82f6; }
+.tickets-icon { color: #f59e0b; }
+.markups-icon { color: #a855f7; }
+
+.metric-details {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-value {
+  font-family: var(--font-mono);
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.metric-label {
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #8892b0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}

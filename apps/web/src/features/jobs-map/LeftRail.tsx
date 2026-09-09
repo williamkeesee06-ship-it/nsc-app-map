@@ -1,20 +1,24 @@
-// Left rail — now tabbed: Layers | Telecom | Annotate (PDF-style tools)
+// Left rail — tabbed. Tools tab hosts Telecom + 811 dig-shape tools plus the
+// PDF-style annotation toolbox.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Job } from "@nsc/types";
 import type { MutableRefObject } from "react";
-import FilterRail from "./FilterRail.js";
 import type { Filters } from "./FilterRail.js";
 import { isJobCompleted } from "./markerStyle.js";
 import { useDrawing } from "../drawing/drawingContext.js";
+import { useDigPolygon, type DigTool } from "../dig-polygon/digPolygonContext.js";
 import type { DrawingTool } from "@nsc/types";
 import { railSvgForTool } from "../drawing/icons/telecomIcons.js";
 import { queuePrefWrite } from "../../lib/prefsSync.js";
-import StatusFilterPills from "./StatusFilterPills.js";
-import CentralOfficesPill from "./CentralOfficesPill.js";
-import MapTypeFilterSection from "../map/MapTypeFilterSection.js";
-import TasksTab from "./TasksTab.js";
-// CalendarTab is mounted full-screen by JobsMap, not inside the rail.
-import LuminaTab from "../lumina/LuminaTab.js";
+// CalendarTab / Dashboard / 811 are mounted full-screen by JobsMap, not in the rail.
+// Lumina is the floating orb + ChatPanel (not a rail tab).
+import ZiplyDashboardTab from "../ziply/ZiplyDashboardTab.js";
+import ZiplyJobsTab from "../ziply/ZiplyJobsTab.js";
+import JobCard from "./JobCard.js";
+import { useActiveContract } from "../workspace/contractStore.js";
+import FeatureDetailSheet, { type PlatformFeature } from "../ziply/FeatureDetailSheet.js";
+import { api } from "../../lib/api.js";
+import PrintParserTab from "../print-overlay/PrintParserTab.js";
 
 // Width grew slightly to accommodate the 44px AsBuilt-style tab strip on
 // the left while keeping plenty of room for tool tiles to the right.
@@ -22,6 +26,9 @@ const DEFAULT_WIDTH = 180;
 const MIN_WIDTH = 150;
 const MAX_WIDTH = 380;
 const LS_KEY = "nsc.leftRailWidth";
+
+// Only tabs that are actually mounted in the rail or as full-screen overlays.
+type TabId = "dashboard" | "jobs" | "filters" | "tools" | "calendar" | "811-tickets" | "parser";
 
 interface Props {
   jobs: Job[];
@@ -34,13 +41,17 @@ interface Props {
   /** Phase 9.7: manager-mode forwards to FilterRail. */
   managerMode?: boolean;
   availableSupervisors?: string[];
+  ziplyPrintLayerVisible?: boolean;
+  setZiplyPrintLayerVisible?: (v: boolean) => void;
+  ziply811OverlayVisible?: boolean;
+  setZiply811OverlayVisible?: (v: boolean) => void;
+  selectedJob?: Job | null;
+  setSelectedJob?: (j: Job | null) => void;
+  selectedFeature?: PlatformFeature | null;
+  setSelectedFeature?: (f: PlatformFeature | null) => void;
 }
 
-type TabId = 'dashboard' | 'filters' | 'telecom' | 'tools' | 'tasks' | 'calendar' | 'lumina';
 
-// 2x2 grid glyph for the Dashboard tab (Lucide LayoutDashboard equivalent —
-// the repo uses inline SVG strings, not lucide-react).
-const DASHBOARD_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>`;
 
 export default function LeftRail({
   jobs,
@@ -49,13 +60,30 @@ export default function LeftRail({
   hideFilters,
   managerMode,
   availableSupervisors,
+  ziplyPrintLayerVisible = true,
+  setZiplyPrintLayerVisible = () => {},
+  ziply811OverlayVisible = false,
+  setZiply811OverlayVisible = () => {},
+  selectedJob,
+  setSelectedJob,
+  selectedFeature,
+  setSelectedFeature,
 }: Props) {
+  const { contract } = useActiveContract();
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
   // Dashboard is the default landing tab (Billy). Like Calendar, it mounts
   // full-screen over the map via JobsMap, so the rail starts collapsed.
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
 
   const [collapsed, setCollapsed] = useState<boolean>(true);
+  const [selectedJobTab, setSelectedJobTab] = useState<"detail" | "tools">("detail");
+  const prevJobIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (selectedJob?.jobId && selectedJob.jobId !== prevJobIdRef.current) {
+      setSelectedJobTab("detail");
+    }
+    prevJobIdRef.current = selectedJob?.jobId ?? null;
+  }, [selectedJob?.jobId]);
 
   // Broadcast active tab + collapse state so JobsMap can mount the Calendar
   // as a full-screen overlay over the map (instead of cramming it in the
@@ -80,11 +108,15 @@ export default function LeftRail({
       const detail = (e as CustomEvent<{ tab: TabId }>).detail;
       if (!detail?.tab) return;
       setActiveTab(detail.tab);
-      setCollapsed(detail.tab === 'calendar' || detail.tab === 'dashboard');
+      const shouldCollapse = detail.tab === 'calendar' ||
+        detail.tab === 'dashboard' ||
+        detail.tab === '811-tickets' ||
+        (detail.tab === 'jobs' && contract === 'Ziply');
+      setCollapsed(shouldCollapse);
     }
     window.addEventListener("nsc:request-tab", onRequestTab as EventListener);
     return () => window.removeEventListener("nsc:request-tab", onRequestTab as EventListener);
-  }, []);
+  }, [contract]);
 
   // Click an active tab to collapse the rail; click a different tab to switch
   // to it (and uncollapse if currently collapsed).
@@ -95,11 +127,15 @@ export default function LeftRail({
       setCollapsed(c => !c);
     } else {
       setActiveTab(id);
-      // Calendar and Dashboard mount full-screen over the map and have no rail
-      // body of their own, so collapse the rail when entering them.
-      setCollapsed(id === 'calendar' || id === 'dashboard');
+      // Calendar, Dashboard, and 811 Tickets mount full-screen over the map and
+      // have no rail body of their own, so collapse the rail when entering them.
+      const shouldCollapse = id === 'calendar' ||
+        id === 'dashboard' ||
+        id === '811-tickets' ||
+        (id === 'jobs' && contract === 'Ziply');
+      setCollapsed(shouldCollapse);
     }
-  }, [activeTab]);
+  }, [activeTab, contract]);
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(DEFAULT_WIDTH);
@@ -182,16 +218,21 @@ export default function LeftRail({
   }, []);
 
   // Always 2 columns — tiles shrink to fit
-
-  const tabs: { id: TabId; label: string; iconSvg?: string }[] = [
-    { id: 'dashboard', label: 'DASHBOARD', iconSvg: DASHBOARD_ICON_SVG },
-    { id: 'filters', label: 'FILTERS' },
-    { id: 'telecom', label: 'TELECOM' },
-    { id: 'tools', label: 'TOOLS' },
-    { id: 'tasks', label: 'TASKS' },
-    { id: 'calendar', label: 'CALENDAR' },
-    { id: 'lumina', label: 'LUMINA' },
-  ];
+  const tabs: Array<{ id: TabId; label: string; iconSvg?: string }> = contract === 'Ziply'
+    ? [
+        { id: 'dashboard', label: 'DASHBOARD' },
+        { id: 'jobs', label: 'JOBS' },
+        { id: 'filters', label: 'MAP' },
+        { id: 'calendar', label: 'CALENDAR' },
+        { id: '811-tickets', label: '811 TICKETS' },
+        { id: 'parser', label: 'PARSER' },
+      ]
+    : [
+        { id: 'dashboard', label: 'DASHBOARD' },
+        { id: 'filters', label: 'MAP' },
+        { id: 'calendar', label: 'CALENDAR' },
+        { id: '811-tickets', label: '811 TICKETS' },
+      ];
 
   // When collapsed, only the 52px tab strip is visible (no content panel,
   // no resize handle). Click the same tab again to expand back.
@@ -227,45 +268,152 @@ export default function LeftRail({
 
       {!collapsed && (
         <>
-          {activeTab === 'lumina' ? (
-            // Lumina owns the full content area (no padding, no scroll wrapper)
-            // so the chat header + composer reach edge-to-edge and the message
-            // list claims all remaining vertical space.
-            <div
-              className="left-rail-lumina-content"
-              style={{
-                flex: "1 1 auto",
-                minWidth: 0,
-                minHeight: 0,
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <LuminaTab width={width} />
-            </div>
-          ) : (
-            <div className="left-rail__scroll">
-              {/* Tab Content */}
-              <div className="left-rail-tab-content">
-                {activeTab === 'filters' && (
-                  <FiltersTab
-                    jobs={jobs}
-                    filters={filters}
-                    setFilters={setFilters}
-                    hideFilters={hideFilters}
-                    managerMode={managerMode}
-                    availableSupervisors={availableSupervisors}
-                  />
-                )}
-                {activeTab === 'telecom' && <TelecomTab />}
-                {activeTab === 'tools' && <AnnotateTab />}
-                {activeTab === 'tasks' && <TasksTab />}
-                {/* Calendar tab has no rail content — it mounts full-screen
-                    over the map (handled by JobsMap). The rail auto-collapses
-                    on entry so there's nothing visible here. */}
+          <div className="left-rail__scroll" style={selectedJob || selectedFeature ? { padding: 0, overflow: 'hidden' } : undefined}>
+            {selectedJob || selectedFeature ? (
+              <div className="left-rail-details-pane" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ padding: '8px', borderBottom: '1px solid rgba(0,0,0,0.1)', background: '#F8FAFC', zIndex: 10 }}>
+                   <button 
+                     onClick={() => {
+                       setSelectedJob?.(null);
+                       setSelectedFeature?.(null);
+                     }}
+                     style={{
+                       background: 'rgba(0,0,0,0.05)',
+                       border: 'none',
+                       padding: '6px 12px',
+                       borderRadius: '6px',
+                       cursor: 'pointer',
+                       fontSize: '12px',
+                       fontWeight: 600,
+                       width: '100%',
+                       textAlign: 'left',
+                       color: '#334155',
+                       transition: 'background 0.2s',
+                     }}
+                     onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.08)'}
+                     onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
+                   >
+                     ← Back to {activeTab === 'filters' ? 'Map Filters' : activeTab === 'parser' ? 'Print Parser' : 'Menu'}
+                   </button>
+                </div>
+                
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  {selectedJob && (
+                    <div style={{
+                      display: 'flex',
+                      background: 'rgba(0, 0, 0, 0.03)',
+                      padding: '4px',
+                      borderRadius: '8px',
+                      margin: '4px 8px 8px 8px',
+                      gap: '4px',
+                    }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedJobTab("detail")}
+                        style={{
+                          flex: 1,
+                          background: selectedJobTab === "detail" ? '#0033A0' : 'transparent',
+                          color: selectedJobTab === "detail" ? '#ffffff' : '#475569',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          letterSpacing: '0.05em',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s cubic-bezier(0.32, 0.72, 0, 1)',
+                        }}
+                      >
+                        JOB DETAIL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedJobTab("tools")}
+                        style={{
+                          flex: 1,
+                          background: selectedJobTab === "tools" ? '#0033A0' : 'transparent',
+                          color: selectedJobTab === "tools" ? '#ffffff' : '#475569',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          letterSpacing: '0.05em',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s cubic-bezier(0.32, 0.72, 0, 1)',
+                        }}
+                      >
+                        TOOLS
+                      </button>
+                    </div>
+                  )}
+
+                  {selectedJob && selectedJobTab === "detail" && (
+                    <JobCard
+                      job={selectedJob}
+                      onClose={() => {
+                        setSelectedJob?.(null);
+                        window.dispatchEvent(new Event("nsc:markups-saved"));
+                      }}
+                      onJobUpdate={(updatedJob) => setSelectedJob?.(updatedJob)}
+                      variant="panel"
+                      ziplyPrintLayerVisible={ziplyPrintLayerVisible}
+                      setZiplyPrintLayerVisible={setZiplyPrintLayerVisible}
+                    />
+                  )}
+
+                  {selectedJob && selectedJobTab === "tools" && (
+                    <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 16px 8px' }}>
+                      <AnnotateTab selectedJob={selectedJob} />
+                    </div>
+                  )}
+
+                  {selectedFeature && (
+                    <FeatureDetailSheet
+                      feature={selectedFeature}
+                      onClose={() => setSelectedFeature?.(null)}
+                      onStatusChange={async (status) => {
+                        const jobId = selectedFeature.properties.jobId as string | undefined;
+                        const label = selectedFeature.properties.label as string | undefined;
+                        const layer = selectedFeature.properties.layer as string | undefined;
+
+                        let kind: "hub" | "terminal" | "cable" = "cable";
+                        if (layer === "hub") kind = "hub";
+                        else if (layer === "terminal") kind = "terminal";
+
+                        if (jobId && label) {
+                          try {
+                            await api.updateZiplyObjectStatus(jobId, {
+                              kind,
+                              ref: label,
+                              status: status as any
+                            });
+                            window.dispatchEvent(new Event("nsc:jobs-reload"));
+                          } catch (ex) {
+                            console.error("Failed to update status", ex);
+                          }
+                        }
+
+                        setSelectedFeature?.({
+                           ...selectedFeature,
+                           properties: { ...selectedFeature.properties, status }
+                        });
+                      }}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            ) : (
+              /* Tab Content */
+              <div className="left-rail-tab-content">
+                  {activeTab === 'filters' && <AnnotateTab selectedJob={selectedJob ?? null} />}
+                  {activeTab === 'parser' && <PrintParserTab selectedJob={selectedJob ?? null} />}
+                  {/* Calendar, Jobs (Ziply), and Dashboard (Lumen & Ziply) tabs have no rail content — 
+                      they mount full-screen over the map (handled by JobsMap). The rail auto-collapses
+                      on entry so there's nothing visible here. */}
+                </div>
+            )}
+          </div>
 
           {/* Resize handle */}
           <div
@@ -281,6 +429,7 @@ export default function LeftRail({
   );
 }
 
+// ─── SLD Tab Content ──────────────────────────────────────────────────────────
 // ─── Tool definitions ─────────────────────────────────────────────────────────
 
 interface ToolDef {
@@ -370,7 +519,11 @@ const STANDARD_TOOL_DEFS: ToolDef[] = [
     label: "FREEHAND",
     iconSvg: basicSvg(`<path d="M4,22 Q8,8 14,14 Q20,20 28,4" stroke="STROKE" stroke-width="2" fill="none" stroke-linecap="round"/>`),
   },
-  // Measure tool moved to topbar (top-of-app ruler button).
+  {
+    tool: "measure",
+    label: "MEASURE",
+    iconSvg: basicSvg(`<path d="M4,24 L24,4 L28,8 L8,28 Z" stroke="STROKE" stroke-width="2" fill="none"/><line x1="9" y1="19" x2="12" y2="16" stroke="STROKE" stroke-width="1.5"/><line x1="13" y1="15" x2="18" y2="10" stroke="STROKE" stroke-width="1.5"/><line x1="17" y1="11" x2="20" y2="8" stroke="STROKE" stroke-width="1.5"/>`),
+  },
   // Select tool exposed via SELECT_TOOL_DEF above for use in both Telecom and Tools tabs.
 ];
 
@@ -409,6 +562,11 @@ const TELECOM_TOOL_DEFS: ToolDef[] = [
     iconSvg: (active) => railSvgForTool("ped", blackOrActive(active)),
   },
   {
+    tool: "flower_pot_new",
+    label: "FLOWER POT",
+    iconSvg: (active) => railSvgForTool("flower_pot", blackOrActive(active)),
+  },
+  {
     tool: "pole_new",
     label: "POLE",
     iconSvg: (active) => railSvgForTool("pole", blackOrActive(active)),
@@ -431,58 +589,123 @@ const TELECOM_TOOL_DEFS: ToolDef[] = [
   },
 ];
 
+const ZIPLY_TOOL_DEFS: ToolDef[] = [
+  {
+    tool: "ziply_feeder",
+    label: "F1 CABLE",
+    iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+      <line x1="2" y1="13" x2="30" y2="13" stroke="#06B6D4" stroke-width="4" stroke-linecap="round"/>
+      <text x="16" y="11" text-anchor="middle" font-size="7" font-weight="900" fill="#06B6D4" font-family="monospace">F1</text>
+    </svg>`,
+  },
+  {
+    tool: "ziply_distribution",
+    label: "F2 CABLE",
+    iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+      <line x1="2" y1="13" x2="30" y2="13" stroke="#6366F1" stroke-width="3.2" stroke-linecap="round"/>
+      <text x="16" y="11" text-anchor="middle" font-size="7" font-weight="900" fill="#6366F1" font-family="monospace">F2</text>
+    </svg>`,
+  },
+  {
+    tool: "ziply_drop",
+    label: "DROP",
+    iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+      <line x1="2" y1="13" x2="30" y2="13" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/>
+      <text x="16" y="11" text-anchor="middle" font-size="7" font-weight="900" fill="#F59E0B" font-family="monospace">DROP</text>
+    </svg>`,
+  },
+  {
+    tool: "ziply_bore",
+    label: "BORE/TRENCH",
+    iconSvg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="26" viewBox="0 0 32 26">
+      <line x1="2" y1="13" x2="30" y2="13" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 3"/>
+    </svg>`,
+  },
+  {
+    tool: "ziply_hub",
+    label: "HUB",
+    iconSvg: (active) => railSvgForTool("ziply_hub", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_terminal",
+    label: "MST",
+    iconSvg: (active) => railSvgForTool("ziply_terminal", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_splitter",
+    label: "SPLITTER",
+    iconSvg: (active) => railSvgForTool("ziply_splitter", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_riser",
+    label: "RISER",
+    iconSvg: (active) => railSvgForTool("ziply_riser", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_slack_loop",
+    label: "SLACK LOOP",
+    iconSvg: (active) => railSvgForTool("ziply_slack_loop", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_address",
+    label: "ADDRESS",
+    iconSvg: (active) => railSvgForTool("ziply_address", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_pole",
+    label: "POLE",
+    iconSvg: (active) => railSvgForTool("ziply_pole", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_handhole",
+    label: "HANDHOLE",
+    iconSvg: (active) => railSvgForTool("ziply_handhole", blackOrActive(active)),
+  },
+  {
+    tool: "ziply_flower_pot",
+    label: "FLOWER POT",
+    iconSvg: (active) => railSvgForTool("ziply_flower_pot", blackOrActive(active)),
+  },
+];
+
 // ─── Tab Components ────────────────────────────────────────────────────────────
 
-function FiltersTab({
-  jobs,
-  filters,
-  setFilters,
-  hideFilters,
-  managerMode,
-  availableSupervisors,
-}: {
-  jobs: Job[];
-  filters: Filters;
-  setFilters: (f: Filters) => void;
-  hideFilters?: boolean;
-  managerMode?: boolean;
-  availableSupervisors?: string[];
-}) {
-  return (
-    <section className="rail-section filters-tab">
-      <div className="filters-tab__group">
-        <div className="filters-tab__heading">STATUS</div>
-        <StatusFilterPills />
-      </div>
+// 811 tool switcher definitions (neon-orange excavation shapes).
+const DIG_TOOLS: { id: DigTool; label: string; iconSvg: string }[] = [
+  {
+    id: "radius",
+    label: "RADIUS",
+    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="20" y2="12"/><circle cx="12" cy="12" r="1.5" fill="#ff6a00"/></svg>`,
+  },
+  {
+    id: "route",
+    label: "ROUTE",
+    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L10 8 L16 16 L20 4"/></svg>`,
+  },
+  {
+    id: "polygon",
+    label: "POLYGON",
+    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6a00" stroke-width="2" stroke-linejoin="round"><polygon points="12,3 21,9 18,20 6,20 3,9"/></svg>`,
+  },
+];
 
-      <div className="filters-tab__group">
-        <div className="filters-tab__heading">OVERLAYS</div>
-        <CentralOfficesPill />
-      </div>
+import EngineeringChecklistTray from "../ziply/EngineeringChecklistTray.js";
 
-      {/* Map type + theme — moved out of the topbar (6/18). */}
-      <MapTypeFilterSection />
-
-      {!hideFilters && (
-        <div className="filters-tab__group">
-          <div className="rail-section__divider" />
-          <FilterRail
-            jobs={jobs}
-            filters={filters}
-            setFilters={setFilters}
-            managerMode={managerMode}
-            availableSupervisors={availableSupervisors}
-          />
-        </div>
-      )}
-    </section>
-  );
-}
-
-function TelecomTab() {
+function AnnotateTab({ selectedJob }: { selectedJob: Job | null }) {
+  const { contract } = useActiveContract();
   const { state, setTool, deleteSelected, undo, redo, canUndo, canRedo } = useDrawing();
   const { activeTool } = state;
   const hasSelection = state.selectedIds.size > 0;
+
+  // 811 Phase 1.5 — dig shape tools. Enabled only when a job is selected
+  // (the shape is saved to jobs/{jobId}.digPolygon).
+  const {
+    tool: digTool,
+    setTool: setDigTool,
+    jobId: digJobId,
+    hasShape: hasDigShape,
+    existing: digShape,
+  } = useDigPolygon();
 
   const toggleTool = (tool: DrawingTool) => {
     setTool(activeTool === tool ? null : tool);
@@ -492,45 +715,16 @@ function TelecomTab() {
     const isActive = activeTool === tool;
     return (
       <button
-        key={tool}
-        className={`tool-tile${isActive ? " tool-tile--active" : ""}`}
-        onClick={() => toggleTool(tool)}
-        title={label}
+         key={`${tool}-${label}`}
+         className={`tool-tile${isActive ? " tool-tile--active" : ""}`}
+         onClick={() => toggleTool(tool)}
+         title={label}
       >
         <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
         <span className="tool-tile__label">{label}</span>
       </button>
     );
   };
-
-  return (
-    <section className="rail-section rail-section--tools">
-      <div className="undo-redo-row">
-        <button className="undo-redo-btn" onClick={undo} disabled={!canUndo}>↶ UNDO</button>
-        <button className="undo-redo-btn" onClick={redo} disabled={!canRedo}>↷ REDO</button>
-      </div>
-
-      <div className="tool-grid">
-        {/* Select stays in Telecom for quick access alongside the telecom tools.
-            The 7 generic drawing tools (text/line/arrow/rect/circle/polygon/freehand)
-            now live in the TOOLS tab. Measure moved to the topbar. */}
-        {SELECT_TOOL_DEF && renderTile(SELECT_TOOL_DEF)}
-        <div className="telecom-divider">TELECOM</div>
-        {TELECOM_TOOL_DEFS.map(renderTile)}
-      </div>
-
-      {hasSelection && (
-        <button className="tool-btn tool-btn--danger" style={{ width: '100%', marginTop: 6 }} onClick={deleteSelected}>
-          Delete ({state.selectedIds.size})
-        </button>
-      )}
-    </section>
-  );
-}
-
-function AnnotateTab() {
-  const { state, setTool, undo, redo, canUndo, canRedo } = useDrawing();
-  const { activeTool } = state;
 
   // Full PDF-editor style annotation toolbox.
   // The 7 generic drawing tools (text/line/arrow/rect/circle/polygon/freehand)
@@ -545,6 +739,7 @@ function AnnotateTab() {
   const drawingTools: ToolDef[] = [
     findStandard("line"),
     findStandard("freehand"),
+    findStandard("measure"),
     { tool: "highlighter", label: "HIGHLIGHT", iconSvg: basicSvg(`<path d="M4,22 L18,8 L24,14 L10,28 Z" stroke="STROKE" stroke-width="2" fill="none"/><line x1="16" y1="10" x2="22" y2="16" stroke="STROKE" stroke-width="2"/>`) },
     // Construction-themed eraser: a brick-mason trowel / shovel that "clears" markup.
     { tool: "eraser", label: "ERASER", iconSvg: basicSvg(`<path d="M20,4 L28,12 L14,26 L4,16 Z" stroke="STROKE" stroke-width="2" fill="none" stroke-linejoin="round"/><line x1="10" y1="22" x2="4" y2="28" stroke="STROKE" stroke-width="2.5" stroke-linecap="round"/>`) },
@@ -569,40 +764,6 @@ function AnnotateTab() {
     findStandard("polygon"),
   ];
 
-  const transformTools = [
-    { action: "rotate", label: "ROTATE", icon: "↻" },
-    { action: "group", label: "GROUP", icon: "📦" },
-    { action: "ungroup", label: "UNGROUP", icon: "📦" },
-    { action: "bring-front", label: "FRONT", icon: "↑" },
-    { action: "send-back", label: "BACK", icon: "↓" },
-    { action: "align-left", label: "ALIGN L", icon: "⫷" },
-    { action: "align-center", label: "CENTER", icon: "⫸" },
-    { action: "distribute", label: "DISTRIB", icon: "⟷" },
-  ];
-
-  const {
-    bringToFront,
-    sendToBack,
-    rotateSelected,
-    groupSelected,
-    ungroupSelected,
-    alignSelected,
-  } = useDrawing();
-
-  const handleAction = (action: string) => {
-    switch (action) {
-      case 'bring-front': bringToFront(); break;
-      case 'send-back': sendToBack(); break;
-      case 'rotate': rotateSelected(90); break;
-      case 'group': groupSelected(); break;
-      case 'ungroup': ungroupSelected(); break;
-      case 'align-left': alignSelected('left'); break;
-      case 'align-center': alignSelected('center'); break;
-      case 'distribute': alignSelected('distribute-h'); break;
-      default: console.log('Action:', action);
-    }
-  };
-
   return (
     <section className="rail-section annotate-tab">
       {/* Quick Undo/Redo */}
@@ -611,62 +772,76 @@ function AnnotateTab() {
         <button className="undo-redo-btn" onClick={redo} disabled={!canRedo}>↷ REDO</button>
       </div>
 
-      <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 4, color: '#8a96a3' }}>SELECTION</div>
-      <div className="tool-grid">
-        {selectionTools.map(({ tool, label, iconSvg }) => {
-          const isActive = activeTool === tool;
+      {/* Render Ziply tools if Ziply contract */}
+      {contract === "Ziply" && (
+        <>
+          <EngineeringChecklistTray job={selectedJob} />
+          <div className="telecom-divider">ZIPLY CONSTRUCTION</div>
+          <div className="tool-grid" style={{ marginBottom: 12 }}>
+            {ZIPLY_TOOL_DEFS.map(renderTile)}
+          </div>
+        </>
+      )}
+
+      {/* Render standard TELECOM tools for all contracts */}
+      <>
+        <div className="telecom-divider">TELECOM</div>
+        <div className="tool-grid" style={{ marginBottom: 12 }}>
+          {TELECOM_TOOL_DEFS.map(renderTile)}
+        </div>
+      </>
+
+      <div className="telecom-divider">SELECTION</div>
+      <div className="tool-grid" style={{ marginBottom: 12 }}>
+        {selectionTools.map(renderTile)}
+      </div>
+
+      <div className="telecom-divider">DRAWING</div>
+      <div className="tool-grid" style={{ marginBottom: 12 }}>
+        {drawingTools.map(renderTile)}
+      </div>
+
+      <div className="telecom-divider">MARKUP</div>
+      <div className="tool-grid" style={{ marginBottom: 12 }}>
+        {markupTools.map(renderTile)}
+      </div>
+
+      {hasSelection && (
+        <button className="tool-btn tool-btn--danger" style={{ width: '100%', marginTop: 6 }} onClick={deleteSelected}>
+          Delete ({state.selectedIds.size})
+        </button>
+      )}
+
+      <div className="telecom-divider">811 DIG SHAPE</div>
+      <div className="dig-tool-switcher">
+        {DIG_TOOLS.map(({ id, label, iconSvg }) => {
+          const isActive = digTool === id;
           return (
-            <button key={tool} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)}>
-              <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
-              <span className="tool-tile__label">{label}</span>
+            <button
+              key={id}
+              className={`dig-tool-btn${isActive ? " dig-tool-btn--active" : ""}`}
+              onClick={() => setDigTool(isActive ? null : id)}
+              disabled={!digJobId}
+              title={digJobId ? label : "Select a job first"}
+            >
+              <span
+                className="dig-tool-btn__icon"
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{ __html: iconSvg }}
+              />
+              <span className="dig-tool-btn__label">{label}</span>
             </button>
           );
         })}
       </div>
-
-      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>DRAWING</div>
-      <div className="tool-grid">
-        {drawingTools.map(({ tool, label, iconSvg }, i) => {
-          const isActive = activeTool === tool;
-          return (
-            <button key={`${tool}-${label}-${i}`} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)} title={label}>
-              <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
-              <span className="tool-tile__label">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>MARKUP</div>
-      <div className="tool-grid">
-        {markupTools.map(({ tool, label, iconSvg }, i) => {
-          const isActive = activeTool === tool;
-          return (
-            <button key={`${tool}-${label}-${i}`} className={`tool-tile${isActive ? " tool-tile--active" : ""}`} onClick={() => setTool(isActive ? null : tool)} title={label}>
-              <span className="tool-tile__icon" dangerouslySetInnerHTML={{ __html: iconSvg(isActive) }} />
-              <span className="tool-tile__label">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ fontSize: 10, fontWeight: 600, margin: '10px 0 4px', color: '#8a96a3' }}>TRANSFORM &amp; ORDER</div>
-      <div className="tool-grid">
-        {transformTools.map((t) => (
-          <button
-            key={t.action}
-            className="tool-tile"
-            onClick={() => handleAction(t.action)}
-            title={t.label}
-          >
-            <span className="tool-tile__icon" style={{ fontSize: 18, lineHeight: 1 }}>{t.icon}</span>
-            <span className="tool-tile__label">{t.label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div style={{ fontSize: 9, color: '#6a7580', marginTop: 12, lineHeight: 1.3 }}>
-        Full implementations (real eraser, callouts, rotate, grouping, align, lasso, stamps) coming in the next updates.
+      <div
+        className={`dig-polygon-status${hasDigShape ? " dig-polygon-status--saved" : ""}`}
+      >
+        {!digJobId
+          ? "No job selected"
+          : hasDigShape && digShape
+            ? `${digShape.type} shape saved`
+            : "No shape yet"}
       </div>
     </section>
   );

@@ -11,6 +11,8 @@
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 
+import { request } from "../../../lib/api.js";
+
 interface ReadEmailInput {
   uid: number;
 }
@@ -41,19 +43,15 @@ async function run(
   if (typeof input.uid !== "number" || input.uid <= 0) {
     return { ok: false, message: "readEmail requires a numeric uid (from listEmails)." };
   }
-  const res = await fetch(`/api/lumina/inbox/message/${input.uid}`);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = (await res.json()) as { error?: string };
-      detail = j.error ?? "";
-    } catch { /* ignore */ }
+  let body: ReadEmailData;
+  try {
+    body = await request<ReadEmailData>(`/api/lumina/inbox/message/${input.uid}`);
+  } catch (err) {
     return {
       ok: false,
-      message: `Could not read message ${input.uid} (${res.status}).${detail ? " " + detail : ""}`,
+      message: `Could not read message ${input.uid}. ${(err as Error).message}`,
     };
   }
-  const body = (await res.json()) as ReadEmailData;
   // Strip the HTML payload before handing off to the model — text body is
   // what it should reason over, and we don't want to bloat context.
   const lean: ReadEmailData = { ...body, html: "" };

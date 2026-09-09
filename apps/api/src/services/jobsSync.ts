@@ -54,17 +54,125 @@ function splitWorkType(raw: string | null): string[] {
 // Normalize one Smartsheet row into a Job (no geocode yet).
 export function normalizeRow(
   row: SmartsheetRow,
-  colsById: Map<number, SmartsheetColumn>
+  colsById: Map<number, SmartsheetColumn>,
+  isZiply = false
 ): Job | null {
   const rec = rowToRecord(row, colsById);
-  const workOrder = s(rec["Work Order"]);
-  if (!workOrder) return null; // skip rows without a WO
+
+  // Ziply reports use "Primary" for the work order id; Lumen sheets use "Work Order".
+  // Fall back to Primary so per-supervisor Ziply trackers (which have neither a
+  // Work Order column nor a supervisor column) still produce valid Job records.
+  const workOrder = s(rec["Work Order"]) ?? s(rec["Primary"]);
+  if (!workOrder) return null; // skip rows without a WO/Primary id
+
+  const now = Date.now();
+
+  if (isZiply) {
+    const workType = s(rec["Work Type"]);
+    let locateExpires: number | null = null;
+    const locatesCalledStr = s(rec["Locates Called"]);
+    if (locatesCalledStr) {
+      const parsed = Date.parse(locatesCalledStr);
+      if (!isNaN(parsed)) {
+        locateExpires = parsed + 45 * 24 * 60 * 60 * 1000; // 45 days WA locate limit
+      }
+    }
+
+    const rawHub = s(rec["Hub Number"]);
+    let buildRef = rawHub;
+    let buildRefType: "hub" | "splitter" | "route" | "backbone" | "custom" = "hub";
+
+    if (!buildRef) {
+      if (/^H\d+/i.test(workOrder)) {
+        buildRef = workOrder.match(/^H\d+/i)?.[0]?.toUpperCase() ?? null;
+        buildRefType = "hub";
+      } else if (/^S\d+/i.test(workOrder)) {
+        buildRef = workOrder.match(/^S\d+/i)?.[0]?.toUpperCase() ?? null;
+        buildRefType = "splitter";
+      } else if (/^RTE/i.test(workOrder)) {
+        buildRef = workOrder.match(/^RTE\s*\d+/i)?.[0]?.toUpperCase() ?? null;
+        buildRefType = "route";
+      }
+    }
+
+    const displayName = `${workOrder} — ${buildRef || "Unassigned"}`;
+
+    // Ziply per-supervisor reports are pre-filtered in Smartsheet, so they do
+    // NOT include a supervisor column. The supervisor is stamped by the caller
+    // (see sheetsToSync loop) via a defaultSupervisor override.
+    return {
+      jobId: workOrderToJobId(workOrder),
+      workOrder,
+      organizationId: "nsc",
+      buildReference: buildRef,
+      buildReferenceType: buildRefType,
+      displayName,
+      smartsheetRowId: row.id,
+      inTracker: true,
+      jobStatus: s(rec["Job Status"]),
+      secondaryJobStatus: null,
+      workType,
+      workTypeTags: splitWorkType(workType),
+      constructionSupervisor: s(rec["NSC Supervisor"]), // may be null; caller overrides
+      constructionManager: s(rec["APM"]),
+      constructionBase: null,
+      customerProject: "Ziply",
+      wireCenter: s(rec["Hub Number"]),
+      address: s(rec["Address / Project Name"]),
+      city: s(rec["City"]),
+      zipCode: null,
+      scheduleDate: s(rec["Crew Start Forecast"]),
+      actualCompletionDate: s(rec["All Construction Complete"]),
+      trafficControlRequired: null,
+      constructionCrewForeman: s(rec["Crew"]),
+      nscProjectNotes: s(rec["Job Notes"]),
+      dateReceived: s(rec["Date Received"]),
+      actualStartDate: s(rec["Crew Start Actual"]),
+      permitRequired: null,
+      splicingStatus: s(rec["Splicing Complete Actual"]) ? "Complete" : "Pending",
+      smartsheetModified: s(rec["Modified"]),
+      firstSyncedAt: now,
+      lastSyncedAt: now,
+      geocode: null,
+
+      // Ziply specific fields
+      sapSalesOrder: s(rec["SAP Sales Order"]),
+      sapContractId: s(rec["SAP Contract ID"]),
+      hubNumber: s(rec["Hub Number"]),
+      ziplyInspector: s(rec["Ziply Inspector"]),
+      homesPassed: rec["# Homes Passed"] != null ? Number(rec["# Homes Passed"]) : null,
+      softscapeBuriedHomes: rec["SoftScape Buried Homes"] != null ? Number(rec["SoftScape Buried Homes"]) : null,
+      softscapeAerialHomes: rec["SoftScape Aerial Homes"] != null ? Number(rec["SoftScape Aerial Homes"]) : null,
+      crewName: s(rec["Crew"]),
+      approvedToBuild: b(rec["Approved to Build"]),
+      assignedInSiteTracker: b(rec["Assigned in SiteTracker"]),
+      locatesCalled: locatesCalledStr,
+      estBoreFt: rec["Estimated Bore/Trench Footage"] != null ? Number(rec["Estimated Bore/Trench Footage"]) : null,
+      completedBoreFt: rec["Completed Bore/Trench Footage"] != null ? Number(rec["Completed Bore/Trench Footage"]) : null,
+      estPlacingFt: rec["Estimated Placing Footage"] != null ? Number(rec["Estimated Placing Footage"]) : null,
+      completedPlacingFt: rec["Completed Placing Footage"] != null ? Number(rec["Completed Placing Footage"]) : null,
+      estAerialFt: rec["Estimated Aerial Footage"] != null ? Number(rec["Estimated Aerial Footage"]) : null,
+      completedAerialFt: rec["Completed Aerial Footage"] != null ? Number(rec["Completed Aerial Footage"]) : null,
+      locateNumber: s(rec["Locate Ticket"]),
+      locateExpires,
+
+      // Ziply's tracker has a "% Complete" column that field crews update. It
+      // ships as either a fractional number (0.42) or a percentage string
+      // ("42%"); normalize both to an integer 0–100 for consistent UI.
+      percentComplete: parsePercent(rec["% Complete"]),
+    };
+  }
 
   const workType = s(rec["Work Type"]);
-  const now = Date.now();
+  const wc = s(rec["WIRE CENTER"]);
+  const displayName = `${workOrder} — ${wc || "Unassigned"}`;
   return {
     jobId: workOrderToJobId(workOrder),
     workOrder,
+    organizationId: "nsc",
+    buildReference: wc,
+    buildReferenceType: "custom",
+    displayName,
     smartsheetRowId: row.id,
     inTracker: true, // any row we see in the current sheet is on-tracker
     jobStatus: s(rec["Job Status"]),
@@ -75,7 +183,7 @@ export function normalizeRow(
     constructionManager: s(rec["Construction Manager"]),
     constructionBase: s(rec["Construction Base"]),
     customerProject: s(rec["Customer/Project"]) ?? s(rec["Customer / Project"]),
-    wireCenter: s(rec["WIRE CENTER"]),
+    wireCenter: wc,
     address: s(rec["Address"]),
     city: s(rec["City"]),
     zipCode: s(rec["Zip Code"]),
@@ -93,6 +201,18 @@ export function normalizeRow(
     lastSyncedAt: now,
     geocode: null, // filled below
   };
+}
+
+// Parse Smartsheet "% Complete" values — they come through as either 0–1
+// fractions (0.42), 0–100 numbers (42), or percent strings ("42%"). We store
+// as an integer 0–100 so the dashboard gauge can read it without guessing.
+function parsePercent(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const raw = typeof v === "string" ? v.replace("%", "").trim() : v;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const pct = n <= 1 ? n * 100 : n;
+  return Math.max(0, Math.min(100, Math.round(pct)));
 }
 
 // Drop any keys whose value is `undefined`. Firestore rejects them.
@@ -145,13 +265,75 @@ export async function runJobsSyncForSupervisors(
   await runDoc.set(initial);
 
   try {
-    const sheet = await getSheet();
-    const colsById = buildColumnsById(sheet);
-    const filtered = sheet.rows.filter((r) => {
-      const rec = rowToRecord(r, colsById);
-      const v = s(rec["Construction Supervisor"]) ?? "";
-      return allowSet.has(v.trim().toLowerCase());
-    });
+    const env = getEnv();
+    // Per-source config. `defaultSupervisor` is set for Ziply reports because
+    // Smartsheet per-supervisor trackers are pre-filtered and have no
+    // supervisor column. When defaultSupervisor is set, we skip the row-level
+    // supervisor filter and stamp every row with that supervisor name so the
+    // existing UI-side supervisor filtering keeps working.
+    const sheetsToSync: Array<{
+      id: string;
+      supervisorKey: string;
+      isZiply: boolean;
+      defaultSupervisor?: string;
+    }> = [];
+    // Lumen sync is DISABLED. Set SYNC_LUMEN=true in Vercel env to re-enable
+    // (kept behind a flag rather than deleted so the code path stays exercised).
+    if (env.SMARTSHEET_SHEET_ID && env.SYNC_LUMEN === "true") {
+      sheetsToSync.push({
+        id: env.SMARTSHEET_SHEET_ID,
+        supervisorKey: "Construction Supervisor",
+        isZiply: false,
+      });
+    }
+    const ziplyTargetId = env.ZIPLY_TRACKER_REPORT_ID || env.ZIPLY_SMARTSHEET_SHEET_ID;
+    if (ziplyTargetId) {
+      // Ziply report is the pre-filtered tracker.
+      sheetsToSync.push({
+        id: ziplyTargetId,
+        supervisorKey: "NSC Supervisor",
+        isZiply: true,
+        defaultSupervisor: env.ZIPLY_DEFAULT_SUPERVISOR || "Billy Keesee",
+      });
+    }
+
+    const filteredJobs: Job[] = [];
+    let totalRowCount = 0;
+
+    for (const sheetInfo of sheetsToSync) {
+      try {
+        const sheet = await getSheet({}, sheetInfo.id);
+        totalRowCount += sheet.totalRowCount;
+        const colsById = buildColumnsById(sheet);
+
+        // If defaultSupervisor is set (pre-filtered report), skip the row-level
+        // supervisor filter and take every row. Otherwise filter by the
+        // supervisor column against the caller's allowSet.
+        const matchedRows = sheetInfo.defaultSupervisor
+          ? sheet.rows.filter(() =>
+              allowSet.has(sheetInfo.defaultSupervisor!.trim().toLowerCase())
+            )
+          : sheet.rows.filter((r) => {
+              const rec = rowToRecord(r, colsById);
+              const v = s(rec[sheetInfo.supervisorKey]) ?? "";
+              return allowSet.has(v.trim().toLowerCase());
+            });
+
+        for (const row of matchedRows) {
+          const job = normalizeRow(row, colsById, sheetInfo.isZiply);
+          if (job) {
+            // Stamp the supervisor for pre-filtered reports so downstream UI
+            // filters (by supervisor) can find these jobs.
+            if (sheetInfo.defaultSupervisor && !job.constructionSupervisor) {
+              job.constructionSupervisor = sheetInfo.defaultSupervisor;
+            }
+            filteredJobs.push(job);
+          }
+        }
+      } catch (err) {
+        console.error(`[jobsSync] Error syncing sheet ${sheetInfo.id}:`, err);
+      }
+    }
 
     // Load all existing jobs once so we can:
     //   - keep firstSyncedAt
@@ -170,11 +352,11 @@ export async function runJobsSyncForSupervisors(
     let geocodedCached = 0;
     let geocodeFailed = 0;
 
-    // Smartsheet returns rows in order; process sequentially to keep geocode
-    // calls bounded (~5 req/sec is safe under Google's 50 QPS default).
-    for (const row of filtered) {
-      const job = normalizeRow(row, colsById);
-      if (!job) continue;
+    // Process sequentially to keep geocode calls bounded
+    let batch = firestore.batch();
+    let batchCount = 0;
+
+    for (const job of filteredJobs) {
       currentJobIds.add(job.jobId);
 
       const prior = existingJobs.get(job.jobId);
@@ -207,13 +389,18 @@ export async function runJobsSyncForSupervisors(
         else geocodeFailed++;
       }
 
-      await firestore
-        .collection("jobs")
-        .doc(job.jobId)
-        .set(stripUndefined(job as unknown as Record<string, unknown>), {
-          merge: true,
-        });
+      const docRef = firestore.collection("jobs").doc(job.jobId);
+      batch.set(docRef, stripUndefined(job as unknown as Record<string, unknown>), {
+        merge: true,
+      });
       upserted++;
+      batchCount++;
+
+      if (batchCount >= 400) {
+        await batch.commit();
+        batch = firestore.batch();
+        batchCount = 0;
+      }
     }
 
     // Flag jobs that were previously on-tracker but are no longer in the sheet.
@@ -222,22 +409,49 @@ export async function runJobsSyncForSupervisors(
     let flaggedOffTracker = 0;
     for (const [jobId, prior] of existingJobs.entries()) {
       const priorSup = (prior.constructionSupervisor ?? "").trim().toLowerCase();
-      if (!allowSet.has(priorSup)) continue;
-      if (!currentJobIds.has(jobId) && prior.inTracker !== false) {
-        await firestore.collection("jobs").doc(jobId).update({
-          inTracker: false,
-          lastSyncedAt: Date.now(),
-        });
-        flaggedOffTracker++;
+      const isZiply = prior.customerProject === "Ziply";
+
+      if (isZiply) {
+        const ziplySynced = sheetsToSync.some(s => s.isZiply);
+        if (ziplySynced && !currentJobIds.has(jobId) && prior.inTracker !== false) {
+          const docRef = firestore.collection("jobs").doc(jobId);
+          batch.update(docRef, {
+            inTracker: false,
+            lastSyncedAt: Date.now(),
+          });
+          flaggedOffTracker++;
+          batchCount++;
+        }
+      } else {
+        if (!allowSet.has(priorSup)) continue;
+        if (!currentJobIds.has(jobId) && prior.inTracker !== false) {
+          const docRef = firestore.collection("jobs").doc(jobId);
+          batch.update(docRef, {
+            inTracker: false,
+            lastSyncedAt: Date.now(),
+          });
+          flaggedOffTracker++;
+          batchCount++;
+        }
       }
+
+      if (batchCount >= 400) {
+        await batch.commit();
+        batch = firestore.batch();
+        batchCount = 0;
+      }
+    }
+
+    if (batchCount > 0) {
+      await batch.commit();
     }
 
     const finished: SyncRun = {
       ...initial,
       finishedAt: Date.now(),
       status: "success",
-      sheetTotalRows: sheet.totalRowCount,
-      filteredRows: filtered.length,
+      sheetTotalRows: totalRowCount,
+      filteredRows: filteredJobs.length,
       upserted,
       flaggedOffTracker,
       geocodedFresh,

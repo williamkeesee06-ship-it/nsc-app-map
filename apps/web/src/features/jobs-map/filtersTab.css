@@ -1,0 +1,245 @@
+/* filtersTab.css — Premium dark-rail glass panels (high contrast) */
+
+.premium-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 2px 12px;
+  background: transparent;
+  color: var(--rail-text, #f1f5f9);
+  font-family: var(--font-sans, Inter, system-ui, sans-serif);
+}
+
+.glass-panel {
+  background: linear-gradient(
+    165deg,
+    rgba(30, 41, 59, 0.72) 0%,
+    rgba(15, 23, 42, 0.88) 100%
+  );
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 14px;
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  color: var(--rail-text, #f1f5f9);
+}
+
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--rail-accent-rgb, 0, 230, 118), 0.55),
+    transparent
+  );
+}
+
+.contract-ziply .glass-panel::before {
+  background: linear-gradient(90deg, transparent, rgba(30, 94, 255, 0.55), transparent);
+}
+
+.glass-panel:hover {
+  transform: translateY(-1px);
+  border-color: rgba(148, 163, 184, 0.32);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(30, 94, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.glow-text {
+  font-family: var(--font-display, "Space Grotesk", Inter, sans-serif);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--rail-accent, #1d4ed8);
+  letter-spacing: 0.1em;
+  margin: 0 0 12px 0;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(30, 94, 255, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.glow-text::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--rail-accent, #1d4ed8);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--rail-accent, #1d4ed8);
+  flex-shrink: 0;
+}
+
+.premium-filters .filters-tab__group {
+  margin: 0;
+}
+
+.premium-filters .rail-section__divider {
+  display: none;
+}
+
+.premium-filters p,
+.premium-filters span,
+.premium-filters label,
+.premium-filters strong {
+  color: inherit;
+}
+
+.premium-filters .filters-tab__heading {
+  color: var(--rail-accent, #3b9eff);
+}
+
+/* FilterRail collapsible styling */
+.filter-collapsible summary {
+  padding: 8px 0;
+  cursor: pointer;
+  list-style: none;
+  color: var(--rail-text-secondary, #cbd5e1);
+}
+
+.filter-collapsible summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.filter-collapsible-header strong {
+  font-family: var(--font-display, "Space Grotesk", Inter, sans-serif);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--rail-text-secondary, #cbd5e1);
+  letter-spacing: 0.06em;
+}
+
+.filter-collapsible[open] .filter-collapsible-header strong {
+  color: #fff;
+}
+
+.filter-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Beautiful custom checkbox for supervisors */
+.check--swatch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--rail-text-secondary, #cbd5e1);
+}
+
+.check--swatch:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.check--swatch input[type="checkbox"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid #64748b;
+  border-radius: 4px;
+  margin-right: 12px;
+  position: relative;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.check--swatch input[type="checkbox"]:checked {
+  background: var(--rail-accent, #1d4ed8);
+  border-color: var(--rail-accent, #1d4ed8);
+  box-shadow: 0 0 10px rgba(30, 94, 255, 0.35);
+}
+
+.check--swatch input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #0b1118;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.check__label {
+  flex: 1;
+  font-family: var(--font-sans, Inter, system-ui, sans-serif);
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--rail-text, #f1f5f9);
+}
+
+.check__count {
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 0.72rem;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  color: var(--rail-text-muted, #94a3b8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.check--swatch input[type="checkbox"]:checked ~ .check__label {
+  color: #fff;
+  font-weight: 600;
+}
+
+.check--swatch input[type="checkbox"]:checked ~ .check__count {
+  background: rgba(30, 94, 255, 0.18);
+  color: #1d4ed8;
+  border-color: rgba(30, 94, 255, 0.35);
+}
+
+/* Map type section inside rail */
+.left-rail .map-type-filter,
+.left-rail .map-type-filter * {
+  color: var(--rail-text-secondary, #cbd5e1);
+}
+
+.left-rail .sf-pill {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: var(--rail-text-muted, #94a3b8);
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+}
+
+.left-rail .sf-pill:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.left-rail .sf-pill.active,
+.left-rail .sf-pill[aria-pressed="true"] {
+  color: #0c1017;
+  background: var(--rail-accent, #1d4ed8);
+  border-color: transparent;
+  font-weight: 700;
+}

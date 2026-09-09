@@ -6,6 +6,7 @@
  */
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
+import { request } from "../../../lib/api.js";
 
 interface SearchAddressInput {
   query: string;
@@ -13,18 +14,9 @@ interface SearchAddressInput {
 
 interface SearchAddressData {
   query: string;
-  status: string;
-  formattedAddress: string | null;
-  lat: number | null;
-  lng: number | null;
-}
-
-interface GeocodeResponse {
-  status: string;
   lat: number;
   lng: number;
   formattedAddress: string;
-  errorMessage?: string;
 }
 
 async function run(
@@ -32,25 +24,20 @@ async function run(
   _ctx: LuminaToolContext
 ): Promise<LuminaToolResult<SearchAddressData>> {
   if (!input.query) return { ok: false, message: "searchAddress requires query." };
-  const res = await fetch(`/api/lumina/geocode?q=${encodeURIComponent(input.query)}`);
-  if (!res.ok) {
-    const text = await res.text();
-    return { ok: false, message: `Geocode failed: ${text.slice(0, 200)}` };
+  let j: any;
+  try {
+    j = await request(`/api/lumina/geocode?q=${encodeURIComponent(input.query)}`);
+  } catch (err) {
+    return { ok: false, message: `Geocode failed: ${(err as Error).message}` };
   }
-  const j = (await res.json()) as GeocodeResponse;
   if (j.status !== "OK") {
-    return {
-      ok: true,
-      message: `No result for "${input.query}" (${j.status}).`,
-      data: { query: input.query, status: j.status, formattedAddress: null, lat: null, lng: null },
-    };
+    return { ok: false, message: `Geocode returned ${j.status} for "${input.query}".` };
   }
   return {
     ok: true,
-    message: `Found: ${j.formattedAddress}`,
+    message: `Found ${j.formattedAddress} at ${j.lat.toFixed(5)}, ${j.lng.toFixed(5)}.`,
     data: {
       query: input.query,
-      status: j.status,
       formattedAddress: j.formattedAddress,
       lat: j.lat,
       lng: j.lng,

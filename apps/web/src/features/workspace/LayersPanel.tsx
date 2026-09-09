@@ -54,7 +54,7 @@ type Category =
   | "measurements";
 
 function getCategory(obj: DrawingObject): Category {
-  const t = obj.tool;
+  const t = obj.tool as string;
   if (t === "placed_cable") return "cable_placed";
   if (t === "removed_cable") return "cable_removed";
   if (
@@ -63,7 +63,8 @@ function getCategory(obj: DrawingObject): Category {
     t === "ped_new" || t === "ped_removed" ||
     t === "pole_new" || t === "pole_removed" ||
     t === "cabinet_new" || t === "cabinet_removed" ||
-    t === "anchor_new" || t === "anchor_removed"
+    t === "anchor_new" || t === "anchor_removed" ||
+    t === "ziply_flower_pot" || t === "flower_pot_new" || t === "flower_pot_removed"
   ) return "points";
   if (t === "rectangle" || t === "circle" || t === "polygon") return "shapes";
   if (t === "measure") return "measurements";
@@ -82,6 +83,9 @@ function defaultLabel(obj: DrawingObject, idx: number): string {
     pole_new: "POLE", pole_removed: "POLE (Removed)",
     cabinet_new: "CABINET", cabinet_removed: "CABINET (Removed)",
     anchor_new: "ANCHOR", anchor_removed: "ANCHOR (Removed)",
+    ziply_flower_pot: "Flower Pot",
+    flower_pot_new: "Flower Pot",
+    flower_pot_removed: "Flower Pot (Removed)",
     text: "Text",
     line: "Line",
     arrow: "Arrow",
@@ -108,16 +112,20 @@ function computeTotals(objects: DrawingObject[]) {
 
   for (const obj of objects) {
     if (obj.style.hidden) continue;
+    const toolStr = obj.tool as string;
     if (obj.tool === "placed_cable" && "vertices" in obj) {
       placedFt += polylineLengthFt(obj.vertices);
     } else if (obj.tool === "removed_cable" && "vertices" in obj) {
       removedFt += polylineLengthFt(obj.vertices);
-    } else if (obj.tool === "mh_new" || obj.tool === "mh_removed") pointCounts["MH"]!++;
-    else if (obj.tool === "hh_new" || obj.tool === "hh_removed") pointCounts["HH"]!++;
-    else if (obj.tool === "ped_new" || obj.tool === "ped_removed") pointCounts["PED"]!++;
-    else if (obj.tool === "pole_new" || obj.tool === "pole_removed") pointCounts["POLE"]!++;
-    else if (obj.tool === "cabinet_new" || obj.tool === "cabinet_removed") pointCounts["CABINET"]!++;
-    else if (obj.tool === "anchor_new" || obj.tool === "anchor_removed") pointCounts["ANCHOR"]!++;
+    } else if (toolStr === "mh_new" || toolStr === "mh_removed") pointCounts["MH"]!++;
+    else if (toolStr === "hh_new" || toolStr === "hh_removed") pointCounts["HH"]!++;
+    else if (toolStr === "ped_new" || toolStr === "ped_removed") pointCounts["PED"]!++;
+    else if (toolStr === "pole_new" || toolStr === "pole_removed") pointCounts["POLE"]!++;
+    else if (toolStr === "cabinet_new" || toolStr === "cabinet_removed") pointCounts["CABINET"]!++;
+    else if (toolStr === "anchor_new" || toolStr === "anchor_removed") pointCounts["ANCHOR"]!++;
+    else if (toolStr === "ziply_flower_pot" || toolStr === "flower_pot_new" || toolStr === "flower_pot_removed") {
+      pointCounts["FP"] = (pointCounts["FP"] ?? 0) + 1;
+    }
   }
 
   return { placedFt, removedFt, pointCounts };
@@ -147,6 +155,7 @@ function ToolIcon({ tool }: { tool: string }) {
     case "pole_new": case "pole_removed": return <span title="POLE" style={{ fontSize: 11 }}>⬛</span>;
     case "cabinet_new": case "cabinet_removed": return <span title="CABINET" style={{ fontSize: 11 }}>🟫</span>;
     case "anchor_new": case "anchor_removed": return <span title="ANCHOR" style={{ fontSize: 11 }}>⚓</span>;
+    case "ziply_flower_pot": case "flower_pot_new": case "flower_pot_removed": return <span title="Flower Pot" style={{ fontSize: 11 }}>🌸</span>;
     case "text": return <span style={{ fontWeight: 700, fontFamily: "serif", fontSize: 13 }}>T</span>;
     case "line": return <span style={{ fontSize: 10 }}>╱</span>;
     case "arrow": return <span style={{ fontSize: 11 }}>→</span>;

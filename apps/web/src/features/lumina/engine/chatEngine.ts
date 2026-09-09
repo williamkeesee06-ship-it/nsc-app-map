@@ -21,6 +21,7 @@ import type {
 } from "../store/luminaStore.js";
 import { dispatchTool } from "../tools/index.js";
 import type { LuminaToolContext } from "../tools/types.js";
+import { request } from "../../../lib/api.js";
 
 const MAX_ROUNDS = 6;
 
@@ -70,6 +71,7 @@ const ERROR_STUB_PATTERNS: RegExp[] = [
   /^I got stuck calling tools/i,
   /^\(no reply\)$/i,
   /^\(empty reply from model\)$/i,
+  /^I couldn't figure out how to respond/i,
   /^My safety filter blocked/i,
   /^Reply blocked due to recitation/i,
   /^I ran out of room mid-reply/i,
@@ -128,6 +130,7 @@ export interface ChatEngineDeps {
   priorMessages: ChatMessage[];
   newUserMessage: string;
   username: string;
+  drawingState?: any;
   /** Tool dispatch context (map bridge, action queue). */
   toolCtx: LuminaToolContext;
   /** Called when the engine has the final text reply ready. */
@@ -159,9 +162,8 @@ export async function runUserTurn(deps: ChatEngineDeps): Promise<void> {
     deps.setOrbState("thinking");
     let body: ChatResponseBody;
     try {
-      const res = await fetch("/api/lumina/chat", {
+      body = await request<ChatResponseBody>("/api/lumina/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         signal: deps.signal,
         body: JSON.stringify({
           // Send the full prefix on every round so the API can run
@@ -169,13 +171,23 @@ export async function runUserTurn(deps: ChatEngineDeps): Promise<void> {
           // we never pass newUserMessage as a separate field anymore.
           history: [...baseHistory, ...live],
           username,
+          drawingContext: deps.drawingState ? {
+            activeTool: deps.drawingState.activeTool,
+            selectedIds: Array.from(deps.drawingState.selectedIds || []),
+            objectsCount: deps.drawingState.objects?.length || 0,
+            dirty: deps.drawingState.dirty,
+            targetWorkOrder: deps.drawingState.targetWorkOrder,
+            selectedObjects: (deps.drawingState.objects || []).filter((o: any) => 
+              deps.drawingState.selectedIds?.has(o.id)
+            ).map((o: any) => ({
+              id: o.id,
+              tool: o.tool,
+              properties: o.properties,
+              geometry: o.geometry
+            }))
+          } : null
         }),
       });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`/api/lumina/chat ${res.status}: ${errText.slice(0, 240)}`);
-      }
-      body = (await res.json()) as ChatResponseBody;
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("[lumina/engine] chat request failed", err);
@@ -230,7 +242,9 @@ export async function runUserTurn(deps: ChatEngineDeps): Promise<void> {
     }
 
     // ── Final text reply ────────────────────────────────────────────────
-    const text = body.text?.trim() || "(no reply)";
+    const text =
+      body.text?.trim() ||
+      "I couldn't figure out how to respond — try rephrasing or being more specific.";
     if (!assistantId) assistantId = crypto.randomUUID();
     deps.onAssistantMessage({
       id: assistantId,

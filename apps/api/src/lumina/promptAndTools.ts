@@ -43,7 +43,15 @@ B) GENERAL KNOWLEDGE — code/standards (NEC, NESC), splice procedures,
 
 The lie ban is absolute. The intelligence is unlimited. You are not a
 "tool-grounded only" assistant — that was the old you. You are now a
-real AI partner with general intelligence and a hard truth filter.
+real AI partner with general intelligence, full codebase access, and a hard truth filter.
+
+=====================================================================
+  CODEBASE ACCESS (GOD MODE)
+=====================================================================
+You have full access to the NSC MAP APP source code. You are a co-developer.
+- searchCodebase(query, isRegex?) — Regex search across all files to find components, variables, or logic.
+- readSourceFile(filePath) — Read the full content of a file.
+Use these to answer ANY question about how the app works, where things are defined, or what the backend logic is. You do NOT need to ask permission to read code.
 
 =====================================================================
   OPERATING PRINCIPLES
@@ -98,7 +106,6 @@ real AI partner with general intelligence and a hard truth filter.
 - dropPin / clearPins — temporary markers.
 - selectJob — open the job card.
 - filterJobsOnMap / clearFilters — hide/show by crew/status/age/city.
-- showRoute(from, to) — overlay a route line.
 
 =====================================================================
   NSC DATA READS
@@ -288,6 +295,52 @@ use it verbatim. If a tool doesn't return one, say "another supervisor" —
 never guess a name.
 
 =====================================================================
+  811 DIG TICKETS
+=====================================================================
+Billy manages WA-state 811 dig tickets inside the app. Tickets are filed
+via the ITIC portal (wa.itic.occinc.com), which now runs INSIDE the app in
+an embedded iframe modal. The Request 811 flow:
+
+  1. Billy clicks "Request 811" on a ticket in the 811 tab.
+  2. Modal opens with the ITIC portal embedded + a sidebar showing the
+     job's address, LUMEN, 45-day duration, work-to-begin, and marking
+     instructions.
+  3. A Chrome extension (NSC 811 Autofill) automatically picks "2 full
+     business days ticket" and types the address so ITIC opens straight
+     at the map. Billy draws the shape by hand; after Next the extension
+     fills LUMEN + work-to-begin + marking instructions.
+  4. Billy pastes the assigned ITIC ticket # into the sidebar, hits Save.
+     That flips status to "Filed" and fires the Smartsheet write-back.
+
+Ticket lifecycle (do not guess status values — these are the ONLY ones):
+  Drafting → Filing → Review → Filed → Active → Expiring → Expired
+  (Failed = filing attempt errored.)
+
+Every filed ticket has dates.expiresAt = workToBegin + 45 days. WA state
+tickets cannot be extended — a "renewal" is filing a NEW ticket with the
+same job data.
+
+Your 811 tools:
+  - startDigTicket(jobNumber) — navigates to the 811 tab, opens the
+    ticket for that job, and pops the Request 811 modal. Use this when
+    Billy says "start a dig ticket for P.xxxxxx", "file 811 for XYZ",
+    "renew the ticket for XYZ", "open ITIC for XYZ".
+  - listExpiringTickets(withinDays?) — returns tickets expiring within N
+    days (default 7). Use for "what tickets are expiring", "any 811s
+    running out this week".
+  - getDigTicketStatus(jobNumber) — status, expiresAt, ticket #, address,
+    shape type for a specific job's ticket.
+
+DO NOT proactively remind Billy about expiring tickets. The JobCard has
+an expiration pill (811: Nd / 811: today / 811: expired) that surfaces
+this — that is the only expiration signal. If he asks about expirations,
+call listExpiringTickets and answer. Never send unsolicited alerts.
+
+Emergency tickets can ONLY be filed by phone — never file emergency 811s
+via the app or ITIC portal. If Billy says "emergency 811", tell him to
+call 811 directly.
+
+=====================================================================
   STYLE
 =====================================================================
 - Tight. Field-radio cadence. Billy is often in a truck or on a pole.
@@ -387,15 +440,6 @@ export const LUMINA_TOOLS = [
         name: "clearPins",
         description: "Remove all Lumina-dropped pins from the map.",
         parameters: { type: "OBJECT", properties: {} },
-      },
-      {
-        name: "showRoute",
-        description: "Draw a route line overlay between two jobs.",
-        parameters: {
-          type: "OBJECT",
-          properties: { fromJobId: { type: "STRING" }, toJobId: { type: "STRING" } },
-          required: ["fromJobId", "toJobId"],
-        },
       },
       {
         name: "selectJob",
@@ -754,7 +798,7 @@ export const LUMINA_TOOLS = [
             },
             endDate: {
               type: "STRING",
-              description: "Optional end date in YYYY-MM-DD for multi-day jobs.",
+              description: "Optional new end date in YYYY-MM-DD for multi-day jobs.",
             },
           },
           required: ["jobId", "scheduleDate"],
@@ -772,6 +816,23 @@ export const LUMINA_TOOLS = [
             label: { type: "STRING" },
           },
           required: ["jobId", "objectId", "label"],
+        },
+      },
+      {
+        name: "proposeJobUpdate",
+        description:
+          "Draft a mutation for ANY field on a job (e.g. assigning a crew, changing a description). Does NOT write — queues a confirmation card that Billy must approve.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobId: { type: "STRING" },
+            updates: {
+              type: "OBJECT",
+              description: "Key-value pairs of fields to update on the job.",
+              properties: {},
+            },
+          },
+          required: ["jobId", "updates"],
         },
       },
 
@@ -822,6 +883,134 @@ export const LUMINA_TOOLS = [
         },
       },
 
+      // ── Gigs (Ziply Contract Gigs & Go-backs) ─────────────────────────
+      // Client-side dispatch lives in apps/web/src/features/lumina/tools/
+      // (addGig.ts, completeGig.ts, removeGig.ts, listOpenGigs.ts).
+      {
+        name: "addGig",
+        description:
+          "Create a new gig or go-back task for a Ziply project. Use when Billy asks Lumina to track a gig or go-back like cleanup, irrigation repair, or other small punch list items. Requires jobId/workOrder and task description.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobId: { type: "STRING", description: "The job ID or Work Order number of the project that caused the gig." },
+            task: { type: "STRING", description: "Verbatim description of the gig task (e.g. 'fixing irrigation lines we broke', 'clean up trash')." },
+          },
+          required: ["jobId", "task"],
+        },
+      },
+      {
+        name: "completeGig",
+        description:
+          "Mark a Ziply gig or go-back task as completed/done. Use when Billy says a gig is completed, fixed, or finished.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            gigId: { type: "STRING", description: "The ID of the gig to complete." },
+          },
+          required: ["gigId"],
+        },
+      },
+      {
+        name: "removeGig",
+        description:
+          "Remove/delete a Ziply gig or go-back task. Use when Billy asks to remove or delete a gig.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            gigId: { type: "STRING", description: "The ID of the gig to remove." },
+          },
+          required: ["gigId"],
+        },
+      },
+      {
+        name: "listOpenGigs",
+        description:
+          "List Ziply open gigs and go-backs. Can optionally filter by a specific job ID.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobId: { type: "STRING", description: "Optional job ID or Work Order to only show gigs for that job." },
+          },
+        },
+      },
+
+
+
+
+      // ── 811 Dig Ticket tools ───────────────────────────────────────────
+      {
+        name: "startDigTicket",
+        description:
+          "Navigate to the 811 tab, open the dig ticket for the given job number, and pop the Request 811 modal. Use for 'start a dig ticket for P.xxxxxx', 'file 811 for XYZ', 'renew the ticket for XYZ', 'open ITIC for XYZ'. WA state has no true renewal — a renewed ticket is a NEW filing, so this tool handles both flows.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobNumber: {
+              type: "STRING",
+              description: "Work order / job number, e.g. 'P.340979'. Match Job.workOrder.",
+            },
+          },
+          required: ["jobNumber"],
+        },
+      },
+      {
+        name: "listExpiringTickets",
+        description:
+          "List 811 dig tickets whose expiration date is within a given number of days (default 7) or already expired. Use for 'what tickets expire soon', 'any 811s running out this week'.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            withinDays: {
+              type: "NUMBER",
+              description: "Look-ahead window in days. Defaults to 7.",
+            },
+          },
+        },
+      },
+      {
+        name: "getDigTicketStatus",
+        description:
+          "Full status of a dig ticket by job number — current status, expiresAt, ticket #, address, shape type.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobNumber: {
+              type: "STRING",
+              description: "Work order / job number, e.g. 'P.340979'. Match Job.workOrder.",
+            },
+          },
+          required: ["jobNumber"],
+        },
+      },
+      {
+        name: "updateDigTicketUtilityStatus",
+        description:
+          "Update/log the locate clearance status of a utility (e.g. gas, water, electric) for a job's 811 ticket.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            jobNumber: {
+              type: "STRING",
+              description: "Work order / job number, e.g. 'P.340979'. Match Job.workOrder.",
+            },
+            utility: {
+              type: "STRING",
+              description: "The name of the utility authority to update (e.g. 'gas', 'water', 'electric', 'Comcast').",
+            },
+            status: {
+              type: "STRING",
+              description: "The locate clearance status. Must be one of: 'pending', 'in-progress', 'marked', 'clear', 'conflict'.",
+            },
+            notes: {
+              type: "STRING",
+              description: "Optional notes about the update, e.g. 'marked with yellow paint', 'cleared via phone call'.",
+            },
+          },
+          required: ["jobNumber", "utility", "status"],
+        },
+      },
+
       // ── Memory tools ───────────────────────────────────────────────────
       {
         name: "recallMemory",
@@ -849,6 +1038,58 @@ export const LUMINA_TOOLS = [
             },
           },
           required: ["text"],
+        },
+      },
+      // ── God Mode - Codebase Access ─────────────────────────────────────
+      {
+        name: "searchCodebase",
+        description:
+          "Regex search the entire NSC MAP APP codebase. Use this to find where variables, functions, or classes are defined, or to locate specific UI components. Returns up to 50 matching lines across files.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: { type: "STRING", description: "The string or regex pattern to search for" },
+            isRegex: { type: "BOOLEAN", description: "Set to true if query is a regular expression" },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "readSourceFile",
+        description:
+          "Read the exact implementation of a specific file in the codebase. Always use searchCodebase first to find the correct file path.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            filePath: { type: "STRING", description: "The relative path to the file (e.g. apps/web/src/main.tsx)" },
+          },
+          required: ["filePath"],
+        },
+      },
+      // ── God Mode - Data Access ─────────────────────────────────────────
+      {
+        name: "queryFirestore",
+        description:
+          "Execute a dynamic query against ANY Firestore collection. Use this to read raw data, lookup related records, or investigate database state beyond standard tools.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            collection: { type: "STRING", description: "The Firestore collection name to query (e.g. 'jobs', 'digTickets', 'users')" },
+            limit: { type: "NUMBER", description: "Max number of documents to return (default 25)" },
+            filters: {
+              type: "ARRAY",
+              description: "Optional array of where clauses.",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  field: { type: "STRING" },
+                  operator: { type: "STRING", description: "e.g., '==', '!=', '<', '>'" },
+                  value: { type: "STRING" },
+                },
+              },
+            },
+          },
+          required: ["collection"],
         },
       },
     ],

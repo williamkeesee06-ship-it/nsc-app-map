@@ -87,13 +87,10 @@ export default function SearchBar() {
       return;
     }
     const handle = window.setTimeout(() => {
-      const g = (window as unknown as { google?: { maps?: { places?: typeof google.maps.places } } }).google;
+      const g = (window as any).google;
       if (!g?.maps?.places) {
         // Places lib not loaded yet — silently skip; user can still press Enter to geocode.
         return;
-      }
-      if (!autocompleteRef.current) {
-        autocompleteRef.current = new g.maps.places.AutocompleteService();
       }
       if (!sessionTokenRef.current) {
         sessionTokenRef.current = new g.maps.places.AutocompleteSessionToken();
@@ -102,28 +99,71 @@ export default function SearchBar() {
         { lat: 45.5, lng: -124.8 },
         { lat: 49.0, lng: -116.9 },
       );
-      autocompleteRef.current.getPlacePredictions(
-        {
+
+      function runLegacyAutocomplete(inputVal: string, mapsObj: any, boundary: google.maps.LatLngBounds) {
+        if (!autocompleteRef.current) {
+          autocompleteRef.current = new mapsObj.maps.places.AutocompleteService();
+        }
+        autocompleteRef.current!.getPlacePredictions(
+          {
+            input: inputVal,
+            bounds: boundary,
+            componentRestrictions: { country: "us" },
+            sessionToken: sessionTokenRef.current!,
+          },
+          (preds, status) => {
+            if (status !== google.maps.places.PlacesServiceStatus.OK || !preds) {
+              setPlacePreds([]);
+              return;
+            }
+            setPlacePreds(
+              preds.slice(0, 5).map((p) => ({
+                placeId: p.place_id,
+                description: p.description,
+                main: p.structured_formatting?.main_text ?? p.description,
+                secondary: p.structured_formatting?.secondary_text ?? "",
+              })),
+            );
+          },
+        );
+      }
+
+      // Check if Places API (New) is available
+      if (g.maps.places.AutocompleteSuggestion) {
+        g.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
           input: t,
-          bounds,
-          componentRestrictions: { country: "us" },
+          locationBias: bounds,
+          includedRegionCodes: ["us"],
           sessionToken: sessionTokenRef.current,
-        },
-        (preds, status) => {
-          if (status !== google.maps.places.PlacesServiceStatus.OK || !preds) {
-            setPlacePreds([]);
-            return;
-          }
-          setPlacePreds(
-            preds.slice(0, 5).map((p) => ({
-              placeId: p.place_id,
-              description: p.description,
-              main: p.structured_formatting?.main_text ?? p.description,
-              secondary: p.structured_formatting?.secondary_text ?? "",
-            })),
-          );
-        },
-      );
+        })
+          .then((res: any) => {
+            const suggestions = res.suggestions || [];
+            setPlacePreds(
+              suggestions
+                .slice(0, 5)
+                .map((s: any) => {
+                  const p = s.placePrediction;
+                  if (!p) return null;
+                  const fullText = p.text?.text || "";
+                  const mainText = p.mainText?.text || fullText;
+                  const secText = p.secondaryText?.text || "";
+                  return {
+                    placeId: p.placeId,
+                    description: fullText,
+                    main: mainText,
+                    secondary: secText,
+                  };
+                })
+                .filter(Boolean) as PlacePrediction[]
+            );
+          })
+          .catch((err: any) => {
+            console.warn("Places API (New) failed, falling back to legacy:", err);
+            runLegacyAutocomplete(t, g, bounds);
+          });
+      } else {
+        runLegacyAutocomplete(t, g, bounds);
+      }
     }, 200);
     return () => window.clearTimeout(handle);
   }, [term]);
@@ -133,6 +173,7 @@ export default function SearchBar() {
     setError(null);
     setTerm(p.description);
     navigate("/");
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
     // Geocode the place_id to get lat/lng (cheaper than PlacesService.getDetails).
     const g = (window as unknown as { google?: { maps?: { Geocoder?: new () => google.maps.Geocoder } } }).google;
     if (!g?.maps?.Geocoder) return;
@@ -141,6 +182,11 @@ export default function SearchBar() {
       if (status === "OK" && results && results[0]) {
         const loc = results[0].geometry.location;
         focusLatLng(loc.lat(), loc.lng(), p.description);
+        window.dispatchEvent(
+          new CustomEvent("nsc:pan-to", {
+            detail: { lat: loc.lat(), lng: loc.lng(), zoom: 17 },
+          })
+        );
       }
       // Reset session token after a pick — starts a new billing session.
       sessionTokenRef.current = null;
@@ -176,7 +222,45 @@ export default function SearchBar() {
     setTerm(job.workOrder);
     // Ensure we're on the Jobs Map route so the map exists to receive focus.
     navigate("/");
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
     focusJob(job.jobId);
+    // Fly the map. React re-renders on job-select can cause the camera to
+    // reset (marker re-mount, print overlay bounds, filter re-apply), so we
+    // dispatch the pan multiple times across animation frames so at least one
+    // lands AFTER the churn settles. Idempotent — same target every time.
+    const g = job.geocode;
+    const geoOk =
+      g?.status === "OK" &&
+      typeof g.lat === "number" &&
+      typeof g.lng === "number" &&
+      g.lat !== 0 &&
+      g.lng !== 0;
+    if (!geoOk) {
+      console.warn("[SearchBar] pickJob: no valid geocode on job", {
+        jobId: job.jobId,
+        workOrder: job.workOrder,
+        geocode: job.geocode,
+      });
+      return;
+    }
+    const lat = g!.lat!;
+    const lng = g!.lng!;
+    const fire = () => {
+      window.dispatchEvent(
+        new CustomEvent("nsc:pan-to", {
+          detail: { lat, lng, zoom: 17 },
+        })
+      );
+    };
+    // Immediate + across the next few frames + after selection side-effects
+    // have flushed. If the map isn't mounted yet, later dispatches still land.
+    fire();
+    requestAnimationFrame(() => {
+      fire();
+      requestAnimationFrame(fire);
+    });
+    window.setTimeout(fire, 120);
+    window.setTimeout(fire, 400);
   }
 
   function pickMarkup(m: MarkupSearchEntry) {
@@ -184,6 +268,7 @@ export default function SearchBar() {
     setError(null);
     setTerm(m.label);
     navigate("/");
+    window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
     // Jump the map to the markup's location. Job card will open via
     // the existing AllJobsMarkupsOverlay click handler the next time the
     // user clicks the markup; we just take them to the spot first.
@@ -251,7 +336,13 @@ export default function SearchBar() {
         setOpen(true);
         return;
       }
+      window.dispatchEvent(new CustomEvent("nsc:request-tab", { detail: { tab: "filters" } }));
       focusLatLng(hit.lat, hit.lng, hit.label);
+      window.dispatchEvent(
+        new CustomEvent("nsc:pan-to", {
+          detail: { lat: hit.lat, lng: hit.lng, zoom: 17 },
+        })
+      );
       setOpen(false);
     } finally {
       setBusy(false);

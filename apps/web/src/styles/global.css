@@ -3,40 +3,65 @@
    Theme tokens live in theme.css. This file consumes them.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 :root {
-  /* Bebas Neue is the headline/UI face: all-caps by design, bold, modern.
-     Inter is the fallback for places where readability matters more than
-     style (long body text, multi-line notes, date/time inputs, etc.). */
-  font-family: 'Bebas Neue', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light;
-  letter-spacing: 0.04em;
-}
+  /* UI body = Inter (readable). Headlines/labels can use Space Grotesk.
+     Mono data = JetBrains Mono. Never use display-only faces for body copy. */
+  --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Space Grotesk", var(--font-sans);
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
 
-/* App-wide all-caps + bold for everything that uses the default face. */
-body {
-  font-family: 'Bebas Neue', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
+  /* Left rail / command panels — light mode */
+  --rail-bg: #ffffff;
+  --rail-bg-elevated: #f8fafc;
+  --rail-border: rgba(29, 78, 216, 0.12);
+  --rail-text: #0f172a;
+  --rail-text-secondary: #334155;
+  --rail-text-muted: #64748b;
+  --rail-text-dim: #94a3b8;
+  --rail-accent: var(--accent, #1d4ed8);
+  --rail-accent-soft: rgba(29, 78, 216, 0.10);
 
-/* Inputs/textareas/selects keep readable Inter — Bebas Neue is a display
-   face and looks broken for typed user content. */
-input, textarea, select {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  text-transform: none;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  color-scheme: dark light;
   letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Notes body — user-typed prose, keep readable. */
-.job-card__notes-body, .job-card__notes textarea {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+body {
+  font-family: var(--font-sans);
   text-transform: none;
   font-weight: 500;
   letter-spacing: 0;
+  color: var(--text);
+}
+
+/* Compact UI chrome (tabs, pills, section labels) may still use tracking */
+.left-rail-tab,
+.filters-tab__heading,
+.sf-pill,
+.glow-text,
+.job-card__notes-label {
+  letter-spacing: 0.04em;
+}
+
+input, textarea, select {
+  font-family: var(--font-sans);
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* Notes body — user-typed prose */
+.job-card__notes-body, .job-card__notes textarea {
+  font-family: var(--font-sans);
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.45;
 }
 
 * { box-sizing: border-box; }
@@ -165,15 +190,19 @@ a { color: var(--accent); }
    ============================================================ */
 .shell {
   display: grid;
-  grid-template-rows: 72px 1fr;
+  /* auto: never clip topbar controls; 1fr is the map */
+  grid-template-rows: auto 1fr;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ── Topbar ────────────────────────────────────────────────── */
 .topbar {
   display: flex;
   align-items: center;
-  padding: 0 14px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
   /* Glass + chrome */
   background: var(--surface-glass);
   backdrop-filter: blur(20px) saturate(1.5);
@@ -182,13 +211,18 @@ a { color: var(--accent); }
   box-shadow: 0 2px 12px rgba(0,0,0,0.08);
   gap: 10px;
   position: relative;
-  z-index: 50;
+  /* Above map chrome (print banner, overwatch, pills) */
+  z-index: 200;
   min-width: 0;
+  min-height: 56px;
+  height: auto;
+  overflow: visible;
 }
 
 .logo {
-  /* Phase 9.6: slimmed from 56px → 44px */
-  height: 44px;
+  /* Keep logo from forcing a tall topbar that hides sibling controls */
+  height: 40px;
+  max-height: 40px;
   width: auto;
   display: block;
   flex-shrink: 0;
@@ -272,11 +306,11 @@ a { color: var(--accent); }
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  border: 1px solid rgba(58, 167, 255, 0.35);
-  background: rgba(20, 26, 38, 0.75);
+  border: 1px solid rgba(29, 78, 216, 0.3);
+  background: rgba(248, 250, 252, 0.95);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  color: #3aa7ff;
+  color: #1d4ed8;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -284,17 +318,17 @@ a { color: var(--accent); }
   cursor: pointer;
   transition: all 120ms ease;
   box-shadow: 
-    0 2px 8px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 2px 8px rgba(29, 78, 216, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .screenshot-btn:hover:not(:disabled) {
-  border-color: #3aa7ff;
-  background: rgba(25, 32, 48, 0.85);
+  border-color: #1d4ed8;
+  background: rgba(241, 245, 249, 0.98);
   box-shadow: 
-    0 0 0 1px rgba(58, 167, 255, 0.3),
-    0 4px 14px rgba(0, 0, 0, 0.35),
-    0 0 12px rgba(58, 167, 255, 0.25);
+    0 0 0 1px rgba(29, 78, 216, 0.25),
+    0 4px 14px rgba(29, 78, 216, 0.15),
+    0 0 12px rgba(29, 78, 216, 0.15);
   transform: translateY(-1px);
 }
 
@@ -354,7 +388,7 @@ a { color: var(--accent); }
   height: 100%;
 }
 
-.map-host { width: 100%; height: 100%; }
+.map-host { width: 100%; height: 100%; overflow: hidden; }
 
 /* ── Generic toolbar (legacy, kept for compat) ──────────────── */
 .toolbar {
@@ -412,49 +446,94 @@ a { color: var(--accent); }
 
 .left-rail {
   flex-shrink: 0;
-  background: #ffffff;
-  border-right: 1.5px solid rgba(0,0,0,0.10);
-  box-shadow: 2px 0 12px rgba(0,0,0,0.10);
+  background: var(--rail-bg);
+  color: var(--rail-text);
+  border-right: 1px solid var(--rail-border);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
   height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: row;
-  font-size: 13px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
   position: relative;
   transition: width 180ms ease;
 }
 .left-rail__scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  /* White panel right of the blue tab strip. Tool tiles start at the very top. */
   background: #ffffff;
-  padding: 10px 10px 12px;
+  color: var(--rail-text);
+  padding: 12px 12px 16px;
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+.left-rail__scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.left-rail__scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
+/* Everything in the rail body inherits high-contrast text by default */
+.left-rail__scroll,
+.left-rail__scroll p,
+.left-rail__scroll span,
+.left-rail__scroll label,
+.left-rail__scroll li,
+.left-rail__scroll strong,
+.left-rail__scroll small,
+.left-rail__scroll h1,
+.left-rail__scroll h2,
+.left-rail__scroll h3,
+.left-rail__scroll h4 {
+  color: inherit;
+}
+.left-rail__scroll h1,
+.left-rail__scroll h2,
+.left-rail__scroll h3,
+.left-rail__scroll h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--rail-text);
 }
 
 /* Section wrappers */
 .rail-section { margin-bottom: 8px; }
 .rail-section__divider {
-  height: 1.5px;
-  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rail-border), transparent);
   margin: 10px 0;
 }
 
-/* ── Vertical Tab Strip in Left Rail — AsBuilt-style ───────── */
-/* Mirrors the AsBuilt app's #tab-strip + .tab-btn: 44px solid blue strip on
-   the left edge, with sideways-rotated uppercase labels. Active tab gets a
-   white background with blue text. */
+/* ── Vertical Tab Strip in Left Rail ───────────────────────── */
 .left-rail-tabstrip {
-  width: 44px;
+  width: 46px;
   flex-shrink: 0;
-  background: #0052cc;
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 50%, #1e40af 100%);
   display: flex;
   flex-direction: column;
-  padding-top: 8px;
+  padding-top: 10px;
   gap: 2px;
-  border-right: 1px solid rgba(0,0,0,0.15);
+  border-right: 2px solid #1e40af;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.contract-ziply .left-rail-tabstrip {
+  background: linear-gradient(180deg, #1e3a6e 0%, #152a52 55%, #0f1f3d 100%);
+}
+
+.left-rail-tabstrip::-webkit-scrollbar {
+  display: none;
 }
 
 .left-rail-tab {
@@ -464,25 +543,31 @@ a { color: var(--accent); }
   padding: 16px 6px;
   border: none;
   background: transparent;
-  color: rgba(255,255,255,0.78);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.82);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   cursor: pointer;
   text-transform: uppercase;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
   white-space: nowrap;
-  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
 }
 
 .left-rail-tab:hover {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.12);
   color: #fff;
 }
 
 .left-rail-tab.active {
-  background: #ffffff;
-  color: #0052cc;
+  background: rgba(29, 78, 216, 0.18);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.contract-ziply .left-rail-tab.active {
+  color: #7eb6ff;
+  box-shadow: inset 0 0 0 1px rgba(30, 94, 255, 0.45);
 }
 
 /* Layer rows */
@@ -502,8 +587,8 @@ a { color: var(--accent); }
 }
 
 .layer-row.active {
-  background: rgba(58,167,255,0.15);
-  color: #3aa7ff;
+  background: rgba(29, 78, 216, 0.12);
+  color: #1d4ed8;
 }
 
 /* Annotate tab specific */
@@ -532,18 +617,19 @@ a { color: var(--accent); }
   align-items: center;
   gap: 6px;
   margin: 6px 0 2px;
+  font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 1.2px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--rail-text-muted);
 }
 .telecom-divider::before,
 .telecom-divider::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--chrome-dark), transparent);
+  background: linear-gradient(90deg, transparent, var(--rail-border), transparent);
 }
 
 .tool-tile {
@@ -553,18 +639,25 @@ a { color: var(--accent); }
   justify-content: center;
   gap: 2px;
   padding: 5px 2px 4px;
-  border-radius: 6px;
-  border: 1px solid var(--chrome-dark);
-  background: linear-gradient(160deg, var(--chrome-light) 0%, var(--surface) 60%, #E0E6EE 100%);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: linear-gradient(160deg, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%);
   cursor: pointer;
-  transition: box-shadow 120ms ease, border-color 120ms ease, background 120ms ease;
+  transition: box-shadow 120ms ease, border-color 120ms ease, background 120ms ease, color 120ms ease;
   min-height: 48px;
   min-width: 0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.10), inset 0 1px 1px rgba(255,255,255,0.8);
-  color: var(--text);
-  font: inherit;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 1);
+  color: #475569;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
   position: relative;
   overflow: hidden;
+}
+.tool-tile:hover:not(:disabled) {
+  border-color: rgba(58, 167, 255, 0.5);
+  color: #0f172a;
+  background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 55%, #e2e8f0 100%);
 }
 
 /* Blue neon glow behind the button */
@@ -589,11 +682,11 @@ a { color: var(--accent); }
 /* Active: strong neon blue glow + whole icon turns neon blue */
 .tool-tile--active {
   border-color: #3aa7ff !important;
-  background: linear-gradient(160deg, #1a2a44 0%, #162033 60%, #1f2f4a 100%) !important;
+  background: linear-gradient(160deg, #e0f2fe 0%, #bae6fd 60%, #7dd3fc 100%) !important;
 }
 
 .tool-tile--active::before {
-  box-shadow: 0 0 20px rgba(58, 167, 255, 0.85), 0 0 36px rgba(58, 167, 255, 0.45);
+  box-shadow: 0 0 15px rgba(58, 167, 255, 0.4), 0 0 25px rgba(58, 167, 255, 0.2);
 }
 
 /* Make the icon neon blue when active */
@@ -626,16 +719,20 @@ a { color: var(--accent); }
 }
 
 .tool-tile__label {
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: #64748b;
   text-align: center;
-  line-height: 1.1;
+  line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
   width: 100%;
+}
+.tool-tile:hover:not(:disabled) .tool-tile__label,
+.tool-tile--active .tool-tile__label {
+  color: #0f172a;
 }
 
 /* Legacy tool buttons (kept for fallback) */
@@ -647,12 +744,14 @@ a { color: var(--accent); }
 }
 .tool-row--utilities { margin-bottom: 10px; }
 .tool-btn {
-  background: var(--surface);
-  border: 1.5px solid var(--border);
+  background: linear-gradient(160deg, #1e293b 0%, #151c2a 100%);
+  border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 6px;
   padding: 6px 9px;
-  color: var(--text);
-  font-size: 13px;
+  color: var(--rail-text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1.1;
   cursor: pointer;
   min-width: 32px;
@@ -662,9 +761,9 @@ a { color: var(--accent); }
   justify-content: center;
 }
 .tool-btn:hover:not(:disabled) {
-  background: var(--chrome-light);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: linear-gradient(160deg, #243247 0%, #1a2436 100%);
+  border-color: var(--rail-accent);
+  color: #fff;
 }
 .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .tool-btn--text { font-size: 12px; padding: 6px 10px; }
@@ -696,30 +795,44 @@ a { color: var(--accent); }
 .filter-rail {
   background: transparent;
   font-size: 13px;
+  color: var(--rail-text);
 }
 .filter-rail__header {
   display: flex; justify-content: space-between; align-items: center;
-  padding-bottom: 8px; border-bottom: 1.5px solid var(--border);
+  padding-bottom: 8px; border-bottom: 1px solid var(--rail-border);
   margin-bottom: 10px;
-  color: var(--text);
-  font-weight: 600;
+  color: var(--rail-text);
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 .filter-rail__count {
-  font-size: 11px; color: var(--text-muted);
-  background: var(--chrome-light); padding: 2px 8px; border-radius: 999px;
-  border: 1px solid var(--border);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--rail-text-secondary);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--rail-border);
 }
 .filter-section { margin-bottom: 14px; }
 .filter-section__title {
-  font-size: 10px; color: var(--text-muted);
-  letter-spacing: 0.8px; text-transform: uppercase;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--rail-text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   margin-bottom: 6px;
 }
 .filter-section__body { display: flex; flex-direction: column; gap: 4px; }
 .check {
   display: flex; align-items: center; gap: 8px;
-  font-size: 12px; color: var(--text);
+  font-size: 12px; color: var(--rail-text-secondary);
   cursor: pointer; padding: 3px 0;
+}
+.left-rail .check:hover { color: var(--rail-text); }
+.left-rail .link {
+  color: var(--rail-accent);
+  font-weight: 600;
 }
 .check input { accent-color: var(--accent); }
 .link {
@@ -1156,9 +1269,40 @@ a { color: var(--accent); }
   position: relative;
   height: 100%;
   min-height: 0;
+  /* Defensive clip: the Google Map div and any of its React children are
+     appended as plain document-flow siblings inside this container's
+     descendants (see @vis.gl/react-google-maps map/index.tsx + 
+     use-map-instance.ts). Any stray non-absolutely-positioned content
+     accidentally introduced by a future overlay must never be able to
+     visually escape the map viewport into normal page flow below the fold. */
+  overflow: hidden;
+  /* Stacking context BELOW topbar (z-index 200) so map HUD never covers it */
+  z-index: 1;
 }
-/* Map host takes full area; modifier strip is absolute on top */
-.map-host { width: 100%; height: 100%; }
+/* Map host takes full area; chrome (banner, overwatch) lives inside this box */
+.map-host {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Floating map chrome — always inside map-host, never under the app topbar */
+.map-chrome-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+}
+.map-chrome-top > * {
+  pointer-events: auto;
+}
 
 /* ── Job Card (light theme) ─────────────────────────────────── */
 .job-card {
@@ -1168,6 +1312,11 @@ a { color: var(--accent); }
   padding: 14px;
   font-size: 13px;
   box-shadow: var(--shadow-glass);
+  /* Bebas Neue (the app-wide display face) is a condensed all-caps font that's
+     hard to read for the card's dense data. Use Inter here — clean, modern, and
+     still all-caps via text-transform — for legibility. */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+  letter-spacing: 0.02em;
 }
 .job-card--panel { box-shadow: none; }
 .job-card__head {
@@ -1198,24 +1347,31 @@ a { color: var(--accent); }
 }
 .job-card__row-label {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.05em;
   padding-top: 2px;
 }
-.job-card__row-value { color: var(--text); }
+.job-card__row-value {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
 .job-card__notes {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1.5px solid var(--border);
 }
 .job-card__notes-label {
-  font-size: 10px; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.6px;
+  font-size: 10px; color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
   margin-bottom: 4px;
 }
 .job-card__notes-body {
-  font-size: 12px; line-height: 1.5;
+  font-size: 14px; font-weight: 500; line-height: 1.5;
   max-height: 140px; overflow-y: auto;
   white-space: pre-wrap;
   background: var(--chrome-light); padding: 8px;
@@ -1311,25 +1467,28 @@ a { color: var(--accent); }
 
 /* ── Rail section headers removed (Phase 4) ─────────────────── */
 .rail-h4 {
-  font-size: 10px;
-  letter-spacing: 0.9px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--rail-text-secondary);
   margin: 10px 0 5px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.rail-h4--muted { color: var(--text-muted); }
+.rail-h4--muted { color: var(--rail-text-muted); }
 .rail-phase {
   font-size: 9px;
-  color: var(--text-muted);
-  background: var(--chrome-light);
+  font-family: var(--font-mono);
+  color: var(--rail-text-muted);
+  background: rgba(255, 255, 255, 0.06);
   padding: 1px 6px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--rail-border);
   text-transform: none;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.02em;
 }
 
 /* ── Draw-target bar (now in topbar as badge) ─────────────────  */
@@ -2138,13 +2297,14 @@ a { color: var(--accent); }
 }
 .job-context-strip__wo { color: var(--accent-blue); }
 
-/* ── Left rail: steel panel + rivets at corners ─────────── */
+/* ── Left rail: dark command panel (high-contrast text) ─── */
 .left-rail {
-  background: #ffffff;
+  background: var(--rail-bg);
+  color: var(--rail-text);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  border-right: 1px solid rgba(0,0,0,0.10);
-  box-shadow: 2px 0 12px rgba(0,0,0,0.10);
+  border-right: 1px solid var(--rail-border);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
 }
 .left-rail::before,
 .left-rail::after { display: none; }
@@ -2715,13 +2875,11 @@ input:focus, textarea:focus, select:focus {
     0 3px 10px rgba(0,0,0,0.18);
 }
 
-/* Polished left rail / layers / job-context strip:
-   remove the harsh inset dark edges. */
+/* Polished left rail / layers / job-context strip */
 .left-rail {
   box-shadow:
-    inset 1px 0 0 rgba(255,255,255,0.55),
-    inset -1px 0 0 rgba(0,0,0,0.12),
-    2px 0 10px rgba(0,0,0,0.14);
+    inset -1px 0 0 rgba(255, 255, 255, 0.04),
+    4px 0 24px rgba(0, 0, 0, 0.4);
 }
 .layers-panel,
 .layers-panel--collapsed {
@@ -3036,6 +3194,7 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  color: var(--rail-text);
 }
 
 .filters-tab__group {
@@ -3045,13 +3204,25 @@ input:focus, textarea:focus, select:focus {
 }
 
 .filters-tab__heading {
-  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: #1565C0;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--rail-accent);
   text-transform: uppercase;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
+}
+
+.filters-tab .check,
+.filters-tab label {
+  color: var(--rail-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.filters-tab .link {
+  color: var(--rail-accent);
+  font-weight: 600;
 }
 
 /* In the filters tab, pills wrap vertically inside the narrow rail. */
@@ -3069,7 +3240,7 @@ input:focus, textarea:focus, select:focus {
    - Screenshot/measure buttons gain an --active state for tool toggles
    - MapTypeToggle inline-friendly in topbar
 */
-.topbar .logo { height: 60px; }
+.topbar .logo { height: 40px; max-height: 40px; }
 
 /* 6/18/26: widened search bar after MapTypeToggle moved to Filters tab.
    Previously flex 0 1 280px / max 320 / min 200. Now ~70% wider per approved
@@ -3138,10 +3309,11 @@ input:focus, textarea:focus, select:focus {
    absolute-top-of-map position, slightly taller (44px) to fit selects. */
 .editor-toolbar {
   position: absolute;
+  /* Sit fully inside the map pane (not under app topbar) */
   top: 0;
   left: 0;
   right: 0;
-  z-index: 30;
+  z-index: 35;
   background: rgba(250, 250, 247, 0.94);
   backdrop-filter: blur(18px) saturate(1.4);
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
@@ -3523,130 +3695,7 @@ input:focus, textarea:focus, select:focus {
   .jobs-shown-pill .jsp-chevron { color: #e6edf3; }
 }
 
-/* ─── Library Tab (Phase 2 stub) ──────────────────────────────── */
-.library-tab {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 4px 2px;
-}
 
-.library-search {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(30, 58, 95, 0.18);
-  background: #fff;
-  color: #1e3a5f;
-}
-.library-search:focus-within {
-  border-color: #00d4ff;
-  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.18);
-}
-.library-search svg { color: rgba(30, 58, 95, 0.5); flex-shrink: 0; }
-.library-search input {
-  flex: 1;
-  background: transparent;
-  border: 0;
-  outline: 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: #1e3a5f;
-  min-width: 0;
-}
-
-.library-chips {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.library-chip {
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(30, 58, 95, 0.18);
-  background: #fff;
-  color: #1e3a5f;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-.library-chip:hover {
-  border-color: #00d4ff;
-  background: rgba(0, 212, 255, 0.06);
-}
-.library-chip--active {
-  background: #00d4ff;
-  color: #04222e;
-  border-color: #00d4ff;
-  box-shadow: 0 0 8px rgba(0, 212, 255, 0.35);
-}
-
-.library-section-header {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: #1e3a5f;
-  opacity: 0.75;
-  margin-top: 4px;
-}
-
-.library-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-.library-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 8px 4px;
-  border-radius: 8px;
-  border: 1px solid rgba(30, 58, 95, 0.15);
-  background: #fff;
-  cursor: pointer;
-  transition: all 0.12s ease;
-  aspect-ratio: 1;
-}
-.library-tile:hover {
-  border-color: #00d4ff;
-  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.18);
-}
-.library-tile--ghost {
-  cursor: default;
-  opacity: 0.5;
-}
-.library-tile__ghost-icon {
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, rgba(30,58,95,0.10), rgba(0,212,255,0.10));
-}
-.library-tile__label {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  color: #1e3a5f;
-  text-transform: uppercase;
-}
-
-.library-coming-soon {
-  font-size: 10px;
-  line-height: 1.5;
-  color: #1e3a5f;
-  opacity: 0.65;
-  margin: 8px 0 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: rgba(0, 212, 255, 0.06);
-  border-left: 2px solid #00d4ff;
-}
 
 /* ─────────────────────────────────────────────────────────────
    Billy 6/4: White topbar with North Sky blue (#0052cc) info
@@ -3796,3 +3845,9 @@ input:focus, textarea:focus, select:focus {
   justify-content: center !important;
 }
 .search-form__submit--icon svg { display: block; }
+
+/* Disable Vercel Toolbar strobing / hide it if it's glitching out */
+.vercel-live-feedback, cgw-writer-modal, #vercel-live-feedback {
+  display: none !important;
+  animation: none !important;
+}

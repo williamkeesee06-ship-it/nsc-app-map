@@ -8,6 +8,8 @@
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 
+import { request } from "../../../lib/api.js";
+
 // Use a permissive type for what we expose to the model — the full Task
 // shape lives server-side, but Lumina only needs id/text/source/parent.
 interface TaskSummary {
@@ -26,23 +28,18 @@ async function run(
   _input: Record<string, unknown>,
   _ctx: LuminaToolContext
 ): Promise<LuminaToolResult<ListOpenTasksData>> {
-  const res = await fetch(
-    `/api/tasks?owner=${encodeURIComponent("Billy Keesee")}`
-  );
-
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = (await res.json()) as { error?: string };
-      detail = j.error ?? "";
-    } catch { /* ignore */ }
+  let body: { tasks: Array<Record<string, unknown>> };
+  try {
+    body = await request<{ tasks: Array<Record<string, unknown>> }>(
+      `/api/tasks?owner=${encodeURIComponent("Billy Keesee")}`
+    );
+  } catch (err) {
     return {
       ok: false,
-      message: `listOpenTasks failed (${res.status}).${detail ? " " + detail : ""}`,
+      message: `listOpenTasks failed. ${(err as Error).message}`,
     };
   }
 
-  const body = (await res.json()) as { tasks: Array<Record<string, unknown>> };
   const tasks: TaskSummary[] = (body.tasks ?? []).map((t) => ({
     id: String(t.id ?? ""),
     text: String(t.text ?? ""),

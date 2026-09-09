@@ -146,6 +146,12 @@ export interface PendingMarkupLabel extends PendingActionBase {
   label: string;
 }
 
+export interface PendingJobUpdate extends PendingActionBase {
+  kind: "jobUpdate";
+  jobId: string;
+  updates: Record<string, any>;
+}
+
 /**
  * Phase 5 — propose to save a durable memory item for this user.
  * Lumina drafts the text she heard; Billy approves the card before it lands
@@ -164,4 +170,5 @@ export type PendingAction =
   | PendingStatusChange
   | PendingMarkupLabel
   | PendingMemorySave
-  | PendingReschedule;
+  | PendingReschedule
+  | PendingJobUpdate;

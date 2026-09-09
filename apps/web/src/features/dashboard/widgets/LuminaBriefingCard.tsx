@@ -6,15 +6,19 @@
 
 import { useEffect, useState } from "react";
 import { api, type DashboardBriefing } from "../../../lib/api.js";
+import Bezel from "../components/Bezel.js";
+import NeonOrb from "../components/NeonOrb.js";
 
 export interface LuminaBriefingCardProps {
   firstName: string;
   username: string | null;
+  contract: string;
 }
 
 export default function LuminaBriefingCard({
   firstName,
   username,
+  contract,
 }: LuminaBriefingCardProps) {
   const [briefing, setBriefing] = useState<DashboardBriefing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +31,7 @@ export default function LuminaBriefingCard({
     let cancelled = false;
     setLoading(true);
     api
-      .getDashboardBriefing(username ?? "")
+      .getDashboardBriefing(username ?? "", contract)
       .then((b) => {
         if (!cancelled) setBriefing(b);
       })
@@ -40,7 +44,7 @@ export default function LuminaBriefingCard({
     return () => {
       cancelled = true;
     };
-  }, [username]);
+  }, [username, contract]);
 
   async function ask() {
     const prompt = question.trim();
@@ -48,7 +52,7 @@ export default function LuminaBriefingCard({
     setAsking(true);
     setAnswer(null);
     try {
-      const res = await api.askLumina(prompt, username);
+      const res = await api.askLumina(prompt, username, contract);
       setAnswer(res.text?.trim() || "Lumina didn't return a reply.");
       setQuestion("");
     } catch {
@@ -58,38 +62,41 @@ export default function LuminaBriefingCard({
     }
   }
 
-  const greeting = briefing?.greeting || `Good morning, ${firstName}.`;
+  const greeting = briefing?.greeting || (firstName ? `Good morning, ${firstName}.` : "Good morning.");
   const bullets = briefing?.bullets ?? [];
 
   return (
-    <div className="card card--light lumina-card">
-      <div className="lumina-card__head">
-        <span className="lumina-card__orb" aria-hidden />
-        <div className="lumina-card__greeting">
-          <span className="lumina-card__brand">Lumina</span>
-          <span className="lumina-card__hello">{greeting}</span>
-        </div>
+    <Bezel className="card lumina-card">
+      <div className="lumina-card__brand-row">
+        <span className="lumina-card__brand">Lumina AI Briefing</span>
       </div>
+      <div className="lumina-card__layout">
+        <div className="lumina-card__orb-col">
+          <NeonOrb size={110} />
+        </div>
 
-      {loading ? (
-        <div className="dash-skel dash-skel--list" aria-hidden />
-      ) : (
-        <ul className="lumina-card__bullets">
-          {bullets.length === 0 ? (
-            <li className="lumina-card__bullet">No briefing items right now.</li>
+        <div className="lumina-card__main">
+          <span className="lumina-card__hello">{greeting}</span>
+
+          {loading ? (
+            <div className="dash-skel dash-skel--list" aria-hidden />
           ) : (
-            bullets.map((b, i) => (
-              <li className="lumina-card__bullet" key={i}>
-                {b}
-              </li>
-            ))
+            <ul className="lumina-card__bullets">
+              {bullets.length === 0 ? (
+                <li className="lumina-card__bullet">No briefing items right now.</li>
+              ) : (
+                bullets.map((b, i) => (
+                  <li className="lumina-card__bullet" key={i}>
+                    {b}
+                  </li>
+                ))
+              )}
+            </ul>
           )}
-        </ul>
-      )}
 
-      {answer && <div className="lumina-card__answer">{answer}</div>}
+          {answer && <div className="lumina-card__answer">{answer}</div>}
 
-      <div className="lumina-card__ask">
+          <div className="lumina-card__ask">
         <input
           className="lumina-card__ask-input"
           type="text"
@@ -118,7 +125,9 @@ export default function LuminaBriefingCard({
             />
           </svg>
         </button>
+          </div>
+        </div>
       </div>
-    </div>
+    </Bezel>
   );
 }

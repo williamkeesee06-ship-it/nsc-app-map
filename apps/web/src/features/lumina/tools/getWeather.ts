@@ -15,6 +15,8 @@
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 
+import { request } from "../../../lib/api.js";
+
 interface WeatherInput {
   lat: number;
   lng: number;
@@ -50,13 +52,14 @@ async function run(
     return { ok: false, message: "getWeather requires numeric lat and lng." };
   }
   const periods = Math.min(Math.max(input.periods ?? 14, 1), 14);
-  const res = await fetch(
-    `/api/lumina/weather?lat=${input.lat}&lng=${input.lng}&periods=${periods}`
-  );
-  if (!res.ok) {
-    return { ok: false, message: `Weather lookup failed (${res.status}).` };
+  let body: WeatherData;
+  try {
+    body = await request<WeatherData>(
+      `/api/lumina/weather?lat=${input.lat}&lng=${input.lng}&periods=${periods}`
+    );
+  } catch (err) {
+    return { ok: false, message: `Weather lookup failed. ${(err as Error).message}` };
   }
-  const body = (await res.json()) as WeatherData;
   return {
     ok: true,
     message: `Forecast for ${body.area ?? `${input.lat.toFixed(3)},${input.lng.toFixed(3)}`}: ${body.periods.length} periods.`,

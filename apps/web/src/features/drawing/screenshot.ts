@@ -6,7 +6,6 @@
 // — the live DOM is what we capture.
 
 import type { DrawingObject } from "@nsc/types";
-import html2canvas from "html2canvas";
 
 export async function downloadScreenshot(
   _map: google.maps.Map,
@@ -14,9 +13,10 @@ export async function downloadScreenshot(
 ): Promise<void> {
   try {
     const target = document.body;
+    const html2canvas = (await import("html2canvas")).default;
     const canvas = await html2canvas(target, {
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       backgroundColor: "#0b0f13",
       logging: false,
       // Capture at the device-pixel resolution for crisp output.

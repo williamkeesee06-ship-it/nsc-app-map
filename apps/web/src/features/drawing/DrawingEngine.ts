@@ -83,9 +83,21 @@ export class DrawingEngine {
   }
 
   activate(tool: DrawingTool, style: DrawingStyle): void {
-    this.deactivate();
+    this.clearState();
     this.tool = tool;
     this.style = style;
+
+    if (tool === "select") {
+      // Select tool: normal map panning + object selection
+      this.map.setOptions({
+        draggableCursor: "default",
+        draggable: true,           // Explicitly allow panning
+        disableDoubleClickZoom: false,
+      });
+      // No special drawing listeners for pure select mode
+      return;
+    }
+
     this.map.setOptions({ draggableCursor: this.cursorFor(tool) });
 
     if (this.isPolylineTool(tool) || tool === "polygon" || tool === "measure") {
@@ -107,8 +119,13 @@ export class DrawingEngine {
     }
   }
 
-  deactivate(): void {
-    this.listeners.forEach((l) => l.remove());
+  private clearState(): void {
+    this.listeners.forEach((l) => {
+      try {
+        if (typeof l?.remove === "function") l.remove();
+        else if (typeof google !== "undefined" && google.maps?.event?.removeListener) google.maps.event.removeListener(l);
+      } catch { /* ignore */ }
+    });
     this.listeners = [];
     this.previewLine?.setMap(null);
     this.previewLine = null;
@@ -127,6 +144,10 @@ export class DrawingEngine {
     this.tool = null;
     this.style = null;
     this.map.setOptions({ draggableCursor: null, draggable: true });
+  }
+
+  deactivate(): void {
+    this.clearState();
     this.onDrawEnd?.();
   }
 
@@ -224,17 +245,7 @@ export class DrawingEngine {
   /** Tools that need user-supplied label/description on creation. */
   private needsLabelPopup(tool: DrawingTool): boolean {
     return [
-      // Telecom
-      "placed_cable", "removed_cable",
-      "mh_new", "mh_removed",
-      "hh_new", "hh_removed",
-      "ped_new", "ped_removed",
-      "pole_new", "pole_removed",
-      "cabinet_new", "cabinet_removed",
-      "anchor_new", "anchor_removed",
-      "splice",
-      // Text-bearing markups also use the popup to capture the user's typed text/notes
-      "text", "callout",
+      "text", "callout"
     ].includes(tool);
   }
 
@@ -246,7 +257,10 @@ export class DrawingEngine {
   }
 
   private isPolylineTool(tool: DrawingTool): boolean {
-    return ["placed_cable", "removed_cable", "line", "arrow"].includes(tool);
+    return [
+      "placed_cable", "removed_cable", "line", "arrow",
+      "ziply_feeder", "ziply_distribution", "ziply_drop", "ziply_bore"
+    ].includes(tool);
   }
 
   private isPointTool(tool: DrawingTool): boolean {
@@ -258,6 +272,10 @@ export class DrawingEngine {
       "cabinet_new", "cabinet_removed",
       "anchor_new", "anchor_removed",
       "splice",
+      "flower_pot_new", "flower_pot_removed",
+      // Ziply point tools
+      "ziply_hub", "ziply_terminal", "ziply_address", "ziply_pole", "ziply_handhole", "ziply_flower_pot",
+      "ziply_splitter", "ziply_riser", "ziply_slack_loop"
     ].includes(tool);
   }
 
@@ -267,11 +285,12 @@ export class DrawingEngine {
     const style = this.style!;
 
     // Live preview polyline
+    const isLineTool = this.tool ? this.isPolylineTool(this.tool) : false;
     this.previewLine = new google.maps.Polyline({
       path: [],
-      strokeColor: style.strokeColor,
-      strokeWeight: style.strokeWidth,
-      strokeOpacity: style.opacity,
+      strokeColor: isLineTool ? "#FFFF00" : style.strokeColor,
+      strokeWeight: isLineTool ? 4 : style.strokeWidth,
+      strokeOpacity: isLineTool ? 1.0 : style.opacity,
       strokeDashArray:
         style.strokeStyle === "dashed" ? "8 4"
         : style.strokeStyle === "dotted" ? "2 4"
@@ -332,7 +351,7 @@ export class DrawingEngine {
     const style = this.style!;
     const verts = [...this.vertices];
 
-    if (verts.length < 2) {
+    if (verts.length < 2 || (tool === "polygon" && verts.length < 3)) {
       this.deactivate();
       return;
     }
@@ -401,7 +420,7 @@ export class DrawingEngine {
     const midVert = verts[Math.floor(verts.length / 2)]!;
     const obj: DrawingObject = {
       id: genId(),
-      tool: "freehand",
+      tool: (this.tool === "highlighter" ? "highlighter" : "freehand") as "freehand" | "highlighter",
       vertices: verts,
       style,
     };

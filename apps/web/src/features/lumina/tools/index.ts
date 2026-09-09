@@ -47,6 +47,13 @@ import { memoryTools } from "./memoryTools.js";
 import { addTaskTool } from "./addTask.js";
 import { completeTaskTool } from "./completeTask.js";
 import { listOpenTasksTool } from "./listOpenTasks.js";
+import { addGigTool } from "./addGig.js";
+import { completeGigTool } from "./completeGig.js";
+import { removeGigTool } from "./removeGig.js";
+import { listOpenGigsTool } from "./listOpenGigs.js";
+import { digTicketTools } from "./digTicketTools.js";
+import { searchCodebaseTool, readSourceFileTool } from "./codeTools.js";
+import { queryFirestoreTool } from "./dataTools.js";
 
 const ALL_TOOLS: LuminaTool<any, any>[] = [
   // NSC reads
@@ -85,6 +92,18 @@ const ALL_TOOLS: LuminaTool<any, any>[] = [
   addTaskTool,
   completeTaskTool,
   listOpenTasksTool,
+  // Ziply Gigs
+  addGigTool,
+  completeGigTool,
+  removeGigTool,
+  listOpenGigsTool,
+  // 811 Dig Ticket Manager
+  ...digTicketTools,
+  // God Mode - Codebase Access
+  searchCodebaseTool,
+  readSourceFileTool,
+  // God Mode - Data Access
+  queryFirestoreTool,
 ];
 
 const REGISTRY: Record<string, LuminaTool<any, any>> = Object.fromEntries(

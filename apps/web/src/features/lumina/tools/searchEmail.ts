@@ -16,6 +16,8 @@
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 
+import { request } from "../../../lib/api.js";
+
 interface SearchEmailInput {
   /** Gmail search syntax or a plain keyword. */
   q: string;
@@ -47,19 +49,15 @@ async function run(
   const params = new URLSearchParams({ q });
   if (input.limit) params.set("limit", String(input.limit));
 
-  const res = await fetch(`/api/lumina/inbox/search?${params.toString()}`);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = (await res.json()) as { error?: string };
-      detail = j.error ?? "";
-    } catch { /* ignore */ }
+  let body: SearchEmailData;
+  try {
+    body = await request<SearchEmailData>(`/api/lumina/inbox/search?${params.toString()}`);
+  } catch (err) {
     return {
       ok: false,
-      message: `Inbox search failed (${res.status}).${detail ? " " + detail : ""}`,
+      message: `Inbox search failed. ${(err as Error).message}`,
     };
   }
-  const body = (await res.json()) as SearchEmailData;
   return {
     ok: true,
     message:

@@ -28,6 +28,8 @@ export interface LuminaLiveToolCall {
   args: Record<string, unknown>;
 }
 
+import { request } from "../../../lib/api.js";
+
 export interface LuminaLiveToolResult {
   ok: boolean;
   message?: string;
@@ -117,16 +119,10 @@ export class LuminaLiveSession {
       const username = this.cb.getUsername?.() || "";
       // NOTE: path is /api/lumina/live-token (with slash). The dash variant
       // was the old monorepo path and does NOT exist on this server.
-      const res = await fetch("/api/lumina/live-token", {
+      token = await request<TokenResponse>("/api/lumina/live-token", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
       });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Token fetch ${res.status}: ${err.slice(0, 200)}`);
-      }
-      token = (await res.json()) as TokenResponse;
     } catch (err) {
       this.fail(`Token error: ${(err as Error).message}`);
       throw err;
@@ -275,6 +271,9 @@ export class LuminaLiveSession {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.setupSent) return;
     const input = e.inputBuffer.getChannelData(0);
 
+    const rms = calculateRMS(input);
+    window.dispatchEvent(new CustomEvent("nsc:audio-volume", { detail: { volume: rms, source: "input" } }));
+
     // If the AudioContext didn't honor our 16kHz request, resample.
     let frame: Float32Array = input;
     const ctxRate = this.inputCtx?.sampleRate ?? INPUT_RATE;
@@ -386,6 +385,9 @@ export class LuminaLiveSession {
     const bytes = base64ToUint8(b64);
     const pcm = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
     const float = int16ToFloat32(pcm);
+
+    const rms = calculateRMS(float);
+    window.dispatchEvent(new CustomEvent("nsc:audio-volume", { detail: { volume: rms, source: "output" } }));
 
     // The output context might not have honored our 24kHz request. Build a buffer
     // at OUTPUT_RATE and let the context resample, OR resample manually.
@@ -696,6 +698,14 @@ function int16ToFloat32(input: Int16Array): Float32Array {
     out[i] = input[i] / 0x8000;
   }
   return out;
+}
+
+function calculateRMS(data: Float32Array): number {
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    sum += data[i] * data[i];
+  }
+  return Math.sqrt(sum / data.length);
 }
 
 function arrayBufferToBase64(buf: ArrayBufferLike): string {

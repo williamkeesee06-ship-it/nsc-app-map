@@ -17,11 +17,17 @@ export type BucketCounts = Record<StatusBucket, number>;
 
 export function emptyBucketCounts(): BucketCounts {
   return {
-    needs_fielding: 0,
-    rts: 0,
-    on_hold: 0,
-    pending: 0,
+    commitment: 0,
     in_progress: 0,
+    rts: 0,
+    ready_soon: 0,
+    resto: 0,
+    gigs: 0,
+    on_hold: 0,
+    // Legacy buckets (kept in the type union for back-compat but no longer
+    // populated by bucketForJob's Ziply path).
+    needs_fielding: 0,
+    pending: 0,
     completed: 0,
   };
 }

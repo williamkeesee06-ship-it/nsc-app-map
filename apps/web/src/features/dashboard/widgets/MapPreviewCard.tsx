@@ -18,6 +18,10 @@ import {
   isJobCompleted,
   neonPinDataUrl,
 } from "../../jobs-map/markerStyle.js";
+import Bezel from "../components/Bezel.js";
+import RadialGauge from "../components/RadialGauge.js";
+
+const KPI_COLORS = ["#3da9ff", "#6be7c4", "#ffb547"];
 
 const ACTIVE_BUCKETS = new Set(["needs_fielding", "rts", "pending", "in_progress"]);
 
@@ -99,9 +103,9 @@ export default function MapPreviewCard({ jobs, onOpenMap }: MapPreviewCardProps)
   }, [jobs]);
 
   return (
-    <div className="card card--dark map-preview">
+    <Bezel className="card map-preview">
       <div className="card__header">
-        <h2 className="card__title">Map</h2>
+        <h2 className="card__title">Map Overview</h2>
         <span className="map-preview__live">
           <span className="map-preview__live-dot" aria-hidden />
           LIVE
@@ -128,13 +132,17 @@ export default function MapPreviewCard({ jobs, onOpenMap }: MapPreviewCardProps)
       </button>
 
       <div className="map-preview__kpis">
-        {kpis.map((k) => (
-          <div className="map-preview__kpi" key={k.label}>
-            <span className="map-preview__kpi-value">{k.value}</span>
-            <span className="map-preview__kpi-label">{k.label}</span>
-          </div>
+        {kpis.map((k, i) => (
+          <RadialGauge
+            key={k.label}
+            value={Number(k.value) || 0}
+            display={k.value}
+            label={k.label}
+            color={KPI_COLORS[i % KPI_COLORS.length]}
+            size={72}
+          />
         ))}
       </div>
-    </div>
+    </Bezel>
   );
 }

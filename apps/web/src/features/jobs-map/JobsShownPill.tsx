@@ -1,41 +1,40 @@
-// JobsShownPill — Minimal pill (Phase 2 redesign).
+// UploadPrintsPill - Minimal pill (Phase 2 redesign).
 //
-// Floats above the map, shows "JOBS SHOWN <n>/<total>" with cyan neon accent.
-// Replaces the larger "Jobs Shown 59/209" widget Billy wanted minimized.
+// Floats above the map, shows "UPLOAD PRINTS & PERMITS" with cyan neon accent.
+// Replaces the older "Jobs Shown" widget.
 
 interface Props {
-  shown: number;
-  total: number;
   onClick?: () => void;
 }
 
-export default function JobsShownPill({ shown, total, onClick }: Props) {
+export default function JobsShownPill({ onClick }: Props) {
   return (
     <button
       type="button"
       className="jobs-shown-pill"
       onClick={onClick}
-      title={`${shown} of ${total} jobs shown`}
-      aria-label={`${shown} of ${total} jobs shown`}
+      title="Upload Prints & Permits"
+      aria-label="Upload Prints & Permits"
+      style={{ cursor: "pointer", background: "rgba(15, 23, 42, 0.8)", border: "1px solid #3aa7ff" }}
     >
-      <span className="jsp-dot" aria-hidden="true" />
-      <span className="jsp-label">JOBS SHOWN</span>
-      <span className="jsp-num">{shown}</span>
-      <span className="jsp-divider">/</span>
-      <span className="jsp-den">{total}</span>
+      <span className="jsp-dot" aria-hidden="true" style={{ background: "#3aa7ff" }} />
+      <span className="jsp-label" style={{ color: "#e0f2fe", fontWeight: 700 }}>UPLOAD PRINTS & PERMITS</span>
       <svg
         className="jsp-chevron"
-        width="12"
-        height="12"
-        viewBox="0 0 12 12"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
         fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
+        stroke="#3aa7ff"
+        strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
         aria-hidden="true"
+        style={{ marginLeft: 8 }}
       >
-        <polyline points="3 5 6 8 9 5" />
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
       </svg>
     </button>
   );

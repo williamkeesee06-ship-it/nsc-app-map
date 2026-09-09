@@ -11,3 +11,12 @@ dist
 node_modules
 serviceAccount*.json
 .env*.local
+.env*
+
+# Local reference prints / permits / screenshots (not for git — large PDFs)
+SHARED/
+
+# Python extract/build artifacts
+scripts/__pycache__/
+**/__pycache__/
+apps/web/public/experiments/**/geocode_cache.json

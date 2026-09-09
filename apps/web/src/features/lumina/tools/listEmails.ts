@@ -15,6 +15,8 @@
 
 import type { LuminaTool, LuminaToolContext, LuminaToolResult } from "./types.js";
 
+import { request } from "../../../lib/api.js";
+
 interface ListEmailsInput {
   /** Max messages to return (1-50). Default 10. */
   limit?: number;
@@ -48,19 +50,15 @@ async function run(
   if (input.unreadOnly) params.set("unreadOnly", "true");
   if (input.since) params.set("since", input.since);
 
-  const res = await fetch(`/api/lumina/inbox/list?${params.toString()}`);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = (await res.json()) as { error?: string };
-      detail = j.error ?? "";
-    } catch { /* ignore */ }
+  let body: ListEmailsData;
+  try {
+    body = await request<ListEmailsData>(`/api/lumina/inbox/list?${params.toString()}`);
+  } catch (err) {
     return {
       ok: false,
-      message: `Inbox unavailable (${res.status}).${detail ? " " + detail : ""}`,
+      message: `Inbox unavailable. ${(err as Error).message}`,
     };
   }
-  const body = (await res.json()) as ListEmailsData;
   const unreadCount = body.messages.filter((m) => m.unread).length;
   return {
     ok: true,

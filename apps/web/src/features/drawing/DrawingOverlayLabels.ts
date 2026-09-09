@@ -25,19 +25,34 @@ export const ZOOM_REF = 17;
 /** Hide all atag labels when zoomed out below this level. */
 export const MIN_LABEL_ZOOM = 16;
 
+import { getActiveContract } from "../workspace/contractStore.js";
+
 // ── Label text resolution ────────────────────────────────────────────────────
 
 /** Pick the best label text for any object — used at zoom ≥ MIN_LABEL_ZOOM.
  *  Single source of truth: ATAG/MH/callout/text — every label type funnels
  *  through here so the search index and the visible white-box label agree. */
 export function labelTextForObj(obj: DrawingObject): string | null {
-  if (obj.style.hidden) return null;
+  if (obj.style.hidden || obj.style.isDeleted) return null;
   // Text/callout tools store the user-typed string in `obj.text` — prefer that
   // so the label shown matches what the user typed when placing the callout.
-  if ("text" in obj && obj.text && obj.text.trim()) return obj.text.trim();
-  if (obj.style.userLabel && obj.style.userLabel.trim()) return obj.style.userLabel.trim();
-  if (obj.style.description && obj.style.description.trim()) return obj.style.description.trim();
-  return null;
+  let text = "";
+  if ("text" in obj && obj.text && obj.text.trim()) text = obj.text.trim();
+  else if (obj.style.userLabel && obj.style.userLabel.trim()) text = obj.style.userLabel.trim();
+  else if (obj.style.description && obj.style.description.trim()) text = obj.style.description.trim();
+  else {
+    const footage = obj.style.footageOverride ?? obj.style.calculatedFootage ?? obj.style.ziplyFootage;
+    if (footage) text = `${footage}'`;
+  }
+  
+  if (text) {
+    const contract = getActiveContract();
+    const isPoleOrEquipment = obj.tool.includes("pole") || obj.tool.includes("hub") || obj.tool.includes("terminal");
+    if (contract === "Ziply" && isPoleOrEquipment && /^a-/i.test(text)) {
+      text = text.slice(2);
+    }
+  }
+  return text || null;
 }
 
 // ── SVG label helpers ────────────────────────────────────────────────────────
@@ -50,32 +65,42 @@ function escSvg(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-const LABEL_CHAR_W = 7;
-const LABEL_PAD = 10;
-const LABEL_H = 18;
+const LABEL_CHAR_W = 8.5;
+const LABEL_PAD = 14;
+const LABEL_H = 26;
 
 export function labelWidth(text: string): number {
-  return Math.max(36, text.length * LABEL_CHAR_W + LABEL_PAD * 2);
+  return Math.max(48, text.length * LABEL_CHAR_W + LABEL_PAD * 2);
 }
 
-/** Default neutral border used for ATAG/MH/text labels. Callout labels override
+/** Default metallic slate border used for ATAG/MH/text labels. Callout labels override
  *  this with the leader-line color so changing the callout color also recolors
- *  the text-box border (Billy 6/10). */
-export const DEFAULT_LABEL_BORDER = "#C8D0DA";
+ *  the text-box border. */
+export const DEFAULT_LABEL_BORDER = "#94a3b8"; // sleek metallic slate
 
 export function makeLabelSvg(text: string, borderColor: string = DEFAULT_LABEL_BORDER): string {
   const w = labelWidth(text);
   const h = LABEL_H;
-  // Callout color matching: the text-box outline mirrors the leader line so
-  // recoloring the callout in the markup panel updates the whole annotation.
-  // Use a slightly thicker stroke when a custom color is supplied so the
-  // colored border reads at a glance against the white fill.
+  
+  // Luxurious Light Mode & High-Tech Map Engineer Aesthetic
+  // Deep cyan/neon accents on white pill, soft glowing shadow.
+  // We use SVG filters to give it a polished, premium UI feel.
   const isCustom = borderColor !== DEFAULT_LABEL_BORDER;
-  const strokeW = isCustom ? 1.5 : 1;
+  const strokeW = isCustom ? 2 : 1.5;
+  const activeBorderColor = isCustom ? borderColor : "#cbd5e1";
+
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
-    `<rect x="0.75" y="0.75" width="${w - 1.5}" height="${h - 1.5}" rx="4" ry="4" fill="white" stroke="${escSvg(borderColor)}" stroke-width="${strokeW}"/>` +
-    `<text x="${w / 2}" y="${h / 2 + 4}" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="10" font-weight="bold" fill="#1A2332">${escSvg(text)}</text>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w + 16}" height="${h + 16}">` +
+    `<defs>` +
+    `  <filter id="glow-${w}" x="-20%" y="-20%" width="140%" height="140%">` +
+    `    <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.12"/>` +
+    `  </filter>` +
+    `</defs>` +
+    // Outer shell with drop shadow
+    `<rect x="8" y="8" width="${w}" height="${h}" rx="13" ry="13" fill="rgba(255, 255, 255, 0.98)" stroke="${escSvg(activeBorderColor)}" stroke-width="${strokeW}" filter="url(#glow-${w})"/>` +
+    // Inner glass bezel (Doppelrand)
+    `<rect x="9.5" y="9.5" width="${w - 3}" height="${h - 3}" rx="11.5" ry="11.5" fill="none" stroke="rgba(255, 255, 255, 0.9)" stroke-width="1"/>` +
+    `<text x="${w / 2 + 8}" y="${h / 2 + 12}" text-anchor="middle" font-family="Inter, Roboto, system-ui, sans-serif" font-size="11.5" font-weight="700" letter-spacing="0.4" fill="#0f172a">${escSvg(text)}</text>` +
     `</svg>`
   );
 }
@@ -284,9 +309,11 @@ export function makeLabelMarkerAt(
     map,
     icon: {
       url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
-      anchor: new google.maps.Point(0, h / 2),
-      size: new google.maps.Size(w, h),
-      scaledSize: new google.maps.Size(w, h),
+      // We added 16px of padding to the SVG for the glow effect.
+      // So the anchor X (left edge) shifts from 0 to 8, and Y shifts from h/2 to h/2 + 8.
+      anchor: new google.maps.Point(8, h / 2 + 8),
+      size: new google.maps.Size(w + 16, h + 16),
+      scaledSize: new google.maps.Size(w + 16, h + 16),
     },
     // Labels are clickable when a handler is supplied so single-click on a
     // label opens the same editor as clicking the markup itself.
