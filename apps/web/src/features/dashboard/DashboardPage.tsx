@@ -26,6 +26,7 @@ import CalendarCard from "./widgets/CalendarCard.js";
 import GigWorkCard from "./widgets/GigWorkCard.js";
 import ZiplyRollupCard from "./widgets/ZiplyRollupCard.js";
 import PortfolioDashboard from "./PortfolioDashboard.js";
+import { TitaniumHexBolt } from "../../components/HorologyMetalBezel.js";
 import "./styles/dashboard.css";
 
 export interface DashboardPageProps {
@@ -45,7 +46,10 @@ export default function DashboardPage({
 }: DashboardPageProps) {
   const { isManager } = useAuth();
   const { contract } = useActiveContract();
-  const [viewMode, setViewMode] = useState<"portfolio" | "build">("portfolio");
+  // Boot into the full Ziply build dashboard (WeatherStrip + gauges + active
+  // builds + rollup + gigs). The plain "portfolio" grid is opt-in via the
+  // switcher for jobs-across-contracts triage.
+  const [viewMode, setViewMode] = useState<"portfolio" | "build">("build");
 
   // Dashboard-wide Ziply filter. Lumen jobs still live in Firestore (per user
   // directive: "IGNORE" them, don't delete) but the entire dashboard now
@@ -83,42 +87,44 @@ export default function DashboardPage({
 
   return (
     <div className="nsc-dashboard" role="region" aria-label="Dashboard home" style={{ position: "relative", height: "100%", overflow: "hidden" }}>
-      {/* Top View Mode Switcher */}
-      <div style={{ position: "absolute", top: 12, right: 24, zIndex: 100, display: "flex", gap: 6, background: "rgba(15, 23, 42, 0.85)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: 3, backdropFilter: "blur(12px)" }}>
+      {/* View Mode Switcher — sapphire-glass segmented control with titanium
+          rivets to match the rest of the app chrome. */}
+      <div
+        className="absolute z-[100] flex items-center gap-1 rounded-xl px-2 py-1.5 backdrop-blur-md
+                   bg-slate-900/85 border border-slate-400/40
+                   shadow-[0_6px_20px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]"
+        style={{ top: 12, right: 24 }}
+        role="tablist"
+        aria-label="Dashboard view mode"
+      >
+        <TitaniumHexBolt size={10} className="opacity-70" />
         <button
           type="button"
-          onClick={() => setViewMode("portfolio")}
-          style={{
-            background: viewMode === "portfolio" ? "#0284c7" : "transparent",
-            color: viewMode === "portfolio" ? "#ffffff" : "#94a3b8",
-            border: "none",
-            borderRadius: 6,
-            padding: "4px 10px",
-            fontSize: 11,
-            fontWeight: 800,
-            cursor: "pointer",
-            transition: "all 0.15s",
-          }}
-        >
-          NSMS Portfolio Hub
-        </button>
-        <button
-          type="button"
+          role="tab"
+          aria-selected={viewMode === "build"}
           onClick={() => setViewMode("build")}
-          style={{
-            background: viewMode === "build" ? "#0284c7" : "transparent",
-            color: viewMode === "build" ? "#ffffff" : "#94a3b8",
-            border: "none",
-            borderRadius: 6,
-            padding: "4px 10px",
-            fontSize: 11,
-            fontWeight: 800,
-            cursor: "pointer",
-            transition: "all 0.15s",
-          }}
+          className={`px-3 py-1 rounded-md text-[11px] font-black uppercase tracking-widest transition-all duration-150 font-['Audiowide'] ${
+            viewMode === "build"
+              ? "bg-blue-600/85 text-white shadow-[0_0_12px_rgba(37,99,235,0.55)] border border-blue-400/70"
+              : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent"
+          }`}
         >
-          Ziply Build Grid
+          Ziply Build
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === "portfolio"}
+          onClick={() => setViewMode("portfolio")}
+          className={`px-3 py-1 rounded-md text-[11px] font-black uppercase tracking-widest transition-all duration-150 font-['Audiowide'] ${
+            viewMode === "portfolio"
+              ? "bg-blue-600/85 text-white shadow-[0_0_12px_rgba(37,99,235,0.55)] border border-blue-400/70"
+              : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent"
+          }`}
+        >
+          Portfolio Hub
+        </button>
+        <TitaniumHexBolt size={10} className="opacity-70" />
       </div>
 
       {viewMode === "portfolio" ? (
